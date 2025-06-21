@@ -6,9 +6,14 @@
 //
 
 import SwiftUI
+import UIKit
 
 @main
 struct KeyModApp: App {
+    init() {
+        UIDevice.current.setValue(UIInterfaceOrientation.landscapeLeft.rawValue, forKey: "orientation")
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
