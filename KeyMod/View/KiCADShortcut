@@ -1,0 +1,8 @@
+    }
+    
+    // MARK: - Move Function for Reordering
+    private func moveShortcut(from source: IndexSet, to destination: Int) {
+        myShortcuts.move(fromOffsets: source, toOffset: destination)
+    }
+    
+    // MARK: - Drop Delegate for Reordering
