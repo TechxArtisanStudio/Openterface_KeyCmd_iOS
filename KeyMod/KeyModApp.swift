@@ -20,6 +20,7 @@ public class AppDelegate: NSObject, UIApplicationDelegate {
 @main
 struct KeyModApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @StateObject private var launchPanelManager = LaunchPanelManager()
     
     init() {
         // No forced orientation on startup - let the app start in current device orientation
@@ -29,7 +30,15 @@ struct KeyModApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ZStack {
+                ContentView(launchPanelManager: launchPanelManager)
+                
+                if launchPanelManager.showLaunchPanel {
+                    LaunchPanelView(launchPanelManager: launchPanelManager)
+                        .transition(.opacity)
+                }
+            }
+            .ignoresSafeArea()
         }
     }
 }

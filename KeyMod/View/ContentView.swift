@@ -11,6 +11,7 @@ import CoreBluetooth
 import UIKit
 
 struct ContentView: View {
+    @ObservedObject var launchPanelManager: LaunchPanelManager
     @StateObject private var bleManager: BLEManager
     @StateObject private var mouseManager: MouseManager
     @StateObject private var keyboardManager: KeyboardManager
@@ -23,7 +24,8 @@ struct ContentView: View {
     @State private var selectedGamepadLayout: GamepadLayout = .xbox
     @State private var isGamepadEditMode = false
     
-    init() {
+    init(launchPanelManager: LaunchPanelManager) {
+        self.launchPanelManager = launchPanelManager
         let bleManager = BLEManager()
         _bleManager = StateObject(wrappedValue: bleManager)
         _mouseManager = StateObject(wrappedValue: MouseManager(bleManager: bleManager))
@@ -40,6 +42,7 @@ struct ContentView: View {
             modifiersDisplay
             sidebarNavigation
             Spacer()
+            sidebarModeSelectionButton
             sidebarSettingsButton
         }
         .frame(width: 180)
@@ -345,6 +348,31 @@ struct ContentView: View {
         .buttonStyle(PlainButtonStyle())
         .padding(.bottom, 30)
     }
+    
+    private var sidebarModeSelectionButton: some View {
+        Button(action: {
+            launchPanelManager.showLaunchPanelAgain()
+            withAnimation {
+                sidebarVisible = false
+            }
+        }) {
+            HStack {
+                Image(systemName: "sparkles")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 20, height: 20)
+                    .foregroundColor(.blue)
+                Text("Choose Mode")
+                    .font(.body)
+                    .foregroundColor(.primary)
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .background(Color.clear)
+            .cornerRadius(8)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
 
     private var mainContent: some View {
         ZStack {
@@ -466,6 +494,11 @@ struct ContentView: View {
                 // Start clipboard monitoring
                 clipboardManager.startMonitoring()
                 
+                // If user selected a mode from launch panel, switch to it
+                if !launchPanelManager.showLaunchPanel && launchPanelManager.selectedMode != .keyboardMouse {
+                    viewManager.switchToView(launchPanelManager.selectedMode)
+                }
+                
                 viewManager.onViewChange = { viewType in
                     if viewType == .gamepad {
                         orientationManager.lockToLandscape()
@@ -510,5 +543,5 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView()
+    ContentView(launchPanelManager: LaunchPanelManager())
 }
