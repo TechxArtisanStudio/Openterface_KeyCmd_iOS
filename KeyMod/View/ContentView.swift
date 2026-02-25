@@ -187,7 +187,16 @@ struct ContentView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .frame(height: 50)
-        .background(Color(UIColor.secondarySystemBackground))
+        .background(
+            GeometryReader { geo in
+                Color(UIColor.secondarySystemBackground)
+                    .onAppear {
+                        let globalFrame = geo.frame(in: .global)
+                        print("🔝 TopBar global frame: origin=\(globalFrame.origin) size=\(globalFrame.size)")
+                    }
+            }
+        )
+        .zIndex(100)
         .onAppear {
             print("🔝 TopBar rendered with height: 50")
         }
@@ -407,6 +416,8 @@ struct ContentView: View {
                 KiCADShortcutView(keyboardManager: keyboardManager)
             case .macros:
                 MacroView(keyboardManager: keyboardManager)
+            case .voiceInput:
+                VoiceInputView(keyboardManager: keyboardManager)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

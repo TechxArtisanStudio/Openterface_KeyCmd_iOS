@@ -14,6 +14,7 @@ enum ViewType: String, CaseIterable {
     case blenderShortcuts = "Blender Shortcuts"
     case kicadShortcuts = "KiCAD Shortcuts"
     case macros = "Macros"
+    case voiceInput = "Voice Input"
     
     var iconName: String {
         switch self {
@@ -29,6 +30,8 @@ enum ViewType: String, CaseIterable {
             return "cpu"
         case .macros:
             return "square.and.pencil"
+        case .voiceInput:
+            return "mic.circle"
         }
     }
 }

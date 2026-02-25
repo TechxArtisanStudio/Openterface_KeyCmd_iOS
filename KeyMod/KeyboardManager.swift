@@ -248,8 +248,14 @@ class KeyboardManager: ObservableObject {
                         } else {
                             self.sendKeyPressAndRelease(key: key)
                         }
+                    } else if char == " " {
+                        self.sendKeyPressAndRelease(key: "Space")
+                    } else if char == "\n" || char == "\r" {
+                        self.sendKeyPressAndRelease(key: "Enter")
+                    } else if char == "\t" {
+                        self.sendKeyPressAndRelease(key: "Tab")
                     } else {
-                        let needsShift = "!@#$%^&*()_+{}|:\"<>?".contains(char)
+                        let needsShift = "!@#$%^&*()_+{}|:\"<>?~".contains(char)
                         
                         if needsShift {
                             let shiftedChar = self.getShiftedCharacter(char)
