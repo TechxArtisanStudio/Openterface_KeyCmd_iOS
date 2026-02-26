@@ -116,11 +116,14 @@ class AITextRefinementManager {
             return
         }
         
-        // Fetch API key from Keychain
-        guard let apiKey = provider.getAPIKey(), !apiKey.isEmpty else {
-            logger.log("No API key found for AI refinement", category: "AIRefinement", level: .error)
-            completion(.failure(.noAPIKey))
-            return
+        // Fetch API key from Keychain (optional for some providers)
+        let apiKey = provider.getAPIKey()
+        if !provider.apiKeyOptional {
+            guard let key = apiKey, !key.isEmpty else {
+                logger.log("No API key found for AI refinement", category: "AIRefinement", level: .error)
+                completion(.failure(.noAPIKey))
+                return
+            }
         }
         
         // Build request
@@ -132,7 +135,7 @@ class AITextRefinementManager {
         }
         
         let request = TextRefinementRequest(
-            model: provider.modelName,
+            model: provider.modelName.trimmingCharacters(in: .whitespaces),
             messages: [
                 .init(role: "system", content: settings.systemPrompt),
                 .init(role: "user", content: input)
@@ -143,7 +146,10 @@ class AITextRefinementManager {
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        // Only set Authorization header if a key is available
+        if let key = apiKey, !key.isEmpty {
+            urlRequest.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        }
         
         do {
             urlRequest.httpBody = try JSONEncoder().encode(request)
@@ -174,6 +180,15 @@ class AITextRefinementManager {
         // Check for network error
         if let error = error {
             logger.log("Network error during AI refinement: \(error.localizedDescription)", category: "AIRefinement", level: .error)
+            // Log failed request
+            AIRequestHistoryManager.shared.logRequest(
+                provider: providerName,
+                model: settings.selectedProvider?.modelName ?? "Unknown",
+                input: originalText,
+                output: "",
+                success: false,
+                errorMessage: error.localizedDescription
+            )
             completion(.failure(.networkError(error.localizedDescription)))
             return
         }
@@ -189,12 +204,39 @@ class AITextRefinementManager {
                         let errorResponse = try JSONDecoder().decode(APIErrorResponse.self, from: data)
                         let errorMsg = errorResponse.error.message
                         logger.log("API error (status \(httpResponse.statusCode)): \(errorMsg)", category: "AIRefinement", level: .error)
+                        // Log failed request
+                        AIRequestHistoryManager.shared.logRequest(
+                            provider: providerName,
+                            model: settings.selectedProvider?.modelName ?? "Unknown",
+                            input: originalText,
+                            output: "",
+                            success: false,
+                            errorMessage: errorMsg
+                        )
                         completion(.failure(.apiError(errorMsg)))
                     } catch {
                         logger.log("Failed to parse error response (status \(httpResponse.statusCode))", category: "AIRefinement", level: .error)
+                        // Log failed request
+                        AIRequestHistoryManager.shared.logRequest(
+                            provider: providerName,
+                            model: settings.selectedProvider?.modelName ?? "Unknown",
+                            input: originalText,
+                            output: "",
+                            success: false,
+                            errorMessage: "HTTP \(httpResponse.statusCode)"
+                        )
                         completion(.failure(.apiError("HTTP \(httpResponse.statusCode)")))
                     }
                 } else {
+                    // Log failed request
+                    AIRequestHistoryManager.shared.logRequest(
+                        provider: providerName,
+                        model: settings.selectedProvider?.modelName ?? "Unknown",
+                        input: originalText,
+                        output: "",
+                        success: false,
+                        errorMessage: "HTTP \(httpResponse.statusCode)"
+                    )
                     completion(.failure(.apiError("HTTP \(httpResponse.statusCode)")))
                 }
                 return
@@ -204,6 +246,15 @@ class AITextRefinementManager {
         // Decode response
         guard let data = data else {
             logger.log("No data returned from AI API", category: "AIRefinement", level: .error)
+            // Log failed request
+            AIRequestHistoryManager.shared.logRequest(
+                provider: providerName,
+                model: settings.selectedProvider?.modelName ?? "Unknown",
+                input: originalText,
+                output: "",
+                success: false,
+                errorMessage: "No data returned from API"
+            )
             completion(.failure(.invalidResponse))
             return
         }
@@ -214,13 +265,45 @@ class AITextRefinementManager {
             
             guard let refinedText = decodedResponse.choices.first?.message.content else {
                 logger.log("No content in AI response choices", category: "AIRefinement", level: .error)
+                // Log failed request
+                AIRequestHistoryManager.shared.logRequest(
+                    provider: providerName,
+                    model: settings.selectedProvider?.modelName ?? "Unknown",
+                    input: originalText,
+                    output: "",
+                    success: false,
+                    errorMessage: "No content in response"
+                )
                 completion(.failure(.invalidResponse))
                 return
             }
             
-            completion(.success(refinedText.trimmingCharacters(in: .whitespacesAndNewlines)))
+            let cleanedText = refinedText.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            // Log successful request
+            AIRequestHistoryManager.shared.logRequest(
+                provider: providerName,
+                model: settings.selectedProvider?.modelName ?? "Unknown",
+                input: originalText,
+                output: cleanedText,
+                inputTokens: decodedResponse.usage.prompt_tokens,
+                outputTokens: decodedResponse.usage.completion_tokens,
+                totalTokens: decodedResponse.usage.total_tokens,
+                success: true
+            )
+            
+            completion(.success(cleanedText))
         } catch {
             logger.log("Failed to decode AI response: \(error.localizedDescription)", category: "AIRefinement", level: .error)
+            // Log failed request
+            AIRequestHistoryManager.shared.logRequest(
+                provider: providerName,
+                model: settings.selectedProvider?.modelName ?? "Unknown",
+                input: originalText,
+                output: "",
+                success: false,
+                errorMessage: error.localizedDescription
+            )
             completion(.failure(.decodingError(error.localizedDescription)))
         }
     }

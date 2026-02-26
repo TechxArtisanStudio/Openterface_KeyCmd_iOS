@@ -22,24 +22,29 @@ struct SettingsView: View {
             VStack(spacing: 0) {
                 // Tab Switcher
                 Picker("Settings Tab", selection: $selectedSettingsTab) {
-                    Text("General Settings").tag("general")
+                    Text("General").tag("general")
                     Text("AI Settings").tag("ai_settings")
+                    Text("History").tag("history")
                 }
                 .pickerStyle(.segmented)
                 .padding()
                 
-                // Content Form
-                Form {
-                    if selectedSettingsTab == "general" {
-                        GeneralSettingsView()
-                    } else if selectedSettingsTab == "ai_settings" {
-                        AITestingSettingsView(
-                            tempAPIKey: $tempAPIKey,
-                            showAPIKeyField: $showAPIKeyField,
-                            isTestingAPI: $isTestingAPI,
-                            testResult: $testResult,
-                            testError: $testError
-                        )
+                // Content
+                if selectedSettingsTab == "history" {
+                    AIRequestHistoryView()
+                } else {
+                    Form {
+                        if selectedSettingsTab == "general" {
+                            GeneralSettingsView()
+                        } else if selectedSettingsTab == "ai_settings" {
+                            AISettingsView(
+                                tempAPIKey: $tempAPIKey,
+                                showAPIKeyField: $showAPIKeyField,
+                                isTestingAPI: $isTestingAPI,
+                                testResult: $testResult,
+                                testError: $testError
+                            )
+                        }
                     }
                 }
             }

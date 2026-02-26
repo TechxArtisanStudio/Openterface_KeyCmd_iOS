@@ -13,12 +13,15 @@ struct AIProvider: Identifiable, Codable {
     var name: String
     var apiBaseURL: String
     var modelName: String
+    /// When true, the API key is optional (e.g. local providers like Ollama)
+    var apiKeyOptional: Bool
     
-    init(id: UUID = UUID(), name: String = "OpenAI", apiBaseURL: String = "https://api.openai.com/v1", modelName: String = "gpt-3.5-turbo") {
+    init(id: UUID = UUID(), name: String = "OpenAI", apiBaseURL: String = "https://api.openai.com/v1", modelName: String = "gpt-3.5-turbo", apiKeyOptional: Bool = false) {
         self.id = id
         self.name = name
         self.apiBaseURL = apiBaseURL
         self.modelName = modelName
+        self.apiKeyOptional = apiKeyOptional
     }
     
     private func getAPIKeyKeychainKey() -> String {
@@ -39,6 +42,7 @@ struct AIProvider: Identifiable, Codable {
     
     /// Check if API key is configured for this provider
     func hasAPIKey() -> Bool {
+        if apiKeyOptional { return true }
         guard let apiKey = getAPIKey() else { return false }
         return !apiKey.isEmpty
     }
@@ -95,13 +99,13 @@ class AISettings: ObservableObject {
             id: "text_refinement",
             name: "Text Refinement",
             description: "Refine voice transcription for clarity",
-            prompt: "You are a helpful assistant. The user will provide voice-transcribed text. Your task is to:\n1. Check the user's intention\n2. Correct any speech recognition errors\n3. Refine the text for clarity and completeness\n\nRespond with ONLY the refined text, no explanations."
+            prompt: "You are a helpful assistant. The user will provide voice-transcribed text. Your task is to:\n1. Check the user's intention\n2. Correct any speech recognition errors\n3. Refine the text for clarity and completeness\n\nIMPORTANT: Output ONLY printable ASCII characters (ASCII 32-126). Use only standard keyboard-inputtable characters. No special Unicode, emojis, or non-keyboard symbols. No explanations, only the refined text."
         ),
         SystemPromptRole(
             id: "command_assistant",
             name: "Command Assistant",
             description: "Convert voice commands to keyboard/mouse actions",
-            prompt: "You are a command interpreter for keyboard and mouse control. The user will provide voice-transcribed commands. Your task is to:\n1. Interpret the voice command\n2. Convert to specific keyboard keys or mouse actions\n3. Output in format: KEY:key_name or MOUSE:action\n4. For key combinations use + (e.g., CTRL+S, ALT+TAB)\n5. For mouse: MOUSE:click, MOUSE:double_click, MOUSE:move_up, MOUSE:move_down, MOUSE:left, MOUSE:right\n\nExamples:\n- 'save file' -> KEY:CTRL+S\n- 'open file' -> KEY:CTRL+O\n- 'undo' -> KEY:CTRL+Z\n- 'click' -> MOUSE:click\n- 'double click' -> MOUSE:double_click\n- 'move mouse up' -> MOUSE:move_up\n\nRespond with ONLY the command output, no explanations."
+            prompt: "You are a command interpreter for keyboard and mouse control. The user will provide voice-transcribed commands. Your task is to:\n1. Interpret the voice command\n2. Convert to specific keyboard keys or mouse actions\n3. Output in format: KEY:key_name or MOUSE:action\n4. For key combinations use + (e.g., CTRL+S, ALT+TAB)\n5. For mouse: MOUSE:click, MOUSE:double_click, MOUSE:move_up, MOUSE:move_down, MOUSE:left, MOUSE:right\n6. Use ONLY ASCII keyboard-inputtable characters (ASCII 32-126) in all output\n\nExamples:\n- 'save file' -> KEY:CTRL+S\n- 'open file' -> KEY:CTRL+O\n- 'undo' -> KEY:CTRL+Z\n- 'click' -> MOUSE:click\n- 'double click' -> MOUSE:double_click\n- 'move mouse up' -> MOUSE:move_up\n\nRespond with ONLY the command output (using ASCII 32-126 characters), no explanations."
         ),
         SystemPromptRole(
             id: "custom",
@@ -228,7 +232,10 @@ class AISettings: ObservableObject {
     }
     
     func updateAPIKeyStatus() {
-        if hasAPIKey() {
+        if let provider = selectedProvider, provider.apiKeyOptional {
+            let hasKey = provider.getAPIKey().map { !$0.isEmpty } ?? false
+            apiKeyStatus = hasKey ? "✓ Configured" : "✓ Not Required"
+        } else if hasAPIKey() {
             apiKeyStatus = "✓ Configured"
         } else {
             apiKeyStatus = "✗ Not Configured"
@@ -248,7 +255,7 @@ class AISettings: ObservableObject {
         let targetProvider = provider ?? selectedProvider
         guard let targetProvider = targetProvider else { return "No provider selected" }
         
-        if !hasAPIKey(for: targetProvider) {
+        if !targetProvider.apiKeyOptional && !hasAPIKey(for: targetProvider) {
             return "API key not configured"
         }
         if targetProvider.apiBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
