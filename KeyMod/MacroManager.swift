@@ -24,7 +24,8 @@ class MacroManager: ObservableObject {
         
         let data = macro.data
         let interval = macro.intervalMs
-        let pattern = "<([A-Z0-9]+S?)>"
+        // Updated pattern to match both opening and closing tags: <TAG> and </TAG>
+        let pattern = "</?([A-Z0-9]+S?)>"
         let regex = try? NSRegularExpression(pattern: pattern)
         let nsData = data as NSString
         var lastIndex = 0
@@ -48,43 +49,139 @@ class MacroManager: ObservableObject {
         } else {
             tokens = data.map { String($0) }
         }
+        
         DispatchQueue.global(qos: .userInitiated).async {
+            // Track active modifiers for composite key support
+            var activeModifiers: [String] = []
+            
             for token in tokens {
                 DispatchQueue.main.async {
-                    switch token {
-                    case "<ALT>":
-                        self.keyboardManager.handleModifierToggle("Alt")
-                    case "<CTRL>":
-                        self.keyboardManager.handleModifierToggle("Ctrl")
-                    case "<ESC>":
-                        self.keyboardManager.handleKeyPress("Escape")
-                    case "<BACK>":
-                        self.keyboardManager.handleKeyPress("Backspace")
-                    case "<ENTER>":
-                        self.keyboardManager.handleKeyPress("Enter")
-                    case "<LEFT>":
-                        self.keyboardManager.handleKeyPress("Left")
-                    case "<RIGHT>":
-                        self.keyboardManager.handleKeyPress("Right")
-                    case "<UP>":
-                        self.keyboardManager.handleKeyPress("Up")
-                    case "<DOWN>":
-                        self.keyboardManager.handleKeyPress("Down")
-                    case "<HOME>":
-                        self.keyboardManager.handleKeyPress("Home")
-                    case "<END>":
-                        self.keyboardManager.handleKeyPress("End")
-                    case "<DELAY1S>": break
-                    case "<DELAY2S>": break
-                    case "<DELAY5S>": break
-                    case "<DELAY10S>": break
-                    default:
-                        if token == " " {
-                            self.keyboardManager.handleKeyPress("Space")
-                        } else if token.count == 1, let char = token.first, char.isUppercase, char.isLetter {
-                            self.keyboardManager.handleKeyCombo(modifiers: ["Shift"], key: String(char).uppercased())
-                        } else {
-                            self.keyboardManager.handleKeyPress(token)
+                    // Handle closing tags - release all active modifiers and keys
+                    if token.hasPrefix("</") && token.hasSuffix(">") {
+                        // Release all keys
+                        self.keyboardManager.releaseAllKeys()
+                        // Clear active modifiers
+                        activeModifiers.removeAll()
+                    }
+                    // Handle opening modifier tags like <CTRL>, <SHIFT>, etc
+                    else if token == "<CTRL>" || token == "<SHIFT>" || token == "<ALT>" || token == "<CMD>" {
+                        let modifier: String
+                        switch token {
+                        case "<CTRL>":
+                            modifier = "Ctrl"
+                        case "<SHIFT>":
+                            modifier = "Shift"
+                        case "<ALT>":
+                            modifier = "Alt"
+                        case "<CMD>":
+                            modifier = "Cmd"
+                        default:
+                            modifier = ""
+                        }
+                        
+                        if !modifier.isEmpty {
+                            // Press the modifier
+                            self.keyboardManager.handleModifierToggle(modifier)
+                            activeModifiers.append(modifier)
+                        }
+                    }
+                    else {
+                        switch token {
+                        case "<ESC>":
+                            if activeModifiers.isEmpty {
+                                self.keyboardManager.handleKeyPress("Escape")
+                            } else {
+                                self.keyboardManager.handleKeyCombo(modifiers: activeModifiers, key: "Escape")
+                            }
+                        case "<BACK>":
+                            if activeModifiers.isEmpty {
+                                self.keyboardManager.handleKeyPress("Backspace")
+                            } else {
+                                self.keyboardManager.handleKeyCombo(modifiers: activeModifiers, key: "Backspace")
+                            }
+                        case "<ENTER>":
+                            if activeModifiers.isEmpty {
+                                self.keyboardManager.handleKeyPress("Enter")
+                            } else {
+                                self.keyboardManager.handleKeyCombo(modifiers: activeModifiers, key: "Enter")
+                            }
+                        case "<SPACE>":
+                            if activeModifiers.isEmpty {
+                                self.keyboardManager.handleKeyPress("Space")
+                            } else {
+                                self.keyboardManager.handleKeyCombo(modifiers: activeModifiers, key: "Space")
+                            }
+                        case "<LEFT>":
+                            if activeModifiers.isEmpty {
+                                self.keyboardManager.handleKeyPress("Left")
+                            } else {
+                                self.keyboardManager.handleKeyCombo(modifiers: activeModifiers, key: "Left")
+                            }
+                        case "<RIGHT>":
+                            if activeModifiers.isEmpty {
+                                self.keyboardManager.handleKeyPress("Right")
+                            } else {
+                                self.keyboardManager.handleKeyCombo(modifiers: activeModifiers, key: "Right")
+                            }
+                        case "<UP>":
+                            if activeModifiers.isEmpty {
+                                self.keyboardManager.handleKeyPress("Up")
+                            } else {
+                                self.keyboardManager.handleKeyCombo(modifiers: activeModifiers, key: "Up")
+                            }
+                        case "<DOWN>":
+                            if activeModifiers.isEmpty {
+                                self.keyboardManager.handleKeyPress("Down")
+                            } else {
+                                self.keyboardManager.handleKeyCombo(modifiers: activeModifiers, key: "Down")
+                            }
+                        case "<HOME>":
+                            if activeModifiers.isEmpty {
+                                self.keyboardManager.handleKeyPress("Home")
+                            } else {
+                                self.keyboardManager.handleKeyCombo(modifiers: activeModifiers, key: "Home")
+                            }
+                        case "<END>":
+                            if activeModifiers.isEmpty {
+                                self.keyboardManager.handleKeyPress("End")
+                            } else {
+                                self.keyboardManager.handleKeyCombo(modifiers: activeModifiers, key: "End")
+                            }
+                        case "<DELAY1S>": break
+                        case "<DELAY2S>": break
+                        case "<DELAY5S>": break
+                        case "<DELAY10S>": break
+                        default:
+                            if token == " " {
+                                if activeModifiers.isEmpty {
+                                    self.keyboardManager.handleKeyPress("Space")
+                                } else {
+                                    self.keyboardManager.handleKeyCombo(modifiers: activeModifiers, key: "Space")
+                                }
+                            } else if token.count == 1, let char = token.first {
+                                if activeModifiers.isEmpty {
+                                    if char.isUppercase && char.isLetter {
+                                        self.keyboardManager.handleKeyCombo(modifiers: ["Shift"], key: String(char).uppercased())
+                                    } else {
+                                        self.keyboardManager.handleKeyPress(token)
+                                    }
+                                } else {
+                                    // Apply active modifiers to the key
+                                    var allModifiers = activeModifiers
+                                    if char.isUppercase && char.isLetter {
+                                        if !allModifiers.contains("Shift") {
+                                            allModifiers.append("Shift")
+                                        }
+                                    }
+                                    self.keyboardManager.handleKeyCombo(modifiers: allModifiers, key: String(char).uppercased())
+                                }
+                            } else {
+                                if activeModifiers.isEmpty {
+                                    self.keyboardManager.handleKeyPress(token)
+                                } else {
+                                    self.keyboardManager.handleKeyCombo(modifiers: activeModifiers, key: token)
+                                }
+                            }
                         }
                     }
                 }

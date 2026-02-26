@@ -348,13 +348,15 @@ struct PromptManagementSection: View {
                     Text("Current System Prompt")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    Text(aiSettings.systemPrompt)
-                        .font(.caption)
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                        .frame(height: 100)
-                        .background(Color(UIColor.systemGray6))
-                        .cornerRadius(4)
+                    ScrollView {
+                        Text(aiSettings.systemPrompt)
+                            .font(.caption)
+                            .padding()
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                    }
+                    .frame(height: 150)
+                    .background(Color(UIColor.systemGray6))
+                    .cornerRadius(4)
                 }
             }
         }

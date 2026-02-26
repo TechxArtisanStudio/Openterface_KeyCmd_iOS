@@ -557,6 +557,214 @@ class KeyboardManager: ObservableObject {
         return pressedKeys.contains(keyAlias) || activeModifiers.contains(keyAlias)
     }
     
+    // MARK: - Text Input with Special Token Support
+    
+    /// Parse and handle text input with special tokens (e.g., <CTRL>, <SHIFT>, <ALT>, <CMD>, <F1>-<F12>)
+    /// Supports composite keys: <CTRL>A</CTRL> means press Ctrl, press A, release all
+    func handleTextInputWithTokens(_ text: String) {
+        let tokens = tokenizeInput(text)
+        var activeModifiers: [String] = []
+        
+        for token in tokens {
+            // Handle closing tags - release all active modifiers
+            if token.hasPrefix("</") && token.hasSuffix(">") {
+                releaseAllKeys()
+                activeModifiers.removeAll()
+            }
+            // Handle opening modifier tags
+            else if token == "<CTRL>" || token == "<SHIFT>" || token == "<ALT>" || token == "<CMD>" {
+                let modifier: String
+                switch token {
+                case "<CTRL>":
+                    modifier = "Ctrl"
+                case "<SHIFT>":
+                    modifier = "Shift"
+                case "<ALT>":
+                    modifier = "Alt"
+                case "<CMD>":
+                    modifier = "Cmd"
+                default:
+                    modifier = ""
+                }
+                
+                if !modifier.isEmpty {
+                    handleModifierToggle(modifier)
+                    activeModifiers.append(modifier)
+                }
+            }
+            // Handle special tokens
+            else if isSpecialToken(token) {
+                handleSpecialTokenWithModifiers(token, modifiers: activeModifiers)
+            }
+            // Regular text
+            else if token.count == 1 {
+                if activeModifiers.isEmpty {
+                    handleKeyPress(token)
+                } else {
+                    var allModifiers = activeModifiers
+                    if token.first?.isUppercase == true && token.first?.isLetter == true {
+                        if !allModifiers.contains("Shift") {
+                            allModifiers.append("Shift")
+                        }
+                    }
+                    handleKeyCombo(modifiers: allModifiers, key: token.uppercased())
+                }
+            } else {
+                // Multiple characters - send each
+                for char in token {
+                    let charStr = String(char)
+                    if activeModifiers.isEmpty {
+                        handleKeyPress(charStr)
+                    } else {
+                        var allModifiers = activeModifiers
+                        if char.isUppercase && char.isLetter {
+                            if !allModifiers.contains("Shift") {
+                                allModifiers.append("Shift")
+                            }
+                        }
+                        handleKeyCombo(modifiers: allModifiers, key: charStr.uppercased())
+                    }
+                }
+            }
+        }
+        
+        // Release all keys/modifiers after input
+        releaseAllKeys()
+    }
+    
+    /// Tokenize input string to separate special tokens from regular text
+    private func tokenizeInput(_ text: String) -> [String] {
+        let pattern = "</?[A-Z]+\\d*>|."  // Match opening/closing special tokens or single characters
+        let regex = try? NSRegularExpression(pattern: pattern)
+        let nsText = text as NSString
+        var result: [String] = []
+        
+        if let regex = regex {
+            let matches = regex.matches(in: text, range: NSRange(location: 0, length: nsText.length))
+            for match in matches {
+                let token = nsText.substring(with: match.range)
+                result.append(token)
+            }
+        } else {
+            result = text.map { String($0) }
+        }
+        
+        return result
+    }
+    
+    /// Check if a token is a special token (e.g., <CTRL>, <SHIFT>, etc.)
+    private func isSpecialToken(_ token: String) -> Bool {
+        return token.hasPrefix("<") && token.hasSuffix(">") && !token.hasPrefix("</")
+    }
+    
+    /// Handle special tokens with optional active modifiers
+    private func handleSpecialTokenWithModifiers(_ token: String, modifiers: [String]) {
+        let content = String(token.dropFirst().dropLast()).uppercased()  // Remove < > and uppercase
+        
+        switch content {
+        case "ENTER":
+            if modifiers.isEmpty {
+                handleKeyPress("Enter")
+            } else {
+                handleKeyCombo(modifiers: modifiers, key: "Enter")
+            }
+        case "ESC":
+            if modifiers.isEmpty {
+                handleKeyPress("Escape")
+            } else {
+                handleKeyCombo(modifiers: modifiers, key: "Escape")
+            }
+        case "BACK":
+            if modifiers.isEmpty {
+                handleKeyPress("Backspace")
+            } else {
+                handleKeyCombo(modifiers: modifiers, key: "Backspace")
+            }
+        case "TAB":
+            if modifiers.isEmpty {
+                handleKeyPress("Tab")
+            } else {
+                handleKeyCombo(modifiers: modifiers, key: "Tab")
+            }
+        case "SPACE":
+            if modifiers.isEmpty {
+                handleKeyPress("Space")
+            } else {
+                handleKeyCombo(modifiers: modifiers, key: "Space")
+            }
+        case "LEFT":
+            if modifiers.isEmpty {
+                handleKeyPress("Left")
+            } else {
+                handleKeyCombo(modifiers: modifiers, key: "Left")
+            }
+        case "RIGHT":
+            if modifiers.isEmpty {
+                handleKeyPress("Right")
+            } else {
+                handleKeyCombo(modifiers: modifiers, key: "Right")
+            }
+        case "UP":
+            if modifiers.isEmpty {
+                handleKeyPress("Up")
+            } else {
+                handleKeyCombo(modifiers: modifiers, key: "Up")
+            }
+        case "DOWN":
+            if modifiers.isEmpty {
+                handleKeyPress("Down")
+            } else {
+                handleKeyCombo(modifiers: modifiers, key: "Down")
+            }
+        case "HOME":
+            if modifiers.isEmpty {
+                handleKeyPress("Home")
+            } else {
+                handleKeyCombo(modifiers: modifiers, key: "Home")
+            }
+        case "END":
+            if modifiers.isEmpty {
+                handleKeyPress("End")
+            } else {
+                handleKeyCombo(modifiers: modifiers, key: "End")
+            }
+        case "DELETE", "DEL":
+            if modifiers.isEmpty {
+                handleKeyPress("Delete")
+            } else {
+                handleKeyCombo(modifiers: modifiers, key: "Delete")
+            }
+        case "PAGEUP", "PGUP":
+            if modifiers.isEmpty {
+                handleKeyPress("PageUp")
+            } else {
+                handleKeyCombo(modifiers: modifiers, key: "PageUp")
+            }
+        case "PAGEDOWN", "PGDN":
+            if modifiers.isEmpty {
+                handleKeyPress("PageDown")
+            } else {
+                handleKeyCombo(modifiers: modifiers, key: "PageDown")
+            }
+        default:
+            // Handle function keys F1-F12
+            if content.hasPrefix("F") && content.dropFirst().allSatisfy({ $0.isNumber }) {
+                if modifiers.isEmpty {
+                    handleKeyPress(content)
+                } else {
+                    handleKeyCombo(modifiers: modifiers, key: content)
+                }
+            } else {
+                logger.log("⚠️ Unknown special token: \(token)", category: "Keyboard", level: .warning)
+            }
+        }
+    }
+    
+    /// Handle special tokens like <CTRL>, <SHIFT>, <ALT>, <CMD>, <F1>-<F12>, <ENTER>, etc.
+    private func handleSpecialToken(_ token: String) {
+        handleSpecialTokenWithModifiers(token, modifiers: [])
+    }
+    
     // MARK: - Mode Management
     
     // Switch to game mode (for gamepad view)

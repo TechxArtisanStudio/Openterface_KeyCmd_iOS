@@ -150,6 +150,7 @@ struct VoiceInputView: View {
 
     @StateObject private var voiceManager = VoiceInputManager()
     @ObservedObject private var aiSettings = AISettings.shared
+    @StateObject private var macroManager: MacroManager
     @State private var isSending = false
     @State private var sentHistory: [HistoryItem] = []
     @State private var historyHeight: CGFloat = 150
@@ -167,8 +168,18 @@ struct VoiceInputView: View {
     @State private var existingWordingRange: NSRange?  // Range of existing wording
     @State private var isRefiningWithExistingWording = false  // Track if in "refine with existing" mode
     @State private var showSelectionMenu = false  // Context menu visibility
+    
+    // Macro save states
+    @State private var showMacroSaveDialog = false
+    @State private var macroNameInput = ""
+    @State private var selectedHistoryItemForMacro: HistoryItem?
 
     private let historyKey = "VoiceInputHistory"
+
+    init(keyboardManager: KeyboardManager) {
+        self.keyboardManager = keyboardManager
+        _macroManager = StateObject(wrappedValue: MacroManager(keyboardManager: keyboardManager))
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -239,6 +250,9 @@ struct VoiceInputView: View {
                 }
             }
         }
+        .sheet(isPresented: $showMacroSaveDialog) {
+            macroSaveDialogContent
+        }
     }
 
     private func loadHistory() {
@@ -280,9 +294,9 @@ struct VoiceInputView: View {
             if voiceManager.transcribedText.isEmpty {
                 Text(voiceManager.isListening
                      ? "Speak now…"
-                     : "Press the mic button and speak.\nYour speech will appear here.")
+                     : "Press the mic button and speak.\nYour speech will appear here.\n\nSpecial tokens: <CTRL>, <SHIFT>, <ALT>, <CMD>, <SPACE>, <F1>-<F12>\nComposite keys: <CTRL>A</CTRL>")
                     .foregroundColor(Color(UIColor.placeholderText))
-                    .font(.body)
+                    .font(.caption)
                     .padding(.horizontal, 12)
                     .padding(.top, 14)
                     .allowsHitTesting(false)
@@ -408,52 +422,79 @@ struct VoiceInputView: View {
     // MARK: - Action Row
 
     private var actionRow: some View {
-        HStack(spacing: 20) {
-            // Clear button
-            Button(action: {
-                voiceManager.clearText()
-                voiceManager.errorMessage = nil
-                refinedText = nil
-            }) {
-                Label("Clear", systemImage: "trash")
-                    .font(.subheadline)
-                    .foregroundColor(.red)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(Color.red.opacity(0.1))
-                    .cornerRadius(10)
+        VStack(spacing: 12) {
+            // Special tokens quick insert row
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach([
+                        ("⌃ Ctrl", "<CTRL>"), ("⇧ Shift", "<SHIFT>"), ("⎇ Alt", "<ALT>"), ("⌘ Cmd", "<CMD>"),
+                        ("⎋ Esc", "<ESC>"), ("⏎ Enter", "<ENTER>"), ("⌫ Back", "<BACK>"), ("␣ Space", "<SPACE>"),
+                        ("F1", "<F1>"), ("F2", "<F2>"), ("F3", "<F3>"), ("F4", "<F4>"),
+                        ("F5", "<F5>"), ("F6", "<F6>"), ("F7", "<F7>"), ("F8", "<F8>"),
+                        ("F9", "<F9>"), ("F10", "<F10>"), ("F11", "<F11>"), ("F12", "<F12>")
+                    ], id: \.1) { label, token in
+                        Button(action: {
+                            voiceManager.transcribedText += token
+                        }) {
+                            Text(label)
+                                .font(.caption)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.gray.opacity(0.2))
+                                .cornerRadius(6)
+                        }
+                    }
+                }
+                .padding(.horizontal, 20)
             }
-            .buttonStyle(PlainButtonStyle())
-            .disabled(voiceManager.transcribedText.isEmpty && voiceManager.errorMessage == nil)
+            
+            HStack(spacing: 20) {
+                // Clear button
+                Button(action: {
+                    voiceManager.clearText()
+                    voiceManager.errorMessage = nil
+                    refinedText = nil
+                }) {
+                    Label("Clear", systemImage: "trash")
+                        .font(.subheadline)
+                        .foregroundColor(.red)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(Color.red.opacity(0.1))
+                        .cornerRadius(10)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .disabled(voiceManager.transcribedText.isEmpty && voiceManager.errorMessage == nil)
 
-            Spacer()
+                Spacer()
 
-            // Microphone button with status label below
-            VStack(spacing: 6) {
-                micButton
-                statusBadge
+                // Microphone button with status label below
+                VStack(spacing: 6) {
+                    micButton
+                    statusBadge
+                }
+
+                Spacer()
+
+                // Send button
+                Button(action: sendText) {
+                    Label(isSending ? "Sending…" : "Send", systemImage: isSending ? "hourglass" : "paperplane.fill")
+                        .font(.subheadline)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(voiceManager.transcribedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                    ? Color.blue.opacity(0.4)
+                                    : Color.blue)
+                        .cornerRadius(10)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .disabled(voiceManager.transcribedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSending)
             }
-
-            Spacer()
-
-            // Send button
-            Button(action: sendText) {
-                Label(isSending ? "Sending…" : "Send", systemImage: isSending ? "hourglass" : "paperplane.fill")
-                    .font(.subheadline)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(voiceManager.transcribedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                ? Color.blue.opacity(0.4)
-                                : Color.blue)
-                    .cornerRadius(10)
-            }
-            .buttonStyle(PlainButtonStyle())
-            .disabled(voiceManager.transcribedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSending)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
+            .background(Color(UIColor.secondarySystemBackground))
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 14)
-        .background(Color(UIColor.secondarySystemBackground))
     }
 
     // MARK: - Mic Button
@@ -599,6 +640,25 @@ struct VoiceInputView: View {
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
                     .background(Color.blue)
+                    .cornerRadius(6)
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                Button(action: {
+                    selectedHistoryItemForMacro = item
+                    // Set default macro name from first 20 characters of text
+                    macroNameInput = String(item.text.prefix(20))
+                    showMacroSaveDialog = true
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus.circle")
+                        Text("Macro")
+                    }
+                    .font(.caption)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.green)
                     .cornerRadius(6)
                 }
                 .buttonStyle(PlainButtonStyle())
@@ -787,7 +847,8 @@ struct VoiceInputView: View {
         if voiceManager.isListening { voiceManager.stopListening() }
 
         isSending = true
-        keyboardManager.handleTextInput(text)
+        // Use the new handleTextInputWithTokens to support special tokens
+        keyboardManager.handleTextInputWithTokens(text)
 
         // Add to history (avoid duplicating the most recent entry)
         let newItem = HistoryItem(text: text, timestamp: Date())
@@ -803,7 +864,82 @@ struct VoiceInputView: View {
 
     private func resendText(_ text: String) {
         if voiceManager.isListening { voiceManager.stopListening() }
-        keyboardManager.handleTextInput(text)
+        // Use the new handleTextInputWithTokens to support special tokens
+        keyboardManager.handleTextInputWithTokens(text)
+    }
+
+    // MARK: - Macro Saving
+
+    private var macroSaveDialogContent: some View {
+        NavigationView {
+            VStack(spacing: 16) {
+                Text("Save as Macro")
+                    .font(.headline)
+                    .padding(.top)
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Macro Name")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    TextField("Enter macro name", text: $macroNameInput)
+                        .textFieldStyle(.roundedBorder)
+                        .padding(.horizontal)
+                    
+                    Text("Text: \(selectedHistoryItemForMacro?.text ?? "")")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                        .padding(.horizontal)
+                }
+                
+                Spacer()
+                
+                HStack(spacing: 12) {
+                    Button("Cancel") {
+                        showMacroSaveDialog = false
+                        macroNameInput = ""
+                        selectedHistoryItemForMacro = nil
+                    }
+                    .foregroundColor(.blue)
+                    
+                    Spacer()
+                    
+                    Button(action: saveMacro) {
+                        Text("Save")
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.green)
+                            .cornerRadius(8)
+                    }
+                    .disabled(macroNameInput.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                .padding()
+            }
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    private func saveMacro() {
+        guard let item = selectedHistoryItemForMacro,
+              !macroNameInput.trimmingCharacters(in: .whitespaces).isEmpty else {
+            return
+        }
+        
+        let macro = Macro(
+            label: macroNameInput.trimmingCharacters(in: .whitespaces),
+            data: item.text,
+            intervalMs: 100
+        )
+        
+        macroManager.addMacro(macro)
+        LogManager.shared.log("✅ Saved voice input as macro: \(macro.label)", category: "VoiceInput", level: .info)
+        
+        // Close dialog and reset state
+        showMacroSaveDialog = false
+        macroNameInput = ""
+        selectedHistoryItemForMacro = nil
     }
 }
 

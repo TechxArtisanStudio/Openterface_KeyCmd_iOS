@@ -505,6 +505,17 @@ struct ContentView: View {
                 // Start clipboard monitoring
                 clipboardManager.startMonitoring()
                 
+                // Auto-connect to Bluetooth on app startup (with delay to ensure BLE manager is ready)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                    if bleManager.checkBluetoothPermission() {
+                        bleManager.startScanning()
+                        showPopup = true
+                        print("🔵 Auto-starting Bluetooth scan on app launch")
+                    } else {
+                        print("⚠️ Bluetooth permission not granted")
+                    }
+                }
+                
                 // If user selected a mode from launch panel, switch to it
                 if !launchPanelManager.showLaunchPanel && launchPanelManager.selectedMode != .keyboardMouse {
                     viewManager.switchToView(launchPanelManager.selectedMode)

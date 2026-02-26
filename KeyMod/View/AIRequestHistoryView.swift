@@ -13,6 +13,8 @@ struct AIRequestHistoryView: View {
     @State private var expandedIds: Set<UUID> = []
     @State private var showDeleteConfirmation = false
     @State private var requestToDelete: UUID? = nil
+    @State private var showPromptDetail = false
+    @State private var selectedPromptText = ""
     
     var onDismiss: (() -> Void)?
     
@@ -134,6 +136,28 @@ struct AIRequestHistoryView: View {
                                 Divider()
                                 
                                 VStack(alignment: .leading, spacing: 8) {
+                                    if !request.systemPrompt.isEmpty {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text("System Prompt")
+                                                .font(.caption)
+                                                .foregroundColor(.gray)
+                                            
+                                            Button(action: {
+                                                selectedPromptText = request.systemPrompt
+                                                showPromptDetail = true
+                                            }) {
+                                                Text(request.systemPrompt)
+                                                    .font(.caption)
+                                                    .lineLimit(3)
+                                                    .padding(8)
+                                                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                                                    .background(Color(.systemGray6))
+                                                    .cornerRadius(4)
+                                                    .foregroundColor(.primary)
+                                            }
+                                        }
+                                    }
+                                    
                                     if !request.inputText.isEmpty {
                                         VStack(alignment: .leading, spacing: 4) {
                                             Text("Input")
@@ -207,7 +231,6 @@ struct AIRequestHistoryView: View {
                         .font(.caption)
                 }
                 .buttonStyle(.bordered)
-                
                 Spacer()
                 
                 if onDismiss != nil {
@@ -248,6 +271,34 @@ struct AIRequestHistoryView: View {
             } else {
                 Text("Delete this request?")
             }
+        }
+        .sheet(isPresented: $showPromptDetail) {
+            VStack(spacing: 12) {
+                HStack {
+                    Text("System Prompt")
+                        .font(.headline)
+                    Spacer()
+                    Button(action: { showPromptDetail = false }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(.gray)
+                    }
+                }
+                .padding()
+                
+                ScrollView {
+                    Text(selectedPromptText)
+                        .font(.body)
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
+                .background(Color(UIColor.systemGray6))
+                .cornerRadius(8)
+                .padding()
+                
+                Spacer()
+            }
+            .padding()
         }
     }
 

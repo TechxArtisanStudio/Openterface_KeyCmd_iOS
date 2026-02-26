@@ -86,8 +86,8 @@ struct MacroView: View {
             }
             .padding(.top)
             
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 12)], spacing: 12) {
                     ForEach(Array(macroManager.macros.enumerated()), id: \.element.id) { idx, macro in
                         HStack {
                             Button(action: {
@@ -106,6 +106,7 @@ struct MacroView: View {
                                         .foregroundColor(.secondary)
                                     }
                                 }
+                                .frame(maxWidth: .infinity)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 8)
                                 .background(macro.repeatIntervalSeconds != nil ? Color.green.opacity(0.2) : Color.blue.opacity(0.2))
@@ -154,6 +155,9 @@ struct MacroView: View {
                     }
                     Section(header: Text("Macro Data (e.g. ^C, Hello,  A)")) {
                         VStack(alignment: .leading, spacing: 4) {
+                            Text("Composite Keys: <CTRL>A</CTRL> = press Ctrl, press A, release all")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
                             // Tokenized preview with icons and delete buttons
                             TokenizedMacroView(text: $wizardData)
                             CursorTextEditor(text: $wizardData, selectedRange: $textEditorSelectedRange)
@@ -163,7 +167,9 @@ struct MacroView: View {
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 8) {
                                     ForEach([
-                                        ("⎇ Alt", "<ALT>"), ("^ Ctrl", "<CTRL>"), ("⎋ Esc", "<ESC>"), ("⌫ Back", "<BACK>"), ("⏎ Enter", "<ENTER>"),
+                                        ("⎇ Alt", "<ALT>"), ("^ Ctrl", "<CTRL>"), ("⇧ Shift", "<SHIFT>"), ("⌘ Cmd", "<CMD>"),
+                                        ("</ALT>", "</ALT>"), ("</CTRL>", "</CTRL>"), ("</SHIFT>", "</SHIFT>"), ("</CMD>", "</CMD>"),
+                                        ("⎋ Esc", "<ESC>"), ("⌫ Back", "<BACK>"), ("⏎ Enter", "<ENTER>"), ("␣ Space", "<SPACE>"),
                                         ("←", "<LEFT>"), ("→", "<RIGHT>"), ("↑", "<UP>"), ("↓", "<DOWN>"),
                                         ("⇱ Home", "<HOME>"), ("⇲ End", "<END>"),
                                         ("⏱ 1s", "<DELAY1S>"), ("⏱ 2s", "<DELAY2S>"), ("⏱ 5s", "<DELAY5S>"), ("⏱ 10s", "<DELAY10S>")
@@ -316,6 +322,12 @@ struct TokenizedMacroView: View {
     let tokenMap: [String: String] = [
         "<ALT>": "⎇",
         "<CTRL>": "^",
+        "<SHIFT>": "⇧",
+        "<CMD>": "⌘",
+        "</ALT>": "⎇✕",
+        "</CTRL>": "^✕",
+        "</SHIFT>": "⇧✕",
+        "</CMD>": "⌘✕",
         "<ESC>": "⎋",
         "<BACK>": "⌫",
         "<ENTER>": "⏎",
@@ -331,37 +343,59 @@ struct TokenizedMacroView: View {
         "<DELAY10S>": "⏱10s",
         " ": "␣"
     ]
-    var body: some View {
+    
+    var tokenRows: [[String]] {
         let tokens = tokenize(text)
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 4) {
-                ForEach(Array(tokens.enumerated()), id: \.offset) { idx, token in
-                    if let icon = tokenMap[token] {
-                        HStack(spacing: 2) {
-                            Text(icon)
-                                .font(token == " " ? .body : .headline)
-                                .padding(4)
-                                .background(token == " " ? Color.blue.opacity(0.15) : Color.yellow.opacity(0.3))
-                                .cornerRadius(4)
-                            Button(action: {
-                                removeToken(token, at: idx)
-                            }) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.caption)
-                                    .foregroundColor(.red)
+        var rows: [[String]] = [[]]
+        var currentRowWidth: CGFloat = 0
+        let estimatedItemWidth: CGFloat = 60
+        let containerWidth: CGFloat = UIScreen.main.bounds.width - 40
+        
+        for token in tokens {
+            if currentRowWidth + estimatedItemWidth > containerWidth && !rows.last!.isEmpty {
+                rows.append([token])
+                currentRowWidth = estimatedItemWidth
+            } else {
+                rows[rows.count - 1].append(token)
+                currentRowWidth += estimatedItemWidth
+            }
+        }
+        return rows
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(Array(tokenRows.enumerated()), id: \.offset) { _, row in
+                HStack(spacing: 4) {
+                    ForEach(Array(row.enumerated()), id: \.offset) { _, token in
+                        if let icon = tokenMap[token] {
+                            HStack(spacing: 2) {
+                                Text(icon)
+                                    .font(token == " " ? .body : .headline)
+                                    .padding(4)
+                                    .background(token.hasPrefix("</") ? Color.red.opacity(0.2) : (token == " " ? Color.blue.opacity(0.15) : Color.yellow.opacity(0.3)))
+                                    .cornerRadius(4)
+                                Button(action: {
+                                    removeToken(token)
+                                }) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.caption)
+                                        .foregroundColor(.red)
+                                }
                             }
+                        } else {
+                            Text(token)
+                                .font(.body)
                         }
-                    } else {
-                        Text(token)
-                            .font(.body)
                     }
+                    Spacer()
                 }
             }
         }
     }
     // Tokenize macro string into text and special tokens, including spaces and delay tokens as separate tokens
     func tokenize(_ str: String) -> [String] {
-        let pattern = "<([A-Z0-9]+S?)>| " // Match special tokens, delay tokens, or spaces
+        let pattern = "</?([A-Z0-9]+S?)>| " // Match special tokens (opening and closing), delay tokens, or spaces
         let regex = try? NSRegularExpression(pattern: pattern)
         let nsStr = str as NSString
         var lastIndex = 0
@@ -393,6 +427,16 @@ struct TokenizedMacroView: View {
         var newTokens = tokens
         newTokens.remove(at: idx)
         text = newTokens.joined()
+    }
+    
+    // Remove first occurrence of token
+    func removeToken(_ token: String) {
+        let tokens = tokenize(text)
+        var newTokens = tokens
+        if let idx = newTokens.firstIndex(of: token) {
+            newTokens.remove(at: idx)
+            text = newTokens.joined()
+        }
     }
 }
 

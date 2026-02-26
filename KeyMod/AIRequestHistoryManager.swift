@@ -21,6 +21,7 @@ class AIRequestHistoryManager {
     func logRequest(
         provider: String,
         model: String,
+        systemPrompt: String = "",
         input: String,
         output: String,
         inputTokens: Int? = nil,
@@ -32,6 +33,7 @@ class AIRequestHistoryManager {
         let log = AIRequestLog(
             provider: provider,
             model: model,
+            systemPrompt: systemPrompt,
             inputText: input,
             outputText: output,
             inputTokens: inputTokens,

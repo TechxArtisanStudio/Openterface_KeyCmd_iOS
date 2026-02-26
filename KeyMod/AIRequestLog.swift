@@ -13,6 +13,7 @@ struct AIRequestLog: Identifiable, Codable {
     let timestamp: Date
     let provider: String
     let model: String
+    let systemPrompt: String
     let inputText: String
     let outputText: String
     let inputTokens: Int?
@@ -26,6 +27,7 @@ struct AIRequestLog: Identifiable, Codable {
         timestamp: Date = Date(),
         provider: String,
         model: String,
+        systemPrompt: String = "",
         inputText: String,
         outputText: String,
         inputTokens: Int? = nil,
@@ -38,6 +40,7 @@ struct AIRequestLog: Identifiable, Codable {
         self.timestamp = timestamp
         self.provider = provider
         self.model = model
+        self.systemPrompt = systemPrompt
         self.inputText = inputText
         self.outputText = outputText
         self.inputTokens = inputTokens
