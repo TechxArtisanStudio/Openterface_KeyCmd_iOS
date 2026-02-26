@@ -92,10 +92,16 @@ struct VoiceInputView: View {
     let keyboardManager: KeyboardManager
 
     @StateObject private var voiceManager = VoiceInputManager()
+    @ObservedObject private var aiSettings = AISettings.shared
     @State private var isSending = false
     @State private var sentHistory: [HistoryItem] = []
     @State private var historyHeight: CGFloat = 150
     @State private var lastDragValue: CGFloat = 0
+    
+    // AI Refinement states
+    @State private var isRefining = false
+    @State private var refinedText: String?
+    @State private var refinementError: String?
 
     private let historyKey = "VoiceInputHistory"
 
@@ -103,6 +109,15 @@ struct VoiceInputView: View {
         VStack(spacing: 0) {
             textArea
                 .frame(maxHeight: .infinity)
+            
+            // AI Refinement inline display
+            if refinedText != nil || isRefining || refinementError != nil {
+                Divider()
+                refinementInlineDisplay
+                    .padding()
+                    .background(Color(UIColor.secondarySystemBackground))
+            }
+            
             if !sentHistory.isEmpty {
                 Divider()
                 historySection
@@ -118,6 +133,17 @@ struct VoiceInputView: View {
         }
         .onChange(of: sentHistory) { _ in
             saveHistory()
+        }
+        .onChange(of: voiceManager.isListening) { isListening in
+            // Auto-refine when user finishes speaking (isListening becomes false)
+            if !isListening && aiSettings.isEnabled {
+                let text = voiceManager.transcribedText.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !text.isEmpty && refinedText == nil && !isRefining {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        refineText()
+                    }
+                }
+            }
         }
     }
 
@@ -196,6 +222,7 @@ struct VoiceInputView: View {
             Button(action: {
                 voiceManager.clearText()
                 voiceManager.errorMessage = nil
+                refinedText = nil
             }) {
                 Label("Clear", systemImage: "trash")
                     .font(.subheadline)
@@ -394,6 +421,122 @@ struct VoiceInputView: View {
         formatter.dateStyle = .short
         formatter.timeStyle = .short
         return formatter.string(from: date)
+    }
+
+    // MARK: - AI Refinement Inline Display
+    
+    private var refinementInlineDisplay: some View {
+        VStack(spacing: 12) {
+            // Loading state
+            if isRefining {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .scaleEffect(0.8, anchor: .center)
+                    Text("AI is refining your text…")
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                .padding()
+                .background(Color.blue.opacity(0.1))
+                .cornerRadius(8)
+            }
+            
+            // Error state
+            if let error = refinementError {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .foregroundColor(.red)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Refinement Failed")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.red)
+                        Text(error)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Button(action: {
+                        refinedText = nil
+                        refinementError = nil
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.gray)
+                    }
+                }
+                .padding()
+                .background(Color.red.opacity(0.1))
+                .cornerRadius(8)
+            }
+            
+            // Success state
+            if let refined = refinedText, refinementError == nil {
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("✨ AI Refined Text")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.green)
+                        Text(refined)
+                            .font(.body)
+                            .lineLimit(3)
+                            .foregroundColor(.primary)
+                    }
+                    Spacer()
+                    
+                    // Accept button (checkmark)
+                    Button(action: {
+                        voiceManager.transcribedText = refined
+                        refinedText = nil
+                        refinementError = nil
+                    }) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 24))
+                            .foregroundColor(.green)
+                    }
+                    
+                    // Reject button (X)
+                    Button(action: {
+                        refinedText = nil
+                        refinementError = nil
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 24))
+                            .foregroundColor(.red)
+                    }
+                }
+                .padding()
+                .background(Color.green.opacity(0.1))
+                .cornerRadius(8)
+            }
+        }
+    }
+
+    // MARK: - AI Refinement
+    
+    private func refineText() {
+        let text = voiceManager.transcribedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        
+        isRefining = true
+        refinedText = nil
+        refinementError = nil
+        
+        AITextRefinementManager.shared.refineText(input: text) { result in
+            DispatchQueue.main.async {
+                isRefining = false
+                switch result {
+                case .success(let refined):
+                    refinedText = refined
+                    refinementError = nil
+                    LogManager.shared.log("✅ Text refinement successful", category: "VoiceInput", level: .info)
+                case .failure(let error):
+                    refinedText = nil
+                    refinementError = error.localizedDescription
+                    LogManager.shared.log("❌ Text refinement failed: \(error.localizedDescription)", category: "VoiceInput", level: .error)
+                }
+            }
+        }
     }
 
     // MARK: - Send
