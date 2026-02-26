@@ -8,6 +8,16 @@
 import SwiftUI
 import UIKit
 
+// MARK: - History Item Model
+struct HistoryItem: Codable, Equatable {
+    let text: String
+    let timestamp: Date
+    
+    static func == (lhs: HistoryItem, rhs: HistoryItem) -> Bool {
+        lhs.text == rhs.text && lhs.timestamp == rhs.timestamp
+    }
+}
+
 // MARK: - Bounded UITextView wrapper
 // SwiftUI's TextEditor uses a UITextView whose UIKit layer can paint outside
 // its SwiftUI frame. Wrapping it in a clipsToBounds container UIView and
@@ -83,15 +93,45 @@ struct VoiceInputView: View {
 
     @StateObject private var voiceManager = VoiceInputManager()
     @State private var isSending = false
+    @State private var sentHistory: [HistoryItem] = []
+    @State private var historyHeight: CGFloat = 150
+    @State private var lastDragValue: CGFloat = 0
+
+    private let historyKey = "VoiceInputHistory"
 
     var body: some View {
         VStack(spacing: 0) {
             textArea
+                .frame(maxHeight: .infinity)
+            if !sentHistory.isEmpty {
+                Divider()
+                historySection
+                    .frame(height: historyHeight)
+            }
             Divider()
             actionRow
             Spacer()
         }
         .background(Color(UIColor.systemBackground))
+        .onAppear {
+            loadHistory()
+        }
+        .onChange(of: sentHistory) { _ in
+            saveHistory()
+        }
+    }
+
+    private func loadHistory() {
+        guard let data = UserDefaults.standard.data(forKey: historyKey) else { return }
+        if let decodedHistory = try? JSONDecoder().decode([HistoryItem].self, from: data) {
+            sentHistory = decodedHistory
+        }
+    }
+
+    private func saveHistory() {
+        if let encodedData = try? JSONEncoder().encode(sentHistory) {
+            UserDefaults.standard.set(encodedData, forKey: historyKey)
+        }
     }
 
     // MARK: - Text Area
@@ -123,17 +163,7 @@ struct VoiceInputView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            GeometryReader { geo in
-                Color(UIColor.systemBackground)
-                    .onAppear {
-                        print("🎙️ VoiceInputView textArea frame: origin=\(geo.frame(in: .global).origin) size=\(geo.size)")
-                    }
-                    .onChange(of: geo.size) { size in
-                        print("🎙️ VoiceInputView textArea size changed: \(size)")
-                    }
-            }
-        )
+        .background(Color(UIColor.systemBackground))
     }
 
     private var statusBadge: some View {
@@ -242,25 +272,156 @@ struct VoiceInputView: View {
         .animation(.easeInOut(duration: 0.2), value: voiceManager.isListening)
     }
 
+    // MARK: - History Section
+
+    private var historySection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Resize handle at top
+            VStack(spacing: 0) {
+                HStack {
+                    Spacer()
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.gray.opacity(0.4))
+                        .frame(width: 40, height: 4)
+                    Spacer()
+                }
+                .padding(.vertical, 6)
+                .background(Color(UIColor.systemBackground))
+                .gesture(
+                    DragGesture()
+                        .onChanged { gesture in
+                            let delta = lastDragValue - gesture.translation.height
+                            let newHeight = historyHeight + delta
+                            historyHeight = max(80, min(300, newHeight))
+                            lastDragValue = gesture.translation.height
+                        }
+                        .onEnded { _ in
+                            lastDragValue = 0
+                        }
+                )
+                .contentShape(Rectangle())
+                Divider()
+            }
+            
+            HStack {
+                Text("History")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                    .padding(.bottom, 4)
+                Spacer()
+                Button(action: { sentHistory.removeAll() }) {
+                    Text("Clear All")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .padding(.trailing, 16)
+                .padding(.top, 8)
+            }
+            List {
+                ForEach(sentHistory.indices.reversed(), id: \.self) { index in
+                    historyRow(item: sentHistory[index], index: index)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                        .listRowSeparator(.hidden)
+                }
+                .onDelete { offsets in
+                    let actualIndices = offsets.map { sentHistory.count - 1 - $0 }
+                    for idx in actualIndices.sorted(by: >) {
+                        if idx >= 0 && idx < sentHistory.count {
+                            sentHistory.remove(at: idx)
+                        }
+                    }
+                }
+            }
+            .listStyle(.inset)
+            .frame(maxHeight: .infinity)
+        }
+    }
+
+    private func historyRow(item: HistoryItem, index: Int) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.text)
+                    .font(.body)
+                    .foregroundColor(.primary)
+                    .lineLimit(3)
+                Text(formatTimestamp(item.timestamp))
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+            HStack(spacing: 6) {
+                Button(action: {
+                    voiceManager.transcribedText = item.text
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "pencil")
+                        Text("Edit")
+                    }
+                    .font(.caption)
+                    .foregroundColor(.blue)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(6)
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                Button(action: {
+                    resendText(item.text)
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "paperplane.fill")
+                        Text("Resend")
+                    }
+                    .font(.caption)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.blue)
+                    .cornerRadius(6)
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+        }
+        .padding(.vertical, 8)
+    }
+
+    private func formatTimestamp(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+
     // MARK: - Send
 
     private func sendText() {
         let text = voiceManager.transcribedText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
 
-        // Stop listening before sending
-        if voiceManager.isListening {
-            voiceManager.stopListening()
-        }
+        if voiceManager.isListening { voiceManager.stopListening() }
 
         isSending = true
         keyboardManager.handleTextInput(text)
 
-        // Give a short visual feedback then reset sending state
+        // Add to history (avoid duplicating the most recent entry)
+        let newItem = HistoryItem(text: text, timestamp: Date())
+        if sentHistory.last?.text != text {
+            sentHistory.append(newItem)
+        }
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             isSending = false
             voiceManager.clearText()
         }
+    }
+
+    private func resendText(_ text: String) {
+        if voiceManager.isListening { voiceManager.stopListening() }
+        keyboardManager.handleTextInput(text)
     }
 }
 
