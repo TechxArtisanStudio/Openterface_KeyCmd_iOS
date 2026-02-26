@@ -109,15 +109,22 @@ class AITextRefinementManager {
     }
     
     private func performRefinement(input: String, completion: @escaping (Result<String, AIRefinementError>) -> Void) {
+        // Get selected provider
+        guard let provider = settings.selectedProvider else {
+            logger.log("No AI provider selected", category: "AIRefinement", level: .error)
+            completion(.failure(.invalidConfiguration))
+            return
+        }
+        
         // Fetch API key from Keychain
-        guard let apiKey = settings.getAPIKey(), !apiKey.isEmpty else {
+        guard let apiKey = provider.getAPIKey(), !apiKey.isEmpty else {
             logger.log("No API key found for AI refinement", category: "AIRefinement", level: .error)
             completion(.failure(.noAPIKey))
             return
         }
         
         // Build request
-        let endpoint = settings.apiBaseURL.trimmingCharacters(in: .whitespaces) + "/chat/completions"
+        let endpoint = provider.apiBaseURL.trimmingCharacters(in: .whitespaces) + "/chat/completions"
         guard let url = URL(string: endpoint) else {
             logger.log("Invalid API endpoint URL: \(endpoint)", category: "AIRefinement", level: .error)
             completion(.failure(.invalidConfiguration))
@@ -125,7 +132,7 @@ class AITextRefinementManager {
         }
         
         let request = TextRefinementRequest(
-            model: settings.modelName,
+            model: provider.modelName,
             messages: [
                 .init(role: "system", content: settings.systemPrompt),
                 .init(role: "user", content: input)
@@ -151,7 +158,7 @@ class AITextRefinementManager {
         // Execute request
         URLSession.shared.dataTask(with: urlRequest) { [weak self] data, response, error in
             DispatchQueue.main.async {
-                self?.handleRefinementResponse(data: data, response: response, error: error, originalText: input, completion: completion)
+                self?.handleRefinementResponse(data: data, response: response, error: error, originalText: input, providerName: provider.name, completion: completion)
             }
         }.resume()
     }
@@ -161,6 +168,7 @@ class AITextRefinementManager {
         response: URLResponse?,
         error: Error?,
         originalText: String,
+        providerName: String,
         completion: @escaping (Result<String, AIRefinementError>) -> Void
     ) {
         // Check for network error

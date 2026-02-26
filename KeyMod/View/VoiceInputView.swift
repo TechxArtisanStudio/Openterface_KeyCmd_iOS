@@ -24,6 +24,42 @@ struct HistoryItem: Codable, Equatable {
 // manually setting the text view's frame in layoutSubviews prevents this.
 private final class BoundedTextViewContainer: UIView {
     let textView = UITextView()
+    
+    // Get selected text or nil if none selected
+    func getSelectedText() -> String? {
+        guard let selectedRange = textView.selectedTextRange else { return nil }
+        return textView.text(in: selectedRange)
+    }
+    
+    // Get selected text range
+    func getSelectedRange() -> NSRange? {
+        guard let selectedRange = textView.selectedTextRange else { return nil }
+        let location = textView.offset(from: textView.beginningOfDocument, to: selectedRange.start)
+        let length = textView.offset(from: selectedRange.start, to: selectedRange.end)
+        return NSRange(location: location, length: length)
+    }
+    
+    // Replace text at range
+    func replaceText(at range: NSRange, with newText: String) {
+        guard let swiftRange = Range(range, in: textView.text) else { return }
+        textView.text.replaceSubrange(swiftRange, with: newText)
+    }
+    
+    // Highlight text at range with red color
+    func highlightText(at range: NSRange, withColor color: UIColor) {
+        let attributedString = NSMutableAttributedString(string: textView.text)
+        attributedString.addAttribute(.foregroundColor, value: color, range: range)
+        attributedString.addAttribute(.font, value: textView.font ?? UIFont.preferredFont(forTextStyle: .body), range: NSRange(location: 0, length: attributedString.length))
+        textView.attributedText = attributedString
+    }
+    
+    // Clear text highlighting (restore to default black text)
+    func clearHighlighting() {
+        let attributedString = NSMutableAttributedString(string: textView.text)
+        attributedString.addAttribute(.foregroundColor, value: UIColor.label, range: NSRange(location: 0, length: attributedString.length))
+        attributedString.addAttribute(.font, value: textView.font ?? UIFont.preferredFont(forTextStyle: .body), range: NSRange(location: 0, length: attributedString.length))
+        textView.attributedText = attributedString
+    }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -64,12 +100,18 @@ private final class BoundedTextViewContainer: UIView {
 
 private struct BoundedTextView: UIViewRepresentable {
     @Binding var text: String
+    var onSelectionChange: ((String?, NSRange?) -> Void)? = nil
+    var onContainerCreated: ((BoundedTextViewContainer) -> Void)? = nil
 
-    func makeCoordinator() -> Coordinator { Coordinator(text: $text) }
+    func makeCoordinator() -> Coordinator { 
+        Coordinator(text: $text, onSelectionChange: onSelectionChange)
+    }
 
     func makeUIView(context: Context) -> BoundedTextViewContainer {
         let container = BoundedTextViewContainer()
         container.textView.delegate = context.coordinator
+        context.coordinator.container = container
+        onContainerCreated?(container)
         return container
     }
 
@@ -82,8 +124,23 @@ private struct BoundedTextView: UIViewRepresentable {
 
     class Coordinator: NSObject, UITextViewDelegate {
         @Binding var text: String
-        init(text: Binding<String>) { _text = text }
-        func textViewDidChange(_ textView: UITextView) { text = textView.text }
+        var onSelectionChange: ((String?, NSRange?) -> Void)?
+        var container: BoundedTextViewContainer?
+        
+        init(text: Binding<String>, onSelectionChange: ((String?, NSRange?) -> Void)? = nil) {
+            _text = text
+            self.onSelectionChange = onSelectionChange
+        }
+        
+        func textViewDidChange(_ textView: UITextView) { 
+            text = textView.text
+        }
+        
+        func textViewDidChangeSelection(_ UITextView: UITextView) {
+            let selectedText = container?.getSelectedText()
+            let selectedRange = container?.getSelectedRange()
+            onSelectionChange?(selectedText, selectedRange)
+        }
     }
 }
 
@@ -102,6 +159,14 @@ struct VoiceInputView: View {
     @State private var isRefining = false
     @State private var refinedText: String?
     @State private var refinementError: String?
+    @State private var selectedText: String?
+    @State private var selectedTextRange: NSRange?
+    @State private var textViewContainer: BoundedTextViewContainer?
+    @State private var refiningSelectedOnly = false  // Track if refining selected or all text
+    @State private var existingWording: String?  // Marked existing wording for refinement
+    @State private var existingWordingRange: NSRange?  // Range of existing wording
+    @State private var isRefiningWithExistingWording = false  // Track if in "refine with existing" mode
+    @State private var showSelectionMenu = false  // Context menu visibility
 
     private let historyKey = "VoiceInputHistory"
 
@@ -109,6 +174,35 @@ struct VoiceInputView: View {
         VStack(spacing: 0) {
             textArea
                 .frame(maxHeight: .infinity)
+            
+            // Existing Wording Mode Status
+            if isRefiningWithExistingWording && !(existingWording?.isEmpty ?? true) {
+                Divider()
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("📝 Awaiting Voice Input")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.blue)
+                        Text(existingWording ?? "")
+                            .font(.caption)
+                            .lineLimit(2)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Button(action: {
+                        textViewContainer?.clearHighlighting()
+                        existingWording = nil
+                        existingWordingRange = nil
+                        isRefiningWithExistingWording = false
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.gray)
+                    }
+                }
+                .padding()
+                .background(Color.blue.opacity(0.05))
+            }
             
             // AI Refinement inline display
             if refinedText != nil || isRefining || refinementError != nil {
@@ -164,7 +258,24 @@ struct VoiceInputView: View {
 
     private var textArea: some View {
         ZStack(alignment: .topLeading) {
-            BoundedTextView(text: $voiceManager.transcribedText)
+            // Highlight background when in existing wording mode
+            if isRefiningWithExistingWording {
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.blue, lineWidth: 3)
+                    .background(Color.blue.opacity(0.05))
+            }
+            
+            BoundedTextView(
+                text: $voiceManager.transcribedText,
+                onSelectionChange: { selected, range in
+                    selectedText = selected
+                    selectedTextRange = range
+                    LogManager.shared.log("📍 Selection changed - text: \(selected ?? "nil"), range: \(range?.description ?? "nil")", category: "VoiceInput", level: .debug)
+                },
+                onContainerCreated: { container in
+                    textViewContainer = container
+                }
+            )
 
             if voiceManager.transcribedText.isEmpty {
                 Text(voiceManager.isListening
@@ -175,6 +286,29 @@ struct VoiceInputView: View {
                     .padding(.horizontal, 12)
                     .padding(.top, 14)
                     .allowsHitTesting(false)
+            }
+            
+            // Indicator badge when text is marked for refinement
+            if isRefiningWithExistingWording {
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(.blue)
+                        Text("Text marked for refinement")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.blue)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(6)
+                    .padding(.top, 16)
+                    .padding(.leading, 16)
+                    Spacer()
+                }
+                .allowsHitTesting(false)
             }
 
             if let error = voiceManager.errorMessage {
@@ -187,9 +321,66 @@ struct VoiceInputView: View {
                         .padding(.bottom, 8)
                 }
             }
+            
+            // Selection context button - toggle to mark/unmark as existing wording
+            if aiSettings.isEnabled && (!isRefining) && (!(selectedText?.isEmpty ?? true) || isRefiningWithExistingWording) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Button(action: toggleExistingWordingMark) {
+                        Image(systemName: isRefiningWithExistingWording ? "checkmark.circle.fill" : "checkmark.circle")
+                            .font(.system(size: 20))
+                            .foregroundColor(isRefiningWithExistingWording ? .green : .gray)
+                            .padding(8)
+                    }
+                    Spacer()
+                }
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .topTrailing)
+                .allowsHitTesting(true)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(UIColor.systemBackground))
+    }
+    
+    private func toggleExistingWordingMark() {
+        LogManager.shared.log("🔄 toggleExistingWordingMark called", category: "VoiceInput", level: .info)
+        LogManager.shared.log("  - isRefiningWithExistingWording: \(isRefiningWithExistingWording)", category: "VoiceInput", level: .info)
+        LogManager.shared.log("  - selectedText: \(selectedText ?? "nil")", category: "VoiceInput", level: .info)
+        LogManager.shared.log("  - selectedTextRange: \(selectedTextRange?.description ?? "nil")", category: "VoiceInput", level: .info)
+        LogManager.shared.log("  - existingWording: \(existingWording ?? "nil")", category: "VoiceInput", level: .info)
+        
+        if isRefiningWithExistingWording {
+            // Unmark: remove existing wording
+            LogManager.shared.log("  ➡️ Unmarking existing wording mode", category: "VoiceInput", level: .info)
+            textViewContainer?.clearHighlighting()
+            LogManager.shared.log("    ✓ Cleared highlighting", category: "VoiceInput", level: .info)
+            existingWording = nil
+            existingWordingRange = nil
+            isRefiningWithExistingWording = false
+            LogManager.shared.log("    ✓ Set states to nil/false", category: "VoiceInput", level: .info)
+            LogManager.shared.log("  ✅ Unmarked - new isRefiningWithExistingWording: \(isRefiningWithExistingWording)", category: "VoiceInput", level: .info)
+        } else {
+            // Mark: set existing wording
+            LogManager.shared.log("  ➡️ Marking existing wording mode", category: "VoiceInput", level: .info)
+            guard let selected = selectedText, !selected.isEmpty,
+                  let range = selectedTextRange else {
+                LogManager.shared.log("    ❌ Guard failed - selected: \(selectedText?.isEmpty ?? true), range: \(selectedTextRange?.description ?? "nil")", category: "VoiceInput", level: .error)
+                return
+            }
+            LogManager.shared.log("    ✓ Guard passed", category: "VoiceInput", level: .info)
+            existingWording = selected
+            LogManager.shared.log("    ✓ Set existingWording", category: "VoiceInput", level: .info)
+            existingWordingRange = range
+            LogManager.shared.log("    ✓ Set existingWordingRange", category: "VoiceInput", level: .info)
+            isRefiningWithExistingWording = true
+            LogManager.shared.log("    ✓ Set isRefiningWithExistingWording to true", category: "VoiceInput", level: .info)
+            selectedText = nil  // Clear selection
+            LogManager.shared.log("    ✓ Cleared selectedText", category: "VoiceInput", level: .info)
+            // Highlight the marked text in red
+            textViewContainer?.highlightText(at: range, withColor: .systemRed)
+            LogManager.shared.log("    ✓ Applied red highlighting", category: "VoiceInput", level: .info)
+            LogManager.shared.log("  ✅ Marked - new isRefiningWithExistingWording: \(isRefiningWithExistingWording)", category: "VoiceInput", level: .info)
+        }
     }
 
     private var statusBadge: some View {
@@ -432,7 +623,8 @@ struct VoiceInputView: View {
                 HStack(spacing: 8) {
                     ProgressView()
                         .scaleEffect(0.8, anchor: .center)
-                    Text("AI is refining your text…")
+                    let message = isRefiningWithExistingWording ? "AI is combining and refining…" : (refiningSelectedOnly ? "AI is refining selected text…" : "AI is refining your text…")
+                    Text(message)
                         .foregroundColor(.secondary)
                     Spacer()
                 }
@@ -469,11 +661,12 @@ struct VoiceInputView: View {
                 .cornerRadius(8)
             }
             
-            // Success state
+            // Success state - auto-applied
             if let refined = refinedText, refinementError == nil {
                 HStack(spacing: 8) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("✨ AI Refined Text")
+                        let title = isRefiningWithExistingWording ? "✨ Combined & Refined" : (refiningSelectedOnly ? "✨ Selected Text Refined" : "✨ AI Refined Text")
+                        Text(title)
                             .font(.caption)
                             .fontWeight(.semibold)
                             .foregroundColor(.green)
@@ -483,31 +676,19 @@ struct VoiceInputView: View {
                             .foregroundColor(.primary)
                     }
                     Spacer()
-                    
-                    // Accept button (checkmark)
-                    Button(action: {
-                        voiceManager.transcribedText = refined
-                        refinedText = nil
-                        refinementError = nil
-                    }) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundColor(.green)
-                    }
-                    
-                    // Reject button (X)
-                    Button(action: {
-                        refinedText = nil
-                        refinementError = nil
-                    }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundColor(.red)
-                    }
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundColor(.green)
                 }
                 .padding()
                 .background(Color.green.opacity(0.1))
                 .cornerRadius(8)
+                .onAppear {
+                    // Auto-dismiss after 2 seconds
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                        refinedText = nil
+                    }
+                }
             }
         }
     }
@@ -521,19 +702,77 @@ struct VoiceInputView: View {
         isRefining = true
         refinedText = nil
         refinementError = nil
+        refiningSelectedOnly = false  // Refining all text
         
-        AITextRefinementManager.shared.refineText(input: text) { result in
+        // If in "existing wording" mode, combine both texts for refinement
+        let inputText: String
+        if isRefiningWithExistingWording, let existing = existingWording, !existing.isEmpty {
+            inputText = "Existing wording: \(existing)\nNew input: \(text)\n\nPlease refine and combine these into a coherent, improved version."
+        } else {
+            inputText = text
+        }
+        
+        AITextRefinementManager.shared.refineText(input: inputText) { result in
             DispatchQueue.main.async {
                 isRefining = false
                 switch result {
                 case .success(let refined):
+                    // Auto-apply the refined text - AI returns complete combined result
+                    voiceManager.transcribedText = refined
+                    
+                    // Clear existing wording mode if active
+                    if isRefiningWithExistingWording {
+                        textViewContainer?.clearHighlighting()
+                        existingWording = nil
+                        existingWordingRange = nil
+                        isRefiningWithExistingWording = false
+                    }
+                    
+                    // Show success briefly then clear
                     refinedText = refined
                     refinementError = nil
-                    LogManager.shared.log("✅ Text refinement successful", category: "VoiceInput", level: .info)
+                    LogManager.shared.log("✅ Text refinement successful and applied: \(refined)", category: "VoiceInput", level: .info)
+                    
                 case .failure(let error):
                     refinedText = nil
                     refinementError = error.localizedDescription
                     LogManager.shared.log("❌ Text refinement failed: \(error.localizedDescription)", category: "VoiceInput", level: .error)
+                }
+            }
+        }
+    }
+    
+    private func refineSelectedText() {
+        guard let selected = selectedText, !selected.isEmpty,
+              let range = selectedTextRange else { return }
+        
+        isRefining = true
+        refinedText = nil
+        refinementError = nil
+        refiningSelectedOnly = true  // Refining selected text only
+        
+        AITextRefinementManager.shared.refineText(input: selected) { result in
+            DispatchQueue.main.async {
+                isRefining = false
+                switch result {
+                case .success(let refined):
+                    // Auto-apply the refined text to selected portion
+                    let mutableString = NSMutableString(string: voiceManager.transcribedText)
+                    mutableString.replaceCharacters(in: range, with: refined)
+                    voiceManager.transcribedText = mutableString as String
+                    
+                    // Show success briefly then clear
+                    refinedText = refined
+                    refinementError = nil
+                    refiningSelectedOnly = false
+                    selectedText = nil
+                    selectedTextRange = nil
+                    LogManager.shared.log("✅ Selected text refinement successful and applied", category: "VoiceInput", level: .info)
+                    
+                case .failure(let error):
+                    refinedText = nil
+                    refinementError = error.localizedDescription
+                    LogManager.shared.log("❌ Selected text refinement failed: \(error.localizedDescription)", category: "VoiceInput", level: .error)
                 }
             }
         }
