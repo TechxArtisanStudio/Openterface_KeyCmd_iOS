@@ -184,7 +184,6 @@ class AITextRefinementManager {
             AIRequestHistoryManager.shared.logRequest(
                 provider: providerName,
                 model: settings.selectedProvider?.modelName ?? "Unknown",
-                systemPrompt: settings.systemPrompt,
                 input: originalText,
                 output: "",
                 success: false,
@@ -209,7 +208,6 @@ class AITextRefinementManager {
                         AIRequestHistoryManager.shared.logRequest(
                             provider: providerName,
                             model: settings.selectedProvider?.modelName ?? "Unknown",
-                            systemPrompt: settings.systemPrompt,
                             input: originalText,
                             output: "",
                             success: false,
@@ -222,7 +220,6 @@ class AITextRefinementManager {
                         AIRequestHistoryManager.shared.logRequest(
                             provider: providerName,
                             model: settings.selectedProvider?.modelName ?? "Unknown",
-                            systemPrompt: settings.systemPrompt,
                             input: originalText,
                             output: "",
                             success: false,
@@ -235,7 +232,6 @@ class AITextRefinementManager {
                     AIRequestHistoryManager.shared.logRequest(
                         provider: providerName,
                         model: settings.selectedProvider?.modelName ?? "Unknown",
-                        systemPrompt: settings.systemPrompt,
                         input: originalText,
                         output: "",
                         success: false,
@@ -254,7 +250,6 @@ class AITextRefinementManager {
             AIRequestHistoryManager.shared.logRequest(
                 provider: providerName,
                 model: settings.selectedProvider?.modelName ?? "Unknown",
-                systemPrompt: settings.systemPrompt,
                 input: originalText,
                 output: "",
                 success: false,
@@ -274,7 +269,6 @@ class AITextRefinementManager {
                 AIRequestHistoryManager.shared.logRequest(
                     provider: providerName,
                     model: settings.selectedProvider?.modelName ?? "Unknown",
-                    systemPrompt: settings.systemPrompt,
                     input: originalText,
                     output: "",
                     success: false,
@@ -290,7 +284,6 @@ class AITextRefinementManager {
             AIRequestHistoryManager.shared.logRequest(
                 provider: providerName,
                 model: settings.selectedProvider?.modelName ?? "Unknown",
-                systemPrompt: settings.systemPrompt,
                 input: originalText,
                 output: cleanedText,
                 inputTokens: decodedResponse.usage.prompt_tokens,
@@ -306,7 +299,6 @@ class AITextRefinementManager {
             AIRequestHistoryManager.shared.logRequest(
                 provider: providerName,
                 model: settings.selectedProvider?.modelName ?? "Unknown",
-                systemPrompt: settings.systemPrompt,
                 input: originalText,
                 output: "",
                 success: false,

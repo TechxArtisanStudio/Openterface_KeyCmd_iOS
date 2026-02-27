@@ -11,6 +11,8 @@ class MacroManager: ObservableObject {
     private let macrosKey = "MacrosList"
     private var keyboardManager: KeyboardManager
     private let hapticManager = HapticFeedbackManager.shared
+    private var macroInvocationDepth: Int = 0
+    private let maxMacroInvocationDepth: Int = 10
     
     init(keyboardManager: KeyboardManager) {
         self.keyboardManager = keyboardManager
@@ -18,7 +20,38 @@ class MacroManager: ObservableObject {
         scheduleAllMacros()
     }
     
+    // Find a macro by its label (name)
+    private func getMacroByLabel(_ label: String) -> Macro? {
+        return macros.first { $0.label.lowercased() == label.lowercased() }
+    }
+    
+    // Check if a token is a known special key
+    private func isSpecialKey(_ token: String) -> Bool {
+        let specialKeys = [
+            "<ESC>", "<BACK>", "<ENTER>", "<SPACE>", 
+            "<LEFT>", "<RIGHT>", "<UP>", "<DOWN>",
+            "<HOME>", "<END>",
+            "<DELAY1S>", "<DELAY2S>", "<DELAY5S>", "<DELAY10S>",
+            "<CTRL>", "<SHIFT>", "<ALT>", "<CMD>"
+        ]
+        return specialKeys.contains(token)
+    }
+    
     func sendMacro(_ macro: Macro) {
+        macroInvocationDepth = 0
+        sendMacroInternal(macro)
+    }
+    
+    private func sendMacroInternal(_ macro: Macro) {
+        // Prevent infinite recursion
+        guard macroInvocationDepth < maxMacroInvocationDepth else {
+            print("Warning: Maximum macro invocation depth reached, preventing infinite recursion")
+            return
+        }
+        
+        macroInvocationDepth += 1
+        defer { macroInvocationDepth -= 1 }
+        
         // Trigger strong haptic feedback for macro execution
         hapticManager.triggerStrongFeedback()
         
@@ -48,6 +81,23 @@ class MacroManager: ObservableObject {
             }
         } else {
             tokens = data.map { String($0) }
+        }
+        
+        // Also extract non-special tags for macro invocation
+        let allTagsPattern = "</?([^>]+)>"
+        let allTagsRegex = try? NSRegularExpression(pattern: allTagsPattern)
+        var tokenDict: [Int: String] = [:] // map original index to extracted tag name
+        if let allTagsRegex = allTagsRegex {
+            let matches = allTagsRegex.matches(in: data, range: NSRange(location: 0, length: nsData.length))
+            for match in matches {
+                let range = match.range
+                let fullToken = nsData.substring(with: range)
+                let tagContent = nsData.substring(with: match.range(at: 1))
+                // If it's not a known special key, it might be a macro name
+                if !isSpecialKey(fullToken) && !tagContent.hasPrefix("/") {
+                    tokenDict[range.location] = tagContent
+                }
+            }
         }
         
         DispatchQueue.global(qos: .userInitiated).async {
@@ -83,6 +133,14 @@ class MacroManager: ObservableObject {
                             // Press the modifier
                             self.keyboardManager.handleModifierToggle(modifier)
                             activeModifiers.append(modifier)
+                        }
+                    }
+                    else if token.hasPrefix("<") && token.hasSuffix(">") && !self.isSpecialKey(token) {
+                        // This might be a macro name - extract the content between < and >
+                        let macroName = String(token.dropFirst().dropLast())
+                        if let referencedMacro = self.getMacroByLabel(macroName) {
+                            // Invoke the referenced macro
+                            self.sendMacroInternal(referencedMacro)
                         }
                     }
                     else {

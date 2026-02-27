@@ -81,6 +81,21 @@ struct LaunchPanelView: View {
                             action: { selectedMode = .macros }
                         )
                     }
+                    
+                    // Fourth row - Voice Input
+                    HStack(spacing: 12) {
+                        Spacer()
+                        
+                        ModeCard(
+                            title: "Voice Input",
+                            icon: "mic.circle",
+                            isSelected: selectedMode == .voiceInput,
+                            action: { selectedMode = .voiceInput }
+                        )
+                        .frame(maxWidth: 180)
+                        
+                        Spacer()
+                    }
                 }
                 .padding(.horizontal, 16)
                 

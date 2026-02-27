@@ -89,6 +89,10 @@ class AISettings: ObservableObject {
     
     @Published var apiKeyStatus: String = "Not Configured" // Display-only, not persisted
     
+    @Published var sttEngine: SpeechEngineType {
+        didSet { UserDefaults.standard.set(sttEngine.rawValue, forKey: "AISettings.sttEngine") }
+    }
+    
     // MARK: - Constants
     private let defaultBaseURL = "https://api.openai.com/v1"
     private let defaultModel = "gpt-3.5-turbo"
@@ -105,7 +109,7 @@ class AISettings: ObservableObject {
             id: "command_assistant",
             name: "Command Assistant",
             description: "Convert voice commands to keyboard/mouse actions",
-            prompt: "You are a command interpreter for keyboard and mouse control. The user will provide voice-transcribed commands. Your task is to:\n1. Interpret the voice command\n2. Convert to specific keyboard keys or mouse actions using special tokens\n3. Use token format: <CTRL>, <SHIFT>, <ALT>, <CMD> for modifiers and <F1>-<F12> for function keys\n4. Available special keys: <ENTER>, <ESC>, <BACK>, <TAB>, <SPACE>, <LEFT>, <RIGHT>, <UP>, <DOWN>, <HOME>, <END>, <PAGEUP>, <PAGEDOWN>, <DELETE>, <INSERT>\n5. For mouse: MOUSE:click, MOUSE:double_click, MOUSE:move_up, MOUSE:move_down, MOUSE:left, MOUSE:right\n6. Use ONLY ASCII keyboard-inputtable characters (ASCII 32-126) in all output\n\nExamples:\n- 'save file' -> save file<CTRL>S\n- 'open file' -> open file<CTRL>O</CTRL>\n- 'undo' -> <CTRL>Z</CTRL>\n- 'press escape' -> <ESC>\n- 'press F1' -> <F1>\n- 'select all and delete' -> <CTRL>a</CTRL><DELETE>\n- 'click' -> MOUSE:click\n- 'double click' -> MOUSE:double_click\n- 'move mouse up' -> MOUSE:move_up\n\nRespond with ONLY the command output (using ASCII 32-126 characters and tokens), no explanations."
+            prompt: "You are a command interpreter for keyboard and mouse control. The user will provide voice-transcribed commands. Your task is to:\n1. Interpret the voice command\n2. Convert to specific keyboard keys or mouse actions using special tokens\n3. Use token format: <CTRL>, <SHIFT>, <ALT>, <CMD> for modifiers and <F1>-<F12> for function keys\n4. Available special keys: <ENTER>, <ESC>, <BACK>, <TAB>, <SPACE>, <LEFT>, <RIGHT>, <UP>, <DOWN>, <HOME>, <END>, <PAGEUP>, <PAGEDOWN>, <DELETE>, <INSERT>\n5. For mouse: MOUSE:click, MOUSE:double_click, MOUSE:move_up, MOUSE:move_down, MOUSE:left, MOUSE:right\n6. Use ONLY ASCII keyboard-inputtable characters (ASCII 32-126) in all output\n\nExamples:\n- 'save file' -> save file<CTRL>S\n- 'open file' -> open file<CTRL>O</CTRL>\n- 'undo' -> <CTRL>Z</CTRL>\n- 'open spotlight' -> <CTRL><SPACE></CTRL>- 'press escape' -> <ESC>\n- 'press F1' -> <F1>\n- 'select all and delete' -> <CTRL>a</CTRL><DELETE>\n- 'click' -> MOUSE:click\n- 'double click' -> MOUSE:double_click\n- 'move mouse up' -> MOUSE:move_up\n\nRespond with ONLY the command output (using ASCII 32-126 characters and tokens), no explanations."
         ),
         SystemPromptRole(
             id: "custom",
@@ -157,6 +161,10 @@ class AISettings: ObservableObject {
             prompt = systemPromptRoles.first(where: { $0.id == roleId })?.prompt ?? systemPromptRoles[0].prompt
         }
         self.systemPrompt = prompt
+        
+        // Initialize sttEngine
+        let engineRaw = UserDefaults.standard.string(forKey: "AISettings.sttEngine") ?? SpeechEngineType.apple.rawValue
+        self.sttEngine = SpeechEngineType(rawValue: engineRaw) ?? .apple
         
         updateAPIKeyStatus()
     }

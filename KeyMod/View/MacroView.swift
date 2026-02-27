@@ -53,6 +53,7 @@ struct MacroView: View {
     @State private var repeatIntervalSeconds: Double = 60
     @State private var editingIndex: Int? = nil
     @State private var textEditorSelectedRange: NSRange = NSRange(location: 0, length: 0)
+    @State private var editMode = false
     
     init(keyboardManager: KeyboardManager) {
         self.keyboardManager = keyboardManager
@@ -66,6 +67,15 @@ struct MacroView: View {
                     .font(.title2)
                     .fontWeight(.bold)
                 Spacer()
+                Button(action: {
+                    editMode.toggle()
+                }) {
+                    Image(systemName: editMode ? "checkmark.circle.fill" : "pencil.circle.fill")
+                        .font(.title2)
+                        .foregroundColor(editMode ? .green : .orange)
+                }
+                .accessibilityLabel(editMode ? "Done Editing" : "Edit Macros")
+                
                 Button(action: {
                     wizardLabel = ""
                     wizardData = ""
@@ -89,9 +99,11 @@ struct MacroView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 12)], spacing: 12) {
                     ForEach(Array(macroManager.macros.enumerated()), id: \.element.id) { idx, macro in
-                        HStack {
+                        ZStack(alignment: .topTrailing) {
                             Button(action: {
-                                macroManager.sendMacro(macro)
+                                if !editMode {
+                                    macroManager.sendMacro(macro)
+                                }
                             }) {
                                 VStack(spacing: 2) {
                                     Text(macro.label)
@@ -135,6 +147,21 @@ struct MacroView: View {
                                 Button("Delete", role: .destructive) {
                                     macroManager.removeMacro(at: idx)
                                 }
+                            }
+                            
+                            // Delete button in edit mode
+                            if editMode {
+                                Button(action: {
+                                    macroManager.removeMacro(at: idx)
+                                }) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.title3)
+                                        .foregroundColor(.red)
+                                        .padding(8)
+                                }
+                                .background(Color.white)
+                                .clipShape(Circle())
+                                .offset(x: 8, y: -8)
                             }
                         }
                     }

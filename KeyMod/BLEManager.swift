@@ -195,7 +195,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         
         DispatchQueue.main.async {
             self.currentRSSI = RSSI
-            self.logger.log("Current RSSI: \(RSSI) dBm", category: "BLE")
+//            self.logger.log("Current RSSI: \(RSSI) dBm", category: "BLE")
         }
     }
     

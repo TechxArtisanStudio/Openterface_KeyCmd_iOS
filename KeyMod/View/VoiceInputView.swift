@@ -240,8 +240,21 @@ struct VoiceInputView: View {
             saveHistory()
         }
         .onChange(of: voiceManager.isListening) { isListening in
-            // Auto-refine when user finishes speaking (isListening becomes false)
-            if !isListening && aiSettings.isEnabled {
+            // Auto-refine when user finishes speaking.
+            // Guard: skip if Whisper is still processing audio asynchronously.
+            if !isListening && !voiceManager.isProcessingAudio && aiSettings.isEnabled {
+                let text = voiceManager.transcribedText.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !text.isEmpty && refinedText == nil && !isRefining {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        refineText()
+                    }
+                }
+            }
+        }
+        .onChange(of: voiceManager.isProcessingAudio) { isProcessing in
+            // For WhisperEngine: trigger refinement once async inference finishes
+            // (at this point isListening is already false)
+            if !isProcessing && !voiceManager.isListening && aiSettings.isEnabled {
                 let text = voiceManager.transcribedText.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !text.isEmpty && refinedText == nil && !isRefining {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {

@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		6B20A1B22E058000004331F6 /* whisper in Frameworks */ = {isa = PBXBuildFile; productRef = 6B20A1B12E058000004331F6 /* whisper */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		6BAFF03C2E040AD8004331F6 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				6B20A1B22E058000004331F6 /* whisper in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +117,7 @@
 			);
 			name = KeyMod;
 			packageProductDependencies = (
+				6B20A1B12E058000004331F6 /* whisper */,
 			);
 			productName = KeyMod;
 			productReference = 6BAFF02B2E040AD6004331F6 /* KeyMod.app */;
@@ -196,6 +202,9 @@
 			);
 			mainGroup = 6BAFF0222E040AD6004331F6;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				6B3468E52F5189F00065BF7E /* XCLocalSwiftPackageReference "../whisper.cpp" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 6BAFF02C2E040AD6004331F6 /* Products */;
 			projectDirPath = "";
@@ -569,6 +578,21 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		6B3468E52F5189F00065BF7E /* XCLocalSwiftPackageReference "../whisper.cpp" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../whisper.cpp;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		6B20A1B12E058000004331F6 /* whisper */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6B3468E52F5189F00065BF7E /* XCLocalSwiftPackageReference "../whisper.cpp" */;
+			productName = whisper;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 6BAFF0232E040AD6004331F6 /* Project object */;
 }
