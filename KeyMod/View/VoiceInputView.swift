@@ -333,9 +333,10 @@ struct VoiceInputView: View {
             )
 
             if voiceManager.transcribedText.isEmpty {
+                let metaToken = aiSettings.targetOS == .macOS ? "<CMD>" : "<WIN>"
                 Text(voiceManager.isListening
                      ? "Speak now…"
-                     : "Press the mic button and speak.\nYour speech will appear here.\n\nSpecial tokens: <CTRL>, <SHIFT>, <ALT>, <CMD>, <SPACE>, <F1>-<F12>\nComposite keys: <CTRL>A</CTRL>")
+                     : "Press the mic button and speak.\nYour speech will appear here.\n\nSpecial tokens: <CTRL>, <SHIFT>, <ALT>, \(metaToken), <SPACE>, <F1>-<F12>\nComposite keys: <CTRL>A</CTRL>")
                     .foregroundColor(Color(UIColor.placeholderText))
                     .font(.caption)
                     .padding(.horizontal, 12)
@@ -469,8 +470,11 @@ struct VoiceInputView: View {
             // Special tokens quick insert row
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
+                    let metaEntry: (String, String) = aiSettings.targetOS == .macOS
+                        ? ("⌘ Cmd", "<CMD>")
+                        : ("⊞ Win", "<WIN>")
                     ForEach([
-                        ("⌃ Ctrl", "<CTRL>"), ("⇧ Shift", "<SHIFT>"), ("⎇ Alt", "<ALT>"), ("⌘ Cmd", "<CMD>"),
+                        ("⌃ Ctrl", "<CTRL>"), ("⇧ Shift", "<SHIFT>"), ("⎇ Alt", "<ALT>"), metaEntry,
                         ("⎋ Esc", "<ESC>"), ("⏎ Enter", "<ENTER>"), ("⌫ Back", "<BACK>"), ("␣ Space", "<SPACE>"),
                         ("F1", "<F1>"), ("F2", "<F2>"), ("F3", "<F3>"), ("F4", "<F4>"),
                         ("F5", "<F5>"), ("F6", "<F6>"), ("F7", "<F7>"), ("F8", "<F8>"),

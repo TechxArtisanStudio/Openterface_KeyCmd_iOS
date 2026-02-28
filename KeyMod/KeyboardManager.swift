@@ -69,7 +69,7 @@ class KeyboardManager: ObservableObject {
         "NumpadEnter": 0x58, "NumpadEquals": 0x67, "NumLock": 0x53,
         
         // Modifier keys (special handling)
-        "Ctrl": 0xE0, "Shift": 0xE1, "Alt": 0xE2, "Cmd": 0xE3
+        "Ctrl": 0xE0, "Shift": 0xE1, "Alt": 0xE2, "Cmd": 0xE3, "Win": 0xE3
     ]
     
     // Modifier key bitmasks
@@ -77,7 +77,8 @@ class KeyboardManager: ObservableObject {
         "Ctrl": 0x01,   // Left Control
         "Shift": 0x02,  // Left Shift
         "Alt": 0x04,    // Left Alt
-        "Cmd": 0x08     // Left GUI (Command)
+        "Cmd": 0x08,    // Left GUI (Command / macOS)
+        "Win": 0x08     // Left GUI (Windows / Linux Super key — same HID bit as Cmd)
     ]
     
     // Handle key press events
@@ -572,7 +573,7 @@ class KeyboardManager: ObservableObject {
                 activeModifiers.removeAll()
             }
             // Handle opening modifier tags
-            else if token == "<CTRL>" || token == "<SHIFT>" || token == "<ALT>" || token == "<CMD>" {
+            else if token == "<CTRL>" || token == "<SHIFT>" || token == "<ALT>" || token == "<CMD>" || token == "<WIN>" {
                 let modifier: String
                 switch token {
                 case "<CTRL>":
@@ -583,6 +584,8 @@ class KeyboardManager: ObservableObject {
                     modifier = "Alt"
                 case "<CMD>":
                     modifier = "Cmd"
+                case "<WIN>":
+                    modifier = "Win"
                 default:
                     modifier = ""
                 }

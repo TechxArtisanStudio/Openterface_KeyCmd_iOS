@@ -85,6 +85,16 @@ class AISettings: ObservableObject {
     @Published var sttEngine: SpeechEngineType {
         didSet { UserDefaults.standard.set(sttEngine.rawValue, forKey: "AISettings.sttEngine") }
     }
+
+    @Published var targetOS: TargetOS {
+        didSet {
+            UserDefaults.standard.set(targetOS.rawValue, forKey: "AISettings.targetOS")
+            // Refresh the command assistant prompt to reflect the new OS
+            if selectedSystemPromptRole == "command_assistant" {
+                refreshCommandAssistantPrompt()
+            }
+        }
+    }
     
     // MARK: - System Prompt Roles (sourced from AIConfigManager)
 
@@ -156,8 +166,19 @@ class AISettings: ObservableObject {
         let configDefaultEngine = AIConfigManager.shared.defaults?.sttEngine ?? SpeechEngineType.apple.rawValue
         let engineRaw = UserDefaults.standard.string(forKey: "AISettings.sttEngine") ?? configDefaultEngine
         self.sttEngine = SpeechEngineType(rawValue: engineRaw) ?? .apple
-        
+
+        // Initialize targetOS
+        let osRaw = UserDefaults.standard.string(forKey: "AISettings.targetOS") ?? TargetOS.windows.rawValue
+        self.targetOS = TargetOS(rawValue: osRaw) ?? .windows
+
         updateAPIKeyStatus()
+
+        // If command_assistant role is active, ensure systemPrompt reflects the stored OS
+        if self.selectedSystemPromptRole == "command_assistant" {
+            if let resolved = AIConfigManager.shared.resolvedCommandPrompt(for: self.targetOS) {
+                self.systemPrompt = resolved
+            }
+        }
     }
     
     // MARK: - Provider Management
@@ -198,7 +219,19 @@ class AISettings: ObservableObject {
     // MARK: - Update System Prompt from Role
     func setSystemPromptRole(_ roleId: String) {
         selectedSystemPromptRole = roleId
-        if let role = getSystemPromptRole(id: roleId), roleId != "custom" {
+        if roleId == "command_assistant" {
+            refreshCommandAssistantPrompt()
+        } else if let role = getSystemPromptRole(id: roleId), roleId != "custom" {
+            systemPrompt = role.prompt
+        }
+    }
+
+    /// Reload the command-assistant system prompt for the current target OS.
+    func refreshCommandAssistantPrompt() {
+        if let resolved = AIConfigManager.shared.resolvedCommandPrompt(for: targetOS) {
+            systemPrompt = resolved
+        } else if let role = getSystemPromptRole(id: "command_assistant") {
+            // Fallback to the generic command_assistant.md if OS-specific file is missing.
             systemPrompt = role.prompt
         }
     }

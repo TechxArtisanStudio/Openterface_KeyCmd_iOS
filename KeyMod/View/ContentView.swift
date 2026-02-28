@@ -18,6 +18,7 @@ struct ContentView: View {
     @StateObject private var orientationManager: OrientationManager
     @StateObject private var viewManager: ViewManager
     @StateObject private var clipboardManager: ClipboardManager
+    @ObservedObject private var aiSettings = AISettings.shared
     @State private var showPopup = false
     @State private var sidebarVisible = false
     @State private var showSettings = false
@@ -42,6 +43,7 @@ struct ContentView: View {
             modifiersDisplay
             sidebarNavigation
             Spacer()
+            sidebarOSPicker
             sidebarModeSelectionButton
             sidebarSettingsButton
         }
@@ -332,6 +334,23 @@ struct ContentView: View {
         }
     }
     
+    private var sidebarOSPicker: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Target OS")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 12)
+            Picker("Target OS", selection: $aiSettings.targetOS) {
+                ForEach(TargetOS.allCases, id: \.self) { os in
+                    Text(os.shortName).tag(os)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 12)
+        }
+        .padding(.bottom, 8)
+    }
+
     private var sidebarSettingsButton: some View {
         Button(action: {
             showSettings = true

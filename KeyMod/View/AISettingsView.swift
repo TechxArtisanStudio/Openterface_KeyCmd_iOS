@@ -327,17 +327,81 @@ struct RoleManagementSection: View {
     }
 }
 
+// MARK: - Full-Screen Prompt Viewer/Editor
+struct PromptFullScreenView: View {
+    let title: String
+    let isEditable: Bool
+    @Binding var prompt: String
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationView {
+            Group {
+                if isEditable {
+                    TextEditor(text: $prompt)
+                        .font(.system(.body, design: .monospaced))
+                        .padding(8)
+                } else {
+                    ScrollView {
+                        Text(prompt)
+                            .font(.system(.body, design: .monospaced))
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                            .padding()
+                            .textSelection(.enabled)
+                    }
+                }
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    if !isEditable {
+                        Label("Read-only", systemImage: "lock.fill")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Prompt Management Section
 struct PromptManagementSection: View {
     @ObservedObject private var aiSettings = AISettings.shared
-    
+    @State private var showFullScreen = false
+
+    private var isCustomRole: Bool {
+        aiSettings.selectedSystemPromptRole == "custom"
+    }
+
+    private var promptTitle: String {
+        aiSettings.systemPromptRoles
+            .first(where: { $0.id == aiSettings.selectedSystemPromptRole })?.name
+            ?? "System Prompt"
+    }
+
     var body: some View {
         Section(header: Text("Prompt Management")) {
-            if aiSettings.selectedSystemPromptRole == "custom" {
+            if isCustomRole {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Custom System Prompt")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    HStack {
+                        Text("Custom System Prompt")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Button {
+                            showFullScreen = true
+                        } label: {
+                            Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                .font(.caption)
+                                .foregroundColor(.blue)
+                        }
+                        .buttonStyle(.plain)
+                    }
                     TextEditor(text: $aiSettings.systemPrompt)
                         .frame(height: 100)
                         .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.gray, lineWidth: 0.5))
@@ -345,9 +409,20 @@ struct PromptManagementSection: View {
                 }
             } else {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Current System Prompt")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    HStack {
+                        Text("Current System Prompt")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Button {
+                            showFullScreen = true
+                        } label: {
+                            Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                .font(.caption)
+                                .foregroundColor(.blue)
+                        }
+                        .buttonStyle(.plain)
+                    }
                     ScrollView {
                         Text(aiSettings.systemPrompt)
                             .font(.caption)
@@ -359,6 +434,13 @@ struct PromptManagementSection: View {
                     .cornerRadius(4)
                 }
             }
+        }
+        .sheet(isPresented: $showFullScreen) {
+            PromptFullScreenView(
+                title: promptTitle,
+                isEditable: isCustomRole,
+                prompt: $aiSettings.systemPrompt
+            )
         }
     }
 }

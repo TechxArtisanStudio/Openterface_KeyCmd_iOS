@@ -47,7 +47,7 @@
     {
       "id": "command_assistant",
       "name": "Command Assistant",
-      "description": "Convert voice commands to keyboard/mouse actions",
+      "description": "Convert voice commands to keyboard/mouse actions. Prompt adapts automatically to the configured target OS.",
       "promptFile": "Prompts/command_assistant.md"
     },
     {

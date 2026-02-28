@@ -146,13 +146,21 @@ class AIConfigManager: ObservableObject {
             guard let filePath = role.promptFile, !filePath.isEmpty else { return role }
             var resolved = role
 
-            // Strip extension to get resource name + subdirectory
             let url = URL(fileURLWithPath: filePath)
-            let resourceName = url.deletingPathExtension().path  // e.g. "Prompts/text_refinement"
-            let ext = url.pathExtension                           // e.g. "md"
+            let ext          = url.pathExtension.isEmpty ? "md" : url.pathExtension
+            let nameWithDir  = url.deletingPathExtension().path          // "Prompts/text_refinement"
+            let nameFlat     = url.deletingPathExtension().lastPathComponent  // "text_refinement"
+            let subdir       = url.deletingLastPathComponent().path           // "Prompts"
 
-            if let bundleURL = Bundle.main.url(forResource: resourceName, withExtension: ext),
+            // Try with subdirectory first, fall back to flat bundle lookup
+            if let bundleURL = Bundle.main.url(forResource: nameFlat, withExtension: ext, subdirectory: subdir),
                let content = try? String(contentsOf: bundleURL, encoding: .utf8) {
+                resolved.prompt = content.trimmingCharacters(in: .whitespacesAndNewlines)
+            } else if let bundleURL = Bundle.main.url(forResource: nameFlat, withExtension: ext),
+                      let content = try? String(contentsOf: bundleURL, encoding: .utf8) {
+                resolved.prompt = content.trimmingCharacters(in: .whitespacesAndNewlines)
+            } else if let bundleURL = Bundle.main.url(forResource: nameWithDir, withExtension: ext),
+                      let content = try? String(contentsOf: bundleURL, encoding: .utf8) {
                 resolved.prompt = content.trimmingCharacters(in: .whitespacesAndNewlines)
             } else {
                 print("[AIConfigManager] Could not load prompt file: \(filePath)")
@@ -243,6 +251,36 @@ class AIConfigManager: ObservableObject {
 
     func role(id: String) -> SystemPromptRole? {
         roles.first { $0.id == id }
+    }
+
+    /// Load the OS-specific command-assistant prompt from the bundle.
+    /// Combines the shared base (command_assistant.md) with the OS-specific section.
+    /// Returns nil only if the base file itself cannot be found.
+    func resolvedCommandPrompt(for targetOS: TargetOS) -> String? {
+        // Helper: try with inDirectory first, fall back to flat bundle lookup
+        func loadMD(_ name: String) -> String? {
+            if let url = Bundle.main.url(forResource: name, withExtension: "md", subdirectory: "Prompts"),
+               let content = try? String(contentsOf: url, encoding: .utf8) {
+                return content.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            if let url = Bundle.main.url(forResource: name, withExtension: "md"),
+               let content = try? String(contentsOf: url, encoding: .utf8) {
+                return content.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            return nil
+        }
+
+        guard let base = loadMD("command_assistant") else {
+            print("[AIConfigManager] command_assistant.md not found in bundle")
+            return nil
+        }
+
+        guard let osSection = loadMD(targetOS.commandPromptResourceName) else {
+            print("[AIConfigManager] OS prompt not found: \(targetOS.commandPromptResourceName).md — using base only")
+            return base
+        }
+
+        return base + "\n\n" + osSection
     }
 
     // MARK: - Provider Preset Helpers

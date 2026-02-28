@@ -11,8 +11,25 @@ struct GeneralSettingsView: View {
     @ObservedObject private var touchpadSettings = TouchpadSettings.shared
     @StateObject private var hapticManager = HapticFeedbackManager.shared
     @AppStorage("clipboardMonitoringEnabled") private var clipboardMonitoringEnabled = true
-    
+    @ObservedObject private var aiSettings = AISettings.shared
+
     var body: some View {
+        Section(header: Text("Target System")) {
+            HStack {
+                Label("Target OS", systemImage: aiSettings.targetOS.systemImage)
+                Spacer()
+            }
+            Picker("Target OS", selection: $aiSettings.targetOS) {
+                ForEach(TargetOS.allCases, id: \.self) { os in
+                    Text(os.displayName).tag(os)
+                }
+            }
+            .pickerStyle(.segmented)
+            Text("Sets the operating system of the target machine. The AI Command Assistant will use OS-specific shortcuts and key tokens.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+
         Section(header: Text("Touchpad Settings")) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
