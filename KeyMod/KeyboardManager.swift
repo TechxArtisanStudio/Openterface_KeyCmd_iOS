@@ -205,6 +205,13 @@ class KeyboardManager: ObservableObject {
         }
     }
     
+    /// Send a raw HID keyboard report directly.
+    /// Must be called from the main thread. Used by UnicodeManager for multi-step
+    /// sequences (e.g., Windows Alt+NumPad hex input, Linux Ctrl+Shift+U).
+    func sendRawHIDReport(modifierByte: UInt8, keyCodes: [UInt8]) {
+        sendKeyboardData(modifier: modifierByte, keyCodes: keyCodes)
+    }
+
     // Send keyboard data via BLE
     private func sendKeyboardData(modifier: UInt8, keyCodes: [UInt8]) {
         // HID keyboard report format:
@@ -240,6 +247,13 @@ class KeyboardManager: ObservableObject {
         
         DispatchQueue.global(qos: .userInitiated).async {
             for char in text {
+                let scalar = char.unicodeScalars.first?.value ?? 0
+                // Non-ASCII Unicode — delegate to UnicodeManager (already on bg thread)
+                if scalar > 0x7E {
+                    UnicodeManager.shared.sendChar(char, keyboardManager: self)
+                    usleep(30_000)
+                    continue
+                }
                 // Press and release key synchronously
                 DispatchQueue.main.sync {
                     if char.isLetter {
@@ -277,8 +291,9 @@ class KeyboardManager: ObservableObject {
         }
     }
     
-    /// Send a complete key press and release cycle synchronously
-    private func sendKeyPressAndRelease(modifiers: [String] = [], key: String) {
+    /// Send a complete key press and release cycle synchronously.
+    /// Internal so that UnicodeManager can use it from a background thread.
+    func sendKeyPressAndRelease(modifiers: [String] = [], key: String) {
         guard let keyCode = keyboardCodes[key] else {
             logger.log("Unknown key: \(key)", category: "Keyboard", level: .warning)
             return

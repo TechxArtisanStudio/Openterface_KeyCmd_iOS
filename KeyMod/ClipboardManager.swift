@@ -101,8 +101,8 @@ class ClipboardManager: NSObject, ObservableObject {
     
     /// Send clipboard content to target
     func sendClipboardToTarget(_ keyboardManager: KeyboardManager) {
-        // Use keyboard manager to type the clipboard content
-        keyboardManager.handleTextInput(pendingClipboardContent)
+        // Use UnicodeManager so both ASCII and non-ASCII chars are handled correctly
+        UnicodeManager.shared.sendText(pendingClipboardContent, keyboardManager: keyboardManager)
         logger.log("Sending clipboard content to target: \(pendingClipboardContent.prefix(50))...", category: "Clipboard")
         // Close the prompt
         showClipboardPrompt = false

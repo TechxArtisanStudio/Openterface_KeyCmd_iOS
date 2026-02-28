@@ -217,7 +217,14 @@ class MacroManager: ObservableObject {
                                     self.keyboardManager.handleKeyCombo(modifiers: activeModifiers, key: "Space")
                                 }
                             } else if token.count == 1, let char = token.first {
-                                if activeModifiers.isEmpty {
+                                if !char.isASCII {
+                                    // Non-ASCII Unicode – must run on background thread
+                                    // so UnicodeManager can use usleep between HID reports.
+                                    let charCopy = char
+                                    DispatchQueue.global(qos: .userInitiated).async {
+                                        UnicodeManager.shared.sendChar(charCopy, keyboardManager: self.keyboardManager)
+                                    }
+                                } else if activeModifiers.isEmpty {
                                     if char.isUppercase && char.isLetter {
                                         self.keyboardManager.handleKeyCombo(modifiers: ["Shift"], key: String(char).uppercased())
                                     } else {
