@@ -159,7 +159,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
         connectedPeripheral.writeValue(data, for: fff2Characteristic, type: .withoutResponse)
         let hexString = data.map { String(format: "%02X", $0) }.joined(separator: " ")
-        logger.logHex(hexString, message: "Data sent to FFF2 characteristic", category: "BLE")
+        logger.logHex(hexString, message: "TX: ", category: "BLE")
     }
 
     // Send mouse move values over BLE

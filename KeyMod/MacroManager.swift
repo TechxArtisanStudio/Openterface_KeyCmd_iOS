@@ -218,10 +218,10 @@ class MacroManager: ObservableObject {
                                 }
                             } else if token.count == 1, let char = token.first {
                                 if !char.isASCII {
-                                    // Non-ASCII Unicode – must run on background thread
-                                    // so UnicodeManager can use usleep between HID reports.
+                                    // Non-ASCII Unicode – enqueue on the serial queue so
+                                    // back-to-back characters never interleave their HID reports.
                                     let charCopy = char
-                                    DispatchQueue.global(qos: .userInitiated).async {
+                                    UnicodeManager.shared.serialQueue.async {
                                         UnicodeManager.shared.sendChar(charCopy, keyboardManager: self.keyboardManager)
                                     }
                                 } else if activeModifiers.isEmpty {

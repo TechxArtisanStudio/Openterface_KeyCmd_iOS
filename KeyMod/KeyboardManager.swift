@@ -616,7 +616,14 @@ class KeyboardManager: ObservableObject {
             }
             // Regular text
             else if token.count == 1 {
-                if activeModifiers.isEmpty {
+                if let char = token.first, char.unicodeScalars.first.map({ $0.value }) ?? 0 > 0x7E {
+                    // Non-ASCII Unicode character — use the serial queue so back-to-back
+                    // characters never interleave their HID reports.
+                    let charCopy = char
+                    UnicodeManager.shared.serialQueue.async {
+                        UnicodeManager.shared.sendChar(charCopy, keyboardManager: self)
+                    }
+                } else if activeModifiers.isEmpty {
                     handleKeyPress(token)
                 } else {
                     var allModifiers = activeModifiers
@@ -631,7 +638,14 @@ class KeyboardManager: ObservableObject {
                 // Multiple characters - send each
                 for char in token {
                     let charStr = String(char)
-                    if activeModifiers.isEmpty {
+                    if char.unicodeScalars.first.map({ $0.value }) ?? 0 > 0x7E {
+                        // Non-ASCII Unicode character — use the serial queue so back-to-back
+                        // characters never interleave their HID reports.
+                        let charCopy = char
+                        UnicodeManager.shared.serialQueue.async {
+                            UnicodeManager.shared.sendChar(charCopy, keyboardManager: self)
+                        }
+                    } else if activeModifiers.isEmpty {
                         handleKeyPress(charStr)
                     } else {
                         var allModifiers = activeModifiers

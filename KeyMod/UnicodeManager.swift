@@ -8,7 +8,8 @@
 //  Windows  – Alt  + NumPad+ + 4 hex digits + release Alt
 //             (requires EnableHexNumpad = 1 in HKCU\Control Panel\Input Method)
 //  Linux    – Ctrl + Shift  + U, then hex digits, then Enter  (GTK/IBus)
-//  macOS    – not supported (no universal hex-input shortcut)
+//  macOS    – Option held + 4 hex digits + release Option
+//             (requires "Unicode Hex Input" keyboard in System Settings → Keyboard → Input Sources)
 //
 
 import Foundation
@@ -19,6 +20,10 @@ class UnicodeManager {
     private init() {}
 
     private let logger = LogManager.shared
+
+    /// Serial queue — ensures that back-to-back Unicode characters are sent
+    /// one after the other and never interleave their HID reports.
+    let serialQueue = DispatchQueue(label: "com.keymod.unicode", qos: .userInitiated)
 
     // ── Standard USB HID modifier bitmasks ──────────────────────────────────
     private let kAlt:   UInt8 = 0x04   // Left Alt
@@ -78,8 +83,7 @@ class UnicodeManager {
         case .linux:
             sendLinuxUnicode(hexStr: hexStr, km: keyboardManager)
         case .macOS:
-            logger.log("Unicode input is not supported for macOS target (char '\(char)' skipped).",
-                       category: "Unicode", level: .warning)
+            sendMacOSUnicode(hexStr: hexStr, km: keyboardManager)
         }
     }
 
@@ -138,6 +142,32 @@ class UnicodeManager {
     /// Digits 0–9 use numpad; letters A–F use regular keyboard.
     private func windowsHexKeyCode(for c: Character) -> UInt8? {
         numpadCodes[c] ?? hexLetterCodes[c]
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // MARK: - macOS — Option (Alt) held + 4 hex digits
+    // ────────────────────────────────────────────────────────────────────────
+
+    /// macOS Unicode Hex Input method:
+    /// Requires "Unicode Hex Input" keyboard enabled in System Settings → Keyboard → Input Sources.
+    /// Hold Option → type exactly 4 hex digits using the number-row / letter keys → release Option.
+    private func sendMacOSUnicode(hexStr: String, km: KeyboardManager) {
+        // 1. Option (Alt) down
+        mainSync { km.sendRawHIDReport(modifierByte: self.kAlt, keyCodes: self.kRelease) }
+        usleep(30_000)
+
+        // 2. Each hex digit while Option is held (regular keyboard row, lowercase)
+        for hexChar in hexStr.lowercased() {
+            guard let code = regularDigitCodes[hexChar] else { continue }
+            mainSync { km.sendRawHIDReport(modifierByte: self.kAlt, keyCodes: [code, 0x00, 0x00, 0x00, 0x00, 0x00]) }
+            usleep(30_000)
+            mainSync { km.sendRawHIDReport(modifierByte: self.kAlt, keyCodes: self.kRelease) }
+            usleep(30_000)
+        }
+
+        // 3. Release Option → macOS commits the character
+        mainSync { km.sendRawHIDReport(modifierByte: 0x00, keyCodes: self.kRelease) }
+        usleep(50_000)
     }
 
     // ────────────────────────────────────────────────────────────────────────
