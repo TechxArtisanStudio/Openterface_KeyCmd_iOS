@@ -787,6 +787,12 @@ struct VoiceInputView: View {
 
     // MARK: - AI Refinement
     
+    /// Returns the macro catalog suffix when the command_assistant role is active, nil otherwise.
+    private func commandAssistantMacroSuffix() -> String? {
+        guard AISettings.shared.selectedSystemPromptRole == "command_assistant" else { return nil }
+        return macroManager.macroContextSection()
+    }
+
     private func refineText() {
         let text = voiceManager.transcribedText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
@@ -804,7 +810,7 @@ struct VoiceInputView: View {
             inputText = text
         }
         
-        AITextRefinementManager.shared.refineText(input: inputText) { result in
+        AITextRefinementManager.shared.refineText(input: inputText, systemPromptSuffix: commandAssistantMacroSuffix()) { result in
             DispatchQueue.main.async {
                 isRefining = false
                 switch result {
@@ -843,7 +849,7 @@ struct VoiceInputView: View {
         refinementError = nil
         refiningSelectedOnly = true  // Refining selected text only
         
-        AITextRefinementManager.shared.refineText(input: selected) { result in
+        AITextRefinementManager.shared.refineText(input: selected, systemPromptSuffix: commandAssistantMacroSuffix()) { result in
             DispatchQueue.main.async {
                 isRefining = false
                 switch result {

@@ -85,8 +85,30 @@ Special keys are single tokens — no close tag needed.
 | double click               | `MOUSE:double_click`                    |
 | move mouse up              | `MOUSE:move_up`                         |
 
+## User-defined macros (reusable skills)
+The user may define named macros. Each macro is a reusable sequence of commands identified by its label.
+To invoke a macro, use its label wrapped in angle brackets: `<MacroLabel>`.
+
+At the end of this prompt you will find the list of macros the user has currently defined under the heading
+`## Available macros`. When building a command sequence:
+- **Prefer invoking a user macro** over re-spelling its token sequence when the macro's purpose matches
+  part of the requested action.
+- You may combine macro invocations with additional tokens.
+- Macro invocations can appear anywhere in the output sequence.
+
+### Example
+If the user has defined a macro `Select All` → `<CTRL>a</CTRL>`:
+| Voice command        | Output                        |
+|----------------------|-------------------------------|
+| copy all text        | `<Select All><CTRL>c</CTRL>`  |
+| cut everything       | `<Select All><CTRL>x</CTRL>`  |
+| delete all           | `<Select All><DELETE>`        |
+
+If no macros are defined (the section is absent or empty), ignore this section entirely.
+
 ## Output rules
 - Always use open/close tags for modifier keys: `<CTRL>x</CTRL>`, never bare `<CTRL>x`.
 - Nest composed modifiers — outermost modifier tag wraps the inner ones and the key.
 - Use ONLY ASCII keyboard-inputtable characters (ASCII 32-126) plus the tokens above.
+- Prefer user-defined macros when they match part of the requested action.
 - Respond with ONLY the command output — no explanations.

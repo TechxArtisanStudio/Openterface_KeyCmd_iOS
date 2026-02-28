@@ -96,11 +96,13 @@ class AITextRefinementManager {
     private let logger = LogManager.shared
     
     // MARK: - Refine Text
-    func refineText(input: String, completion: @escaping (Result<String, AIRefinementError>) -> Void) {
+    /// - Parameter systemPromptSuffix: Optional text appended to the system prompt for this request only
+    ///   (not persisted). Used to inject live context such as the user's macro catalog.
+    func refineText(input: String, systemPromptSuffix: String? = nil, completion: @escaping (Result<String, AIRefinementError>) -> Void) {
         // Validate configuration
         guard let validationError = settings.getValidationError() else {
             // Configuration is valid
-            performRefinement(input: input, completion: completion)
+            performRefinement(input: input, systemPromptSuffix: systemPromptSuffix, completion: completion)
             return
         }
         
@@ -108,7 +110,7 @@ class AITextRefinementManager {
         completion(.failure(.invalidConfiguration))
     }
     
-    private func performRefinement(input: String, completion: @escaping (Result<String, AIRefinementError>) -> Void) {
+    private func performRefinement(input: String, systemPromptSuffix: String? = nil, completion: @escaping (Result<String, AIRefinementError>) -> Void) {
         // Get selected provider
         guard let provider = settings.selectedProvider else {
             logger.log("No AI provider selected", category: "AIRefinement", level: .error)
@@ -134,10 +136,17 @@ class AITextRefinementManager {
             return
         }
         
+        let effectiveSystemPrompt: String
+        if let suffix = systemPromptSuffix, !suffix.isEmpty {
+            effectiveSystemPrompt = settings.systemPrompt + suffix
+        } else {
+            effectiveSystemPrompt = settings.systemPrompt
+        }
+        
         let request = TextRefinementRequest(
             model: provider.modelName.trimmingCharacters(in: .whitespaces),
             messages: [
-                .init(role: "system", content: settings.systemPrompt),
+                .init(role: "system", content: effectiveSystemPrompt),
                 .init(role: "user", content: input)
             ]
         )

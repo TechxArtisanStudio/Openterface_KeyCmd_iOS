@@ -259,6 +259,28 @@ class MacroManager: ObservableObject {
         }
     }
     
+    /// Returns a markdown section listing all defined macros for injection into the AI system prompt.
+    /// Returns nil when no macros are defined so callers can skip appending entirely.
+    func macroContextSection() -> String? {
+        let validMacros = macros.filter { !$0.label.trimmingCharacters(in: .whitespaces).isEmpty }
+        guard !validMacros.isEmpty else { return nil }
+
+        var lines: [String] = [
+            "",
+            "## Available macros",
+            "The following macros are defined by the user. Invoke them with `<MacroLabel>`:",
+            "",
+            "| Label | Command sequence |",
+            "|-------|-----------------|"
+        ]
+        for macro in validMacros {
+            // Escape pipe characters in data to keep the table valid
+            let escapedData = macro.data.replacingOccurrences(of: "|", with: "\\|")
+            lines.append("| \(macro.label) | `\(escapedData)` |")
+        }
+        return lines.joined(separator: "\n")
+    }
+
     func saveMacros() {
         if let data = try? JSONEncoder().encode(macros) {
             UserDefaults.standard.set(data, forKey: macrosKey)
