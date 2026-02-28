@@ -14,13 +14,34 @@ class WhisperModelManager: NSObject, ObservableObject {
     @Published var downloadProgress: Double = 0.0
     @Published var isDownloading: Bool = false
     @Published var downloadError: String? = nil
-    
+
+    /// The currently active model spec. Changing this frees the cached whisper context
+    /// and re-checks whether the new model's file is already present on disk.
+    @Published var selectedModel: WhisperModelSpec {
+        didSet {
+            guard oldValue != selectedModel else { return }
+            UserDefaults.standard.set(selectedModel.id, forKey: "WhisperModelManager.selectedModel")
+            // Free cached context so the new model is loaded on the next inference call
+            whisperQueue.async { [weak self] in
+                guard let self else { return }
+                if let ctx = self.whisperCtx {
+                    whisper_free(ctx)
+                    self.whisperCtx = nil
+                    self.logger.log("Whisper context freed (model changed to \(self.selectedModel.displayName))", category: "WhisperModel")
+                }
+            }
+            checkIfModelExists()
+        }
+    }
+
     static let shared = WhisperModelManager()
-    
+
     private let logger = LogManager.shared
-    private let modelFileName = "ggml-tiny.en.bin"
-    private let modelURLString = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin"
-    private let expectedFileSize: Int = 74_000_000 // ~74MB for ggml-tiny.en.bin
+
+    // Computed shorthands that always reflect the active model selection
+    private var modelFileName:    String { selectedModel.fileName }
+    private var modelURLString:   String { selectedModel.downloadURL }
+    private var expectedFileSize: Int    { selectedModel.expectedFileSize }
 
     // Persistent whisper context – loaded once, reused across every transcription call.
     // whisper_full is NOT thread-safe, so all access runs on this serial queue.
@@ -28,6 +49,16 @@ class WhisperModelManager: NSObject, ObservableObject {
     private let whisperQueue = DispatchQueue(label: "KeyMod.WhisperModelManager.inference", qos: .userInitiated)
 
     private override init() {
+        let savedId = UserDefaults.standard.string(forKey: "WhisperModelManager.selectedModel") ?? "en"
+        // Resolve from catalog; fall back to first available model
+        self.selectedModel = WhisperModelCatalog.shared.spec(for: savedId)
+            ?? WhisperModelCatalog.shared.models.first
+            ?? WhisperModelSpec(id: "en",
+                                displayName: "Tiny – English Only",
+                                fileName: "ggml-tiny.en.bin",
+                                downloadURL: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin",
+                                expectedFileSize: 74_000_000,
+                                language: "en")
         super.init()
         checkIfModelExists()
     }
@@ -201,7 +232,9 @@ class WhisperModelManager: NSObject, ObservableObject {
         configuration.waitsForConnectivity = true
         
         // Use URLSessionDownloadDelegate for progress tracking and bridge to async/await
-        let downloadDelegate = DownloadDelegate { [weak self] progress in
+        let downloadDelegate = DownloadDelegate(
+            expectedFileSize: expectedFileSize
+        ) { [weak self] progress in
             DispatchQueue.main.async {
                 self?.downloadProgress = progress
             }
@@ -398,7 +431,7 @@ class WhisperModelManager: NSObject, ObservableObject {
         params.print_special    = false
         params.print_realtime   = false
         params.print_timestamps = false
-        params.language         = ("en" as NSString).utf8String
+        params.language         = (selectedModel.language as NSString).utf8String
         params.n_threads        = Int32(max(1, ProcessInfo.processInfo.processorCount - 1))
 
         let rc = samples.withUnsafeBufferPointer { ptr in
@@ -427,9 +460,12 @@ class WhisperModelManager: NSObject, ObservableObject {
 
 private class DownloadDelegate: NSObject, URLSessionDownloadDelegate {
     let progressCallback: (Double) -> Void
+    /// Fallback denominator when the server omits Content-Length (e.g. HuggingFace LFS CDN).
+    let expectedFileSize: Int
     var continuation: CheckedContinuation<(URL, URLResponse), Error>? = nil
 
-    init(progressCallback: @escaping (Double) -> Void) {
+    init(expectedFileSize: Int, progressCallback: @escaping (Double) -> Void) {
+        self.expectedFileSize = expectedFileSize
         self.progressCallback = progressCallback
         super.init()
     }
@@ -452,8 +488,13 @@ private class DownloadDelegate: NSObject, URLSessionDownloadDelegate {
     }
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
-        guard totalBytesExpectedToWrite > 0 else { return }
-        let progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
-        progressCallback(min(progress, 1.0))
+        // HuggingFace LFS CDN often returns -1 for totalBytesExpectedToWrite.
+        // Fall back to the known model size so the progress bar still moves.
+        let total: Int64 = totalBytesExpectedToWrite > 0
+            ? totalBytesExpectedToWrite
+            : Int64(expectedFileSize)
+        guard total > 0 else { return }
+        let progress = Double(totalBytesWritten) / Double(total)
+        progressCallback(min(max(progress, 0.0), 1.0))
     }
 }

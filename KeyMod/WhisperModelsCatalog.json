@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "remoteCatalogURL": null,
+  "models": [
+    {
+      "id": "en",
+      "displayName": "English",
+      "fileName": "ggml-tiny.en.bin",
+      "downloadURL": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin",
+      "expectedFileSize": 74000000,
+      "language": "en"
+    },
+    {
+      "id": "multi",
+      "displayName": "Multilingual",
+      "fileName": "ggml-tiny.bin",
+      "downloadURL": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin",
+      "expectedFileSize": 75000000,
+      "language": "auto"
+    },
+    {
+      "id": "yue",
+      "displayName": "Cantonese",
+      "fileName": "ggml-base-yue.bin",
+      "downloadURL": "https://huggingface.co/wabisabisocial/whisper-base-cantonese-ggml/resolve/main/ggml-base-yue.bin",
+      "expectedFileSize": 148000000,
+      "language": "yue"
+    }
+  ]
+}

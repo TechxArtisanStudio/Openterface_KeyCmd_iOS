@@ -144,12 +144,40 @@ private struct BoundedTextView: UIViewRepresentable {
     }
 }
 
+/// Shows icon + text when space allows; degrades to icon-only on narrow layouts.
+/// Compatible with iOS 15+.
+private struct AdaptiveLabel: View {
+    let systemImage: String
+    let text: String
+
+    var body: some View {
+        if #available(iOS 16.0, *) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 3) {
+                    Image(systemName: systemImage)
+                    Text(text).lineLimit(1)
+                }
+                Image(systemName: systemImage)
+            }
+        } else {
+            HStack(spacing: 3) {
+                Image(systemName: systemImage)
+                Text(text)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .minimumScaleFactor(0.7)
+            }
+        }
+    }
+}
+
 // MARK: - VoiceInputView
 struct VoiceInputView: View {
     let keyboardManager: KeyboardManager
 
     @StateObject private var voiceManager = VoiceInputManager()
     @ObservedObject private var aiSettings = AISettings.shared
+    @ObservedObject private var modelManager = WhisperModelManager.shared
     @StateObject private var macroManager: MacroManager
     @State private var isSending = false
     @State private var sentHistory: [HistoryItem] = []
@@ -425,7 +453,9 @@ struct VoiceInputView: View {
                         .foregroundColor(.red)
                 }
             } else {
-                Text(voiceManager.permissionGranted ? "Ready" : "No Permission")
+                Text(voiceManager.permissionGranted
+                        ? (aiSettings.sttEngine == .whisper ? modelManager.selectedModel.displayName : "Ready")
+                        : "No Permission")
                     .font(.caption)
                     .foregroundColor(voiceManager.permissionGranted ? .secondary : .orange)
             }
@@ -613,71 +643,60 @@ struct VoiceInputView: View {
     }
 
     private func historyRow(item: HistoryItem, index: Int) -> some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(item.text)
-                    .font(.body)
-                    .foregroundColor(.primary)
-                    .lineLimit(3)
+        VStack(alignment: .leading, spacing: 6) {
+            Text(item.text)
+                .font(.callout)
+                .foregroundColor(.primary)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 4) {
                 Text(formatTimestamp(item.timestamp))
                     .font(.caption2)
                     .foregroundColor(.secondary)
-            }
-            Spacer()
-            HStack(spacing: 6) {
+                Spacer()
                 Button(action: {
                     voiceManager.transcribedText = item.text
                 }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "pencil")
-                        Text("Edit")
-                    }
-                    .font(.caption)
+                    AdaptiveLabel(systemImage: "pencil", text: "Edit")
+                    .font(.caption2)
                     .foregroundColor(.blue)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 4)
                     .background(Color.blue.opacity(0.1))
-                    .cornerRadius(6)
+                    .cornerRadius(5)
                 }
                 .buttonStyle(PlainButtonStyle())
-                
+
                 Button(action: {
                     resendText(item.text)
                 }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "paperplane.fill")
-                        Text("Resend")
-                    }
-                    .font(.caption)
+                    AdaptiveLabel(systemImage: "paperplane.fill", text: "Resend")
+                    .font(.caption2)
                     .foregroundColor(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 4)
                     .background(Color.blue)
-                    .cornerRadius(6)
+                    .cornerRadius(5)
                 }
                 .buttonStyle(PlainButtonStyle())
-                
+
                 Button(action: {
                     selectedHistoryItemForMacro = item
-                    // Set default macro name from first 20 characters of text
                     macroNameInput = String(item.text.prefix(20))
                     showMacroSaveDialog = true
                 }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "plus.circle")
-                        Text("Macro")
-                    }
-                    .font(.caption)
+                    AdaptiveLabel(systemImage: "plus.circle", text: "Macro")
+                    .font(.caption2)
                     .foregroundColor(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 4)
                     .background(Color.green)
-                    .cornerRadius(6)
+                    .cornerRadius(5)
                 }
                 .buttonStyle(PlainButtonStyle())
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 6)
     }
 
     private func formatTimestamp(_ date: Date) -> String {

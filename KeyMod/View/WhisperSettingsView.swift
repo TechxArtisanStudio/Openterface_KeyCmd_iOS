@@ -10,6 +10,7 @@ import SwiftUI
 struct WhisperSettingsView: View {
     @ObservedObject private var aiSettings = AISettings.shared
     @ObservedObject private var modelManager = WhisperModelManager.shared
+    @ObservedObject private var catalog = WhisperModelCatalog.shared
     @State private var showRestartAlert = false
     @State private var showDownloadConfirm = false
     @State private var showDeleteConfirm = false
@@ -29,13 +30,13 @@ struct WhisperSettingsView: View {
             Button("Download") { downloadModel() }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("This will download approximately 74 MB. Make sure you have sufficient storage and a good network connection.")
+            Text("This will download approximately \(modelManager.selectedModel.expectedFileSize / 1_000_000) MB. Make sure you have sufficient storage and a good network connection.")
         }
         .confirmationDialog("Delete Whisper Model?", isPresented: $showDeleteConfirm) {
             Button("Delete", role: .destructive) { deleteModel() }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("This will delete the downloaded model file and free up approximately 74 MB of storage.")
+            Text("This will delete the downloaded model file and free up approximately \(modelManager.selectedModel.expectedFileSize / 1_000_000) MB of storage.")
         }
     }
     
@@ -67,8 +68,19 @@ struct WhisperSettingsView: View {
     @ViewBuilder
     private var whisperModelSection: some View {
         if aiSettings.sttEngine == .whisper {
-            Section("Whisper Tiny Model") {
+            Section("Whisper Model") {
                 VStack(spacing: 12) {
+                    // Model type picker – populated from the catalog (bundle or remote)
+                    Picker("Model", selection: Binding(
+                        get: { modelManager.selectedModel },
+                        set: { modelManager.selectedModel = $0 }
+                    )) {
+                        ForEach(catalog.models) { model in
+                            Text(model.displayName).tag(model)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
                     modelStatusDisplay
                     if let error = modelManager.downloadError {
                         downloadErrorView(error)
@@ -83,9 +95,9 @@ struct WhisperSettingsView: View {
     private var modelStatusDisplay: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text("ggml-tiny.en.bin")
+                Text(modelManager.selectedModel.fileName)
                     .font(.headline)
-                Text("Approx. 74 MB")
+                Text("Approx. \(modelManager.selectedModel.expectedFileSize / 1_000_000) MB")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
