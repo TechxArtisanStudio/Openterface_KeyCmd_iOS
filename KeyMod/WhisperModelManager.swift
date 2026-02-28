@@ -74,66 +74,85 @@ class WhisperModelManager: NSObject, ObservableObject {
     }
     
     func downloadModel() async throws {
+        logger.log("[DL] downloadModel() called – model: \(selectedModel.id) (\(selectedModel.fileName)), url: \(modelURLString)", category: "WhisperModel")
         DispatchQueue.main.async {
             self.isDownloading = true
             self.downloadError = nil
             self.downloadProgress = 0.0
         }
         
-        defer {
-            DispatchQueue.main.async {
-                self.isDownloading = false
-            }
-        }
-        
         do {
             // Check available disk space
+            logger.log("[DL] Checking disk space…", category: "WhisperModel")
             try checkDiskSpace()
 
             let fileURL = getModelFileURL()
+            logger.log("[DL] Destination file URL: \(fileURL.path)", category: "WhisperModel")
 
             // Remove existing file if present
-            try? FileManager.default.removeItem(at: fileURL)
+            if FileManager.default.fileExists(atPath: fileURL.path) {
+                logger.log("[DL] Removing existing file before download", category: "WhisperModel")
+                try? FileManager.default.removeItem(at: fileURL)
+            }
 
             // Try downloading with a small retry loop. Sometimes mirrors return HTML or partial content (rate limits).
             var lastError: Error?
             let maxAttempts = 3
             for attempt in 1...maxAttempts {
+                logger.log("[DL] Attempt \(attempt)/\(maxAttempts) – starting downloadFile()", category: "WhisperModel")
                 do {
                     try await downloadFile(from: modelURLString, to: fileURL)
+                    logger.log("[DL] downloadFile() returned successfully on attempt \(attempt) – starting verification", category: "WhisperModel")
                     try verifyDownloadedFile(at: fileURL)
+                    logger.log("[DL] Verification passed on attempt \(attempt)", category: "WhisperModel")
 
+                    // Set isDownloaded and isDownloading together in one dispatch so the UI
+                    // never sees the intermediate state (isDownloading=false, isDownloaded=false)
+                    // that would cause the progress bar to flash back to 0%.
                     DispatchQueue.main.async {
-                        self.isDownloaded = true
                         self.downloadProgress = 1.0
-                        self.logger.log("Whisper model downloaded successfully", category: "WhisperModel")
+                        self.isDownloaded = true
+                        self.isDownloading = false
+                        self.logger.log("[DL] State updated: isDownloaded=true, isDownloading=false, progress=1.0", category: "WhisperModel")
                     }
                     // Pre-load the context immediately after download so first transcription is instant
                     warmupIfNeeded()
                     lastError = nil
                     break
                 } catch {
+                    logger.log("[DL] Attempt \(attempt) failed with error: \(error)", category: "WhisperModel")
                     lastError = error
                     // Remove possibly-bad file before retrying
-                    try? FileManager.default.removeItem(at: fileURL)
-                    // brief backoff
-                    try? await Task.sleep(nanoseconds: UInt64(1_000_000_000 * UInt64(attempt)))
+                    if FileManager.default.fileExists(atPath: fileURL.path) {
+                        logger.log("[DL] Removing bad file before retry", category: "WhisperModel")
+                        try? FileManager.default.removeItem(at: fileURL)
+                    }
+                    if attempt < maxAttempts {
+                        logger.log("[DL] Backing off \(attempt)s before retry…", category: "WhisperModel")
+                        try? await Task.sleep(nanoseconds: UInt64(1_000_000_000 * UInt64(attempt)))
+                    }
                 }
             }
 
             if let error = lastError {
+                logger.log("[DL] All \(maxAttempts) attempts exhausted. Final error: \(error)", category: "WhisperModel")
                 DispatchQueue.main.async {
                     self.downloadError = error.localizedDescription
                     self.isDownloaded = false
-                    self.logger.log("Whisper model download failed: \(error)", category: "WhisperModel")
+                    self.isDownloading = false
+                    self.logger.log("[DL] State updated: isDownloaded=false, isDownloading=false (all retries failed)", category: "WhisperModel")
                 }
                 throw lastError!
+            } else {
+                logger.log("[DL] downloadModel() completed successfully", category: "WhisperModel")
             }
         } catch {
+            logger.log("[DL] downloadModel() outer catch – error: \(error)", category: "WhisperModel")
             DispatchQueue.main.async {
                 self.downloadError = error.localizedDescription
                 self.isDownloaded = false
-                self.logger.log("Whisper model download failed: \(error)", category: "WhisperModel")
+                self.isDownloading = false
+                self.logger.log("[DL] State updated: isDownloaded=false, isDownloading=false (outer catch)", category: "WhisperModel")
             }
             throw error
         }
@@ -218,6 +237,7 @@ class WhisperModelManager: NSObject, ObservableObject {
     }
     
     private func downloadFile(from urlString: String, to destination: URL) async throws {
+        logger.log("[DL] downloadFile() – url: \(urlString)", category: "WhisperModel")
         guard let url = URL(string: urlString) else {
             throw NSError(domain: "WhisperModelManager", code: -3,
                          userInfo: [NSLocalizedDescriptionKey: "Invalid model URL"])
@@ -231,8 +251,11 @@ class WhisperModelManager: NSObject, ObservableObject {
         configuration.timeoutIntervalForRequest = 300 // 5 minutes
         configuration.waitsForConnectivity = true
         
-        // Use URLSessionDownloadDelegate for progress tracking and bridge to async/await
+        // Use URLSessionDownloadDelegate for progress tracking and bridge to async/await.
+        // NOTE: The delegate moves the temp file synchronously inside didFinishDownloadingTo
+        // because URLSession deletes the temp file as soon as that delegate method returns.
         let downloadDelegate = DownloadDelegate(
+            destination: destination,
             expectedFileSize: expectedFileSize
         ) { [weak self] progress in
             DispatchQueue.main.async {
@@ -244,22 +267,31 @@ class WhisperModelManager: NSObject, ObservableObject {
 
         // Start download task and await completion via continuation set by delegate
         let task = delegateSession.downloadTask(with: url)
-        let (tempURL, response) = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<(URL, URLResponse), Error>) in
+        logger.log("[DL] URLSession download task created, resuming…", category: "WhisperModel")
+        let response = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URLResponse, Error>) in
             downloadDelegate.continuation = continuation
             task.resume()
         }
+        logger.log("[DL] Continuation resumed – file already moved to destination by delegate", category: "WhisperModel")
         
         // Verify HTTP response
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+        if let httpResponse = response as? HTTPURLResponse {
+            logger.log("[DL] HTTP status: \(httpResponse.statusCode), Content-Length header: \(httpResponse.value(forHTTPHeaderField: "Content-Length") ?? "nil")", category: "WhisperModel")
+            guard httpResponse.statusCode == 200 else {
+                throw NSError(domain: "WhisperModelManager", code: -4,
+                             userInfo: [NSLocalizedDescriptionKey: "Invalid HTTP response: status \(httpResponse.statusCode)"])
+            }
+        } else {
+            logger.log("[DL] Response is not HTTPURLResponse – type: \(type(of: response))", category: "WhisperModel")
             throw NSError(domain: "WhisperModelManager", code: -4,
-                         userInfo: [NSLocalizedDescriptionKey: "Invalid HTTP response"])
+                         userInfo: [NSLocalizedDescriptionKey: "Invalid HTTP response (not HTTPURLResponse)"])
         }
-        
-        try FileManager.default.moveItem(at: tempURL, to: destination)
     }
     
     private func verifyDownloadedFile(at url: URL) throws {
+        logger.log("[DL] verifyDownloadedFile() – path: \(url.path)", category: "WhisperModel")
         guard FileManager.default.fileExists(atPath: url.path) else {
+            logger.log("[DL] VERIFY FAIL: file does not exist at path", category: "WhisperModel")
             throw NSError(domain: "WhisperModelManager", code: -5,
                          userInfo: [NSLocalizedDescriptionKey: "Downloaded file not found"])
         }
@@ -271,6 +303,7 @@ class WhisperModelManager: NSObject, ObservableObject {
         }
         
         let actualSize = fileSize.intValue
+        logger.log("[DL] Actual file size: \(actualSize) bytes (\(actualSize / 1_000_000) MB) | Expected: \(expectedFileSize) bytes (\(expectedFileSize / 1_000_000) MB)", category: "WhisperModel")
 
         // Quick sanity check: ensure file is not an HTML error page or clearly truncated
         // Read first bytes to detect HTML/text responses (common when mirrors return an error page)
@@ -278,7 +311,12 @@ class WhisperModelManager: NSObject, ObservableObject {
         defer { try? handle.close() }
         let headerData = try handle.read(upToCount: 512) ?? Data()
         if let headerString = String(data: headerData, encoding: .utf8)?.lowercased() {
-            if headerString.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("<!doctype html") || headerString.hasPrefix("<html") || headerString.contains("error") && headerString.contains("huggingface") {
+            let isHtml = headerString.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("<!doctype html")
+                      || headerString.hasPrefix("<html")
+                      || (headerString.contains("error") && headerString.contains("huggingface"))
+            logger.log("[DL] File header (first 128 chars): \(String(headerString.prefix(128)))", category: "WhisperModel")
+            if isHtml {
+                logger.log("[DL] VERIFY FAIL: file is an HTML error page", category: "WhisperModel")
                 try FileManager.default.removeItem(at: url)
                 throw NSError(domain: "WhisperModelManager", code: -8,
                              userInfo: [NSLocalizedDescriptionKey: "Downloaded file appears to be an HTML error page (likely a mirror or rate-limit response). Please try again later or from a different network."])
@@ -288,19 +326,24 @@ class WhisperModelManager: NSObject, ObservableObject {
         // Allow some tolerance in file size (within 15%) to tolerate small differences or compression
         let tolerance = Int(Double(expectedFileSize) * 0.15)
         let minSize = expectedFileSize - tolerance
+        logger.log("[DL] Size check: actualSize=\(actualSize) >= minSize=\(minSize)? \(actualSize >= minSize)", category: "WhisperModel")
         // Accept if file is reasonably large; otherwise treat as truncated
         guard actualSize >= minSize else {
+            logger.log("[DL] VERIFY FAIL: file too small (\(actualSize) < \(minSize))", category: "WhisperModel")
             try FileManager.default.removeItem(at: url)
             throw NSError(domain: "WhisperModelManager", code: -7,
                          userInfo: [NSLocalizedDescriptionKey: "Downloaded file size mismatch. Expected ~\(expectedFileSize / 1_000_000)MB, got \(actualSize / 1_000_000)MB. This often indicates a truncated download or a mirror returning HTML (rate limit). Please retry or use a different network."])
         }
+        logger.log("[DL] Verification passed – file looks valid", category: "WhisperModel")
     }
 
     // MARK: - Transcription
 
     /// Transcribes pre-resampled 16 kHz mono Float32 samples directly (no disk I/O).
     /// Prefer this over `transcribeAudioFile` when samples are already available in memory.
-    func transcribeAudioSamples(_ samples: [Float]) async throws -> String {
+    /// - Parameter language: Optional whisper.cpp language code (e.g. "zh", "ja"). Only applied
+    ///   to multilingual models; English-only models always use "en".
+    func transcribeAudioSamples(_ samples: [Float], language: String? = nil) async throws -> String {
         guard isDownloaded, let modelURL = modelPath else {
             throw NSError(domain: "WhisperModelManager", code: -9,
                          userInfo: [NSLocalizedDescriptionKey: "Whisper model not downloaded"])
@@ -310,7 +353,7 @@ class WhisperModelManager: NSObject, ObservableObject {
         return try await withCheckedThrowingContinuation { continuation in
             self.whisperQueue.async {
                 do {
-                    let text = try self.runWhisperInference(modelPath: modelPath, samples: samples)
+                    let text = try self.runWhisperInference(modelPath: modelPath, samples: samples, language: language)
                     continuation.resume(returning: text)
                 } catch {
                     continuation.resume(throwing: error)
@@ -320,7 +363,8 @@ class WhisperModelManager: NSObject, ObservableObject {
     }
 
     /// Transcribes the given WAV audio file using the local whisper.cpp model.
-    func transcribeAudioFile(_ audioFileURL: URL) async throws -> String {
+    /// - Parameter language: Optional whisper.cpp language code. Only applied to multilingual models.
+    func transcribeAudioFile(_ audioFileURL: URL, language: String? = nil) async throws -> String {
         guard isDownloaded, let modelURL = modelPath else {
             throw NSError(domain: "WhisperModelManager", code: -9,
                          userInfo: [NSLocalizedDescriptionKey: "Whisper model not downloaded"])
@@ -341,7 +385,7 @@ class WhisperModelManager: NSObject, ObservableObject {
         return try await withCheckedThrowingContinuation { continuation in
             self.whisperQueue.async {
                 do {
-                    let text = try self.runWhisperInference(modelPath: modelPath, samples: samples)
+                    let text = try self.runWhisperInference(modelPath: modelPath, samples: samples, language: language)
                     continuation.resume(returning: text)
                 } catch {
                     continuation.resume(throwing: error)
@@ -415,7 +459,9 @@ class WhisperModelManager: NSObject, ObservableObject {
     // MARK: - Whisper Inference
 
     /// Must only be called from `whisperQueue`.
-    private func runWhisperInference(modelPath: String, samples: [Float]) throws -> String {
+    /// - Parameter language: If the active model is multilingual (`language == "auto"`), this
+    ///   override is applied. English-only and language-specific models ignore it.
+    private func runWhisperInference(modelPath: String, samples: [Float], language: String? = nil) throws -> String {
         // Load context once; reuse on subsequent calls.
         if whisperCtx == nil {
             logger.log("Loading Whisper model context (first call)…", category: "WhisperModel")
@@ -431,7 +477,15 @@ class WhisperModelManager: NSObject, ObservableObject {
         params.print_special    = false
         params.print_realtime   = false
         params.print_timestamps = false
-        params.language         = (selectedModel.language as NSString).utf8String
+        // For multilingual models, honour the user's language override; otherwise use the
+        // language baked into the model spec (e.g. "en" for English-only, "yue" for Cantonese).
+        let effectiveLanguage: String
+        if selectedModel.language == "auto", let override = language, !override.isEmpty {
+            effectiveLanguage = override
+        } else {
+            effectiveLanguage = selectedModel.language
+        }
+        params.language         = (effectiveLanguage as NSString).utf8String
         params.n_threads        = Int32(max(1, ProcessInfo.processInfo.processorCount - 1))
 
         let rc = samples.withUnsafeBufferPointer { ptr in
@@ -460,30 +514,54 @@ class WhisperModelManager: NSObject, ObservableObject {
 
 private class DownloadDelegate: NSObject, URLSessionDownloadDelegate {
     let progressCallback: (Double) -> Void
+    /// Destination path where the temp file should be moved immediately inside didFinishDownloadingTo.
+    let destination: URL
     /// Fallback denominator when the server omits Content-Length (e.g. HuggingFace LFS CDN).
     let expectedFileSize: Int
-    var continuation: CheckedContinuation<(URL, URLResponse), Error>? = nil
+    var continuation: CheckedContinuation<URLResponse, Error>? = nil
+    private var lastLoggedPct: Int = -1
 
-    init(expectedFileSize: Int, progressCallback: @escaping (Double) -> Void) {
+    init(destination: URL, expectedFileSize: Int, progressCallback: @escaping (Double) -> Void) {
+        self.destination = destination
         self.expectedFileSize = expectedFileSize
         self.progressCallback = progressCallback
         super.init()
     }
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        // IMPORTANT: URLSession deletes `location` as soon as this method returns.
+        // We must move the file synchronously here before resuming the continuation.
+        NSLog("[DL-Delegate] didFinishDownloadingTo: %@", location.path)
+        do {
+            // Remove stale destination if it somehow exists
+            if FileManager.default.fileExists(atPath: destination.path) {
+                try FileManager.default.removeItem(at: destination)
+            }
+            try FileManager.default.moveItem(at: location, to: destination)
+            NSLog("[DL-Delegate] File moved to destination: %@", destination.path)
+        } catch {
+            NSLog("[DL-Delegate] ERROR moving file: %@", error.localizedDescription)
+            continuation?.resume(throwing: error)
+            continuation = nil
+            return
+        }
         guard let response = downloadTask.response else {
+            NSLog("[DL-Delegate] ERROR: No response from server")
             continuation?.resume(throwing: NSError(domain: "WhisperModelManager", code: -4, userInfo: [NSLocalizedDescriptionKey: "No response from server"]))
             continuation = nil
             return
         }
-        continuation?.resume(returning: (location, response))
+        continuation?.resume(returning: response)
         continuation = nil
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         if let error = error {
+            NSLog("[DL-Delegate] didCompleteWithError: %@", error.localizedDescription)
             continuation?.resume(throwing: error)
             continuation = nil
+        } else {
+            NSLog("[DL-Delegate] didCompleteWithError called with nil error (task completed normally)")
         }
     }
 
@@ -495,6 +573,11 @@ private class DownloadDelegate: NSObject, URLSessionDownloadDelegate {
             : Int64(expectedFileSize)
         guard total > 0 else { return }
         let progress = Double(totalBytesWritten) / Double(total)
+        let pct = Int(progress * 100)
+        if pct != lastLoggedPct {
+            lastLoggedPct = pct
+            NSLog("[DL-Delegate] Progress: %d%% (%lld / %lld bytes)", pct, totalBytesWritten, total)
+        }
         progressCallback(min(max(progress, 0.0), 1.0))
     }
 }

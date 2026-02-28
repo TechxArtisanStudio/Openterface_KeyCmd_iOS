@@ -65,7 +65,7 @@ Special keys are single tokens — no close tag needed.
 
 ## User-defined macros (reusable skills)
 The user may define named macros. Each macro is a reusable sequence of commands identified by its label.
-To invoke a macro, use its label wrapped in angle brackets: `<MacroLabel>`.
+To invoke a macro, use its label wrapped in angle brackets: `<Macro>`.
 
 At the end of this prompt you will find the list of macros the user has currently defined under the heading
 `## Available macros`. When building a command sequence:

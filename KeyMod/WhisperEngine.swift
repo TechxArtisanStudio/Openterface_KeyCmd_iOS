@@ -144,10 +144,12 @@ class WhisperEngine: NSObject, SpeechRecognitionEngine {
                     }
 
                 // Ask the model manager to transcribe the file. This is async and pluggable.
-                let transcription = try await modelManager.transcribeAudioFile(fileURL)
+                let language = AISettings.shared.currentSTTLanguage.whisperCode
+                let transcription = try await modelManager.transcribeAudioFile(fileURL, language: language)
+                let finalText = normalizeChineseScript(transcription)
 
                 DispatchQueue.main.async {
-                    self.onResult?(.final(transcription))
+                    self.onResult?(.final(finalText))
                 }
 
                 // Clean up temp file
@@ -180,8 +182,10 @@ class WhisperEngine: NSObject, SpeechRecognitionEngine {
             do {
                 let samples = try resampleBuffersTo16kHz(buffers)
                 logger.log("transcribeAudio(buffers): resampled to \(samples.count) samples @ 16kHz", category: "VoiceInput")
-                let transcription = try await modelManager.transcribeAudioSamples(samples)
-                DispatchQueue.main.async { self.onResult?(.final(transcription)) }
+                let language = AISettings.shared.currentSTTLanguage.whisperCode
+                let transcription = try await modelManager.transcribeAudioSamples(samples, language: language)
+                let finalText = normalizeChineseScript(transcription)
+                DispatchQueue.main.async { self.onResult?(.final(finalText)) }
             } catch {
                 logger.log("transcribeAudio(buffers) error: \(error)", category: "VoiceInput")
                 DispatchQueue.main.async { self.onError?(error) }
@@ -393,6 +397,17 @@ class WhisperEngine: NSObject, SpeechRecognitionEngine {
                 }
             }
         }
+    }
+
+    /// Converts Traditional Chinese characters to Simplified Chinese when the user's
+    /// selected locale is zh-Hans. Whisper.cpp outputs Traditional by default for all
+    /// "zh" variants, so we post-process with CFStringTransform("Hant-Hans").
+    /// For all other locales the text is returned unchanged.
+    private func normalizeChineseScript(_ text: String) -> String {
+        guard AISettings.shared.sttLocale == "zh-Hans" else { return text }
+        let mutable = NSMutableString(string: text)
+        CFStringTransform(mutable, nil, "Hant-Hans" as CFString, false)
+        return mutable as String
     }
 
     // Create a deep copy of an AVAudioPCMBuffer

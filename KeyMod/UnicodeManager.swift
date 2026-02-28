@@ -60,6 +60,12 @@ class UnicodeManager {
         return TargetOS(rawValue: raw) ?? .windows
     }
 
+    // ── BLE key timing helpers ───────────────────────────────────────────────
+    /// Inter-key delay in microseconds (reads live from AISettings).
+    private var keyDelayUs:    UInt32 { UInt32(AISettings.shared.bleKeyDelayMs) * 1_000 }
+    /// Slightly longer delay used after modifier release / character commit.
+    private var commitDelayUs: UInt32 { UInt32(AISettings.shared.bleKeyDelayMs + 20) * 1_000 }
+
     // ────────────────────────────────────────────────────────────────────────
     // MARK: - Public API
     // ────────────────────────────────────────────────────────────────────────
@@ -103,7 +109,7 @@ class UnicodeManager {
             } else if scalar > 0x7E {
                 sendChar(char, keyboardManager: keyboardManager)
             }
-            usleep(30_000) // 30 ms inter-character gap
+            usleep(keyDelayUs) // inter-character gap
         }
     }
 
@@ -116,26 +122,26 @@ class UnicodeManager {
     private func sendWindowsHexUnicode(hexStr: String, km: KeyboardManager) {
         // 1. Alt down
         mainSync { km.sendRawHIDReport(modifierByte: self.kAlt, keyCodes: self.kRelease) }
-        usleep(30_000)
+        usleep(keyDelayUs)
 
         // 2. NumpadPlus while Alt held (triggers hex-input mode)
         mainSync { km.sendRawHIDReport(modifierByte: self.kAlt, keyCodes: [0x57, 0x00, 0x00, 0x00, 0x00, 0x00]) }
-        usleep(30_000)
+        usleep(keyDelayUs)
         mainSync { km.sendRawHIDReport(modifierByte: self.kAlt, keyCodes: self.kRelease) }
-        usleep(30_000)
+        usleep(keyDelayUs)
 
         // 3. Each hex digit with Alt held
         for hexChar in hexStr.uppercased() {
             guard let code = windowsHexKeyCode(for: hexChar) else { continue }
             mainSync { km.sendRawHIDReport(modifierByte: self.kAlt, keyCodes: [code, 0x00, 0x00, 0x00, 0x00, 0x00]) }
-            usleep(30_000)
+            usleep(keyDelayUs)
             mainSync { km.sendRawHIDReport(modifierByte: self.kAlt, keyCodes: self.kRelease) }
-            usleep(30_000)
+            usleep(keyDelayUs)
         }
 
         // 4. Release Alt → OS commits the character
         mainSync { km.sendRawHIDReport(modifierByte: 0x00, keyCodes: self.kRelease) }
-        usleep(50_000)
+        usleep(commitDelayUs)
     }
 
     /// Returns the HID key code for a hex digit character in the Windows sequence.
@@ -154,20 +160,20 @@ class UnicodeManager {
     private func sendMacOSUnicode(hexStr: String, km: KeyboardManager) {
         // 1. Option (Alt) down
         mainSync { km.sendRawHIDReport(modifierByte: self.kAlt, keyCodes: self.kRelease) }
-        usleep(30_000)
+        usleep(keyDelayUs)
 
         // 2. Each hex digit while Option is held (regular keyboard row, lowercase)
         for hexChar in hexStr.lowercased() {
             guard let code = regularDigitCodes[hexChar] else { continue }
             mainSync { km.sendRawHIDReport(modifierByte: self.kAlt, keyCodes: [code, 0x00, 0x00, 0x00, 0x00, 0x00]) }
-            usleep(30_000)
+            usleep(keyDelayUs)
             mainSync { km.sendRawHIDReport(modifierByte: self.kAlt, keyCodes: self.kRelease) }
-            usleep(30_000)
+            usleep(keyDelayUs)
         }
 
         // 3. Release Option → macOS commits the character
         mainSync { km.sendRawHIDReport(modifierByte: 0x00, keyCodes: self.kRelease) }
-        usleep(50_000)
+        usleep(commitDelayUs)
     }
 
     // ────────────────────────────────────────────────────────────────────────
@@ -181,24 +187,24 @@ class UnicodeManager {
 
         // 1. Ctrl+Shift+U (U = 0x18)
         mainSync { km.sendRawHIDReport(modifierByte: ctrlShift, keyCodes: [0x18, 0x00, 0x00, 0x00, 0x00, 0x00]) }
-        usleep(50_000)
+        usleep(commitDelayUs)
         mainSync { km.sendRawHIDReport(modifierByte: 0x00, keyCodes: self.kRelease) }
-        usleep(50_000)
+        usleep(commitDelayUs)
 
         // 2. Hex digits (lowercase, regular keys)
         for hexChar in hexStr.lowercased() {
             guard let code = regularDigitCodes[hexChar] else { continue }
             mainSync { km.sendRawHIDReport(modifierByte: 0x00, keyCodes: [code, 0x00, 0x00, 0x00, 0x00, 0x00]) }
-            usleep(30_000)
+            usleep(keyDelayUs)
             mainSync { km.sendRawHIDReport(modifierByte: 0x00, keyCodes: self.kRelease) }
-            usleep(30_000)
+            usleep(keyDelayUs)
         }
 
         // 3. Enter (0x28) to commit
         mainSync { km.sendRawHIDReport(modifierByte: 0x00, keyCodes: [0x28, 0x00, 0x00, 0x00, 0x00, 0x00]) }
-        usleep(50_000)
+        usleep(commitDelayUs)
         mainSync { km.sendRawHIDReport(modifierByte: 0x00, keyCodes: self.kRelease) }
-        usleep(30_000)
+        usleep(keyDelayUs)
     }
 
     // ────────────────────────────────────────────────────────────────────────

@@ -97,6 +97,30 @@ struct GeneralSettingsView: View {
                 .foregroundColor(.secondary)
         }
         
+        Section(header: Text("BLE Key Delay")) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Inter-key Delay")
+                    Spacer()
+                    Text("\(aiSettings.bleKeyDelayMs) ms")
+                        .foregroundColor(.secondary)
+                        .monospacedDigit()
+                }
+                Slider(
+                    value: Binding(
+                        get: { Double(aiSettings.bleKeyDelayMs) },
+                        set: { aiSettings.bleKeyDelayMs = Int($0) }
+                    ),
+                    in: 5...50,
+                    step: 1
+                )
+                Text("Delay between each BLE HID key report. Lower values = faster typing but may miss keys on slow targets. Default: 10 ms.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.vertical, 4)
+        }
+
         Section(header: Text("Haptic Feedback")) {
             HStack {
                 Text("Enable Haptic Feedback")

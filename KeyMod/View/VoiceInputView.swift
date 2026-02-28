@@ -206,7 +206,16 @@ struct VoiceInputView: View {
 
     init(keyboardManager: KeyboardManager) {
         self.keyboardManager = keyboardManager
-        _macroManager = StateObject(wrappedValue: MacroManager(keyboardManager: keyboardManager))
+        let manager = MacroManager(keyboardManager: keyboardManager)
+        _macroManager = StateObject(wrappedValue: manager)
+        // Wire up Macro resolution so that <Macro>...</Macro>
+        // tokens in voice input invoke the correct macro.
+        // executeBlockingByLabel runs synchronously on the calling background
+        // thread (the handleTextInputWithTokens loop), so subsequent tokens in
+        // the sequence are not dispatched until the sub-macro finishes.
+        keyboardManager.MacroHandler = { [weak manager] label in
+            manager?.executeBlockingByLabel(label)
+        }
     }
 
     var body: some View {

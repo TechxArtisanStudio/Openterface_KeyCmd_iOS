@@ -18,6 +18,7 @@ struct WhisperSettingsView: View {
     var body: some View {
         Group {
             enginePickerSection
+            languageSection
             whisperModelSection
             whisperInfoSection
         }
@@ -64,7 +65,32 @@ struct WhisperSettingsView: View {
             }
         }
     }
-    
+
+    private var languageSection: some View {
+        Section("Recognition Language") {
+            Picker("Language", selection: Binding(
+                get: { aiSettings.sttLocale },
+                set: { aiSettings.sttLocale = $0 }
+            )) {
+                ForEach(STTLanguage.supported) { lang in
+                    Text(lang.displayName).tag(lang.id)
+                }
+            }
+            .pickerStyle(.menu)
+
+            // Warn when Whisper multilingual model is needed for the selected language
+            if aiSettings.sttEngine == .whisper
+                && aiSettings.currentSTTLanguage.whisperCode != "en"
+                && modelManager.selectedModel.language != "auto"
+                && modelManager.selectedModel.language != aiSettings.currentSTTLanguage.whisperCode {
+                Text("The selected language requires a multilingual Whisper model. Please select the \"Multilingual\" model below.")
+                    .font(.caption)
+                    .foregroundColor(.orange)
+                    .padding(.top, 4)
+            }
+        }
+    }
+
     @ViewBuilder
     private var whisperModelSection: some View {
         if aiSettings.sttEngine == .whisper {

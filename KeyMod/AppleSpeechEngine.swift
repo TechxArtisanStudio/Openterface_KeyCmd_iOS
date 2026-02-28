@@ -24,8 +24,22 @@ class AppleSpeechEngine: NSObject, SpeechRecognitionEngine {
 
     override init() {
         super.init()
-        speechRecognizer = SFSpeechRecognizer(locale: Locale.current)
+        let localeId = AISettings.shared.sttLocale
+        speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: localeId))
         checkPermissions()
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleLocaleChanged),
+            name: NSNotification.Name("STTLocaleChanged"),
+            object: nil
+        )
+    }
+
+    @objc private func handleLocaleChanged() {
+        let localeId = AISettings.shared.sttLocale
+        speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: localeId))
+        logger.log("Apple speech engine: locale updated to \(localeId)", category: "VoiceInput")
     }
 
     // MARK: - SpeechRecognitionEngine Protocol

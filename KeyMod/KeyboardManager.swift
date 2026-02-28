@@ -16,12 +16,24 @@ class KeyboardManager: ObservableObject {
     let compositeKeyManager: CompositeKeyManager
     private let hapticManager = HapticFeedbackManager.shared
     private let logger = LogManager.shared
-    
+
+    /// Optional handler invoked (on the background thread) when a
+    /// `<Macro>label</Macro>` token is encountered in
+    /// `handleTextInputWithTokens`. Set by VoiceInputView to resolve
+    /// macro-label invocations without introducing a circular dependency.
+    var MacroHandler: ((String) -> Void)?
+
     init(bleManager: BLEManager) {
         self.bleManager = bleManager
         self.compositeKeyManager = CompositeKeyManager()
         self.compositeKeyManager.setKeyboardManager(self)
     }
+
+    // ── BLE key timing helpers ───────────────────────────────────────────────
+    /// Inter-key delay in microseconds (reads live from AISettings).
+    private var keyDelayUs:    UInt32 { UInt32(AISettings.shared.bleKeyDelayMs) * 1_000 }
+    /// Slightly longer delay used after modifier release / character commit.
+    private var commitDelayUs: UInt32 { UInt32(AISettings.shared.bleKeyDelayMs + 20) * 1_000 }
     
     // HID keyboard usage codes for common keys
     private let keyboardCodes: [String: UInt8] = [
@@ -143,6 +155,82 @@ class KeyboardManager: ObservableObject {
         }
     }
     
+    // MARK: - Synchronous macro key sending (called from background thread)
+
+    /// Sends a key press and synchronously waits for its release before returning.
+    /// Must be called from a **background** thread. Uses no asyncAfter so the
+    /// caller can safely sequence the next key immediately after this returns.
+    func sendKeyPressSynchronous(_ key: String) {
+        // Press — run on main thread
+        DispatchQueue.main.sync {
+            logger.log("Key pressed: \(key)", category: "Keyboard")
+            hapticManager.triggerButtonPress()
+            if modifierMasks.keys.contains(key) { handleModifierToggle(key); return }
+            if key == "Caps" { capsLockActive.toggle(); sendCapsLockState(); return }
+            let keyAlias = mapKeyAlias(key)
+            guard let keyCode = keyboardCodes[keyAlias] else { return }
+            var modByte: UInt8 = 0x00
+            for m in activeModifiers { modByte |= modifierMasks[m] ?? 0 }
+            if keyAlias.count == 1, let ch = keyAlias.first, ch.isLetter {
+                if capsLockActive != activeModifiers.contains("Shift") { modByte |= modifierMasks["Shift"] ?? 0 }
+            }
+            sendKeyboardData(modifier: modByte, keyCodes: [keyCode, 0, 0, 0, 0, 0])
+        }
+        // Hold for 50 ms on background thread — no main-queue involvement
+        usleep(50_000)
+        // Release — always send all-zeros. The modifier state in activeModifiers
+        // remains for the next key in a sequence; releaseAllKeys() (fired by the
+        // closing tag) will send the final all-zeros cleanup report.
+        DispatchQueue.main.sync {
+            sendKeyboardData(modifier: 0x00, keyCodes: [0, 0, 0, 0, 0, 0])
+        }
+    }
+
+    /// Add a modifier to activeModifiers **without** sending a BLE report.
+    /// Used by token-loop handlers so that modifier tags like <CMD> only
+    /// affect the next key press — no standalone modifier-press TX is sent.
+    /// Must be called on the main thread.
+    func addModifierSilently(_ modifier: String) {
+        activeModifiers.insert(modifier)
+        logger.log("\(modifier) queued (silent)", category: "Keyboard")
+    }
+
+    /// Remove a modifier from activeModifiers without sending a BLE report.
+    /// Must be called on the main thread.
+    func removeModifierSilently(_ modifier: String) {
+        activeModifiers.remove(modifier)
+    }
+
+    /// Clear all modifier and key tracking state without sending a BLE report.
+    /// Use this in closing-tag handlers (</CMD> etc.) when the physical key-up
+    /// was already sent by sendKeyPressSynchronous, so no duplicate TX is needed.
+    /// Must be called on the main thread.
+    func clearKeyStateSilently() {
+        activeModifiers.removeAll()
+        pressedKeys.removeAll()
+        logger.log("Key state cleared (silent)", category: "Keyboard")
+    }
+
+    /// Sends a key combo (modifier + key) synchronously from a background thread.
+    /// After releasing the key, restores the BLE modifier state to whatever
+    /// activeModifiers currently holds — so that an outer <CMD>…</CMD> block
+    /// keeps its modifier active until the closing tag fires releaseAllKeys().
+    func sendKeyComboSynchronous(modifiers: [String], key: String) {
+        DispatchQueue.main.sync {
+            logger.log("Key combo: \(modifiers.joined(separator: "+"))+\(key)", category: "Keyboard")
+            guard let keyCode = keyboardCodes[key] else { return }
+            var modByte: UInt8 = 0x00
+            for m in modifiers { modByte |= modifierMasks[m] ?? 0 }
+            sendKeyboardData(modifier: modByte, keyCodes: [keyCode, 0, 0, 0, 0, 0])
+        }
+        usleep(50_000)
+        DispatchQueue.main.sync {
+            // Always release to all-zeros. activeModifiers retains the modifier
+            // state for subsequent keys; releaseAllKeys() on </TAG> cleans up.
+            sendKeyboardData(modifier: 0x00, keyCodes: [0, 0, 0, 0, 0, 0])
+        }
+    }
+
     // Handle modifier key toggling
     public func handleModifierToggle(_ modifier: String) {
         if activeModifiers.contains(modifier) {
@@ -251,7 +339,7 @@ class KeyboardManager: ObservableObject {
                 // Non-ASCII Unicode — delegate to UnicodeManager (already on bg thread)
                 if scalar > 0x7E {
                     UnicodeManager.shared.sendChar(char, keyboardManager: self)
-                    usleep(30_000)
+                    usleep(self.keyDelayUs)
                     continue
                 }
                 // Press and release key synchronously
@@ -281,8 +369,8 @@ class KeyboardManager: ObservableObject {
                         }
                     }
                 }
-                // Wait 30ms between characters for proper timing
-                usleep(30_000)
+                // Wait between characters for proper timing
+                usleep(self.keyDelayUs)
             }
             
             DispatchQueue.main.async {
@@ -315,12 +403,39 @@ class KeyboardManager: ObservableObject {
         sendKeyboardData(modifier: modifierByte, keyCodes: keyCodes)
         
         // Wait 100ms for key to be held
-        usleep(50_000)
+        usleep(commitDelayUs)
         
         // Send key release
         sendKeyboardData(modifier: 0x00, keyCodes: [0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
     }
     
+    /// Send a single printable ASCII character, handling case, space, enter, tab,
+    /// and shift-symbols correctly. Must be called on the **main thread**.
+    func sendASCIICharInline(_ char: Character) {
+        if char.isLetter {
+            let key = String(char).uppercased()
+            if char.isUppercase {
+                sendKeyPressAndRelease(modifiers: ["Shift"], key: key)
+            } else {
+                sendKeyPressAndRelease(key: key)
+            }
+        } else if char == " " {
+            sendKeyPressAndRelease(key: "Space")
+        } else if char == "\n" || char == "\r" {
+            sendKeyPressAndRelease(key: "Enter")
+        } else if char == "\t" {
+            sendKeyPressAndRelease(key: "Tab")
+        } else {
+            let shiftSymbols = "!@#$%^&*()_+{}|:\"<>?~"
+            if shiftSymbols.contains(char) {
+                let baseKey = getShiftedCharacter(char)
+                sendKeyPressAndRelease(modifiers: ["Shift"], key: baseKey)
+            } else {
+                sendKeyPressAndRelease(key: String(char).uppercased())
+            }
+        }
+    }
+
     // Convenience methods for common actions
     func sendCopy() {
         handleKeyCombo(modifiers: ["Cmd"], key: "C")
@@ -578,95 +693,140 @@ class KeyboardManager: ObservableObject {
     /// Parse and handle text input with special tokens (e.g., <CTRL>, <SHIFT>, <ALT>, <CMD>, <F1>-<F12>)
     /// Supports composite keys: <CTRL>A</CTRL> means press Ctrl, press A, release all
     func handleTextInputWithTokens(_ text: String) {
-        let tokens = tokenizeInput(text)
-        var activeModifiers: [String] = []
-        
-        for token in tokens {
-            // Handle closing tags - release all active modifiers
-            if token.hasPrefix("</") && token.hasSuffix(">") {
-                releaseAllKeys()
-                activeModifiers.removeAll()
+        // ── Pre-process <Macro>label</Macro> blocks ────────────────
+        // Replace each block with a deterministic uppercase placeholder so the
+        // main tokenizer (which only accepts uppercase tags) can handle them.
+        var MacroMap: [String: String] = [:] // placeholder → label
+        var processedText = text
+        let mlPattern = try? NSRegularExpression(pattern: "<Macro>([\\s\\S]*?)</Macro>", options: .caseInsensitive)
+        var mlIndex = 0
+        if let mlPattern = mlPattern {
+            let nsRaw = text as NSString
+            let mlMatches = mlPattern.matches(in: text, range: NSRange(location: 0, length: nsRaw.length))
+            for match in mlMatches.reversed() {
+                let label = nsRaw.substring(with: match.range(at: 1))
+                let placeholder = "<MLABEL\(mlIndex)>"
+                MacroMap[placeholder] = label
+                mlIndex += 1
+                let before = (processedText as NSString).substring(to: match.range.location)
+                let after  = (processedText as NSString).substring(from: match.range.location + match.range.length)
+                processedText = before + placeholder + after
             }
-            // Handle opening modifier tags
-            else if token == "<CTRL>" || token == "<SHIFT>" || token == "<ALT>" || token == "<CMD>" || token == "<WIN>" {
-                let modifier: String
-                switch token {
-                case "<CTRL>":
-                    modifier = "Ctrl"
-                case "<SHIFT>":
-                    modifier = "Shift"
-                case "<ALT>":
-                    modifier = "Alt"
-                case "<CMD>":
-                    modifier = "Cmd"
-                case "<WIN>":
-                    modifier = "Win"
-                default:
-                    modifier = ""
+        }
+
+        let tokens = tokenizeInput(processedText)
+
+        // Run on a background thread so that non-ASCII characters (sent via
+        // UnicodeManager, which blocks with usleep()) and ASCII characters are
+        // processed in strict sequence — preventing reordering like "你K好EV" → "KEV你好".
+        DispatchQueue.global(qos: .userInitiated).async {
+            var activeModifiers: [String] = []
+
+            for token in tokens {
+                // Handle <Macro>...</Macro> placeholders — blocks until sub-macro finishes
+                if let label = MacroMap[token] {
+                    self.MacroHandler?(label)
                 }
-                
-                if !modifier.isEmpty {
-                    handleModifierToggle(modifier)
-                    activeModifiers.append(modifier)
+                // Handle closing tags - clear tracked state only.
+                // Physical key-up (0x00) was already sent by sendKeyPressSynchronous.
+                else if token.hasPrefix("</") && token.hasSuffix(">") {
+                    DispatchQueue.main.sync { self.clearKeyStateSilently() }
+                    activeModifiers.removeAll()
                 }
-            }
-            // Handle special tokens
-            else if isSpecialToken(token) {
-                handleSpecialTokenWithModifiers(token, modifiers: activeModifiers)
-            }
-            // Regular text
-            else if token.count == 1 {
-                if let char = token.first, char.unicodeScalars.first.map({ $0.value }) ?? 0 > 0x7E {
-                    // Non-ASCII Unicode character — use the serial queue so back-to-back
-                    // characters never interleave their HID reports.
-                    let charCopy = char
-                    UnicodeManager.shared.serialQueue.async {
-                        UnicodeManager.shared.sendChar(charCopy, keyboardManager: self)
+                // Handle opening modifier tags
+                else if token == "<CTRL>" || token == "<SHIFT>" || token == "<ALT>" || token == "<CMD>" || token == "<WIN>" {
+                    let modifier: String
+                    switch token {
+                    case "<CTRL>":  modifier = "Ctrl"
+                    case "<SHIFT>": modifier = "Shift"
+                    case "<ALT>":   modifier = "Alt"
+                    case "<CMD>":   modifier = "Cmd"
+                    case "<WIN>":   modifier = "Win"
+                    default:        modifier = ""
                     }
-                } else if activeModifiers.isEmpty {
-                    handleKeyPress(token)
-                } else {
-                    var allModifiers = activeModifiers
-                    if token.first?.isUppercase == true && token.first?.isLetter == true {
-                        if !allModifiers.contains("Shift") {
-                            allModifiers.append("Shift")
+                    if !modifier.isEmpty {
+                        // Silently track — no standalone BLE modifier press.
+                        DispatchQueue.main.sync { self.addModifierSilently(modifier) }
+                        activeModifiers.append(modifier)
+                    }
+                }
+                // Handle delay tokens
+                else if token == "<DELAY1S>" || token == "<DELAY2S>" || token == "<DELAY5S>" || token == "<DELAY10S>" {
+                    switch token {
+                    case "<DELAY1S>":  usleep(1_000_000)
+                    case "<DELAY2S>":  usleep(2_000_000)
+                    case "<DELAY5S>":  usleep(5_000_000)
+                    default:           usleep(10_000_000)
+                    }
+                }
+                // Handle special tokens (arrow keys, Enter, Esc, etc.)
+                // Use synchronous send so the release is guaranteed before the next token.
+                else if self.isSpecialToken(token) {
+                    let key = self.specialTokenToKeyName(token)
+                    if !key.isEmpty {
+                        if activeModifiers.isEmpty {
+                            self.sendKeyPressSynchronous(key)
+                        } else {
+                            self.sendKeyComboSynchronous(modifiers: activeModifiers, key: key)
                         }
                     }
-                    handleKeyCombo(modifiers: allModifiers, key: token.uppercased())
                 }
-            } else {
-                // Multiple characters - send each
-                for char in token {
-                    let charStr = String(char)
-                    if char.unicodeScalars.first.map({ $0.value }) ?? 0 > 0x7E {
-                        // Non-ASCII Unicode character — use the serial queue so back-to-back
-                        // characters never interleave their HID reports.
-                        let charCopy = char
-                        UnicodeManager.shared.serialQueue.async {
-                            UnicodeManager.shared.sendChar(charCopy, keyboardManager: self)
-                        }
+                // Regular text
+                else if token.count == 1 {
+                    if let char = token.first, char.unicodeScalars.first.map({ $0.value }) ?? 0 > 0x7E {
+                        UnicodeManager.shared.sendChar(char, keyboardManager: self)
                     } else if activeModifiers.isEmpty {
-                        handleKeyPress(charStr)
-                    } else {
-                        var allModifiers = activeModifiers
-                        if char.isUppercase && char.isLetter {
-                            if !allModifiers.contains("Shift") {
-                                allModifiers.append("Shift")
+                        DispatchQueue.main.sync {
+                            if let char = token.first {
+                                self.sendASCIICharInline(char)
                             }
                         }
-                        handleKeyCombo(modifiers: allModifiers, key: charStr.uppercased())
+                    } else {
+                        // sendKeyPressSynchronous already reads activeModifiers for both
+                        // press and restore-release, so no need to pass them explicitly.
+                        // Uppercase letters still need Shift in the modifier byte; the
+                        // synchronous helper handles that via the existing modifierByte logic.
+                        self.sendKeyPressSynchronous(token.uppercased())
                     }
+                } else {
+                    // Multiple characters - send each
+                    for char in token {
+                        let charStr = String(char)
+                        if char.unicodeScalars.first.map({ $0.value }) ?? 0 > 0x7E {
+                            UnicodeManager.shared.sendChar(char, keyboardManager: self)
+                        } else if activeModifiers.isEmpty {
+                            DispatchQueue.main.sync {
+                                self.sendASCIICharInline(char)
+                            }
+                        } else {
+                            self.sendKeyPressSynchronous(charStr.uppercased())
+                        }
+                        usleep(self.keyDelayUs)
+                    }
+                }
+                // Inter-token gap. Skip for delay tokens (already slept) and
+                // multi-char tokens (per-char gap applied above).
+                let isDelayToken = token == "<DELAY1S>" || token == "<DELAY2S>" || token == "<DELAY5S>" || token == "<DELAY10S>"
+                if !isDelayToken && (token.count <= 1 || self.isSpecialToken(token)) {
+                    usleep(self.keyDelayUs)
+                }
+            }
+
+            // Safety-net release: only send if something is still held.
+            // Normal sequences clear state via closing tags (</CMD> etc.);
+            // this only fires for malformed input with unclosed modifier tags.
+            DispatchQueue.main.sync {
+                if !self.activeModifiers.isEmpty || !self.pressedKeys.isEmpty {
+                    self.releaseAllKeys()
                 }
             }
         }
-        
-        // Release all keys/modifiers after input
-        releaseAllKeys()
     }
     
     /// Tokenize input string to separate special tokens from regular text
     private func tokenizeInput(_ text: String) -> [String] {
-        let pattern = "</?[A-Z]+\\d*>|."  // Match opening/closing special tokens or single characters
+        // [A-Z0-9]+ covers mixed tokens like DELAY1S, DELAY10S, MLABEL0, F12 etc.
+        let pattern = "</?[A-Z0-9]+>|."
         let regex = try? NSRegularExpression(pattern: pattern)
         let nsText = text as NSString
         var result: [String] = []
@@ -684,6 +844,35 @@ class KeyboardManager: ObservableObject {
         return result
     }
     
+    /// Map a special token like "<LEFT>" to a key name like "Left" for use with
+    /// sendKeyPressSynchronous / sendKeyComboSynchronous.
+    /// Returns an empty string for tokens that are not recognised.
+    func specialTokenToKeyName(_ token: String) -> String {
+        let content = String(token.dropFirst().dropLast()).uppercased()
+        switch content {
+        case "ENTER":     return "Enter"
+        case "ESC":       return "Escape"
+        case "BACK":      return "Backspace"
+        case "TAB":       return "Tab"
+        case "SPACE":     return "Space"
+        case "LEFT":      return "Left"
+        case "RIGHT":     return "Right"
+        case "UP":        return "Up"
+        case "DOWN":      return "Down"
+        case "HOME":      return "Home"
+        case "END":       return "End"
+        case "PAGEUP", "PGUP":  return "PageUp"
+        case "PAGEDOWN", "PGDN": return "PageDown"
+        case "INSERT":    return "Insert"
+        case "DELETE":    return "Delete"
+        case "F1":  return "F1";  case "F2":  return "F2";  case "F3":  return "F3"
+        case "F4":  return "F4";  case "F5":  return "F5";  case "F6":  return "F6"
+        case "F7":  return "F7";  case "F8":  return "F8";  case "F9":  return "F9"
+        case "F10": return "F10"; case "F11": return "F11"; case "F12": return "F12"
+        default:          return ""
+        }
+    }
+
     /// Check if a token is a special token (e.g., <CTRL>, <SHIFT>, etc.)
     private func isSpecialToken(_ token: String) -> Bool {
         return token.hasPrefix("<") && token.hasSuffix(">") && !token.hasPrefix("</")

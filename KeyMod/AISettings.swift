@@ -7,6 +7,39 @@
 
 import Foundation
 
+// MARK: - STT Language
+
+struct STTLanguage: Identifiable, Equatable {
+    /// BCP-47 locale identifier used by SFSpeechRecognizer (e.g. "en-US", "zh-Hans").
+    let id: String
+    /// Human-readable label shown in the UI.
+    let displayName: String
+    /// Short language code passed to whisper.cpp (e.g. "en", "zh", "ja").
+    let whisperCode: String
+
+    static let supported: [STTLanguage] = [
+        STTLanguage(id: "en-US",    displayName: "English (US)",           whisperCode: "en"),
+        STTLanguage(id: "en-GB",    displayName: "English (UK)",           whisperCode: "en"),
+        STTLanguage(id: "zh-Hans",  displayName: "中文（简体）",              whisperCode: "zh"),
+        STTLanguage(id: "zh-Hant",  displayName: "中文（繁體）",              whisperCode: "zh"),
+        STTLanguage(id: "zh-HK",    displayName: "粵語（廣東話）",             whisperCode: "yue"),
+        STTLanguage(id: "ja",       displayName: "日本語",                  whisperCode: "ja"),
+        STTLanguage(id: "ko",       displayName: "한국어",                  whisperCode: "ko"),
+        STTLanguage(id: "fr-FR",    displayName: "Français",               whisperCode: "fr"),
+        STTLanguage(id: "de-DE",    displayName: "Deutsch",                whisperCode: "de"),
+        STTLanguage(id: "es-ES",    displayName: "Español",                whisperCode: "es"),
+        STTLanguage(id: "it-IT",    displayName: "Italiano",               whisperCode: "it"),
+        STTLanguage(id: "pt-PT",    displayName: "Português",              whisperCode: "pt"),
+        STTLanguage(id: "ru-RU",    displayName: "Русский",                whisperCode: "ru"),
+        STTLanguage(id: "ar",       displayName: "العربية",                whisperCode: "ar"),
+        STTLanguage(id: "hi-IN",    displayName: "हिन्दी",                  whisperCode: "hi"),
+    ]
+
+    static func from(localeId: String) -> STTLanguage {
+        supported.first { $0.id == localeId } ?? supported[0]
+    }
+}
+
 // MARK: - AI Provider
 struct AIProvider: Identifiable, Codable {
     var id: UUID
@@ -84,6 +117,21 @@ class AISettings: ObservableObject {
     
     @Published var sttEngine: SpeechEngineType {
         didSet { UserDefaults.standard.set(sttEngine.rawValue, forKey: "AISettings.sttEngine") }
+    }
+
+    @Published var sttLocale: String {
+        didSet {
+            UserDefaults.standard.set(sttLocale, forKey: "AISettings.sttLocale")
+            NotificationCenter.default.post(name: NSNotification.Name("STTLocaleChanged"), object: nil)
+        }
+    }
+
+    /// Convenience accessor returning the full `STTLanguage` for the current locale.
+    var currentSTTLanguage: STTLanguage { STTLanguage.from(localeId: sttLocale) }
+
+    /// Inter-key BLE HID delay in milliseconds. Default 10 ms. Configurable in General Settings.
+    @Published var bleKeyDelayMs: Int {
+        didSet { UserDefaults.standard.set(bleKeyDelayMs, forKey: "AISettings.bleKeyDelayMs") }
     }
 
     @Published var targetOS: TargetOS {
@@ -166,6 +214,12 @@ class AISettings: ObservableObject {
         let configDefaultEngine = AIConfigManager.shared.defaults?.sttEngine ?? SpeechEngineType.apple.rawValue
         let engineRaw = UserDefaults.standard.string(forKey: "AISettings.sttEngine") ?? configDefaultEngine
         self.sttEngine = SpeechEngineType(rawValue: engineRaw) ?? .apple
+
+        // Initialize sttLocale
+        self.sttLocale = UserDefaults.standard.string(forKey: "AISettings.sttLocale") ?? "en-US"
+
+        // Initialize bleKeyDelayMs (default 10 ms)
+        self.bleKeyDelayMs = UserDefaults.standard.object(forKey: "AISettings.bleKeyDelayMs") as? Int ?? 10
 
         // Initialize targetOS
         let osRaw = UserDefaults.standard.string(forKey: "AISettings.targetOS") ?? TargetOS.windows.rawValue
@@ -311,6 +365,7 @@ class AISettings: ObservableObject {
             ?? providers.first?.id.uuidString ?? ""
         let defaultEngineRaw = AIConfigManager.shared.defaults?.sttEngine ?? SpeechEngineType.apple.rawValue
         sttEngine = SpeechEngineType(rawValue: defaultEngineRaw) ?? .apple
+        sttLocale = "en-US"
         clearAPIKey()
     }
 }

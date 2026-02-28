@@ -41,7 +41,100 @@ class MacroManager: ObservableObject {
         macroInvocationDepth = 0
         sendMacroInternal(macro)
     }
+
+    /// Look up a macro by label and send it. Called from the voice-input path
+    /// via KeyboardManager.MacroHandler.
+    func sendMacroByLabel(_ label: String) {
+        macroInvocationDepth = 0
+        if let macro = getMacroByLabel(label) {
+            sendMacroInternal(macro)
+        }
+    }
     
+    /// Recursively resolves all <Macro>…</Macro> and inline <TAGNAME> sub-macro references,
+    /// returning a flat list of (token, intervalMs) pairs in strict execution order.
+    private func buildFlatTokens(from macro: Macro, depth: Int = 0) -> [(token: String, intervalMs: Int)] {
+        guard depth < maxMacroInvocationDepth else {
+            print("Warning: Maximum macro nesting depth reached in buildFlatTokens")
+            return []
+        }
+        let rawData = macro.data
+        let parentInterval = macro.intervalMs
+
+        // Pre-process <Macro>...</Macro> blocks → MLABEL placeholders
+        var macroLabelMap: [String: String] = [:]
+        var data = rawData
+        if let mlabelPattern = try? NSRegularExpression(pattern: "<Macro>([\\s\\S]*?)</Macro>", options: .caseInsensitive) {
+            let nsRaw = rawData as NSString
+            let mlMatches = mlabelPattern.matches(in: rawData, range: NSRange(location: 0, length: nsRaw.length))
+            for (i, match) in mlMatches.reversed().enumerated() {
+                let label = nsRaw.substring(with: match.range(at: 1))
+                let placeholder = "<MLABEL\(i)>"
+                macroLabelMap[placeholder] = label
+                let fullRange = match.range
+                let before = (data as NSString).substring(to: fullRange.location)
+                let after  = (data as NSString).substring(from: fullRange.location + fullRange.length)
+                data = before + placeholder + after
+            }
+        }
+
+        // Tokenize
+        print("[MacroDebug] buildFlatTokens depth=\(depth) macro='\(macro.label)' data after substitution: \(data.debugDescription)")
+        var tokens: [String] = []
+        if let regex = try? NSRegularExpression(pattern: "</?([A-Z0-9]+)>") {
+            let nsData = data as NSString
+            var lastIndex = 0
+            for match in regex.matches(in: data, range: NSRange(location: 0, length: nsData.length)) {
+                let range = match.range
+                if range.location > lastIndex {
+                    tokens.append(contentsOf: nsData
+                        .substring(with: NSRange(location: lastIndex, length: range.location - lastIndex))
+                        .map { String($0) })
+                }
+                tokens.append(nsData.substring(with: range))
+                lastIndex = range.location + range.length
+            }
+            if lastIndex < nsData.length {
+                tokens.append(contentsOf: nsData.substring(from: lastIndex).map { String($0) })
+            }
+        } else {
+            tokens = data.map { String($0) }
+        }
+
+        // DEBUG: show what was tokenized before expansion
+        print("[MacroDebug] buildFlatTokens depth=\(depth) macro='\(macro.label)' raw tokens: \(tokens)")
+        print("[MacroDebug] macroLabelMap: \(macroLabelMap)")
+
+        // Expand sub-macro references inline; annotate plain tokens with intervalMs
+        var result: [(token: String, intervalMs: Int)] = []
+        for token in tokens {
+            if let label = macroLabelMap[token] {
+                // <Macro>label</Macro> reference – expand recursively
+                print("[MacroDebug] Expanding MLABEL token '\(token)' → label='\(label)'")
+                if let sub = getMacroByLabel(label) {
+                    result.append(contentsOf: buildFlatTokens(from: sub, depth: depth + 1))
+                } else {
+                    print("[MacroDebug] WARNING: no macro found for label='\(label)'")
+                }
+            } else if token.hasPrefix("<") && token.hasSuffix(">") &&
+                      !token.hasPrefix("</") &&
+                      !isSpecialKey(token) &&
+                      !["<CTRL>", "<SHIFT>", "<ALT>", "<CMD>"].contains(token) {
+                // Possible inline <TAGNAME> macro reference
+                let macroName = String(token.dropFirst().dropLast())
+                if let sub = getMacroByLabel(macroName) {
+                    print("[MacroDebug] Expanding inline tag '\(token)' → macro='\(macroName)'")
+                    result.append(contentsOf: buildFlatTokens(from: sub, depth: depth + 1))
+                } else {
+                    result.append((token: token, intervalMs: parentInterval))
+                }
+            } else {
+                result.append((token: token, intervalMs: parentInterval))
+            }
+        }
+        return result
+    }
+
     private func sendMacroInternal(_ macro: Macro) {
         // Prevent infinite recursion
         guard macroInvocationDepth < maxMacroInvocationDepth else {
@@ -55,215 +148,111 @@ class MacroManager: ObservableObject {
         // Trigger strong haptic feedback for macro execution
         hapticManager.triggerStrongFeedback()
         
-        let data = macro.data
-        let interval = macro.intervalMs
-        // Updated pattern to match both opening and closing tags: <TAG> and </TAG>
-        let pattern = "</?([A-Z0-9]+S?)>"
-        let regex = try? NSRegularExpression(pattern: pattern)
-        let nsData = data as NSString
-        var lastIndex = 0
-        var tokens: [String] = []
-        if let regex = regex {
-            let matches = regex.matches(in: data, range: NSRange(location: 0, length: nsData.length))
-            for match in matches {
-                let range = match.range
-                if range.location > lastIndex {
-                    let text = nsData.substring(with: NSRange(location: lastIndex, length: range.location - lastIndex))
-                    tokens.append(contentsOf: text.map { String($0) })
-                }
-                let keyToken = nsData.substring(with: range)
-                tokens.append(keyToken)
-                lastIndex = range.location + range.length
-            }
-            if lastIndex < nsData.length {
-                let text = nsData.substring(from: lastIndex)
-                tokens.append(contentsOf: text.map { String($0) })
-            }
-        } else {
-            tokens = data.map { String($0) }
-        }
-        
-        // Also extract non-special tags for macro invocation
-        let allTagsPattern = "</?([^>]+)>"
-        let allTagsRegex = try? NSRegularExpression(pattern: allTagsPattern)
-        var tokenDict: [Int: String] = [:] // map original index to extracted tag name
-        if let allTagsRegex = allTagsRegex {
-            let matches = allTagsRegex.matches(in: data, range: NSRange(location: 0, length: nsData.length))
-            for match in matches {
-                let range = match.range
-                let fullToken = nsData.substring(with: range)
-                let tagContent = nsData.substring(with: match.range(at: 1))
-                // If it's not a known special key, it might be a macro name
-                if !isSpecialKey(fullToken) && !tagContent.hasPrefix("/") {
-                    tokenDict[range.location] = tagContent
-                }
-            }
-        }
-        
+        // Pre-expand all sub-macro references into a flat token list so that
+        // every token executes in strict order on a single background thread.
+        let flatTokens = buildFlatTokens(from: macro)
+
+        // DEBUG: dump the entire resolved flat token list
+        let tokenSummary = flatTokens.enumerated()
+            .map { "[\($0.offset)] \($0.element.token) (\($0.element.intervalMs)ms)" }
+            .joined(separator: ", ")
+        print("[MacroDebug] Flat tokens for '\(macro.label)': \(tokenSummary)")
+
+        // Spawn a background thread and run all tokens in strict order.
         DispatchQueue.global(qos: .userInitiated).async {
-            // Track active modifiers for composite key support
-            var activeModifiers: [String] = []
-            
-            for token in tokens {
-                DispatchQueue.main.async {
-                    // Handle closing tags - release all active modifiers and keys
-                    if token.hasPrefix("</") && token.hasSuffix(">") {
-                        // Release all keys
-                        self.keyboardManager.releaseAllKeys()
-                        // Clear active modifiers
-                        activeModifiers.removeAll()
-                    }
-                    // Handle opening modifier tags like <CTRL>, <SHIFT>, etc
-                    else if token == "<CTRL>" || token == "<SHIFT>" || token == "<ALT>" || token == "<CMD>" {
-                        let modifier: String
-                        switch token {
-                        case "<CTRL>":
-                            modifier = "Ctrl"
-                        case "<SHIFT>":
-                            modifier = "Shift"
-                        case "<ALT>":
-                            modifier = "Alt"
-                        case "<CMD>":
-                            modifier = "Cmd"
-                        default:
-                            modifier = ""
-                        }
-                        
-                        if !modifier.isEmpty {
-                            // Press the modifier
-                            self.keyboardManager.handleModifierToggle(modifier)
-                            activeModifiers.append(modifier)
-                        }
-                    }
-                    else if token.hasPrefix("<") && token.hasSuffix(">") && !self.isSpecialKey(token) {
-                        // This might be a macro name - extract the content between < and >
-                        let macroName = String(token.dropFirst().dropLast())
-                        if let referencedMacro = self.getMacroByLabel(macroName) {
-                            // Invoke the referenced macro
-                            self.sendMacroInternal(referencedMacro)
-                        }
-                    }
-                    else {
-                        switch token {
-                        case "<ESC>":
-                            if activeModifiers.isEmpty {
-                                self.keyboardManager.handleKeyPress("Escape")
-                            } else {
-                                self.keyboardManager.handleKeyCombo(modifiers: activeModifiers, key: "Escape")
-                            }
-                        case "<BACK>":
-                            if activeModifiers.isEmpty {
-                                self.keyboardManager.handleKeyPress("Backspace")
-                            } else {
-                                self.keyboardManager.handleKeyCombo(modifiers: activeModifiers, key: "Backspace")
-                            }
-                        case "<ENTER>":
-                            if activeModifiers.isEmpty {
-                                self.keyboardManager.handleKeyPress("Enter")
-                            } else {
-                                self.keyboardManager.handleKeyCombo(modifiers: activeModifiers, key: "Enter")
-                            }
-                        case "<SPACE>":
-                            if activeModifiers.isEmpty {
-                                self.keyboardManager.handleKeyPress("Space")
-                            } else {
-                                self.keyboardManager.handleKeyCombo(modifiers: activeModifiers, key: "Space")
-                            }
-                        case "<LEFT>":
-                            if activeModifiers.isEmpty {
-                                self.keyboardManager.handleKeyPress("Left")
-                            } else {
-                                self.keyboardManager.handleKeyCombo(modifiers: activeModifiers, key: "Left")
-                            }
-                        case "<RIGHT>":
-                            if activeModifiers.isEmpty {
-                                self.keyboardManager.handleKeyPress("Right")
-                            } else {
-                                self.keyboardManager.handleKeyCombo(modifiers: activeModifiers, key: "Right")
-                            }
-                        case "<UP>":
-                            if activeModifiers.isEmpty {
-                                self.keyboardManager.handleKeyPress("Up")
-                            } else {
-                                self.keyboardManager.handleKeyCombo(modifiers: activeModifiers, key: "Up")
-                            }
-                        case "<DOWN>":
-                            if activeModifiers.isEmpty {
-                                self.keyboardManager.handleKeyPress("Down")
-                            } else {
-                                self.keyboardManager.handleKeyCombo(modifiers: activeModifiers, key: "Down")
-                            }
-                        case "<HOME>":
-                            if activeModifiers.isEmpty {
-                                self.keyboardManager.handleKeyPress("Home")
-                            } else {
-                                self.keyboardManager.handleKeyCombo(modifiers: activeModifiers, key: "Home")
-                            }
-                        case "<END>":
-                            if activeModifiers.isEmpty {
-                                self.keyboardManager.handleKeyPress("End")
-                            } else {
-                                self.keyboardManager.handleKeyCombo(modifiers: activeModifiers, key: "End")
-                            }
-                        case "<DELAY1S>": break
-                        case "<DELAY2S>": break
-                        case "<DELAY5S>": break
-                        case "<DELAY10S>": break
-                        default:
-                            if token == " " {
-                                if activeModifiers.isEmpty {
-                                    self.keyboardManager.handleKeyPress("Space")
-                                } else {
-                                    self.keyboardManager.handleKeyCombo(modifiers: activeModifiers, key: "Space")
-                                }
-                            } else if token.count == 1, let char = token.first {
-                                if !char.isASCII {
-                                    // Non-ASCII Unicode – enqueue on the serial queue so
-                                    // back-to-back characters never interleave their HID reports.
-                                    let charCopy = char
-                                    UnicodeManager.shared.serialQueue.async {
-                                        UnicodeManager.shared.sendChar(charCopy, keyboardManager: self.keyboardManager)
-                                    }
-                                } else if activeModifiers.isEmpty {
-                                    if char.isUppercase && char.isLetter {
-                                        self.keyboardManager.handleKeyCombo(modifiers: ["Shift"], key: String(char).uppercased())
-                                    } else {
-                                        self.keyboardManager.handleKeyPress(token)
-                                    }
-                                } else {
-                                    // Apply active modifiers to the key
-                                    var allModifiers = activeModifiers
-                                    if char.isUppercase && char.isLetter {
-                                        if !allModifiers.contains("Shift") {
-                                            allModifiers.append("Shift")
-                                        }
-                                    }
-                                    self.keyboardManager.handleKeyCombo(modifiers: allModifiers, key: String(char).uppercased())
-                                }
-                            } else {
-                                if activeModifiers.isEmpty {
-                                    self.keyboardManager.handleKeyPress(token)
-                                } else {
-                                    self.keyboardManager.handleKeyCombo(modifiers: activeModifiers, key: token)
-                                }
-                            }
-                        }
-                    }
-                }
+            self.executeTokensOnCurrentThread(flatTokens)
+        }
+    }
+
+    /// Execute a flat token list **synchronously on the calling thread**.
+    /// Must be called from a background thread (never from the main thread).
+    /// This is the single shared execution engine used by both:
+    ///   - sendMacroInternal (via DispatchQueue.global.async)
+    ///   - executeBlockingByLabel (called directly from handleTextInputWithTokens)
+    func executeTokensOnCurrentThread(_ flatTokens: [(token: String, intervalMs: Int)]) {
+        for item in flatTokens {
+            let token = item.token
+            print("[MacroDebug] Executing token: \(token)")
+
+            switch token {
+            // ── Closing composite-key tag: clear tracked state only ──────────
+            // sendKeyPressSynchronous already sent the physical 0x00 key-up,
+            // so we just clear activeModifiers/pressedKeys without another TX.
+            case let t where t.hasPrefix("</") && t.hasSuffix(">"):
+                DispatchQueue.main.sync { self.keyboardManager.clearKeyStateSilently() }
+
+            // ── Opening modifier tags ────────────────────────────────────
+            case "<CTRL>", "<SHIFT>", "<ALT>", "<CMD>":
+                let modifier: String
                 switch token {
-                case "<DELAY1S>":
-                    usleep(1_000_000)
-                case "<DELAY2S>":
-                    usleep(2_000_000)
-                case "<DELAY5S>":
-                    usleep(5_000_000)
-                case "<DELAY10S>":
-                    usleep(10_000_000)
-                default:
-                    usleep(useconds_t(interval * 1000))
+                case "<CTRL>":  modifier = "Ctrl"
+                case "<SHIFT>": modifier = "Shift"
+                case "<ALT>":   modifier = "Alt"
+                default:        modifier = "Cmd"
+                }
+                // Silently track the modifier — no standalone BLE press.
+                // The next sendKeyPressSynchronous call will include it in
+                // its modifier byte; </TAG> will call releaseAllKeys().
+                DispatchQueue.main.sync { self.keyboardManager.addModifierSilently(modifier) }
+
+            // ── Named special keys ───────────────────────────────────────
+            case "<ESC>":     keyboardManager.sendKeyPressSynchronous("Escape")
+            case "<BACK>":    keyboardManager.sendKeyPressSynchronous("Backspace")
+            case "<ENTER>":   keyboardManager.sendKeyPressSynchronous("Enter")
+            case "<SPACE>":   keyboardManager.sendKeyPressSynchronous("Space")
+            case "<LEFT>":    keyboardManager.sendKeyPressSynchronous("Left")
+            case "<RIGHT>":   keyboardManager.sendKeyPressSynchronous("Right")
+            case "<UP>":      keyboardManager.sendKeyPressSynchronous("Up")
+            case "<DOWN>":    keyboardManager.sendKeyPressSynchronous("Down")
+            case "<HOME>":    keyboardManager.sendKeyPressSynchronous("Home")
+            case "<END>":     keyboardManager.sendKeyPressSynchronous("End")
+
+            // ── Explicit delay tokens ────────────────────────────────────
+            case "<DELAY1S>":  usleep(1_000_000)
+            case "<DELAY2S>":  usleep(2_000_000)
+            case "<DELAY5S>":  usleep(5_000_000)
+            case "<DELAY10S>": usleep(10_000_000)
+
+            // ── Regular characters ───────────────────────────────────────
+            default:
+                let keyStr = token == " " ? "Space" : token
+                if token.count == 1, let char = token.first, !char.isASCII {
+                    let sem = DispatchSemaphore(value: 0)
+                    let charCopy = char
+                    UnicodeManager.shared.serialQueue.async {
+                        UnicodeManager.shared.sendChar(charCopy, keyboardManager: self.keyboardManager)
+                        sem.signal()
+                    }
+                    sem.wait()
+                } else {
+                    keyboardManager.sendKeyPressSynchronous(keyStr)
                 }
             }
+
+            switch token {
+            case "<DELAY1S>", "<DELAY2S>", "<DELAY5S>", "<DELAY10S>": break
+            default:
+                usleep(useconds_t(item.intervalMs * 1000))
+            }
         }
+    }
+
+    /// Resolve a macro by label and execute it **synchronously** on the calling
+    /// background thread. Used by KeyboardManager.handleTextInputWithTokens so
+    /// that <Macro>…</Macro> tokens in a text sequence block until the sub-macro
+    /// finishes before the next token in the sequence is processed.
+    func executeBlockingByLabel(_ label: String) {
+        guard let macro = getMacroByLabel(label) else {
+            print("[MacroDebug] executeBlockingByLabel: no macro found for label='\(label)'")
+            return
+        }
+        hapticManager.triggerStrongFeedback()
+        let flatTokens = buildFlatTokens(from: macro)
+        let tokenSummary = flatTokens.enumerated()
+            .map { "[\($0.offset)] \($0.element.token) (\($0.element.intervalMs)ms)" }
+            .joined(separator: ", ")
+        print("[MacroDebug] executeBlockingByLabel '\(label)': \(tokenSummary)")
+        executeTokensOnCurrentThread(flatTokens)
     }
     
     /// Returns a markdown section listing all defined macros for injection into the AI system prompt.
@@ -275,7 +264,7 @@ class MacroManager: ObservableObject {
         var lines: [String] = [
             "",
             "## Available macros",
-            "The following macros are defined by the user. Invoke them with `<MacroLabel>`:",
+            "The following macros are defined by the user. Invoke them with `<Macro>`:",
             "",
             "| Label | Command sequence |",
             "|-------|-----------------|"
