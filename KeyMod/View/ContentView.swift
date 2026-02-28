@@ -18,6 +18,7 @@ struct ContentView: View {
     @StateObject private var orientationManager: OrientationManager
     @StateObject private var viewManager: ViewManager
     @StateObject private var clipboardManager: ClipboardManager
+    @StateObject private var remoteSessionManager: RemoteSessionManager
     @ObservedObject private var aiSettings = AISettings.shared
     @State private var showPopup = false
     @State private var sidebarVisible = false
@@ -28,9 +29,15 @@ struct ContentView: View {
     init(launchPanelManager: LaunchPanelManager) {
         self.launchPanelManager = launchPanelManager
         let bleManager = BLEManager()
+        let mouseManager = MouseManager(bleManager: bleManager)
+        let keyboardManager = KeyboardManager(bleManager: bleManager)
+        let remoteSessionManager = RemoteSessionManager()
+        remoteSessionManager.keyboardManager = keyboardManager
+        remoteSessionManager.mouseManager = mouseManager
         _bleManager = StateObject(wrappedValue: bleManager)
-        _mouseManager = StateObject(wrappedValue: MouseManager(bleManager: bleManager))
-        _keyboardManager = StateObject(wrappedValue: KeyboardManager(bleManager: bleManager))
+        _mouseManager = StateObject(wrappedValue: mouseManager)
+        _keyboardManager = StateObject(wrappedValue: keyboardManager)
+        _remoteSessionManager = StateObject(wrappedValue: remoteSessionManager)
         _orientationManager = StateObject(wrappedValue: OrientationManager())
         _viewManager = StateObject(wrappedValue: ViewManager())
         _clipboardManager = StateObject(wrappedValue: ClipboardManager())
@@ -513,7 +520,7 @@ struct ContentView: View {
                 }
             }
             .sheet(isPresented: $showSettings) {
-                SettingsView()
+                SettingsView(remoteSessionManager: remoteSessionManager)
             }
             .onAppear {
                 bleManager.showPopupBinding = $showPopup

@@ -136,6 +136,38 @@ class MouseManager: ObservableObject {
         }
     }
 
+    // MARK: - Remote helpers (called by RemoteSessionManager)
+
+    /// Send a relative mouse move with explicit dx/dy and a button state byte.
+    /// Bypasses previousPosition tracking so it is safe to call from remote events.
+    func sendRelativeMove(dx: Int, dy: Int, buttons: UInt8) {
+        let boundedX = max(-127, min(127, dx))
+        let boundedY = max(-127, min(127, dy))
+        let xByte = boundedX >= 0 ? UInt8(boundedX) : UInt8(0x100 + boundedX)
+        let yByte = boundedY >= 0 ? UInt8(boundedY) : UInt8(0x100 + boundedY)
+        var packet: [UInt8] = [0x57, 0xAB, 0x00, 0x05, 0x05, 0x01, buttons, xByte, yByte, 0x00]
+        let sum = packet.reduce(0 as UInt32) { $0 + UInt32($1) } & 0xFF
+        packet.append(UInt8(sum))
+        bleManager.sendTouchData(data: Data(packet))
+    }
+
+    /// Send a single mouse button press or release for remote input.
+    /// button: 1 = left, 2 = right, 3 = middle
+    func sendButtonEvent(button: Int, pressed: Bool) {
+        let buttonByte: UInt8 = {
+            switch button {
+            case 2:  return 0x02
+            case 3:  return 0x04
+            default: return 0x01
+            }
+        }()
+        let stateByte: UInt8 = pressed ? buttonByte : 0x00
+        var packet: [UInt8] = [0x57, 0xAB, 0x00, 0x05, 0x05, 0x01, stateByte, 0x00, 0x00, 0x00]
+        let sum = packet.reduce(0 as UInt32) { $0 + UInt32($1) } & 0xFF
+        packet.append(UInt8(sum))
+        bleManager.sendTouchData(data: Data(packet))
+    }
+
     func handleScroll(deltaX: Int, deltaY: Int) {
         print("Performing scroll action - deltaX: \(deltaX), deltaY: \(deltaY)")
         
