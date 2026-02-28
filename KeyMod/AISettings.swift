@@ -53,13 +53,6 @@ struct AIProvider: Identifiable, Codable {
     }
 }
 
-// MARK: - System Prompt Role
-struct SystemPromptRole {
-    let id: String
-    let name: String
-    let description: String
-    let prompt: String
-}
 
 class AISettings: ObservableObject {
     // MARK: - Published Properties
@@ -93,31 +86,12 @@ class AISettings: ObservableObject {
         didSet { UserDefaults.standard.set(sttEngine.rawValue, forKey: "AISettings.sttEngine") }
     }
     
-    // MARK: - Constants
-    private let defaultBaseURL = "https://api.openai.com/v1"
-    private let defaultModel = "gpt-3.5-turbo"
-    
-    // MARK: - System Prompt Roles
-    let systemPromptRoles: [SystemPromptRole] = [
-        SystemPromptRole(
-            id: "text_refinement",
-            name: "Text Refinement",
-            description: "Refine voice transcription for clarity",
-            prompt: "You are a helpful assistant. The user will provide voice-transcribed text. Your task is to:\n1. Check the user's intention\n2. Correct any speech recognition errors\n3. Refine the text for clarity and completeness\n\nIMPORTANT: Output ONLY printable ASCII characters (ASCII 32-126). Use only standard keyboard-inputtable characters. No special Unicode, emojis, or non-keyboard symbols. No explanations, only the refined text."
-        ),
-        SystemPromptRole(
-            id: "command_assistant",
-            name: "Command Assistant",
-            description: "Convert voice commands to keyboard/mouse actions",
-            prompt: "You are a command interpreter for keyboard and mouse control. The user will provide voice-transcribed commands. Your task is to:\n1. Interpret the voice command\n2. Convert to specific keyboard keys or mouse actions using special tokens\n3. Use token format: <CTRL>, <SHIFT>, <ALT>, <CMD> for modifiers and <F1>-<F12> for function keys\n4. Available special keys: <ENTER>, <ESC>, <BACK>, <TAB>, <SPACE>, <LEFT>, <RIGHT>, <UP>, <DOWN>, <HOME>, <END>, <PAGEUP>, <PAGEDOWN>, <DELETE>, <INSERT>\n5. For mouse: MOUSE:click, MOUSE:double_click, MOUSE:move_up, MOUSE:move_down, MOUSE:left, MOUSE:right\n6. Use ONLY ASCII keyboard-inputtable characters (ASCII 32-126) in all output\n\nExamples:\n- 'save file' -> save file<CTRL>S\n- 'open file' -> open file<CTRL>O</CTRL>\n- 'undo' -> <CTRL>Z</CTRL>\n- 'open spotlight' -> <CTRL><SPACE></CTRL>- 'press escape' -> <ESC>\n- 'press F1' -> <F1>\n- 'select all and delete' -> <CTRL>a</CTRL><DELETE>\n- 'click' -> MOUSE:click\n- 'double click' -> MOUSE:double_click\n- 'move mouse up' -> MOUSE:move_up\n\nRespond with ONLY the command output (using ASCII 32-126 characters and tokens), no explanations."
-        ),
-        SystemPromptRole(
-            id: "custom",
-            name: "Custom",
-            description: "Use your own system prompt",
-            prompt: ""
-        )
-    ]
+    // MARK: - System Prompt Roles (sourced from AIConfigManager)
+
+    /// Live list of roles loaded from AIConfig.json (or server).
+    var systemPromptRoles: [SystemPromptRole] {
+        AIConfigManager.shared.roles
+    }
     
     // MARK: - Singleton
     static let shared = AISettings()
@@ -133,10 +107,21 @@ class AISettings: ObservableObject {
            let decodedProviders = try? JSONDecoder().decode([AIProvider].self, from: encodedProviders) {
             loadedProviders = decodedProviders
         } else {
-            // Migration: create default provider from old settings
-            let oldBaseURL = UserDefaults.standard.string(forKey: "AISettings.apiBaseURL") ?? defaultBaseURL
-            let oldModel = UserDefaults.standard.string(forKey: "AISettings.modelName") ?? defaultModel
-            loadedProviders = [AIProvider(name: "OpenAI", apiBaseURL: oldBaseURL, modelName: oldModel)]
+            // First launch: build provider list from config presets
+            let presets = AIConfigManager.shared.providerPresets
+            if !presets.isEmpty {
+                loadedProviders = presets.map { preset in
+                    AIProvider(name: preset.name,
+                               apiBaseURL: preset.apiBaseURL,
+                               modelName: preset.modelName,
+                               apiKeyOptional: preset.apiKeyOptional)
+                }
+            } else {
+                // Absolute fallback if the config bundle is missing
+                loadedProviders = [AIProvider(name: "OpenAI",
+                                              apiBaseURL: "https://api.openai.com/v1",
+                                              modelName: "gpt-4o")]
+            }
         }
         self.providers = loadedProviders
         
@@ -145,12 +130,16 @@ class AISettings: ObservableObject {
         if let savedId = UserDefaults.standard.string(forKey: "AISettings.selectedProviderId") {
             providerId = savedId
         } else {
-            providerId = loadedProviders.first?.id.uuidString ?? UUID().uuidString
+            // Pick the provider whose name matches the config default, else first
+            let defaultName = AIConfigManager.shared.defaults?.providerName ?? ""
+            let matched = loadedProviders.first { $0.name == defaultName }
+            providerId = (matched ?? loadedProviders.first)?.id.uuidString ?? UUID().uuidString
         }
         self.selectedProviderId = providerId
-        
+
         // Initialize selectedSystemPromptRole
-        let roleId = UserDefaults.standard.string(forKey: "AISettings.selectedSystemPromptRole") ?? "text_refinement"
+        let configDefaultRole = AIConfigManager.shared.defaults?.role ?? "text_refinement"
+        let roleId = UserDefaults.standard.string(forKey: "AISettings.selectedSystemPromptRole") ?? configDefaultRole
         self.selectedSystemPromptRole = roleId
         
         // Initialize systemPrompt
@@ -158,12 +147,14 @@ class AISettings: ObservableObject {
         if let savedPrompt = UserDefaults.standard.string(forKey: "AISettings.systemPrompt"), !savedPrompt.isEmpty {
             prompt = savedPrompt
         } else {
-            prompt = systemPromptRoles.first(where: { $0.id == roleId })?.prompt ?? systemPromptRoles[0].prompt
+            let roles = AIConfigManager.shared.roles
+            prompt = roles.first(where: { $0.id == roleId })?.prompt ?? roles.first?.prompt ?? ""
         }
         self.systemPrompt = prompt
-        
+
         // Initialize sttEngine
-        let engineRaw = UserDefaults.standard.string(forKey: "AISettings.sttEngine") ?? SpeechEngineType.apple.rawValue
+        let configDefaultEngine = AIConfigManager.shared.defaults?.sttEngine ?? SpeechEngineType.apple.rawValue
+        let engineRaw = UserDefaults.standard.string(forKey: "AISettings.sttEngine") ?? configDefaultEngine
         self.sttEngine = SpeechEngineType(rawValue: engineRaw) ?? .apple
         
         updateAPIKeyStatus()
@@ -201,7 +192,7 @@ class AISettings: ObservableObject {
     
     // MARK: - Get System Prompt Role by ID
     func getSystemPromptRole(id: String) -> SystemPromptRole? {
-        return systemPromptRoles.first(where: { $0.id == id })
+        return AIConfigManager.shared.role(id: id)
     }
     
     // MARK: - Update System Prompt from Role
@@ -278,9 +269,15 @@ class AISettings: ObservableObject {
     // MARK: - Reset to Defaults
     func resetToDefaults() {
         isEnabled = false
-        selectedProviderId = providers.first?.id.uuidString ?? ""
-        selectedSystemPromptRole = "text_refinement"
-        systemPrompt = systemPromptRoles[0].prompt
+        let defaultRoleId = AIConfigManager.shared.defaults?.role ?? "text_refinement"
+        selectedSystemPromptRole = defaultRoleId
+        systemPrompt = AIConfigManager.shared.role(id: defaultRoleId)?.prompt
+            ?? AIConfigManager.shared.roles.first?.prompt ?? ""
+        let defaultProviderName = AIConfigManager.shared.defaults?.providerName ?? ""
+        selectedProviderId = providers.first { $0.name == defaultProviderName }?.id.uuidString
+            ?? providers.first?.id.uuidString ?? ""
+        let defaultEngineRaw = AIConfigManager.shared.defaults?.sttEngine ?? SpeechEngineType.apple.rawValue
+        sttEngine = SpeechEngineType(rawValue: defaultEngineRaw) ?? .apple
         clearAPIKey()
     }
 }

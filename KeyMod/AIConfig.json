@@ -1,0 +1,60 @@
+{
+  "version": "1.0.0",
+  "defaults": {
+    "providerName": "OpenAI",
+    "role": "text_refinement",
+    "sttEngine": "apple"
+  },
+  "providerPresets": [
+    {
+      "name": "OpenAI",
+      "apiBaseURL": "https://api.openai.com/v1",
+      "modelName": "gpt-4o",
+      "apiKeyOptional": false
+    },
+    {
+      "name": "Ollama (Local)",
+      "apiBaseURL": "http://localhost:11434/v1",
+      "modelName": "llama3",
+      "apiKeyOptional": true
+    },
+    {
+      "name": "DeepSeek",
+      "apiBaseURL": "https://api.deepseek.com/v1",
+      "modelName": "deepseek-chat",
+      "apiKeyOptional": false
+    },
+    {
+      "name": "Qwen (Alibaba)",
+      "apiBaseURL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "modelName": "qwen-plus",
+      "apiKeyOptional": false
+    },
+    {
+      "name": "GLM (Zhipu AI)",
+      "apiBaseURL": "https://open.bigmodel.cn/api/paas/v4",
+      "modelName": "glm-4-flash",
+      "apiKeyOptional": false
+    }
+  ],
+  "roles": [
+    {
+      "id": "text_refinement",
+      "name": "Text Refinement",
+      "description": "Refine voice transcription for clarity",
+      "promptFile": "Prompts/text_refinement.md"
+    },
+    {
+      "id": "command_assistant",
+      "name": "Command Assistant",
+      "description": "Convert voice commands to keyboard/mouse actions",
+      "promptFile": "Prompts/command_assistant.md"
+    },
+    {
+      "id": "custom",
+      "name": "Custom",
+      "description": "Use your own system prompt",
+      "prompt": ""
+    }
+  ]
+}
