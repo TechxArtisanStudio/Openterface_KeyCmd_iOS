@@ -65,6 +65,17 @@ class RemoteSessionManager: ObservableObject {
     private var webSocketTask: URLSessionWebSocketTask?
     private let urlSession: URLSession = .shared
     private var dispatchTimestamp: Date?
+    
+    /// Maximum age (in seconds) for a tunnel URL. URLs older than this are considered stale.
+    private let maxTunnelURLAge: TimeInterval = 60.0
+    
+    /// Tracks the previous URL to detect when server generates a new one
+    private var previousTunnelURL: URL?
+    
+    /// Timeout for waiting for URL change (1 minute)
+    private let urlChangeTimeout: TimeInterval = 60.0
+    private var urlChangePollingStartTime: Date?
+    private var urlChangePollingTimer: Timer?
 
     // MARK: - ANSI escape-sequence → KeyboardManager key name map
     private let escapeKeyMap: [String: String] = [
@@ -99,16 +110,70 @@ class RemoteSessionManager: ObservableObject {
             setError("GitHub token and repository must be configured.")
             return
         }
+        
+        // Clear old tunnel URL and timestamp
+        DispatchQueue.main.async {
+            self.tunnelURL = nil
+            settings.tunnelURLTimestamp = nil
+        }
+        
         logger.log("Starting session — repo: \(settings.githubRepo)  workflow: \(settings.githubWorkflow)  ref: \(settings.githubRef)  duration: \(settings.sessionDurationMinutes) min", category: "Remote")
         logger.log("Token present: \(!settings.githubToken.isEmpty)  length: \(settings.githubToken.count)", category: "Remote")
         setState(.starting)
-        dispatchWorkflow(settings: settings)
+        
+        // Fetch the current URL from the repo to establish baseline (even on first start)
+        fetchCurrentURLAsBaseline(settings: settings)
+    }
+
+    private func fetchCurrentURLAsBaseline(settings: RemoteSettings) {
+        let pollURLString = "https://api.github.com/repos/\(settings.githubRepo)/contents/.tunnel-url"
+        logger.log("Fetching current URL as baseline to avoid reusing stale URLs: GET \(pollURLString)", category: "Remote")
+
+        guard let url = URL(string: pollURLString) else {
+            logger.log("Could not build poll URL from: \(pollURLString)", category: "Remote", level: .error)
+            dispatchWorkflow(settings: settings)
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(settings.githubToken)",   forHTTPHeaderField: "Authorization")
+        request.setValue("application/vnd.github+json",      forHTTPHeaderField: "Accept")
+        request.setValue("2022-11-28",                       forHTTPHeaderField: "X-GitHub-Api-Version")
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+            guard let self else { return }
+
+            guard let data, let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let base64Content = json["content"] as? String else {
+                self.logger.log("Baseline fetch: URL file not found or not readable; proceeding without baseline", category: "Remote")
+                self.dispatchWorkflow(settings: settings)
+                return
+            }
+
+            let stripped = base64Content.replacingOccurrences(of: "\n", with: "")
+            guard let decoded = Data(base64Encoded: stripped),
+                  let rawURL = String(data: decoded, encoding: .utf8)
+                                    .map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) }),
+                  !rawURL.isEmpty,
+                  let baselineURL = URL(string: rawURL) else {
+                self.logger.log("Baseline fetch: Failed to decode URL; proceeding without baseline", category: "Remote")
+                self.dispatchWorkflow(settings: settings)
+                return
+            }
+
+            self.previousTunnelURL = baselineURL
+            self.logger.log("✅ Baseline URL established: \(rawURL) — will only accept URLs different from this", category: "Remote")
+            self.dispatchWorkflow(settings: settings)
+        }.resume()
     }
 
     func stopSession() {
         logger.log("stopSession() called — state was: \(state.displayText)", category: "Remote")
         pollTimer?.invalidate()
         pollTimer = nil
+        urlChangePollingTimer?.invalidate()
+        urlChangePollingTimer = nil
         webSocketTask?.cancel(with: .normalClosure, reason: nil)
         webSocketTask = nil
         DispatchQueue.main.async {
@@ -185,8 +250,106 @@ class RemoteSessionManager: ObservableObject {
 
     private func startPollingForTunnelURL() {
         pollCount = 0
+        
+        // Always check for URL change (we now always have a baseline from fetchCurrentURLAsBaseline)
+        if let previousURL = previousTunnelURL {
+            logger.log("Starting URL change detection — will poll until URL changes from: \(previousURL.absoluteString)", category: "Remote")
+            urlChangePollingStartTime = Date()
+            startURLChangePolling()
+        } else {
+            // Fallback: no baseline was found, proceed with normal polling
+            logger.log("No baseline URL found; starting normal poll loop for .tunnel-url (every 6 s)", category: "Remote")
+            fetchTunnelURL()
+            pollTimer = Timer.scheduledTimer(withTimeInterval: 6.0, repeats: true) { [weak self] _ in
+                self?.fetchTunnelURL()
+            }
+        }
+    }
+
+    private func startURLChangePolling() {
+        urlChangePollingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.checkForURLChange()
+        }
+        // Check immediately
+        checkForURLChange()
+    }
+
+    private func checkForURLChange() {
+        let settings = RemoteSettings.shared
+        
+        guard let previousURL = previousTunnelURL else {
+            logger.log("Previous URL was cleared; starting normal polling", category: "Remote")
+            stopURLChangePolling()
+            startNormalPolling()
+            return
+        }
+
+        // Check timeout (1 minute)
+        if let startTime = urlChangePollingStartTime {
+            let elapsed = Date().timeIntervalSince(startTime)
+            if elapsed > urlChangeTimeout {
+                logger.log("URL change detection timeout after \(String(format: "%.1f", elapsed))s — URL did not change from: \(previousURL.absoluteString)", category: "Remote", level: .error)
+                stopURLChangePolling()
+                setError("Timeout waiting for server to generate new tunnel URL. The server may not have restarted properly.")
+                return
+            }
+        }
+
+        let pollURLString = "https://api.github.com/repos/\(settings.githubRepo)/contents/.tunnel-url"
+
+        guard let url = URL(string: pollURLString) else {
+            logger.log("Could not build poll URL from: \(pollURLString)", category: "Remote", level: .error)
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(settings.githubToken)",   forHTTPHeaderField: "Authorization")
+        request.setValue("application/vnd.github+json",      forHTTPHeaderField: "Accept")
+        request.setValue("2022-11-28",                       forHTTPHeaderField: "X-GitHub-Api-Version")
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+            guard let self else { return }
+
+            guard let data, let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let base64Content = json["content"] as? String else {
+                return
+            }
+
+            let stripped = base64Content.replacingOccurrences(of: "\n", with: "")
+            guard let decoded = Data(base64Encoded: stripped),
+                  let rawURL = String(data: decoded, encoding: .utf8)
+                                    .map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) }),
+                  !rawURL.isEmpty,
+                  let currentURL = URL(string: rawURL) else {
+                return
+            }
+
+            // Check if URL has changed
+            if currentURL.absoluteString != previousURL.absoluteString {
+                let elapsed = Date().timeIntervalSince(self.urlChangePollingStartTime ?? Date())
+                self.logger.log("✅ URL changed to new value after \(String(format: "%.1f", elapsed))s — proceeding with new URL: \(rawURL)", category: "Remote")
+                self.stopURLChangePolling()
+                
+                // Now proceed with normal polling using the new URL
+                DispatchQueue.main.async {
+                    self.previousTunnelURL = nil
+                }
+                self.startNormalPolling()
+            }
+        }.resume()
+    }
+
+    private func stopURLChangePolling() {
+        urlChangePollingTimer?.invalidate()
+        urlChangePollingTimer = nil
+        urlChangePollingStartTime = nil
+    }
+
+    private func startNormalPolling() {
         logger.log("Starting poll loop for .tunnel-url (every 6 s)", category: "Remote")
-        fetchTunnelURL() // immediate first attempt
+        pollCount = 0
+        fetchTunnelURL()
         pollTimer = Timer.scheduledTimer(withTimeInterval: 6.0, repeats: true) { [weak self] _ in
             self?.fetchTunnelURL()
         }
@@ -249,21 +412,11 @@ class RemoteSessionManager: ObservableObject {
             self.logger.log("Poll #\(self.pollCount) — content field present (\(base64Content.count) chars b64)", category: "Remote")
 
             // Check commit timestamp vs our dispatch time
-            if let committerRaw = (json["commit"] as? [String: Any])?["committer"] as? [String: Any],
-               let dateStr = committerRaw["date"] as? String {
-                self.logger.log("Poll #\(self.pollCount) — commit date: \(dateStr)", category: "Remote")
-                let formatter = ISO8601DateFormatter()
-                if let commitDate = formatter.date(from: dateStr),
-                   let dispatchTime = self.dispatchTimestamp {
-                    if commitDate < dispatchTime {
-                        self.logger.log("Poll #\(self.pollCount) — commit (\(dateStr)) predates dispatch (\(dispatchTime)) — skipping stale file", category: "Remote")
-                        return
-                    } else {
-                        self.logger.log("Poll #\(self.pollCount) — commit is fresh (commit \(dateStr) >= dispatch \(dispatchTime))", category: "Remote")
-                    }
-                }
-            } else {
-                self.logger.log("Poll #\(self.pollCount) — no commit.committer.date field; skipping staleness check", category: "Remote", level: .warning)
+            let fileIsStale = self.isFileStale(json: json)
+            
+            if fileIsStale {
+                self.logger.log("Poll #\(self.pollCount) — file failed freshness check; skipping stale file", category: "Remote", level: .warning)
+                return
             }
 
             // Decode Base64 (GitHub pads with newlines)
@@ -293,9 +446,49 @@ class RemoteSessionManager: ObservableObject {
             self.pollTimer?.invalidate()
             self.pollTimer = nil
 
-            DispatchQueue.main.async { self.tunnelURL = tunnelURL }
+            DispatchQueue.main.async {
+                self.tunnelURL = tunnelURL
+                // Record when this URL was generated
+                settings.tunnelURLTimestamp = Date()
+            }
             self.connectAsAgent(tunnelURL: tunnelURL)
         }.resume()
+    }
+
+    /// Validates if a fetched file is stale by checking:
+    /// 1. Commit timestamp against dispatch time (if available)
+    /// 2. Maximum age since dispatch (strict fallback validation)
+    private func isFileStale(json: [String: Any]) -> Bool {
+        guard let dispatchTime = dispatchTimestamp else { return false }
+
+        // Try to get precise commit timestamp
+        if let committerRaw = (json["commit"] as? [String: Any])?["committer"] as? [String: Any],
+           let dateStr = committerRaw["date"] as? String {
+            self.logger.log("Poll #\(self.pollCount) — commit date: \(dateStr)", category: "Remote")
+            let formatter = ISO8601DateFormatter()
+            if let commitDate = formatter.date(from: dateStr) {
+                if commitDate < dispatchTime {
+                    self.logger.log("Poll #\(self.pollCount) — commit (\(dateStr)) predates dispatch (\(dispatchTime)) — file is stale", category: "Remote")
+                    return true
+                } else {
+                    self.logger.log("Poll #\(self.pollCount) — commit is fresh (commit \(dateStr) >= dispatch \(dispatchTime))", category: "Remote")
+                    return false
+                }
+            }
+        }
+
+        // Fallback: if we can't verify commit timestamp, use strict age limit
+        let now = Date()
+        let ageSeconds = now.timeIntervalSince(dispatchTime)
+        self.logger.log("Poll #\(self.pollCount) — no commit.committer.date field; applying strict age limit (max \(Int(self.maxTunnelURLAge))s)", category: "Remote")
+
+        if ageSeconds > self.maxTunnelURLAge {
+            self.logger.log("Poll #\(self.pollCount) — file is too old (\(String(format: "%.1f", ageSeconds))s > \(Int(self.maxTunnelURLAge))s limit) — rejecting", category: "Remote")
+            return true
+        }
+
+        self.logger.log("Poll #\(self.pollCount) — file age is acceptable (\(String(format: "%.1f", ageSeconds))s)", category: "Remote")
+        return false
     }
 
     // MARK: - Step 3: Connect WebSocket as /agent

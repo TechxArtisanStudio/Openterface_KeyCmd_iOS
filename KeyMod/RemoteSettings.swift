@@ -13,8 +13,6 @@ class RemoteSettings: ObservableObject {
 
     static let shared = RemoteSettings()
 
-    private let githubTokenKeychainKey = "RemoteSettings.githubToken"
-
     // MARK: - Persisted properties
 
     @Published var githubRepo: String {
@@ -35,22 +33,34 @@ class RemoteSettings: ObservableObject {
         didSet { UserDefaults.standard.set(sessionDurationMinutes, forKey: "RemoteSettings.duration") }
     }
 
-    // MARK: - Keychain-backed token
-
-    /// Reading/writing this property accesses the Keychain directly.
-    /// `objectWillChange` is fired manually so SwiftUI observes the change.
-    var githubToken: String {
-        get {
-            KeychainHelper.shared.retrieve(key: githubTokenKeychainKey) ?? ""
-        }
-        set {
-            objectWillChange.send()
-            if newValue.isEmpty {
-                KeychainHelper.shared.delete(key: githubTokenKeychainKey)
+    /// Timestamp when the current tunnel URL was generated (for staleness validation)
+    @Published var tunnelURLTimestamp: Date? {
+        didSet {
+            if let timestamp = tunnelURLTimestamp {
+                UserDefaults.standard.set(timestamp, forKey: "RemoteSettings.tunnelURLTimestamp")
             } else {
-                KeychainHelper.shared.save(key: githubTokenKeychainKey, value: newValue)
+                UserDefaults.standard.removeObject(forKey: "RemoteSettings.tunnelURLTimestamp")
             }
         }
+    }
+
+    // MARK: - Keychain-backed token (OAuth token from GitHub)
+
+    /// GitHub OAuth access token from GitHubOAuthManager
+    var githubToken: String {
+        get {
+            GitHubOAuthManager.shared.accessToken
+        }
+    }
+    
+    /// Whether user is authenticated with GitHub via OAuth
+    var isGitHubAuthenticated: Bool {
+        GitHubOAuthManager.shared.isAuthenticated
+    }
+    
+    /// GitHub username from OAuth profile
+    var githubUsername: String {
+        GitHubOAuthManager.shared.username
     }
 
     // MARK: - Init
@@ -61,12 +71,13 @@ class RemoteSettings: ObservableObject {
         githubRef      = UserDefaults.standard.string(forKey: "RemoteSettings.ref")      ?? "main"
         let saved = UserDefaults.standard.integer(forKey: "RemoteSettings.duration")
         sessionDurationMinutes = saved > 0 ? saved : 10
+        tunnelURLTimestamp = UserDefaults.standard.object(forKey: "RemoteSettings.tunnelURLTimestamp") as? Date
     }
 
     // MARK: - Derived helpers
 
     var isConfigured: Bool {
-        !githubToken.isEmpty && !githubRepo.isEmpty
+        GitHubOAuthManager.shared.isAuthenticated && !githubRepo.isEmpty
     }
 
     var parsedOwner: String {

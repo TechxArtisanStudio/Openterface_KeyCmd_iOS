@@ -11,51 +11,91 @@ import UIKit
 struct RemoteSettingsView: View {
 
     @ObservedObject private var settings = RemoteSettings.shared
+    @ObservedObject private var oauthManager = GitHubOAuthManager.shared
     @ObservedObject var sessionManager: RemoteSessionManager
-
-    @State private var tokenInput: String = ""
-    @State private var showToken: Bool = false
-    @State private var urlCopied: Bool = false
 
     var body: some View {
         Group {
-            githubConfigSection
+            // Show active link prominently at the top
+            if sessionManager.tunnelURL != nil {
+                Section {
+                    if let url = sessionManager.tunnelURL {
+                        RemoteLinkView(url: url)
+                    }
+                }
+            }
+            
+            githubAuthSection
+            repositoryConfigSection
             sessionSection
             sessionStatusSection
-            if sessionManager.tunnelURL != nil {
-                shareLinkSection
-            }
-        }
-        .onAppear {
-            tokenInput = settings.githubToken
         }
     }
 
-    // MARK: - GitHub Configuration
+    // MARK: - GitHub Authentication
 
-    private var githubConfigSection: some View {
-        Section(header: Text("GitHub Configuration"),
-                footer: Text("Create a Personal Access Token with repo and workflow scopes at github.com/settings/tokens.")) {
-
-            // Token field with show / hide toggle
-            HStack {
-                if showToken {
-                    TextField("ghp_…", text: $tokenInput)
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
-                        .onChange(of: tokenInput) { settings.githubToken = $0 }
-                } else {
-                    SecureField("GitHub Personal Access Token", text: $tokenInput)
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
-                        .onChange(of: tokenInput) { settings.githubToken = $0 }
+    private var githubAuthSection: some View {
+        Section(header: Text("GitHub Authentication")) {
+            if oauthManager.isAuthenticated {
+                // User is logged in
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("Authenticated")
+                                .fontWeight(.semibold)
+                        }
+                        Text("@\(oauthManager.username)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Button(role: .destructive) {
+                        oauthManager.logout()
+                    } label: {
+                        Text("Logout")
+                            .font(.caption)
+                    }
                 }
-                Button(action: { showToken.toggle() }) {
-                    Image(systemName: showToken ? "eye.slash" : "eye")
+            } else {
+                // Not logged in
+                VStack(spacing: 12) {
+                    if let error = oauthManager.authError {
+                        HStack {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .foregroundColor(.red)
+                            Text(error)
+                                .font(.caption)
+                                .foregroundColor(.red)
+                        }
+                    }
+                    
+                    Button(action: { oauthManager.startLogin() }) {
+                        HStack {
+                            Image(systemName: "person.badge.key.fill")
+                            Text(oauthManager.isAuthenticating ? "Authenticating…" : "Login with GitHub")
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .foregroundColor(.white)
+                        .background(Color(red: 0.1, green: 0.1, blue: 0.1))
+                        .cornerRadius(8)
+                    }
+                    .disabled(oauthManager.isAuthenticating)
+                    
+                    Text("Login with your GitHub account to authorize this app to trigger workflows and access your repository.")
+                        .font(.caption)
                         .foregroundColor(.secondary)
                 }
             }
+        }
+    }
 
+    // MARK: - Repository Configuration
+
+    private var repositoryConfigSection: some View {
+        Section(header: Text("Repository Configuration")) {
             // Repository
             HStack {
                 Text("Repository")
@@ -67,7 +107,7 @@ struct RemoteSettingsView: View {
                     .foregroundColor(.secondary)
             }
 
-            // Branch (collapsible advanced option)
+            // Branch
             HStack {
                 Text("Branch")
                 Spacer()
@@ -156,92 +196,5 @@ struct RemoteSettingsView: View {
         case .idle:            return .secondary
         default:               return .primary
         }
-    }
-
-    // MARK: - Share Link
-
-    private var shareLinkSection: some View {
-        Section(header: Text("Share With Remote Helper"),
-                footer: Text("Send this link to the person who will assist remotely. They can control the keyboard and mouse from their browser.")) {
-
-            if let url = sessionManager.tunnelURL {
-                // URL row with inline copy button
-                HStack(spacing: 8) {
-                    Text(url.absoluteString)
-                        .font(.footnote)
-                        .foregroundColor(.primary)
-                        .lineLimit(3)
-                        .minimumScaleFactor(0.75)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Button {
-                        copyURL(url)
-                    } label: {
-                        Image(systemName: urlCopied ? "checkmark" : "doc.on.doc")
-                            .font(.body)
-                            .foregroundColor(urlCopied ? .green : .accentColor)
-                            .frame(width: 36, height: 36)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.borderless)
-                    .animation(.easeInOut(duration: 0.2), value: urlCopied)
-                }
-
-                if urlCopied {
-                    Text("Copied to clipboard!")
-                        .font(.caption)
-                        .foregroundColor(.green)
-                        .transition(.opacity)
-                }
-
-                Button {
-                    presentShareSheet(url: url)
-                } label: {
-                    HStack {
-                        Image(systemName: "square.and.arrow.up")
-                        Text("Share Link…")
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: - Copy helper
-
-    private func copyURL(_ url: URL) {
-        UIPasteboard.general.url = url
-        withAnimation { urlCopied = true }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            withAnimation { self.urlCopied = false }
-        }
-    }
-
-    // MARK: - Share Sheet
-
-    private func presentShareSheet(url: URL) {
-        let activityVC = UIActivityViewController(
-            activityItems: [url],
-            applicationActivities: nil
-        )
-        // Find the top-most presented view controller to present on
-        guard
-            let windowScene = UIApplication.shared.connectedScenes
-                .compactMap({ $0 as? UIWindowScene })
-                .first(where: { $0.activationState == .foregroundActive }),
-            let rootVC = windowScene.windows.first(where: { $0.isKeyWindow })?.rootViewController
-        else { return }
-
-        var topVC = rootVC
-        while let presented = topVC.presentedViewController {
-            topVC = presented
-        }
-        // iPad needs a sourceView / barButtonItem for the popover
-        activityVC.popoverPresentationController?.sourceView = topVC.view
-        activityVC.popoverPresentationController?.sourceRect = CGRect(
-            x: topVC.view.bounds.midX,
-            y: topVC.view.bounds.midY,
-            width: 0, height: 0
-        )
-        topVC.present(activityVC, animated: true)
     }
 }
