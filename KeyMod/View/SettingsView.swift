@@ -9,7 +9,6 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(\.presentationMode) var presentationMode
-    var remoteSessionManager: RemoteSessionManager
     
     @State private var tempAPIKey = ""
     @State private var showAPIKeyField = false
@@ -27,7 +26,6 @@ struct SettingsView: View {
                     Text("Voice Input").tag("voice_input")
                     Text("AI Settings").tag("ai_settings")
                     Text("History").tag("history")
-                    Text("Remote").tag("remote")
                 }
                 .pickerStyle(.segmented)
                 .padding()
@@ -49,8 +47,6 @@ struct SettingsView: View {
                                 testResult: $testResult,
                                 testError: $testError
                             )
-                        } else if selectedSettingsTab == "remote" {
-                            RemoteSettingsView(sessionManager: remoteSessionManager)
                         }
                     }
                 }
@@ -67,6 +63,6 @@ struct SettingsView: View {
 
 struct SettingsView_Previews: PreviewProvider {
     static var previews: some View {
-        SettingsView(remoteSessionManager: RemoteSessionManager())
+        SettingsView()
     }
 }
