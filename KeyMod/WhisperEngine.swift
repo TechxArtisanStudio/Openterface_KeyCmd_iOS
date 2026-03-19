@@ -23,6 +23,14 @@ class WhisperEngine: NSObject, SpeechRecognitionEngine {
     // Serial queue to protect capturedBuffers (tap runs on real-time audio thread)
     private let bufferQueue = DispatchQueue(label: "KeyMod.WhisperEngine.bufferQueue")
     private let modelManager: WhisperModelManager
+
+    // Silence detection
+    private var lastSpeechTime: Date = Date()
+    private var hasSpeechBeenDetected: Bool = false
+    private var silenceTimer: Timer?
+    private var rmsLogCounter: Int = 0
+    private static let silenceThreshold: Float = 0.004
+    static let silenceTimeoutSeconds: TimeInterval = 2.0
     
     init(modelManager: WhisperModelManager = WhisperModelManager.shared) {
         self.modelManager = modelManager
@@ -56,6 +64,7 @@ class WhisperEngine: NSObject, SpeechRecognitionEngine {
     func stopListening() {
         guard audioEngine.isRunning else { return }
         
+        stopSilenceTimer()
         audioEngine.stop()
         audioEngine.inputNode.removeTap(onBus: 0)
         isListening = false
@@ -69,6 +78,11 @@ class WhisperEngine: NSObject, SpeechRecognitionEngine {
         logger.log("stopListening: capturedBuffers.count=\(buffers.count)", category: "VoiceInput")
         if !buffers.isEmpty {
             transcribeAudio(buffers)
+        } else {
+            // No audio captured — send empty final so isProcessingAudio gets cleared
+            DispatchQueue.main.async {
+                self.onResult?(.final(""))
+            }
         }
         
         logger.log("Whisper engine stopped", category: "VoiceInput")
@@ -102,6 +116,7 @@ class WhisperEngine: NSObject, SpeechRecognitionEngine {
 
         inputNode.installTap(onBus: 0, bufferSize: 4096, format: recordingFormat) { [weak self] buffer, _ in
             guard let self = self else { return }
+            self.monitorAudioLevel(buffer)
             if let copy = self.copyPCMBuffer(buffer) {
                 // Append on serial queue to avoid concurrent mutation from audio thread
                 self.bufferQueue.async {
@@ -112,6 +127,7 @@ class WhisperEngine: NSObject, SpeechRecognitionEngine {
 
         audioEngine.prepare()
         try audioEngine.start()
+        startSilenceTimer()
     }
 
     private func transcribeAudio(_ audioBuffer: AVAudioPCMBuffer) {
@@ -429,5 +445,91 @@ class WhisperEngine: NSObject, SpeechRecognitionEngine {
         }
 
         return copy
+    }
+
+    // MARK: - Silence Detection
+
+    private func monitorAudioLevel(_ buffer: AVAudioPCMBuffer) {
+        let rms = calculateRMS(buffer)
+        rmsLogCounter += 1
+        // Log every 10 buffers (~every second) to diagnose
+        if rmsLogCounter % 10 == 1 {
+            logger.log("[SilenceDetect-Whisper] RMS sample: \(rms), format: \(buffer.format), frames: \(buffer.frameLength), floatChannelData: \(buffer.floatChannelData != nil), channels: \(buffer.format.channelCount), commonFormat: \(buffer.format.commonFormat.rawValue)", category: "VoiceInput")
+        }
+        if rms > Self.silenceThreshold {
+            if !hasSpeechBeenDetected {
+                logger.log("[SilenceDetect-Whisper] Speech first detected, RMS=\(rms)", category: "VoiceInput")
+            }
+            hasSpeechBeenDetected = true
+            lastSpeechTime = Date()
+        }
+    }
+
+    private func calculateRMS(_ buffer: AVAudioPCMBuffer) -> Float {
+        // Try floatChannelData first (non-interleaved float32)
+        if let channelData = buffer.floatChannelData {
+            let length = Int(buffer.frameLength)
+            guard length > 0 else { return 0 }
+            var sum: Float = 0
+            for i in 0..<length {
+                sum += channelData[0][i] * channelData[0][i]
+            }
+            return sqrt(sum / Float(length))
+        }
+        
+        // Try int16 data (interleaved)
+        if let int16Data = buffer.int16ChannelData {
+            let length = Int(buffer.frameLength)
+            let channels = Int(buffer.format.channelCount)
+            guard length > 0 else { return 0 }
+            var sum: Float = 0
+            for i in 0..<length {
+                let sample = Float(int16Data[0][i * channels]) / 32768.0
+                sum += sample * sample
+            }
+            return sqrt(sum / Float(length))
+        }
+        
+        // Try int32 data
+        if let int32Data = buffer.int32ChannelData {
+            let length = Int(buffer.frameLength)
+            let channels = Int(buffer.format.channelCount)
+            guard length > 0 else { return 0 }
+            var sum: Float = 0
+            for i in 0..<length {
+                let sample = Float(int32Data[0][i * channels]) / Float(Int32.max)
+                sum += sample * sample
+            }
+            return sqrt(sum / Float(length))
+        }
+        
+        return 0
+    }
+
+    private func startSilenceTimer() {
+        lastSpeechTime = Date()
+        hasSpeechBeenDetected = false
+        rmsLogCounter = 0
+        logger.log("[SilenceDetect-Whisper] startSilenceTimer called, threshold=\(Self.silenceThreshold), timeout=\(Self.silenceTimeoutSeconds)s", category: "VoiceInput")
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.silenceTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+                guard let self = self else { return }
+                let elapsed = Date().timeIntervalSince(self.lastSpeechTime)
+                self.logger.log("[SilenceDetect-Whisper] Timer tick: isListening=\(self.isListening), hasSpeech=\(self.hasSpeechBeenDetected), silenceElapsed=\(String(format: "%.1f", elapsed))s", category: "VoiceInput")
+                guard self.isListening, self.hasSpeechBeenDetected else { return }
+                if elapsed >= Self.silenceTimeoutSeconds {
+                    self.logger.log("[SilenceDetect-Whisper] Silence timeout reached (\(String(format: "%.1f", elapsed))s), posting notification", category: "VoiceInput")
+                    self.stopSilenceTimer()
+                    NotificationCenter.default.post(name: NSNotification.Name("SpeechEngineSilenceDetected"), object: nil)
+                }
+            }
+        }
+    }
+
+    private func stopSilenceTimer() {
+        logger.log("[SilenceDetect-Whisper] stopSilenceTimer called", category: "VoiceInput")
+        silenceTimer?.invalidate()
+        silenceTimer = nil
     }
 }

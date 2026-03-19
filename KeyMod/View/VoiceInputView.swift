@@ -201,6 +201,10 @@ struct VoiceInputView: View {
     @State private var showMacroSaveDialog = false
     @State private var macroNameInput = ""
     @State private var selectedHistoryItemForMacro: HistoryItem?
+    
+    // Top bar states
+    @State private var autoSendToTarget = false
+    @State private var autoLineReturn = false
 
     private let historyKey = "VoiceInputHistory"
 
@@ -220,6 +224,7 @@ struct VoiceInputView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            textAreaToolbar
             textArea
                 .frame(maxHeight: .infinity)
             
@@ -279,11 +284,18 @@ struct VoiceInputView: View {
         .onChange(of: voiceManager.isListening) { isListening in
             // Auto-refine when user finishes speaking.
             // Guard: skip if Whisper is still processing audio asynchronously.
-            if !isListening && !voiceManager.isProcessingAudio && aiSettings.isEnabled {
+            if !isListening && !voiceManager.isProcessingAudio {
                 let text = voiceManager.transcribedText.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !text.isEmpty && refinedText == nil && !isRefining {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        refineText()
+                if !text.isEmpty {
+                    if aiSettings.isEnabled && refinedText == nil && !isRefining {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            refineText()
+                        }
+                    } else if !aiSettings.isEnabled && autoSendToTarget {
+                        // Auto-send directly when AI is off
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            sendText()
+                        }
                     }
                 }
             }
@@ -291,11 +303,17 @@ struct VoiceInputView: View {
         .onChange(of: voiceManager.isProcessingAudio) { isProcessing in
             // For WhisperEngine: trigger refinement once async inference finishes
             // (at this point isListening is already false)
-            if !isProcessing && !voiceManager.isListening && aiSettings.isEnabled {
+            if !isProcessing && !voiceManager.isListening {
                 let text = voiceManager.transcribedText.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !text.isEmpty && refinedText == nil && !isRefining {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        refineText()
+                if !text.isEmpty {
+                    if aiSettings.isEnabled && refinedText == nil && !isRefining {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            refineText()
+                        }
+                    } else if !aiSettings.isEnabled && autoSendToTarget {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            sendText()
+                        }
                     }
                 }
             }
@@ -316,6 +334,95 @@ struct VoiceInputView: View {
         if let encodedData = try? JSONEncoder().encode(sentHistory) {
             UserDefaults.standard.set(encodedData, forKey: historyKey)
         }
+    }
+
+    // MARK: - Text Area Toolbar
+
+    private var textAreaToolbar: some View {
+        HStack(spacing: 16) {
+            // Copy to clipboard
+            Button(action: {
+                UIPasteboard.general.string = voiceManager.transcribedText
+            }) {
+                Image(systemName: "doc.on.doc")
+                    .font(.system(size: 16))
+                    .foregroundColor(voiceManager.transcribedText.isEmpty ? .gray : .primary)
+            }
+            .disabled(voiceManager.transcribedText.isEmpty)
+
+            // Clear
+            Button(action: {
+                voiceManager.clearText()
+                voiceManager.errorMessage = nil
+                refinedText = nil
+            }) {
+                Image(systemName: "trash")
+                    .font(.system(size: 16))
+                    .foregroundColor(voiceManager.transcribedText.isEmpty ? .gray : .red)
+            }
+            .disabled(voiceManager.transcribedText.isEmpty && voiceManager.errorMessage == nil)
+
+            Spacer()
+
+            // Auto AI improve toggle
+            Button(action: {
+                aiSettings.isEnabled.toggle()
+            }) {
+                Image(systemName: aiSettings.isEnabled ? "sparkles" : "sparkles")
+                    .font(.system(size: 16))
+                    .foregroundColor(aiSettings.isEnabled ? .purple : .gray)
+                    .background(
+                        aiSettings.isEnabled
+                            ? Circle().fill(Color.purple.opacity(0.15)).frame(width: 30, height: 30)
+                            : nil
+                    )
+            }
+
+            // Auto line return toggle
+            Button(action: {
+                autoLineReturn.toggle()
+            }) {
+                Image(systemName: "return")
+                    .font(.system(size: 16))
+                    .foregroundColor(autoLineReturn ? .orange : .gray)
+                    .background(
+                        autoLineReturn
+                            ? Circle().fill(Color.orange.opacity(0.15)).frame(width: 30, height: 30)
+                            : nil
+                    )
+            }
+
+            // Auto send to target toggle
+            Button(action: {
+                autoSendToTarget.toggle()
+            }) {
+                Image(systemName: "paperplane")
+                    .font(.system(size: 16))
+                    .foregroundColor(autoSendToTarget ? .blue : .gray)
+                    .background(
+                        autoSendToTarget
+                            ? Circle().fill(Color.blue.opacity(0.15)).frame(width: 30, height: 30)
+                            : nil
+                    )
+            }
+
+            // Auto-pause on silence toggle
+            Button(action: {
+                voiceManager.autoPauseOnSilence.toggle()
+            }) {
+                Image(systemName: "pause.circle")
+                    .font(.system(size: 16))
+                    .foregroundColor(voiceManager.autoPauseOnSilence ? .green : .gray)
+                    .background(
+                        voiceManager.autoPauseOnSilence
+                            ? Circle().fill(Color.green.opacity(0.15)).frame(width: 30, height: 30)
+                            : nil
+                    )
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(Color(UIColor.secondarySystemBackground))
     }
 
     // MARK: - Text Area
@@ -844,6 +951,13 @@ struct VoiceInputView: View {
                     refinementError = nil
                     LogManager.shared.log("✅ Text refinement successful and applied: \(refined)", category: "VoiceInput", level: .info)
                     
+                    // Auto-send after AI refinement if enabled
+                    if autoSendToTarget {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            sendText()
+                        }
+                    }
+                    
                 case .failure(let error):
                     refinedText = nil
                     refinementError = error.localizedDescription
@@ -899,7 +1013,8 @@ struct VoiceInputView: View {
 
         isSending = true
         // Use the new handleTextInputWithTokens to support special tokens
-        keyboardManager.handleTextInputWithTokens(text)
+        let payload = autoLineReturn ? text + "<ENTER>" : text
+        keyboardManager.handleTextInputWithTokens(payload)
 
         // Add to history (avoid duplicating the most recent entry)
         let newItem = HistoryItem(text: text, timestamp: Date())

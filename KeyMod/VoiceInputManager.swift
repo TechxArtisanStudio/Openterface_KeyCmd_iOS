@@ -14,12 +14,18 @@ class VoiceInputManager: ObservableObject {
     @Published var isProcessingAudio: Bool = false
     @Published var errorMessage: String? = nil
     @Published var permissionGranted: Bool = false
+    @Published var autoPauseOnSilence: Bool {
+        didSet { UserDefaults.standard.set(autoPauseOnSilence, forKey: "VoiceInput.autoPauseOnSilence") }
+    }
 
     private var engine: SpeechRecognitionEngine
     private let logger = LogManager.shared
     private let aiSettings = AISettings.shared
 
     init(engine: SpeechRecognitionEngine? = nil) {
+        // Initialize autoPauseOnSilence from UserDefaults (default: true)
+        self.autoPauseOnSilence = UserDefaults.standard.object(forKey: "VoiceInput.autoPauseOnSilence") as? Bool ?? true
+
         // Use provided engine or create default based on settings
         if let engine = engine {
             self.engine = engine
@@ -41,11 +47,31 @@ class VoiceInputManager: ObservableObject {
             name: NSNotification.Name("SpeechEnginePermissionChanged"),
             object: nil
         )
+        
+        // Listen for silence detection from engine
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleSilenceDetected),
+            name: NSNotification.Name("SpeechEngineSilenceDetected"),
+            object: nil
+        )
     }
     
     @objc private func updatePermissionStatus() {
         DispatchQueue.main.async {
             self.permissionGranted = self.engine.permissionGranted
+        }
+    }
+
+    @objc private func handleSilenceDetected() {
+        logger.log("[SilenceDetect] Notification received: autoPause=\(autoPauseOnSilence), isListening=\(isListening)", category: "VoiceInput")
+        guard autoPauseOnSilence && isListening else {
+            logger.log("[SilenceDetect] Ignoring: autoPause=\(autoPauseOnSilence), isListening=\(isListening)", category: "VoiceInput")
+            return
+        }
+        DispatchQueue.main.async {
+            self.logger.log("[SilenceDetect] Auto-pausing now", category: "VoiceInput")
+            self.stopListening()
         }
     }
 
@@ -89,10 +115,15 @@ class VoiceInputManager: ObservableObject {
     }
 
     func stopListening() {
+        // For Whisper: mark processing BEFORE setting isListening=false so that
+        // observers see isProcessingAudio=true when the isListening change fires.
+        if aiSettings.sttEngine == .whisper {
+            isProcessingAudio = true
+        }
         engine.stopListening()
         isListening = false
         // isProcessingAudio stays true until .final arrives (Whisper may still be running)
-        logger.log("Voice input stopped", category: "VoiceInput")
+        logger.log("Voice input stopped, isProcessingAudio=\(isProcessingAudio)", category: "VoiceInput")
     }
 
     func toggleListening() {

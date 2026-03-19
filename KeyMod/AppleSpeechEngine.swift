@@ -22,6 +22,13 @@ class AppleSpeechEngine: NSObject, SpeechRecognitionEngine {
     private var onResult: ((SpeechRecognitionResult) -> Void)?
     private var onError: ((Error) -> Void)?
 
+    // Silence detection
+    private var lastSpeechTime: Date = Date()
+    private var hasSpeechBeenDetected: Bool = false
+    private var silenceTimer: Timer?
+    private static let silenceThreshold: Float = 0.004
+    static let silenceTimeoutSeconds: TimeInterval = 2.0
+
     override init() {
         super.init()
         let localeId = AISettings.shared.sttLocale
@@ -73,6 +80,7 @@ class AppleSpeechEngine: NSObject, SpeechRecognitionEngine {
 
     func stopListening() {
         guard audioEngine.isRunning else { return }
+        stopSilenceTimer()
         audioEngine.stop()
         recognitionRequest?.endAudio()
         audioEngine.inputNode.removeTap(onBus: 0)
@@ -131,6 +139,7 @@ class AppleSpeechEngine: NSObject, SpeechRecognitionEngine {
         let recordingFormat = inputNode.outputFormat(forBus: 0)
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
             self?.recognitionRequest?.append(buffer)
+            self?.monitorAudioLevel(buffer)
         }
 
         recognitionTask = speechRecognizer.recognitionTask(with: recognitionRequest) { [weak self] result, error in
@@ -161,5 +170,56 @@ class AppleSpeechEngine: NSObject, SpeechRecognitionEngine {
 
         audioEngine.prepare()
         try audioEngine.start()
+        startSilenceTimer()
+    }
+
+    // MARK: - Silence Detection
+
+    private func monitorAudioLevel(_ buffer: AVAudioPCMBuffer) {
+        let rms = calculateRMS(buffer)
+        if rms > Self.silenceThreshold {
+            if !hasSpeechBeenDetected {
+                logger.log("[SilenceDetect-Apple] Speech first detected, RMS=\(rms)", category: "VoiceInput")
+            }
+            hasSpeechBeenDetected = true
+            lastSpeechTime = Date()
+        }
+    }
+
+    private func calculateRMS(_ buffer: AVAudioPCMBuffer) -> Float {
+        guard let channelData = buffer.floatChannelData else { return 0 }
+        let length = Int(buffer.frameLength)
+        guard length > 0 else { return 0 }
+        var sum: Float = 0
+        for i in 0..<length {
+            sum += channelData[0][i] * channelData[0][i]
+        }
+        return sqrt(sum / Float(length))
+    }
+
+    private func startSilenceTimer() {
+        lastSpeechTime = Date()
+        hasSpeechBeenDetected = false
+        logger.log("[SilenceDetect-Apple] startSilenceTimer called, threshold=\(Self.silenceThreshold), timeout=\(Self.silenceTimeoutSeconds)s", category: "VoiceInput")
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.silenceTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+                guard let self = self else { return }
+                let elapsed = Date().timeIntervalSince(self.lastSpeechTime)
+                self.logger.log("[SilenceDetect-Apple] Timer tick: isListening=\(self.isListening), hasSpeech=\(self.hasSpeechBeenDetected), silenceElapsed=\(String(format: "%.1f", elapsed))s", category: "VoiceInput")
+                guard self.isListening, self.hasSpeechBeenDetected else { return }
+                if elapsed >= Self.silenceTimeoutSeconds {
+                    self.logger.log("[SilenceDetect-Apple] Silence timeout reached (\(String(format: "%.1f", elapsed))s), posting notification", category: "VoiceInput")
+                    self.stopSilenceTimer()
+                    NotificationCenter.default.post(name: NSNotification.Name("SpeechEngineSilenceDetected"), object: nil)
+                }
+            }
+        }
+    }
+
+    private func stopSilenceTimer() {
+        logger.log("[SilenceDetect-Apple] stopSilenceTimer called", category: "VoiceInput")
+        silenceTimer?.invalidate()
+        silenceTimer = nil
     }
 }
