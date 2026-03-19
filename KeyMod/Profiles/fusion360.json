@@ -1,0 +1,129 @@
+{
+  "id": "fusion360",
+  "name": "Fusion 360",
+  "icon": "cube.transparent",
+  "themeColorHex": "#FF6B00",
+  "hasNumpad": false,
+  "categories": [
+    {
+      "id": "navigation",
+      "name": "Navigation",
+      "icon": "move.3d",
+      "colorHex": "#007AFF",
+      "shortcuts": [
+        { "id": "f-nav-1", "description": "Pan", "key": "MMB", "modifier": null, "keyCode": "Shift+MiddleMouse" },
+        { "id": "f-nav-2", "description": "Zoom to Fit", "key": "F6", "modifier": null, "keyCode": "F6" },
+        { "id": "f-nav-3", "description": "Home View", "key": "Home", "modifier": null, "keyCode": "Home" },
+        { "id": "f-nav-4", "description": "Look At", "key": "L", "modifier": null, "keyCode": "L" },
+        { "id": "f-nav-5", "description": "Full Screen", "key": "F11", "modifier": null, "keyCode": "F11" }
+      ]
+    },
+    {
+      "id": "file",
+      "name": "File",
+      "icon": "doc",
+      "colorHex": "#5856D6",
+      "shortcuts": [
+        { "id": "f-fi-1", "description": "New Design", "key": "Ctrl+N", "modifier": "Ctrl", "keyCode": "N" },
+        { "id": "f-fi-2", "description": "Open", "key": "Ctrl+O", "modifier": "Ctrl", "keyCode": "O" },
+        { "id": "f-fi-3", "description": "Save", "key": "Ctrl+S", "modifier": "Ctrl", "keyCode": "S" },
+        { "id": "f-fi-4", "description": "Save As", "key": "Ctrl+Shift+S", "modifier": "Ctrl+Shift", "keyCode": "S" },
+        { "id": "f-fi-5", "description": "Export", "key": "Ctrl+E", "modifier": "Ctrl", "keyCode": "E" },
+        { "id": "f-fi-6", "description": "3D Print", "key": "Ctrl+P", "modifier": "Ctrl", "keyCode": "P" }
+      ]
+    },
+    {
+      "id": "general",
+      "name": "General",
+      "icon": "gearshape",
+      "colorHex": "#34C759",
+      "shortcuts": [
+        { "id": "f-ge-1", "description": "Undo", "key": "Ctrl+Z", "modifier": "Ctrl", "keyCode": "Z" },
+        { "id": "f-ge-2", "description": "Redo", "key": "Ctrl+Y", "modifier": "Ctrl", "keyCode": "Y" },
+        { "id": "f-ge-3", "description": "Copy", "key": "Ctrl+C", "modifier": "Ctrl", "keyCode": "C" },
+        { "id": "f-ge-4", "description": "Paste", "key": "Ctrl+V", "modifier": "Ctrl", "keyCode": "V" },
+        { "id": "f-ge-5", "description": "Delete", "key": "Delete", "modifier": null, "keyCode": "Delete" },
+        { "id": "f-ge-6", "description": "Select All", "key": "Ctrl+A", "modifier": "Ctrl", "keyCode": "A" },
+        { "id": "f-ge-7", "description": "Find", "key": "Ctrl+F", "modifier": "Ctrl", "keyCode": "F" },
+        { "id": "f-ge-8", "description": "Escape / Cancel", "key": "Esc", "modifier": null, "keyCode": "Escape" }
+      ]
+    },
+    {
+      "id": "sketch",
+      "name": "Sketch",
+      "icon": "pencil.and.outline",
+      "colorHex": "#FF9500",
+      "shortcuts": [
+        { "id": "f-sk-1", "description": "Create Sketch", "key": "S", "modifier": null, "keyCode": "S" },
+        { "id": "f-sk-2", "description": "Line", "key": "L", "modifier": null, "keyCode": "L" },
+        { "id": "f-sk-3", "description": "Rectangle (2-Point)", "key": "R", "modifier": null, "keyCode": "R" },
+        { "id": "f-sk-4", "description": "Circle (Center)", "key": "C", "modifier": null, "keyCode": "C" },
+        { "id": "f-sk-5", "description": "Arc (3-Point)", "key": "A", "modifier": null, "keyCode": "A" },
+        { "id": "f-sk-6", "description": "Dimension", "key": "D", "modifier": null, "keyCode": "D" },
+        { "id": "f-sk-7", "description": "Trim", "key": "T", "modifier": null, "keyCode": "T" },
+        { "id": "f-sk-8", "description": "Offset", "key": "O", "modifier": null, "keyCode": "O" },
+        { "id": "f-sk-9", "description": "Mirror", "key": "M", "modifier": null, "keyCode": "M" },
+        { "id": "f-sk-10", "description": "Fillet", "key": "F", "modifier": null, "keyCode": "F" },
+        { "id": "f-sk-11", "description": "Construction Toggle", "key": "X", "modifier": null, "keyCode": "X" },
+        { "id": "f-sk-12", "description": "Project / Include", "key": "P", "modifier": null, "keyCode": "P" },
+        { "id": "f-sk-13", "description": "Finish Sketch", "key": "Enter", "modifier": null, "keyCode": "Return" }
+      ]
+    },
+    {
+      "id": "modeling",
+      "name": "Modeling",
+      "icon": "cube",
+      "colorHex": "#AF52DE",
+      "shortcuts": [
+        { "id": "f-mo-1", "description": "Extrude", "key": "E", "modifier": null, "keyCode": "E" },
+        { "id": "f-mo-2", "description": "Press Pull", "key": "Q", "modifier": null, "keyCode": "Q" },
+        { "id": "f-mo-3", "description": "Fillet", "key": "F", "modifier": null, "keyCode": "F" },
+        { "id": "f-mo-4", "description": "Chamfer", "key": "Ctrl+Shift+F", "modifier": "Ctrl+Shift", "keyCode": "F" },
+        { "id": "f-mo-5", "description": "Hole", "key": "H", "modifier": null, "keyCode": "H" },
+        { "id": "f-mo-6", "description": "Combine", "key": "Ctrl+Shift+C", "modifier": "Ctrl+Shift", "keyCode": "C" },
+        { "id": "f-mo-7", "description": "Move / Copy", "key": "M", "modifier": null, "keyCode": "M" },
+        { "id": "f-mo-8", "description": "Appearance", "key": "A", "modifier": null, "keyCode": "A" },
+        { "id": "f-mo-9", "description": "Physical Material", "key": "P", "modifier": null, "keyCode": "P" }
+      ]
+    },
+    {
+      "id": "construction",
+      "name": "Construction",
+      "icon": "ruler",
+      "colorHex": "#FF3B30",
+      "shortcuts": [
+        { "id": "f-co-1", "description": "Offset Plane", "key": "Ctrl+Shift+P", "modifier": "Ctrl+Shift", "keyCode": "P" },
+        { "id": "f-co-2", "description": "Midplane", "key": "Ctrl+Shift+M", "modifier": "Ctrl+Shift", "keyCode": "M" },
+        { "id": "f-co-3", "description": "Axis", "key": "Ctrl+Shift+A", "modifier": "Ctrl+Shift", "keyCode": "A" },
+        { "id": "f-co-4", "description": "Measure", "key": "I", "modifier": null, "keyCode": "I" }
+      ]
+    },
+    {
+      "id": "assembly",
+      "name": "Assembly",
+      "icon": "link",
+      "colorHex": "#00C7BE",
+      "shortcuts": [
+        { "id": "f-as-1", "description": "As-Built Joint", "key": "Ctrl+Shift+J", "modifier": "Ctrl+Shift", "keyCode": "J" },
+        { "id": "f-as-2", "description": "Joint", "key": "J", "modifier": null, "keyCode": "J" },
+        { "id": "f-as-3", "description": "Ground", "key": "G", "modifier": null, "keyCode": "G" },
+        { "id": "f-as-4", "description": "Align", "key": "Ctrl+Shift+L", "modifier": "Ctrl+Shift", "keyCode": "L" }
+      ]
+    },
+    {
+      "id": "display",
+      "name": "Display",
+      "icon": "eye",
+      "colorHex": "#64D2FF",
+      "shortcuts": [
+        { "id": "f-di-1", "description": "Toggle Visibility", "key": "V", "modifier": null, "keyCode": "V" },
+        { "id": "f-di-2", "description": "Show/Hide Bodies", "key": "Ctrl+Shift+V", "modifier": "Ctrl+Shift", "keyCode": "V" },
+        { "id": "f-di-3", "description": "Section Analysis", "key": "Ctrl+Shift+9", "modifier": "Ctrl+Shift", "keyCode": "9" },
+        { "id": "f-di-4", "description": "Wireframe", "key": "Ctrl+1", "modifier": "Ctrl", "keyCode": "1" },
+        { "id": "f-di-5", "description": "Shaded", "key": "Ctrl+2", "modifier": "Ctrl", "keyCode": "2" },
+        { "id": "f-di-6", "description": "Shaded + Wireframe", "key": "Ctrl+3", "modifier": "Ctrl", "keyCode": "3" },
+        { "id": "f-di-7", "description": "Toggle Grid", "key": "G", "modifier": "Ctrl+Shift", "keyCode": "G" }
+      ]
+    }
+  ]
+}

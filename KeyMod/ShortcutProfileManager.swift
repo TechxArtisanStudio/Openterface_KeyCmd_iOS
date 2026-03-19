@@ -1,0 +1,157 @@
+//
+//  ShortcutProfileManager.swift
+//  KeyMod
+//
+//  Singleton ObservableObject that owns all shortcut profiles.
+//  - Built-in profiles are loaded from bundled JSON files in the app bundle (Profiles/).
+//  - User-created profiles are stored as JSON files in the app's Documents directory.
+//  - "My Shortcuts" is persisted per profile using UserDefaults with the key
+//    "MyShortcuts_<profileId>".
+//
+
+import Foundation
+import Combine
+
+class ShortcutProfileManager: ObservableObject {
+    static let shared = ShortcutProfileManager()
+
+    // MARK: - Published state
+
+    @Published private(set) var builtInProfiles: [ShortcutProfileData] = []
+    @Published private(set) var userProfiles: [ShortcutProfileData] = []
+
+    /// Combined list: built-in first, then user-created.
+    var allProfiles: [ShortcutProfileData] { builtInProfiles + userProfiles }
+
+    // MARK: - Private
+
+    private let userDefaults = UserDefaults.standard
+    private let decoder = JSONDecoder()
+    private let encoder: JSONEncoder = {
+        let e = JSONEncoder()
+        e.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return e
+    }()
+
+    /// Names of JSON files to load as built-in profiles, in display order.
+    private let builtInFileNames = ["blender", "kicad", "nomad", "fusion360"]
+
+    private var documentsURL: URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+    }
+
+    // MARK: - Init
+
+    private init() {
+        loadBuiltInProfiles()
+        loadUserProfiles()
+    }
+
+    // MARK: - Built-in profiles
+
+    private func loadBuiltInProfiles() {
+        builtInProfiles = builtInFileNames.compactMap { name in
+            // Try subdirectory first (folder reference), then bundle root (file-system-synced group)
+            let url = Bundle.main.url(forResource: name, withExtension: "json", subdirectory: "Profiles")
+                   ?? Bundle.main.url(forResource: name, withExtension: "json")
+            guard let url else {
+                print("⚠️ ShortcutProfileManager: Could not find \(name).json in bundle")
+                return nil
+            }
+            return loadProfile(from: url)
+        }
+    }
+
+    // MARK: - User profiles
+
+    private var userProfilesURL: URL {
+        documentsURL.appendingPathComponent("ShortcutProfiles", isDirectory: true)
+    }
+
+    private func loadUserProfiles() {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: userProfilesURL.path) else { return }
+
+        do {
+            let files = try fm.contentsOfDirectory(at: userProfilesURL,
+                                                   includingPropertiesForKeys: nil)
+                .filter { $0.pathExtension == "json" }
+                .sorted { $0.lastPathComponent < $1.lastPathComponent }
+            userProfiles = files.compactMap { loadProfile(from: $0) }
+        } catch {
+            print("⚠️ ShortcutProfileManager: Failed to list user profiles – \(error)")
+        }
+    }
+
+    private func loadProfile(from url: URL) -> ShortcutProfileData? {
+        do {
+            let data = try Data(contentsOf: url)
+            return try decoder.decode(ShortcutProfileData.self, from: data)
+        } catch {
+            print("⚠️ ShortcutProfileManager: Failed to decode \(url.lastPathComponent) – \(error)")
+            return nil
+        }
+    }
+
+    /// Imports a JSON file as a new user profile.
+    /// - Parameter data: Raw JSON data conforming to `ShortcutProfileData`.
+    /// - Throws: `DecodingError` if JSON is malformed, or a file-system error on save failure.
+    func addCustomProfile(from data: Data) throws {
+        var profile = try decoder.decode(ShortcutProfileData.self, from: data)
+
+        // Ensure the id is unique — append a suffix if it conflicts.
+        if allProfiles.contains(where: { $0.id == profile.id }) {
+            let newId = profile.id + "_" + UUID().uuidString.prefix(8)
+            profile = ShortcutProfileData(
+                id: String(newId),
+                name: profile.name,
+                icon: profile.icon,
+                themeColorHex: profile.themeColorHex,
+                hasNumpad: profile.hasNumpad,
+                categories: profile.categories,
+                numpad: profile.numpad
+            )
+        }
+
+        let fm = FileManager.default
+        if !fm.fileExists(atPath: userProfilesURL.path) {
+            try fm.createDirectory(at: userProfilesURL, withIntermediateDirectories: true)
+        }
+
+        let fileURL = userProfilesURL.appendingPathComponent("\(profile.id).json")
+        let encoded = try encoder.encode(profile)
+        try encoded.write(to: fileURL, options: .atomic)
+
+        DispatchQueue.main.async { [weak self] in
+            self?.userProfiles.append(profile)
+        }
+    }
+
+    /// Deletes a user-created profile and its persisted My Shortcuts data.
+    func deleteUserProfile(id: String) {
+        let fileURL = userProfilesURL.appendingPathComponent("\(id).json")
+        try? FileManager.default.removeItem(at: fileURL)
+        userDefaults.removeObject(forKey: myShortcutsKey(for: id))
+        userProfiles.removeAll { $0.id == id }
+    }
+
+    // MARK: - My Shortcuts persistence
+
+    private func myShortcutsKey(for profileId: String) -> String {
+        "MyShortcuts_\(profileId)"
+    }
+
+    /// Returns the user's saved "My Shortcuts" list for the given profile.
+    func myShortcuts(for profileId: String) -> [ShortcutItem] {
+        guard let data = userDefaults.data(forKey: myShortcutsKey(for: profileId)),
+              let items = try? decoder.decode([ShortcutItem].self, from: data)
+        else { return [] }
+        return items
+    }
+
+    /// Persists the user's "My Shortcuts" list for the given profile.
+    func updateMyShortcuts(for profileId: String, items: [ShortcutItem]) {
+        guard let data = try? encoder.encode(items) else { return }
+        userDefaults.set(data, forKey: myShortcutsKey(for: profileId))
+    }
+}

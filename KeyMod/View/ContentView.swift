@@ -431,10 +431,8 @@ struct ContentView: View {
         .onChange(of: viewManager.currentView) { newView in
             print("🔄 View switched to: \(newView.rawValue)")
         }
-            case .blenderShortcuts:
-                BlenderShortcutView(keyboardManager: keyboardManager)
-            case .kicadShortcuts:
-                KiCADShortcutView(keyboardManager: keyboardManager)
+            case .shortcutHub:
+                ShortcutHubView(keyboardManager: keyboardManager)
             case .macros:
                 MacroView(keyboardManager: keyboardManager)
             case .voiceInput:

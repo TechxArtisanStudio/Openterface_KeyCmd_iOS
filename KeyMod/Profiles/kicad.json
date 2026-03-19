@@ -1,0 +1,120 @@
+{
+  "id": "kicad",
+  "name": "KiCAD",
+  "icon": "cpu",
+  "themeColorHex": "#2196F3",
+  "hasNumpad": false,
+  "categories": [
+    {
+      "id": "view-zoom",
+      "name": "View & Zoom",
+      "icon": "magnifyingglass",
+      "colorHex": "#007AFF",
+      "shortcuts": [
+        { "id": "k-vz-1", "description": "Zoom In", "key": "F1", "modifier": null, "keyCode": "F1" },
+        { "id": "k-vz-2", "description": "Zoom Out", "key": "F2", "modifier": null, "keyCode": "F2" },
+        { "id": "k-vz-3", "description": "Redraw Zoom", "key": "F3", "modifier": null, "keyCode": "F3" },
+        { "id": "k-vz-4", "description": "Center Zoom", "key": "F4", "modifier": null, "keyCode": "F4" },
+        { "id": "k-vz-5", "description": "Fit on Screen", "key": "Home", "modifier": null, "keyCode": "Home" },
+        { "id": "k-vz-6", "description": "Switch Units", "key": "Ctrl+U", "modifier": null, "keyCode": "Ctrl+U" },
+        { "id": "k-vz-7", "description": "Reset Coordinates", "key": "Space", "modifier": null, "keyCode": "Space" }
+      ]
+    },
+    {
+      "id": "layers",
+      "name": "Layers",
+      "icon": "square.3.layers.3d",
+      "colorHex": "#5856D6",
+      "shortcuts": [
+        { "id": "k-l-1", "description": "Copper Layer", "key": "PgDn", "modifier": null, "keyCode": "PageDown" },
+        { "id": "k-l-2", "description": "Component Layer", "key": "PgUp", "modifier": null, "keyCode": "PageUp" },
+        { "id": "k-l-3", "description": "Inner Layer 1", "key": "F5", "modifier": null, "keyCode": "F5" },
+        { "id": "k-l-4", "description": "Inner Layer 2", "key": "F6", "modifier": null, "keyCode": "F6" },
+        { "id": "k-l-5", "description": "Next Layer", "key": "+", "modifier": null, "keyCode": "+" },
+        { "id": "k-l-6", "description": "Previous Layer", "key": "-", "modifier": null, "keyCode": "-" },
+        { "id": "k-l-7", "description": "High Contrast Mode", "key": "H", "modifier": null, "keyCode": "H" }
+      ]
+    },
+    {
+      "id": "drawing-edit",
+      "name": "Drawing & Edit",
+      "icon": "pencil",
+      "colorHex": "#FF9500",
+      "shortcuts": [
+        { "id": "k-de-1", "description": "Begin Wire", "key": "W", "modifier": null, "keyCode": "W" },
+        { "id": "k-de-2", "description": "Begin Bus", "key": "B", "modifier": null, "keyCode": "B" },
+        { "id": "k-de-3", "description": "Add Label", "key": "L", "modifier": null, "keyCode": "L" },
+        { "id": "k-de-4", "description": "Add Power", "key": "P", "modifier": null, "keyCode": "P" },
+        { "id": "k-de-5", "description": "Add Junction", "key": "J", "modifier": null, "keyCode": "J" },
+        { "id": "k-de-6", "description": "Add Sheet", "key": "S", "modifier": null, "keyCode": "S" },
+        { "id": "k-de-7", "description": "No Connect Flag", "key": "Q", "modifier": null, "keyCode": "Q" },
+        { "id": "k-de-8", "description": "Hierarchical Label", "key": "H", "modifier": null, "keyCode": "H" },
+        { "id": "k-de-9", "description": "Add Wire Entry", "key": "Z", "modifier": null, "keyCode": "Z" },
+        { "id": "k-de-10", "description": "Add Bus Entry", "key": "/", "modifier": null, "keyCode": "/" },
+        { "id": "k-de-11", "description": "End Line/Wire/Bus", "key": "K", "modifier": null, "keyCode": "K" }
+      ]
+    },
+    {
+      "id": "components",
+      "name": "Components",
+      "icon": "cpu",
+      "colorHex": "#34C759",
+      "shortcuts": [
+        { "id": "k-c-1", "description": "Add Component", "key": "A", "modifier": null, "keyCode": "A" },
+        { "id": "k-c-2", "description": "Move Item", "key": "M", "modifier": null, "keyCode": "M" },
+        { "id": "k-c-3", "description": "Copy Item", "key": "C", "modifier": null, "keyCode": "C" },
+        { "id": "k-c-4", "description": "Drag Item", "key": "G", "modifier": null, "keyCode": "G" },
+        { "id": "k-c-5", "description": "Rotate Item", "key": "R", "modifier": null, "keyCode": "R" },
+        { "id": "k-c-6", "description": "Mirror X", "key": "X", "modifier": null, "keyCode": "X" },
+        { "id": "k-c-7", "description": "Mirror Y", "key": "Y", "modifier": null, "keyCode": "Y" },
+        { "id": "k-c-8", "description": "Flip Item", "key": "F", "modifier": null, "keyCode": "F" },
+        { "id": "k-c-9", "description": "Orient Normal", "key": "N", "modifier": null, "keyCode": "N" }
+      ]
+    },
+    {
+      "id": "properties",
+      "name": "Properties",
+      "icon": "slider.horizontal.3",
+      "colorHex": "#FF2D55",
+      "shortcuts": [
+        { "id": "k-p-1", "description": "Edit Item", "key": "E", "modifier": null, "keyCode": "E" },
+        { "id": "k-p-2", "description": "Edit Value", "key": "V", "modifier": null, "keyCode": "V" },
+        { "id": "k-p-3", "description": "Edit Reference", "key": "U", "modifier": null, "keyCode": "U" },
+        { "id": "k-p-4", "description": "Edit Footprint", "key": "F", "modifier": null, "keyCode": "F" },
+        { "id": "k-p-5", "description": "Get/Move Footprint", "key": "T", "modifier": null, "keyCode": "T" }
+      ]
+    },
+    {
+      "id": "pcb-design",
+      "name": "PCB Design",
+      "icon": "antenna.radiowaves.left.and.right",
+      "colorHex": "#AF52DE",
+      "shortcuts": [
+        { "id": "k-pd-1", "description": "Add Track", "key": "X", "modifier": null, "keyCode": "X" },
+        { "id": "k-pd-2", "description": "Add Via", "key": "V", "modifier": null, "keyCode": "V" },
+        { "id": "k-pd-3", "description": "Add Microvia", "key": "Ctrl+V", "modifier": null, "keyCode": "Ctrl+V" },
+        { "id": "k-pd-4", "description": "Switch Track Posture", "key": "/", "modifier": null, "keyCode": "F4" },
+        { "id": "k-pd-5", "description": "Drag Track", "key": "D", "modifier": null, "keyCode": "D" },
+        { "id": "k-pd-6", "description": "End Track", "key": "End", "modifier": null, "keyCode": "End" },
+        { "id": "k-pd-7", "description": "Add Module", "key": "O", "modifier": null, "keyCode": "O" },
+        { "id": "k-pd-8", "description": "Track Width ↑", "key": "W", "modifier": null, "keyCode": "W" },
+        { "id": "k-pd-9", "description": "Track Width ↓", "key": "Ctrl+W", "modifier": null, "keyCode": "Ctrl+W" }
+      ]
+    },
+    {
+      "id": "file-misc",
+      "name": "File & Misc",
+      "icon": "folder",
+      "colorHex": "#A2845E",
+      "shortcuts": [
+        { "id": "k-f-1", "description": "Save Board", "key": "Ctrl+S", "modifier": null, "keyCode": "Ctrl+S" },
+        { "id": "k-f-2", "description": "Load Board", "key": "Ctrl+L", "modifier": null, "keyCode": "Ctrl+L" },
+        { "id": "k-f-3", "description": "Find Item", "key": "Ctrl+F", "modifier": null, "keyCode": "Ctrl+F" },
+        { "id": "k-f-4", "description": "Undo", "key": "Ctrl+Z", "modifier": null, "keyCode": "Ctrl+Z" },
+        { "id": "k-f-5", "description": "Redo", "key": "Ctrl+Y", "modifier": null, "keyCode": "Ctrl+Y" },
+        { "id": "k-f-6", "description": "Delete Item", "key": "Del", "modifier": null, "keyCode": "Delete" },
+        { "id": "k-f-7", "description": "Delete Track Segment", "key": "BkSp", "modifier": null, "keyCode": "Backspace" }
+      ]
+    }
+  ]
+}

@@ -58,43 +58,28 @@ struct LaunchPanelView: View {
                         )
                         
                         ModeCard(
-                            title: "Blender",
-                            icon: "cube.box",
-                            isSelected: selectedMode == .blenderShortcuts,
-                            action: { selectedMode = .blenderShortcuts }
+                            title: "Shortcuts",
+                            icon: "square.grid.2x2",
+                            isSelected: selectedMode == .shortcutHub,
+                            action: { selectedMode = .shortcutHub }
                         )
                     }
                     
                     // Third row
                     HStack(spacing: 12) {
                         ModeCard(
-                            title: "KiCAD",
-                            icon: "cpu",
-                            isSelected: selectedMode == .kicadShortcuts,
-                            action: { selectedMode = .kicadShortcuts }
-                        )
-                        
-                        ModeCard(
                             title: "Macros",
                             icon: "square.and.pencil",
                             isSelected: selectedMode == .macros,
                             action: { selectedMode = .macros }
                         )
-                    }
-                    
-                    // Fourth row - Voice Input
-                    HStack(spacing: 12) {
-                        Spacer()
-                        
+
                         ModeCard(
                             title: "Voice Input",
                             icon: "mic.circle",
                             isSelected: selectedMode == .voiceInput,
                             action: { selectedMode = .voiceInput }
                         )
-                        .frame(maxWidth: 180)
-                        
-                        Spacer()
                     }
                 }
                 .padding(.horizontal, 16)
@@ -164,6 +149,9 @@ struct LaunchPanelView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea()
+        .onAppear {
+            selectedMode = launchPanelManager.selectedMode
+        }
     }
 }
 

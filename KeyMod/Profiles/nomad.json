@@ -1,0 +1,111 @@
+{
+  "id": "nomad",
+  "name": "Nomad Sculpt",
+  "icon": "hand.point.up.braille",
+  "themeColorHex": "#FF6B6B",
+  "hasNumpad": false,
+  "categories": [
+    {
+      "id": "tools",
+      "name": "Tools",
+      "icon": "paintbrush",
+      "colorHex": "#FF6B6B",
+      "shortcuts": [
+        { "id": "n-t-1", "description": "Clay brush", "key": "C", "modifier": null, "keyCode": "C" },
+        { "id": "n-t-2", "description": "Smooth", "key": "S", "modifier": null, "keyCode": "S" },
+        { "id": "n-t-3", "description": "Flatten", "key": "F", "modifier": null, "keyCode": "F" },
+        { "id": "n-t-4", "description": "Inflate", "key": "I", "modifier": null, "keyCode": "I" },
+        { "id": "n-t-5", "description": "Crease", "key": "R", "modifier": null, "keyCode": "R" },
+        { "id": "n-t-6", "description": "Pinch", "key": "P", "modifier": null, "keyCode": "P" },
+        { "id": "n-t-7", "description": "Nudge", "key": "N", "modifier": null, "keyCode": "N" },
+        { "id": "n-t-8", "description": "Stamp", "key": "T", "modifier": null, "keyCode": "T" },
+        { "id": "n-t-9", "description": "Tube", "key": "U", "modifier": null, "keyCode": "U" },
+        { "id": "n-t-10", "description": "Drag", "key": "D", "modifier": null, "keyCode": "D" },
+        { "id": "n-t-11", "description": "Trim", "key": "X", "modifier": null, "keyCode": "X" },
+        { "id": "n-t-12", "description": "Split", "key": "V", "modifier": null, "keyCode": "V" }
+      ]
+    },
+    {
+      "id": "brush",
+      "name": "Brush",
+      "icon": "circle.dotted",
+      "colorHex": "#FF9500",
+      "shortcuts": [
+        { "id": "n-b-1", "description": "Increase radius", "key": "]", "modifier": null, "keyCode": "]" },
+        { "id": "n-b-2", "description": "Decrease radius", "key": "[", "modifier": null, "keyCode": "[" },
+        { "id": "n-b-3", "description": "Increase intensity", "key": "+", "modifier": "Shift", "keyCode": "+" },
+        { "id": "n-b-4", "description": "Decrease intensity", "key": "-", "modifier": "Shift", "keyCode": "-" },
+        { "id": "n-b-5", "description": "Toggle subtract mode", "key": "Alt", "modifier": null, "keyCode": "Alt" }
+      ]
+    },
+    {
+      "id": "transform",
+      "name": "Transform",
+      "icon": "arrow.up.and.down.and.arrow.left.and.right",
+      "colorHex": "#007AFF",
+      "shortcuts": [
+        { "id": "n-tr-1", "description": "Gizmo: Move", "key": "W", "modifier": null, "keyCode": "W" },
+        { "id": "n-tr-2", "description": "Gizmo: Rotate", "key": "E", "modifier": null, "keyCode": "E" },
+        { "id": "n-tr-3", "description": "Gizmo: Scale", "key": "Z", "modifier": null, "keyCode": "Z" },
+        { "id": "n-tr-4", "description": "Toggle symmetry X", "key": "1", "modifier": null, "keyCode": "1" },
+        { "id": "n-tr-5", "description": "Toggle symmetry Y", "key": "2", "modifier": null, "keyCode": "2" },
+        { "id": "n-tr-6", "description": "Toggle symmetry Z", "key": "3", "modifier": null, "keyCode": "3" }
+      ]
+    },
+    {
+      "id": "view",
+      "name": "View",
+      "icon": "eye",
+      "colorHex": "#34C759",
+      "shortcuts": [
+        { "id": "n-v-1", "description": "Front", "key": "F1", "modifier": null, "keyCode": "F1" },
+        { "id": "n-v-2", "description": "Back", "key": "F2", "modifier": null, "keyCode": "F2" },
+        { "id": "n-v-3", "description": "Right", "key": "F3", "modifier": null, "keyCode": "F3" },
+        { "id": "n-v-4", "description": "Left", "key": "F4", "modifier": null, "keyCode": "F4" },
+        { "id": "n-v-5", "description": "Top", "key": "F5", "modifier": null, "keyCode": "F5" },
+        { "id": "n-v-6", "description": "Bottom", "key": "F6", "modifier": null, "keyCode": "F6" },
+        { "id": "n-v-7", "description": "Reset camera", "key": "Home", "modifier": null, "keyCode": "Home" },
+        { "id": "n-v-8", "description": "Frame object", "key": "F", "modifier": "Shift", "keyCode": "F" }
+      ]
+    },
+    {
+      "id": "mesh",
+      "name": "Mesh",
+      "icon": "cube.transparent",
+      "colorHex": "#AF52DE",
+      "shortcuts": [
+        { "id": "n-m-1", "description": "Multiresolution subdivide", "key": "Tab", "modifier": null, "keyCode": "Tab" },
+        { "id": "n-m-2", "description": "Voxel remesh", "key": "M", "modifier": null, "keyCode": "M" },
+        { "id": "n-m-3", "description": "Dynamic topology on/off", "key": "B", "modifier": null, "keyCode": "B" },
+        { "id": "n-m-4", "description": "Validate mesh", "key": "V", "modifier": "Ctrl", "keyCode": "V" }
+      ]
+    },
+    {
+      "id": "masking",
+      "name": "Masking",
+      "icon": "theatermasks",
+      "colorHex": "#FF2D55",
+      "shortcuts": [
+        { "id": "n-ma-1", "description": "Mask brush", "key": "K", "modifier": null, "keyCode": "K" },
+        { "id": "n-ma-2", "description": "Invert mask", "key": "I", "modifier": "Ctrl", "keyCode": "I" },
+        { "id": "n-ma-3", "description": "Clear mask", "key": "M", "modifier": "Alt", "keyCode": "M" },
+        { "id": "n-ma-4", "description": "Fill mask", "key": "M", "modifier": "Ctrl", "keyCode": "M" },
+        { "id": "n-ma-5", "description": "Sharpen mask", "key": "S", "modifier": "Ctrl", "keyCode": "S" }
+      ]
+    },
+    {
+      "id": "edit",
+      "name": "Edit",
+      "icon": "pencil.and.outline",
+      "colorHex": "#A2845E",
+      "shortcuts": [
+        { "id": "n-e-1", "description": "Undo", "key": "Ctrl+Z", "modifier": null, "keyCode": "Ctrl+Z" },
+        { "id": "n-e-2", "description": "Redo", "key": "Ctrl+Y", "modifier": null, "keyCode": "Ctrl+Y" },
+        { "id": "n-e-3", "description": "Save", "key": "Ctrl+S", "modifier": null, "keyCode": "Ctrl+S" },
+        { "id": "n-e-4", "description": "Duplicate object", "key": "Ctrl+D", "modifier": null, "keyCode": "Ctrl+D" },
+        { "id": "n-e-5", "description": "Delete object", "key": "Delete", "modifier": null, "keyCode": "Delete" },
+        { "id": "n-e-6", "description": "Select all", "key": "A", "modifier": "Ctrl", "keyCode": "A" }
+      ]
+    }
+  ]
+}

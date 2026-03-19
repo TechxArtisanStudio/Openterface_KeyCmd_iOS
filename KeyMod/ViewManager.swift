@@ -11,8 +11,7 @@ enum ViewType: String, CaseIterable {
     case keyboardMouse = "Keyboard & Mouse"
     case gamepad = "Gamepad"
     case numpad = "Numpad"
-    case blenderShortcuts = "Blender Shortcuts"
-    case kicadShortcuts = "KiCAD Shortcuts"
+    case shortcutHub = "Shortcuts"
     case macros = "Macros"
     case voiceInput = "Voice Input"
     
@@ -24,14 +23,25 @@ enum ViewType: String, CaseIterable {
             return "gamecontroller"
         case .numpad:
             return "grid.circle"
-        case .blenderShortcuts:
-            return "cube.box"
-        case .kicadShortcuts:
-            return "cpu"
+        case .shortcutHub:
+            return "square.grid.2x2"
         case .macros:
             return "square.and.pencil"
         case .voiceInput:
             return "mic.circle"
+        }
+    }
+
+    static func fromStoredRawValue(_ rawValue: String) -> ViewType? {
+        if let viewType = ViewType(rawValue: rawValue) {
+            return viewType
+        }
+
+        switch rawValue {
+        case "Blender Shortcuts", "KiCAD Shortcuts":
+            return .shortcutHub
+        default:
+            return nil
         }
     }
 }
@@ -50,7 +60,7 @@ class ViewManager: ObservableObject {
     
     private func loadLastView() {
         if let savedViewRawValue = userDefaults.string(forKey: lastViewKey),
-           let savedView = ViewType(rawValue: savedViewRawValue) {
+           let savedView = ViewType.fromStoredRawValue(savedViewRawValue) {
             currentView = savedView
         }
     }

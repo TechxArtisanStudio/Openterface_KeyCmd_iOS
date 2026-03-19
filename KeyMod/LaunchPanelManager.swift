@@ -29,7 +29,7 @@ class LaunchPanelManager: ObservableObject {
     
     private func loadSelectedMode() {
         if let savedModeRawValue = userDefaults.string(forKey: selectedModeKey),
-           let savedMode = ViewType(rawValue: savedModeRawValue) {
+           let savedMode = ViewType.fromStoredRawValue(savedModeRawValue) {
             selectedMode = savedMode
         }
     }

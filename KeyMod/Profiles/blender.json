@@ -1,0 +1,179 @@
+{
+  "id": "blender",
+  "name": "Blender",
+  "icon": "cube.box.fill",
+  "themeColorHex": "#FF6A00",
+  "hasNumpad": true,
+  "categories": [
+    {
+      "id": "transform",
+      "name": "Transform",
+      "icon": "arrow.up.and.down.and.arrow.left.and.right",
+      "colorHex": "#007AFF",
+      "shortcuts": [
+        { "id": "b-t-1", "description": "Move", "key": "G", "modifier": null, "keyCode": "G" },
+        { "id": "b-t-2", "description": "Rotate", "key": "R", "modifier": null, "keyCode": "R" },
+        { "id": "b-t-3", "description": "Scale", "key": "S", "modifier": null, "keyCode": "S" },
+        { "id": "b-t-4", "description": "Extrude", "key": "E", "modifier": null, "keyCode": "E" }
+      ]
+    },
+    {
+      "id": "selection",
+      "name": "Selection",
+      "icon": "cursorarrow",
+      "colorHex": "#34C759",
+      "shortcuts": [
+        { "id": "b-s-1", "description": "Select all", "key": "A", "modifier": null, "keyCode": "A" },
+        { "id": "b-s-2", "description": "Select linked", "key": "L", "modifier": "Alt", "keyCode": "L" },
+        { "id": "b-s-3", "description": "Select linked all", "key": "L", "modifier": "Ctrl", "keyCode": "L" },
+        { "id": "b-s-4", "description": "Invert selection", "key": "I", "modifier": "Ctrl", "keyCode": "I" },
+        { "id": "b-s-5", "description": "Circle select", "key": "C", "modifier": null, "keyCode": "C" },
+        { "id": "b-s-6", "description": "Grow selection", "key": "+", "modifier": "Ctrl", "keyCode": "+" },
+        { "id": "b-s-7", "description": "Shrink selection", "key": "-", "modifier": "Ctrl", "keyCode": "-" }
+      ]
+    },
+    {
+      "id": "view",
+      "name": "View",
+      "icon": "eye",
+      "colorHex": "#AF52DE",
+      "shortcuts": [
+        { "id": "b-v-1", "description": "Top", "key": "7", "modifier": null, "keyCode": "Numpad7" },
+        { "id": "b-v-2", "description": "Front", "key": "1", "modifier": null, "keyCode": "Numpad1" },
+        { "id": "b-v-3", "description": "Right", "key": "3", "modifier": null, "keyCode": "Numpad3" },
+        { "id": "b-v-4", "description": "Opposite", "key": "9", "modifier": null, "keyCode": "Numpad9" },
+        { "id": "b-v-5", "description": "Camera view", "key": "0", "modifier": null, "keyCode": "Numpad0" },
+        { "id": "b-v-6", "description": "Toggle X-Ray", "key": "Z", "modifier": "Alt", "keyCode": "Z" }
+      ]
+    },
+    {
+      "id": "mesh",
+      "name": "Mesh",
+      "icon": "cube.transparent",
+      "colorHex": "#FF3B30",
+      "shortcuts": [
+        { "id": "b-m-1", "description": "Loop cut", "key": "R", "modifier": "Ctrl", "keyCode": "R" },
+        { "id": "b-m-2", "description": "Bevel", "key": "B", "modifier": "Ctrl", "keyCode": "B" },
+        { "id": "b-m-3", "description": "Merge", "key": "M", "modifier": null, "keyCode": "M" },
+        { "id": "b-m-4", "description": "Create face", "key": "F", "modifier": null, "keyCode": "F" },
+        { "id": "b-m-5", "description": "Inset faces", "key": "I", "modifier": null, "keyCode": "I" },
+        { "id": "b-m-6", "description": "Knife", "key": "K", "modifier": null, "keyCode": "K" },
+        { "id": "b-m-7", "description": "Rip", "key": "V", "modifier": null, "keyCode": "V" },
+        { "id": "b-m-8", "description": "Bend", "key": "W", "modifier": "Shift", "keyCode": "W" },
+        { "id": "b-m-9", "description": "Recalculate normals", "key": "N", "modifier": "Shift", "keyCode": "N" },
+        { "id": "b-m-10", "description": "Delete", "key": "X", "modifier": null, "keyCode": "X" }
+      ]
+    },
+    {
+      "id": "mode",
+      "name": "Mode",
+      "icon": "square.on.square",
+      "colorHex": "#FF9500",
+      "shortcuts": [
+        { "id": "b-mo-1", "description": "Edit ↔ Object mode", "key": "Tab", "modifier": null, "keyCode": "Tab" }
+      ]
+    },
+    {
+      "id": "component",
+      "name": "Component",
+      "icon": "square.3.layers.3d",
+      "colorHex": "#FFCC00",
+      "shortcuts": [
+        { "id": "b-c-1", "description": "Vertex select", "key": "1", "modifier": null, "keyCode": "1" },
+        { "id": "b-c-2", "description": "Edge select", "key": "2", "modifier": null, "keyCode": "2" },
+        { "id": "b-c-3", "description": "Face select", "key": "3", "modifier": null, "keyCode": "3" }
+      ]
+    },
+    {
+      "id": "object",
+      "name": "Object",
+      "icon": "cylinder",
+      "colorHex": "#FF2D55",
+      "shortcuts": [
+        { "id": "b-o-1", "description": "Duplicate", "key": "D", "modifier": "Alt", "keyCode": "D" },
+        { "id": "b-o-2", "description": "Separate selection", "key": "P", "modifier": null, "keyCode": "P" },
+        { "id": "b-o-3", "description": "Join objects", "key": "J", "modifier": "Ctrl", "keyCode": "J" }
+      ]
+    },
+    {
+      "id": "tools",
+      "name": "Tools",
+      "icon": "wrench.and.screwdriver",
+      "colorHex": "#5856D6",
+      "shortcuts": [
+        { "id": "b-to-1", "description": "Search function", "key": "F3", "modifier": null, "keyCode": "F3" },
+        { "id": "b-to-2", "description": "Repeat last action", "key": "R", "modifier": "Shift", "keyCode": "R" }
+      ]
+    },
+    {
+      "id": "ui",
+      "name": "UI",
+      "icon": "sidebar.left",
+      "colorHex": "#32ADE6",
+      "shortcuts": [
+        { "id": "b-ui-1", "description": "Toggle toolbar (left)", "key": "T", "modifier": null, "keyCode": "T" },
+        { "id": "b-ui-2", "description": "Toggle sidebar (right)", "key": "N", "modifier": null, "keyCode": "N" }
+      ]
+    },
+    {
+      "id": "navigation",
+      "name": "Navigation",
+      "icon": "location",
+      "colorHex": "#00C7BE",
+      "shortcuts": [
+        { "id": "b-n-1", "description": "Zoom in", "key": "+", "modifier": null, "keyCode": "+" },
+        { "id": "b-n-2", "description": "Zoom out", "key": "-", "modifier": null, "keyCode": "-" },
+        { "id": "b-n-3", "description": "Reset cursor to origin", "key": "C", "modifier": "Shift", "keyCode": "C" }
+      ]
+    },
+    {
+      "id": "shading",
+      "name": "Shading",
+      "icon": "paintpalette",
+      "colorHex": "#A2845E",
+      "shortcuts": [
+        { "id": "b-sh-1", "description": "Shading pie menu", "key": "Z", "modifier": null, "keyCode": "Z" },
+        { "id": "b-sh-2", "description": "UV Mapping menu", "key": "U", "modifier": null, "keyCode": "U" },
+        { "id": "b-sh-3", "description": "Connect nodes", "key": "F", "modifier": null, "keyCode": "F" },
+        { "id": "b-sh-4", "description": "Add Texture Setup", "key": "T", "modifier": "Ctrl", "keyCode": "T" },
+        { "id": "b-sh-5", "description": "Add Principled Setup", "key": "T", "modifier": "Ctrl+Shift", "keyCode": "T" }
+      ]
+    },
+    {
+      "id": "animation",
+      "name": "Animation",
+      "icon": "film",
+      "colorHex": "#64D2FF",
+      "shortcuts": [
+        { "id": "b-a-1", "description": "Add keyframe", "key": "I", "modifier": null, "keyCode": "I" },
+        { "id": "b-a-2", "description": "Set camera", "key": "0", "modifier": "Ctrl+Alt", "keyCode": "0" }
+      ]
+    }
+  ],
+  "numpad": [
+    [
+      { "display": "7", "description": "Top",          "keyCode": "Numpad7",        "colorHex": "#FF9500" },
+      { "display": "8", "description": "↑",            "keyCode": "Numpad8",        "colorHex": "#007AFF" },
+      { "display": "9", "description": "Opposite",     "keyCode": "Numpad9",        "colorHex": "#FF9500" },
+      { "display": "+", "description": "Zoom In",      "keyCode": "NumpadPlus",     "colorHex": "#34C759" }
+    ],
+    [
+      { "display": "4", "description": "←",            "keyCode": "Numpad4",        "colorHex": "#007AFF" },
+      { "display": "5", "description": "Ortho",        "keyCode": "Numpad5",        "colorHex": "#8E8E93" },
+      { "display": "6", "description": "→",            "keyCode": "Numpad6",        "colorHex": "#007AFF" },
+      { "display": "-", "description": "Zoom Out",     "keyCode": "NumpadMinus",    "colorHex": "#34C759" }
+    ],
+    [
+      { "display": "1", "description": "Front",        "keyCode": "Numpad1",        "colorHex": "#FF9500" },
+      { "display": "2", "description": "↓",            "keyCode": "Numpad2",        "colorHex": "#007AFF" },
+      { "display": "3", "description": "Right View",   "keyCode": "Numpad3",        "colorHex": "#FF9500" },
+      { "display": "G", "description": "Move",         "keyCode": "G",              "colorHex": "#32ADE6" }
+    ],
+    [
+      { "display": "0", "description": "Camera",       "keyCode": "Numpad0",        "colorHex": "#FF3B30" },
+      { "display": ".", "description": "Focus",        "keyCode": "NumpadDot",      "colorHex": "#8E8E93" },
+      { "display": "/", "description": "Isolate",      "keyCode": "NumpadSlash",    "colorHex": "#AF52DE" },
+      { "display": "*", "description": "Global",       "keyCode": "NumpadAsterisk", "colorHex": "#8E8E93" }
+    ]
+  ]
+}
