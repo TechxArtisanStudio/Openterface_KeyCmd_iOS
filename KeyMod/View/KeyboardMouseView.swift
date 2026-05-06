@@ -9,8 +9,11 @@ import SwiftUI
 import UIKit
 
 struct KeyboardMouseView: View {
+    // Function keys row (F1-F12)
+    let functionKeys = ["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"]
+
+    // Legacy flat keys for landscape fallback (F-row removed)
     let keys: [[String]] = [
-        ["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"],
         ["Esc", "`", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=", "Backspace"],
         ["Tab", "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "[", "]"],
         ["Caps", "a", "s", "d", "f", "g", "h", "j", "k", "l", ";", "'", "Enter"],
@@ -18,7 +21,7 @@ struct KeyboardMouseView: View {
         ["Ctrl", "Alt", "Space", "Alt", "Ctrl"]
     ]
 
-    // Extra keys for 101-key layout, arranged as on a real keyboard
+    // Legacy keys for 101-key extra panel
     let extraKeys: [[String?]] = [
         ["PrtSc", "Scroll Lock", "Pause"],
         ["Insert", "Home", "PgUp"],
@@ -26,7 +29,7 @@ struct KeyboardMouseView: View {
         [nil, nil, "↑", nil, nil],
         [nil, "←", "↓", "→", nil]
     ]
-    
+
     // Extra number keys for portrait keyboard-only mode
     let extraNumberKeys: [String] = ["7", "8", "9", "4", "5", "6", "1", "2", "3", "0", "."]
 
@@ -35,15 +38,110 @@ struct KeyboardMouseView: View {
     @ObservedObject var compositeKeyManager: CompositeKeyManager
     @ObservedObject var orientationManager: OrientationManager
 
+    // Pointer tip overlay state
+    @StateObject private var pointerTipState = PointerTipState()
+
+    // Alternates popup state
+    @State private var alternatesPopup: (options: [AlternateOption], anchor: CGRect, keyDef: KeyboardManager.KeyDef)? = nil
+    /// Tracks whether the current touch was resolved by the alternates popup.
+    /// Prevents the Button action from also sending the original key (matches Android ACTION_UP behavior).
+    @State private var alternatesCommitHandled = false
+
+    // Key repeat controller
+    @State private var keyRepeatController = KeyRepeatController()
+
+    // Shortcut panel state
+    @State private var shortcutPage = 0
+
+    // Symbol mode layout keys
+    let symbolKeysPortrait: [[String]] = [
+        ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
+        ["@", "#", "$", "_", "&", "-", "+", "(", ")", "/"],
+        ["=", "*", "\"", "'", ":", ";", "!", "?", "Backspace"],
+        ["ABC", ",", "12/34", "Space", ".", "=", "Enter"]
+    ]
+
+    // Symbol mode landscape keys (operator column + number grid)
+    let symbolKeysLandscape: [[String]] = [
+        ["+", "1", "2", "3", "%"],
+        ["-", "4", "5", "6", "Space"],
+        ["*", "7", "8", "9", "Backspace"],
+        ["/", "ABC", ",", "!?#", "0", "=", ".", "Enter"]
+    ]
+
+    /// Shortcut pages: Standard default panel first, then user favorited shortcuts from profiles.
+    private var shortcutPages: [ShortcutPage] {
+        var pages: [ShortcutPage] = []
+        let pageSize = 14 // 7 columns × 2 rows
+        let profileMgr = ShortcutProfileManager.shared
+
+        // 1. "Standard" default panel — always shown, matching Android buildStandardTopPanelKeys()
+        let isMacOS = UserDefaults.standard.string(forKey: "target_os") ?? "macos" == "macos"
+        let primaryModifier = isMacOS ? "Cmd" : "Ctrl"
+        let combo = { (mods: [String], key: String) in
+            self.keyboardManager.handleKeyCombo(modifiers: mods, key: key)
+        }
+        let standardEntries: [ShortcutEntry] = [
+            ShortcutEntry(label: "ALL", icon: "text.badge.checkmark") { combo([primaryModifier], "A") },
+            ShortcutEntry(label: "COPY", icon: "doc.on.doc") { combo([primaryModifier], "C") },
+            ShortcutEntry(label: "CUT", icon: "scissors") { combo([primaryModifier], "X") },
+            ShortcutEntry(label: "PASTE", icon: "clipboard") { combo([primaryModifier], "V") },
+            ShortcutEntry(label: "SAVE", icon: "externaldrive") { combo([primaryModifier], "S") },
+            ShortcutEntry(label: "UP", icon: "arrow.up") { self.keyboardManager.handleKeyPress("Up") },
+            ShortcutEntry(label: "UNDO", icon: "arrow.uturn.backward") { combo([primaryModifier], "Z") },
+            ShortcutEntry(label: "ESC", icon: nil) { self.keyboardManager.handleKeyPress("Escape") },
+            ShortcutEntry(label: "CTRL", icon: nil) { self.keyboardManager.handleModifierToggle("Ctrl") },
+            ShortcutEntry(label: "ALT", icon: nil) { self.keyboardManager.handleModifierToggle("Alt") },
+            ShortcutEntry(label: "TAB", icon: "arrow.right.to.line.compact") { self.keyboardManager.handleKeyPress("Tab") },
+            ShortcutEntry(label: "LEFT", icon: "arrow.left") { self.keyboardManager.handleKeyPress("Left") },
+            ShortcutEntry(label: "DOWN", icon: "arrow.down") { self.keyboardManager.handleKeyPress("Down") },
+            ShortcutEntry(label: "RIGHT", icon: "arrow.right") { self.keyboardManager.handleKeyPress("Right") },
+        ]
+        pages.append(ShortcutPage(title: "Standard", entries: standardEntries))
+
+        // 2. User favorited shortcuts from profiles
+        for profile in profileMgr.allProfiles {
+            let myShortcuts = profileMgr.myShortcuts(for: profile.id)
+            if myShortcuts.isEmpty { continue }
+
+            let entries = myShortcuts.map { item -> ShortcutEntry in
+                let mods = (item.modifier ?? "").split(separator: "+").map(String.init)
+                return ShortcutEntry(
+                    label: String(item.description.prefix(8)),
+                    icon: nil
+                ) {
+                    if mods.isEmpty {
+                        self.keyboardManager.handleSpecialKey(item.keyCode)
+                    } else {
+                        self.keyboardManager.handleKeyCombo(modifiers: mods, key: item.keyCode)
+                    }
+                }
+            }
+
+            let chunked = stride(from: 0, to: entries.count, by: pageSize).map {
+                Array(entries[$0..<min($0 + pageSize, entries.count)])
+            }
+
+            for (pageIdx, pageEntries) in chunked.enumerated() {
+                let title = chunked.count > 1
+                    ? "\(profile.name) \(pageIdx + 1)/\(chunked.count)"
+                    : profile.name
+                pages.append(ShortcutPage(title: title, entries: pageEntries))
+            }
+        }
+
+        return pages
+    }
+
     enum DisplayMode: Int, CaseIterable {
         case both = 0
         case keyboard
         case touchpad
-        
+
         mutating func toggle() {
             self = DisplayMode(rawValue: (self.rawValue + 1) % 3) ?? .both
         }
-        
+
         var icon: String {
             switch self {
             case .both: return "rectangle.split.3x1"
@@ -56,24 +154,21 @@ struct KeyboardMouseView: View {
 
     // Compute the display value for each key based on current modifiers
     func getDisplayValue(for key: String) -> String {
-        // Special keys that don't change
-        let specialKeys = ["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", 
+        let specialKeys = ["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
                           "Tab", "Caps", "Enter", "Shift", "Ctrl", "Alt", "Space", "Backspace"]
-        
+
         if specialKeys.contains(key) {
             return key
         }
-        
+
         let isShiftActive = keyboardManager.activeModifiers.contains("Shift")
         let isCapsActive = keyboardManager.capsLockActive
-        
-        // For letters
+
         if key.count == 1 && key.first!.isLetter {
             let shouldBeUppercase = (isShiftActive && !isCapsActive) || (!isShiftActive && isCapsActive)
             return shouldBeUppercase ? key.uppercased() : key.lowercased()
         }
-        
-        // For numbers and symbols with shift variants
+
         if isShiftActive {
             let shiftMap: [String: String] = [
                 "`": "~", "1": "!", "2": "@", "3": "#", "4": "$", "5": "%",
@@ -83,28 +178,63 @@ struct KeyboardMouseView: View {
             ]
             return shiftMap[key] ?? key
         }
-        
+
         return key
+    }
+
+    /// Get display label for a KeyDef, respecting Shift/Caps/Fn state.
+    func displayLabel(for kd: KeyboardManager.KeyDef) -> String {
+        // Fn lock: show F1-F12
+        if let fnKey = keyboardManager.resolveFnKey(kd.label) {
+            return fnKey
+        }
+        // Symbol mode: show symbolLabel if available
+        if keyboardManager.isSymbolMode && !kd.symbolLabel.isEmpty {
+            return kd.symbolLabel
+        }
+        // Normal letter key
+        if kd.label.count == 1 && kd.label.first!.isLetter {
+            let isShiftActive = keyboardManager.activeModifiers.contains("Shift")
+            let isCapsActive = keyboardManager.capsLockActive
+            let shouldBeUppercase = (isShiftActive && !isCapsActive) || (!isShiftActive && isCapsActive)
+            return shouldBeUppercase ? kd.label.uppercased() : kd.label.lowercased()
+        }
+        return kd.label
     }
 
     var body: some View {
         GeometryReader { geometry in
-            VStack(spacing: 0) {
-                // Conditional layout based on orientation
-                if orientationManager.isLandscape {
+            ZStack {
+                VStack(spacing: 0) {
+                    // Conditional layout based on orientation
+                    if orientationManager.isLandscape {
                     if displayMode == .touchpad {
                         // Touchpad only mode: occupy all screen area, but show toggle button and tips overlay
                         ZStack {
-                            HStack(spacing: 0) {
-                                // Main touchpad area, leave space for toggle button
-                                TouchpadView(mouseManager: mouseManager)
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                // Reserve space for toggle button
-                                Color.clear.frame(width: 48)
-                            }
+                            TouchpadView(mouseManager: mouseManager, pointerTipState: pointerTipState)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
                             Rectangle()
                                 .foregroundColor(mouseManager.isSelectMode ? Color.blue.opacity(0.3) : Color(UIColor.tertiarySystemBackground))
                                 .allowsHitTesting(false)
+                            // Toggle button (handle) at the top edge, horizontally centered
+                            VStack {
+                                Button(action: { displayMode.toggle() }) {
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(Color(UIColor.secondarySystemBackground))
+                                        .frame(width: 48, height: 24)
+                                        .overlay(
+                                            Rectangle()
+                                                .fill(Color.gray.opacity(0.6))
+                                                .frame(width: 36, height: 3)
+                                                .cornerRadius(1.5)
+                                        )
+                                        .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 1)
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                Spacer()
+                            }
+                            .padding(.top, 8)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                             // Overlay: Title and tips at the center
                             VStack(alignment: .center, spacing: 8) {
                                 HStack(spacing: 8) {
@@ -139,23 +269,6 @@ struct KeyboardMouseView: View {
                             .background(Color.clear)
                             .cornerRadius(12)
                             .shadow(radius: 6)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                            // Toggle button (handle) on the right edge, vertically centered
-                            HStack {
-                                Spacer()
-                                VStack {
-                                    Spacer()
-                                    Button(action: { displayMode.toggle() }) {
-                                        Rectangle()
-                                            .fill(Color.gray.opacity(0.5))
-                                            .frame(width: 4, height: 48)
-                                            .cornerRadius(2)
-                                    }
-                                    .buttonStyle(PlainButtonStyle())
-                                    .frame(width: 36, height: 60)
-                                    Spacer()
-                                }
-                            }
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -196,7 +309,7 @@ struct KeyboardMouseView: View {
                                             }
                                         }
                                         
-                                        TouchpadView(mouseManager: mouseManager)
+                                        TouchpadView(mouseManager: mouseManager, pointerTipState: pointerTipState)
                                     }
                                     .frame(maxHeight: .infinity)
                                 }
@@ -205,20 +318,20 @@ struct KeyboardMouseView: View {
                             // Handle between touchpad and keyboard
                             VStack {
                                 Spacer()
-                                // Replace the handle button with two vertical grey lines as a tappable area
-                                VStack {
-                                    Spacer()
-                                    Rectangle()
-                                        .fill(Color.gray.opacity(0.5))
-                                        .frame(width: 4, height: 28)
-                                        .cornerRadius(2)
-                                    Spacer(minLength: 2)
+                                Button(action: { displayMode.toggle() }) {
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(Color(UIColor.secondarySystemBackground))
+                                        .frame(width: 20, height: 48)
+                                        .overlay(
+                                            Rectangle()
+                                                .fill(Color.gray.opacity(0.6))
+                                                .frame(width: 3, height: 36)
+                                                .cornerRadius(1.5)
+                                        )
+                                        .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
                                 }
-                                .frame(width: 24)
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    displayMode.toggle()
-                                }
+                                .buttonStyle(PlainButtonStyle())
+                                Spacer(minLength: 2)
                             }
                             .frame(width: 36)
                             if displayMode != .touchpad {
@@ -242,43 +355,43 @@ struct KeyboardMouseView: View {
                                                                         Image(systemName: "delete.left")
                                                                             .font(.system(size: 16))
                                                                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                                                            .background(Color(UIColor.secondarySystemBackground))
-                                                                            .cornerRadius(5)
+                                                                            .background(Self.functionKeyBg)
+                                                                            .cornerRadius(9)
                                                                             .foregroundColor(.primary)
                                                                     } else if key == "Enter" {
                                                                         Image(systemName: "return")
                                                                             .font(.system(size: 16))
                                                                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                                                            .background(Color(UIColor.secondarySystemBackground))
-                                                                            .cornerRadius(5)
+                                                                            .background(Self.functionKeyBg)
+                                                                            .cornerRadius(9)
                                                                             .foregroundColor(.primary)
                                                                     } else if key == "Shift" {
                                                                         Image(systemName: "shift")
                                                                             .font(.system(size: 16))
                                                                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                                                            .background(keyboardManager.activeModifiers.contains("Shift") ? Color.blue : Color(UIColor.secondarySystemBackground))
-                                                                            .cornerRadius(5)
+                                                                            .background(keyboardManager.activeModifiers.contains("Shift") ? Color.blue : Self.functionKeyBg)
+                                                                            .cornerRadius(9)
                                                                             .foregroundColor(keyboardManager.activeModifiers.contains("Shift") ? .white : .primary)
                                                                     } else if ["Ctrl", "Alt", "Cmd"].contains(key) {
                                                                         Text(getDisplayValue(for: key))
                                                                             .font(.system(size: 12))
                                                                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                                                            .background(keyboardManager.activeModifiers.contains(key) ? Color.blue : Color(UIColor.secondarySystemBackground))
-                                                                            .cornerRadius(5)
+                                                                            .background(keyboardManager.activeModifiers.contains(key) ? Color.blue : Self.functionKeyBg)
+                                                                            .cornerRadius(9)
                                                                             .foregroundColor(keyboardManager.activeModifiers.contains(key) ? .white : .primary)
                                                                     } else if key == "Caps" {
                                                                         Text(getDisplayValue(for: key))
                                                                             .font(.system(size: 12))
                                                                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                                                            .background(keyboardManager.capsLockActive ? Color.green : Color(UIColor.secondarySystemBackground))
-                                                                            .cornerRadius(5)
+                                                                            .background(keyboardManager.capsLockActive ? Color.green : Self.functionKeyBg)
+                                                                            .cornerRadius(9)
                                                                             .foregroundColor(keyboardManager.capsLockActive ? .white : .primary)
                                                                     } else {
                                                                         Text(getDisplayValue(for: key))
                                                                             .font(.system(size: 12))
                                                                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                                                            .background(Color(UIColor.secondarySystemBackground))
-                                                                            .cornerRadius(5)
+                                                                            .background(.white)
+                                                                            .cornerRadius(9)
                                                                             .foregroundColor(.primary)
                                                                     }
                                                                 }
@@ -342,7 +455,7 @@ struct KeyboardMouseView: View {
                                     }
                                 }
                                 
-                                TouchpadView(mouseManager: mouseManager)
+                                TouchpadView(mouseManager: mouseManager, pointerTipState: pointerTipState)
                             }
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
@@ -350,75 +463,30 @@ struct KeyboardMouseView: View {
                         HStack {
                             Spacer()
                             // Portrait handle
-                            VStack {
-                                Rectangle()
-                                    .fill(Color.gray.opacity(0.5))
-                                    .frame(width: 28, height: 4)
-                                    .cornerRadius(2)
+                            Button(action: { displayMode.toggle() }) {
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(Color(UIColor.secondarySystemBackground))
+                                    .frame(width: 48, height: 20)
+                                    .overlay(
+                                        Rectangle()
+                                            .fill(Color.gray.opacity(0.6))
+                                            .frame(width: 36, height: 3)
+                                            .cornerRadius(1.5)
+                                    )
+                                    .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
                             }
-                            .frame(height: 24)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                displayMode.toggle()
-                            }
+                            .buttonStyle(PlainButtonStyle())
                             Spacer()
                         }
                         .frame(height: 36)
                         if displayMode != .touchpad {
-                            // Quick action shortcuts - scrollable
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 8) {
-                                    // Get popular shortcuts from CompositeKeyManager
-                                    ForEach(compositeKeyManager.getPopularShortcuts(), id: \.id) { shortcut in
-                                        Button(shortcut.displayName) {
-                                            compositeKeyManager.executeShortcut(shortcut.id)
-                                        }
-                                        .buttonStyle(.bordered)
-                                        .font(.caption2)
-                                    }
-                                    
-                                    // System shortcuts
-                                    Button("Alt+F4") { compositeKeyManager.altF4() }
-                                        .buttonStyle(.bordered)
-                                        .font(.caption2)
-                                    Button("Ctrl+Alt+Del") { compositeKeyManager.ctrlAltDel() }
-                                        .buttonStyle(.bordered)
-                                        .font(.caption2)
-                                    Button("Win+L") { compositeKeyManager.winL() }
-                                        .buttonStyle(.bordered)
-                                        .font(.caption2)
-                                    Button("Win+D") { compositeKeyManager.winD() }
-                                        .buttonStyle(.bordered)
-                                        .font(.caption2)
-                                    
-                                    // Additional shortcuts from different categories
-                                    ForEach(compositeKeyManager.getShortcuts(for: .file).prefix(3), id: \.id) { shortcut in
-                                        Button(shortcut.displayName) {
-                                            compositeKeyManager.executeShortcut(shortcut.id)
-                                        }
-                                        .buttonStyle(.bordered)
-                                        .font(.caption2)
-                                    }
-                                    
-                                    ForEach(compositeKeyManager.getShortcuts(for: .editing).prefix(2), id: \.id) { shortcut in
-                                        Button(shortcut.displayName) {
-                                            compositeKeyManager.executeShortcut(shortcut.id)
-                                        }
-                                        .buttonStyle(.bordered)
-                                        .font(.caption2)
-                                    }
-                                    
-                                    // Clear button at the end
-                                    Button("Clear") { compositeKeyManager.clearModifiers() }
-                                        .buttonStyle(.bordered)
-                                        .font(.caption2)
-                                        .foregroundColor(.red)
-                                }
-                                .padding(.horizontal, 10)
+                            // Swipeable shortcut panels (matches Android topShortcutPanels)
+                            if !shortcutPages.isEmpty {
+                                ShortcutPanelPager(pages: shortcutPages)
+                                    .padding(.horizontal, 4)
+                                    .padding(.top, 4)
+                                    .padding(.bottom, 2)
                             }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(Color(UIColor.secondarySystemBackground))
 
                             // Keyboard layout
                             keyboardLayoutView
@@ -432,6 +500,30 @@ struct KeyboardMouseView: View {
                         }
                     }
                 }
+                // Alternates popup overlay (3x3 grid)
+                if let popup = alternatesPopup {
+                    KeyAlternatesPopupView(
+                        options: popup.options,
+                        anchorFrame: popup.anchor,
+                        onCommit: { option in
+                            alternatesCommitHandled = true
+                            HapticFeedbackManager.shared.triggerButtonPress()
+                            if option.requiresShift {
+                                keyboardManager.handleKeyCombo(modifiers: ["Shift"], key: option.keyCode)
+                            } else {
+                                keyboardManager.handleKeyPress(option.keyCode)
+                            }
+                            dismissAlternatesPopup()
+                        },
+                        onCancel: {
+                            // Cancelled — let the Button action send the normal key
+                            alternatesCommitHandled = false
+                            dismissAlternatesPopup()
+                        }
+                    )
+                    .transition(.scale.combined(with: .opacity))
+                }
+            }
             }
         }
     }
@@ -448,74 +540,162 @@ struct KeyboardMouseView: View {
         return deviceOrientation == .landscapeRight
     }
 
-    // Helper to get keys with F1-F12 hidden in landscape
+    // Helper: in landscape F-row is hidden, but since our keys no longer include F-row, return as-is
     var keysForCurrentOrientation: [[String]] {
-        if orientationManager.isLandscape {
-            // Remove F1-F12 row
-            return Array(keys.dropFirst(1))
-        } else {
-            return keys
-        }
+        return keys
     }
 
     @ViewBuilder
     private var keyboardLayoutView: some View {
         VStack(spacing: 0) {
-            ForEach(keysForCurrentOrientation, id: \.self) { row in
+            // F-row (hidden in landscape, matches Android)
+            if !orientationManager.isLandscape {
+                functionKeyRow
+            }
+            // Letter/symbol keys from portraitLetterKeys
+            ForEach(keyboardManager.portraitLetterKeys.indices, id: \.self) { rowIdx in
+                let row = keyboardManager.portraitLetterKeys[rowIdx]
                 HStack(spacing: 0) {
-                    ForEach(row, id: \.self) { key in
-                        Button(action: {
-                            keyboardManager.handleSpecialKey(key)
-                        }) {
-                            if key == "Backspace" {
-                                Image(systemName: "delete.left")
-                                    .font(.system(size: 16))
-                                    .frame(maxWidth: .infinity, maxHeight: 50)
-                                    .background(Color(UIColor.secondarySystemBackground))
-                                    .cornerRadius(5)
-                                    .foregroundColor(.primary)
-                            } else if key == "Enter" {
-                                Image(systemName: "return")
-                                    .font(.system(size: 16))
-                                    .frame(maxWidth: .infinity, maxHeight: 50)
-                                    .background(Color(UIColor.secondarySystemBackground))
-                                    .cornerRadius(5)
-                                    .foregroundColor(.primary)
-                            } else if key == "Shift" {
-                                Image(systemName: "shift")
-                                    .font(.system(size: 16))
-                                    .frame(maxWidth: .infinity, maxHeight: 50)
-                                    .background(keyboardManager.activeModifiers.contains("Shift") ? Color.blue : Color(UIColor.secondarySystemBackground))
-                                    .cornerRadius(5)
-                                    .foregroundColor(keyboardManager.activeModifiers.contains("Shift") ? .white : .primary)
-                            } else if ["Ctrl", "Alt", "Cmd"].contains(key) {
-                                Text(getDisplayValue(for: key))
-                                    .font(.system(size: 12))
-                                    .frame(maxWidth: .infinity, maxHeight: 50)
-                                    .background(keyboardManager.activeModifiers.contains(key) ? Color.blue : Color(UIColor.secondarySystemBackground))
-                                    .cornerRadius(5)
-                                    .foregroundColor(keyboardManager.activeModifiers.contains(key) ? .white : .primary)
-                            } else if key == "Caps" {
-                                Text(getDisplayValue(for: key))
-                                    .font(.system(size: 12))
-                                    .frame(maxWidth: .infinity, maxHeight: 50)
-                                    .background(keyboardManager.capsLockActive ? Color.green : Color(UIColor.secondarySystemBackground))
-                                    .cornerRadius(5)
-                                    .foregroundColor(keyboardManager.capsLockActive ? .white : .primary)
-                            } else {
-                                Text(getDisplayValue(for: key))
-                                    .font(.system(size: 12))
-                                    .frame(maxWidth: .infinity, maxHeight: 50)
-                                    .background(Color(UIColor.secondarySystemBackground))
-                                    .cornerRadius(5)
-                                    .foregroundColor(.primary)
-                            }
-                        }
+                    ForEach(row.indices, id: \.self) { colIdx in
+                        let kd = row[colIdx]
+                        keyButton(for: kd, width: keyWidth(for: kd, row: row))
                     }
                 }
             }
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// F1-F12 row (hidden in landscape, matching Android)
+    private var functionKeyRow: some View {
+        HStack(spacing: 0) {
+            ForEach(functionKeys, id: \.self) { key in
+                Button(action: { keyboardManager.handleSpecialKey(key) }) {
+                    Text(key)
+                        .font(.system(size: 10))
+                        .frame(maxWidth: .infinity, maxHeight: 36)
+                        .background(Self.functionKeyBg)
+                        .cornerRadius(9)
+                        .foregroundColor(.primary)
+                }
+            }
+        }
+        .padding(.horizontal, 2)
+        .padding(.bottom, 1)
+    }
+
+    /// Width proportion for a key in its row, matching Android android:keyWidth percentages.
+    private func keyWidth(for kd: KeyboardManager.KeyDef, row: [KeyboardManager.KeyDef]) -> CGFloat {
+        // Special widths matching Android layout
+        switch kd.label {
+        case "Shift": return 0.15
+        case "Fn": return 0.15
+        case "Cmd", "Win": return 0.10
+        case "Space": return 0.40
+        case "Enter": return 0.15
+        case "Backspace": return 0.095
+        case ",", ".": return 0.10
+        case "/": return 0.15
+        default: return 1.0 / CGFloat(row.count)
+        }
+    }
+
+    /// Build a single key button with long-press alternates and repeat support.
+    @ViewBuilder
+    private func keyButton(for kd: KeyboardManager.KeyDef, width: CGFloat) -> some View {
+        let displayText = displayLabel(for: kd)
+        let isModifier = ["Ctrl", "Alt", "Cmd", "Win", "Shift"].contains(kd.label)
+        let isPressed = isModifier && keyboardManager.activeModifiers.contains(kd.label)
+        let isCapsActive = kd.label == "Caps" && keyboardManager.capsLockActive
+        let isFnActive = kd.label == "Fn" && keyboardManager.isFnLocked
+
+        Button(action: { handleKeyAction(kd) }) {
+            keyContent(for: kd, displayText: displayText)
+                .frame(maxWidth: .infinity, maxHeight: 48)
+                .background(keyBackground(for: kd, pressed: isPressed, active: isCapsActive || isFnActive))
+                .cornerRadius(9)
+                .foregroundColor(isPressed || isCapsActive || isFnActive ? .white : .primary)
+        }
+        .buttonStyle(PlainButtonStyle())
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(
+            cornerHint(for: kd),
+            alignment: .topTrailing
+        )
+        // Detect finger lift to stop key repeat
+        .simultaneousGesture(
+            LongPressGesture(minimumDuration: 0)
+                .onEnded { _ in
+                    handleKeyRelease()
+                }
+        )
+        .onLongPressGesture(minimumDuration: 0.4) {
+            showAlternatesPopup(for: kd)
+        }
+    }
+
+    @ViewBuilder
+    private func keyContent(for kd: KeyboardManager.KeyDef, displayText: String) -> some View {
+        if kd.label == "Backspace" {
+            Image(systemName: "delete.left")
+                .font(.system(size: 16))
+                .rotationEffect(kd.symbolLabel.isEmpty && keyboardManager.activeModifiers.contains("Shift") ? .degrees(180) : .degrees(0))
+        } else if kd.label == "Enter" {
+            Image(systemName: "return")
+                .font(.system(size: 16))
+        } else if kd.label == "Shift" {
+            Image(systemName: "shift")
+                .font(.system(size: 16))
+        } else if ["Ctrl", "Alt", "Cmd"].contains(kd.label) {
+            Text(getDisplayValue(for: kd.label))
+                .font(.system(size: 12))
+        } else if kd.label == "Caps" {
+            Text("Caps")
+                .font(.system(size: 11))
+        } else if kd.label == "Fn" {
+            Text("Fn")
+                .font(.system(size: 12, weight: .bold))
+        } else if kd.label == "Cmd" {
+            // Target OS label: show Cmd/Win/Super based on settings
+            let targetOs = UserDefaults.standard.string(forKey: "target_os") ?? "macos"
+            switch targetOs {
+            case "windows": Text("Win").font(.system(size: 12))
+            case "linux": Text("Super").font(.system(size: 10))
+            default: Text("Cmd").font(.system(size: 12))
+            }
+        } else if keyboardManager.isSymbolMode && !kd.symbolLabel.isEmpty {
+            Text(kd.symbolLabel)
+                .font(.system(size: 14))
+        } else {
+            Text(displayText)
+                .font(.system(size: 12))
+        }
+    }
+
+    /// Whether a key is a "function" key (F-row, modifiers, special action keys) that gets a gray bg.
+    private func isFunctionKey(_ kd: KeyboardManager.KeyDef) -> Bool {
+        let functionLabels = ["Esc", "Tab", "Caps", "Shift", "Ctrl", "Alt", "Fn", "Backspace", "Enter"]
+        return functionLabels.contains(kd.label) || keyboardManager.isSymbolMode && ["ABC", "12/34", "!?#"].contains(kd.label)
+    }
+
+    private static let functionKeyBg = Color(red: 0.914, green: 0.914, blue: 0.925) // #FFE9E9EC
+
+    private func keyBackground(for kd: KeyboardManager.KeyDef, pressed: Bool, active: Bool) -> Color {
+        if pressed || active { return .blue }
+        if isFunctionKey(kd) { return Self.functionKeyBg }
+        return .white // #FFFFFFFF
+    }
+
+    @ViewBuilder
+    private func cornerHint(for kd: KeyboardManager.KeyDef) -> some View {
+        if !kd.cornerHint.isEmpty && !keyboardManager.isFnLocked && keyboardManager.isSymbolMode == false {
+            Text(kd.cornerHint)
+                .font(.system(size: 9, weight: .bold))
+                .foregroundColor(.secondary.opacity(0.25))
+                .padding(.trailing, 6)
+                .padding(.top, 2)
+                .allowsHitTesting(false)
+        }
     }
     
     @ViewBuilder
@@ -537,10 +717,10 @@ struct KeyboardMouseView: View {
                                 keyboardManager.handleSpecialKey(mappedKey)
                             }) {
                                 Text(key)
-                                    .font(.system(size: 16, weight: .medium))
-                                    .frame(maxWidth: .infinity, minHeight: 48)
-                                    .background(Color(UIColor.secondarySystemBackground))
-                                    .cornerRadius(8)
+                                    .font(.system(size: 12, weight: .medium))
+                                    .frame(maxWidth: .infinity, minHeight: 36)
+                                    .background(Self.functionKeyBg)
+                                    .cornerRadius(9)
                                     .foregroundColor(.primary)
                             }
                         } else {
@@ -549,94 +729,203 @@ struct KeyboardMouseView: View {
                     }
                 }
             }
-            // Add number pad below direction keys in portrait keyboard-only mode
+            // Number pad in portrait keyboard-only mode
             if displayMode == .keyboard && !orientationManager.isLandscape {
-                VStack(spacing: 4) {
-                    HStack(spacing: 4) {
-                        ForEach(extraNumberKeys.prefix(3), id: \.self) { key in
-                            Button(action: {
-                                let mappedKey: String
-                                switch key {
-                                case "7": mappedKey = "Numpad7"
-                                case "8": mappedKey = "Numpad8"
-                                case "9": mappedKey = "Numpad9"
-                                default: mappedKey = key
-                                }
-                                keyboardManager.handleSpecialKey(mappedKey)
-                            }) {
-                                Text(key)
-                                    .font(.system(size: 16, weight: .medium))
-                                    .frame(maxWidth: .infinity, minHeight: 48)
-                                    .background(Color(UIColor.secondarySystemBackground))
-                                    .cornerRadius(8)
-                                    .foregroundColor(.primary)
-                            }
-                        }
-                    }
-                    HStack(spacing: 4) {
-                        ForEach(extraNumberKeys[3..<6], id: \.self) { key in
-                            Button(action: {
-                                let mappedKey: String
-                                switch key {
-                                case "4": mappedKey = "Numpad4"
-                                case "5": mappedKey = "Numpad5"
-                                case "6": mappedKey = "Numpad6"
-                                default: mappedKey = key
-                                }
-                                keyboardManager.handleSpecialKey(mappedKey)
-                            }) {
-                                Text(key)
-                                    .font(.system(size: 16, weight: .medium))
-                                    .frame(maxWidth: .infinity, minHeight: 48)
-                                    .background(Color(UIColor.secondarySystemBackground))
-                                    .cornerRadius(8)
-                                    .foregroundColor(.primary)
-                            }
-                        }
-                    }
-                    HStack(spacing: 4) {
-                        ForEach(extraNumberKeys[6..<9], id: \.self) { key in
-                            Button(action: {
-                                let mappedKey: String
-                                switch key {
-                                case "1": mappedKey = "Numpad1"
-                                case "2": mappedKey = "Numpad2"
-                                case "3": mappedKey = "Numpad3"
-                                default: mappedKey = key
-                                }
-                                keyboardManager.handleSpecialKey(mappedKey)
-                            }) {
-                                Text(key)
-                                    .font(.system(size: 16, weight: .medium))
-                                    .frame(maxWidth: .infinity, minHeight: 48)
-                                    .background(Color(UIColor.secondarySystemBackground))
-                                    .cornerRadius(8)
-                                    .foregroundColor(.primary)
-                            }
-                        }
-                    }
-                    HStack(spacing: 4) {
-                        Button(action: { keyboardManager.handleSpecialKey("Numpad0") }) {
-                            Text("0")
-                                .font(.system(size: 16, weight: .medium))
-                                .frame(maxWidth: .infinity, minHeight: 48)
-                                .background(Color(UIColor.secondarySystemBackground))
-                                .cornerRadius(8)
-                                .foregroundColor(.primary)
-                        }
-                        Button(action: { keyboardManager.handleSpecialKey("NumpadDot") }) {
-                            Text(".")
-                                .font(.system(size: 16, weight: .medium))
-                                .frame(maxWidth: .infinity, minHeight: 48)
-                                .background(Color(UIColor.secondarySystemBackground))
-                                .cornerRadius(8)
-                                .foregroundColor(.primary)
-                        }
-                        Spacer()
+                numberPadView
+            }
+        }
+        .padding(.horizontal, 8)
+    }
+
+    @ViewBuilder
+    private var numberPadView: some View {
+        VStack(spacing: 3) {
+            ForEach(0..<3, id: \.self) { row in
+                HStack(spacing: 3) {
+                    ForEach(0..<3, id: \.self) { col in
+                        let key = extraNumberKeys[row * 3 + col]
+                        numberPadButton(key: key)
                     }
                 }
             }
+            HStack(spacing: 3) {
+                numberPadButton(key: "0", width: 2)
+                numberPadButton(key: ".")
+            }
         }
-        .padding(.horizontal, 10)
+    }
+
+    private func numberPadButton(key: String, width: Int = 1) -> some View {
+        Button(action: {
+            let mappedKey: String
+            switch key {
+            case "0": mappedKey = "Numpad0"
+            case ".": mappedKey = "NumpadDot"
+            default: mappedKey = "Numpad\(key)"
+            }
+            keyboardManager.handleSpecialKey(mappedKey)
+        }) {
+            Text(key)
+                .font(.system(size: 14, weight: .medium))
+                .frame(maxWidth: .infinity, minHeight: 36)
+                .background(Self.functionKeyBg)
+                .cornerRadius(9)
+                .foregroundColor(.primary)
+        }
+    }
+
+    // MARK: - Key Action Handler
+
+    /// Handle key press — toggles modifiers, Fn, symbol mode; sends regular keys.
+    private func handleKeyAction(_ kd: KeyboardManager.KeyDef) {
+        // If the alternates popup was committed for this touch, skip normal key action.
+        // This matches Android: ACTION_UP checks isAlternatePopupVisible() and skips
+        // handleKeyPress() when the popup was the active interaction.
+        if alternatesCommitHandled {
+            alternatesCommitHandled = false
+            return
+        }
+
+        HapticFeedbackManager.shared.triggerButtonPress()
+
+        // Fn toggle
+        if kd.label == "Fn" {
+            keyboardManager.isFnLocked.toggle()
+            return
+        }
+        // Symbol mode toggle: ABC -> letters, 12/34 -> symbols
+        if kd.label == "ABC" || kd.label == "12/34" {
+            keyboardManager.isSymbolMode.toggle()
+            return
+        }
+        // !?# -> go to symbol sub-page
+        if kd.label == "!?#" {
+            keyboardManager.isSymbolMode = true
+            return
+        }
+        // Modifiers
+        if ["Ctrl", "Alt", "Cmd", "Win", "Shift"].contains(kd.label) {
+            keyboardManager.handleSpecialKey(kd.label)
+            return
+        }
+        // Fn-resolved key
+        let effectiveKey = keyboardManager.resolveFnKey(kd.keyCode) ?? kd.keyCode
+        // Key repeat for arrow/backspace
+        if KeyRepeatController.repeatableKeys.contains(effectiveKey) {
+            keyRepeatController.startRepeating(keyAction: {
+                keyboardManager.handleSpecialKey(effectiveKey)
+            })
+        } else {
+            keyRepeatController.stopRepeating()
+            keyboardManager.handleSpecialKey(effectiveKey)
+        }
+    }
+
+    /// Called when finger lifts off any key — stops key repeat if active.
+    private func handleKeyRelease() {
+        keyRepeatController.stopRepeating()
+    }
+
+    // MARK: - Alternates Popup
+
+    private func showAlternatesPopup(for kd: KeyboardManager.KeyDef) {
+        guard keyboardManager.shouldShowAlternates(for: kd.label) else { return }
+
+        var slotMap: [Int: AlternateOption] = [:]
+        var seen: Set<String> = []
+
+        // Center slot: key label itself (capital for a-z)
+        if let centerOpt = centerAlternateOption(for: kd), !seen.contains(centerOpt.display) {
+            slotMap[AlternatePopupGeometry.slotCenter] = centerOpt
+            seen.insert(centerOpt.display)
+        }
+
+        // Cardinal slots from alternates: Up, Down, Left, Right (tokens 0-3)
+        let cardinalSlots = [
+            AlternatePopupGeometry.slotUp,
+            AlternatePopupGeometry.slotDown,
+            AlternatePopupGeometry.slotLeft,
+            AlternatePopupGeometry.slotRight,
+        ]
+        for (i, slot) in cardinalSlots.enumerated() where i < kd.alternates.count {
+            let alt = kd.alternates[i]
+            if let mapped = mapAsciiAlternate(alt), !seen.contains(mapped.display) {
+                slotMap[slot] = AlternateOption(
+                    display: mapped.display, keyCode: mapped.keyCode, requiresShift: mapped.requiresShift, slot: slot
+                )
+                seen.insert(mapped.display)
+            }
+        }
+
+        // Corner slots from alternates: UL, UR, DL, DR (tokens 4-7)
+        let cornerSlots = [
+            AlternatePopupGeometry.slotUpLeft,
+            AlternatePopupGeometry.slotUpRight,
+            AlternatePopupGeometry.slotDownLeft,
+            AlternatePopupGeometry.slotDownRight,
+        ]
+        for (i, slot) in cornerSlots.enumerated() where (i + 4) < kd.alternates.count {
+            let alt = kd.alternates[i + 4]
+            if let mapped = mapAsciiAlternate(alt), !seen.contains(mapped.display) {
+                slotMap[slot] = AlternateOption(
+                    display: mapped.display, keyCode: mapped.keyCode, requiresShift: mapped.requiresShift, slot: slot
+                )
+                seen.insert(mapped.display)
+            }
+        }
+
+        let options = Array(slotMap.values)
+        guard options.count >= 2 else { return }
+        alternatesPopup = (options, CGRect.zero, kd)
+    }
+
+    /// Build the center (default) option for a key.
+    private func centerAlternateOption(for kd: KeyboardManager.KeyDef) -> AlternateOption? {
+        // For a-z keys, center = uppercase letter
+        if kd.label.count == 1, let c = kd.label.first, c.isLetter {
+            let display = kd.label.uppercased()
+            return AlternateOption(display: display, keyCode: kd.label, requiresShift: true, slot: AlternatePopupGeometry.slotCenter)
+        }
+        // Otherwise use the base key label
+        if let mapped = mapAsciiAlternate(kd.label) {
+            return AlternateOption(display: mapped.display, keyCode: mapped.keyCode, requiresShift: mapped.requiresShift, slot: AlternatePopupGeometry.slotCenter)
+        }
+        return nil
+    }
+
+    private func mapAsciiAlternate(_ char: String) -> (display: String, keyCode: String, requiresShift: Bool)? {
+        switch char {
+        case "a"..."z": return (char, char, false)
+        case "A"..."Z": return (char, char.lowercased(), true)
+        case "1": return ("1", "1", false); case "!": return ("!", "1", true)
+        case "2": return ("2", "2", false); case "@": return ("@", "2", true)
+        case "3": return ("3", "3", false); case "#": return ("#", "3", true)
+        case "4": return ("4", "4", false); case "$": return ("$", "4", true)
+        case "5": return ("5", "5", false); case "%": return ("%", "5", true)
+        case "6": return ("6", "6", false); case "^": return ("^", "6", true)
+        case "7": return ("7", "7", false); case "&": return ("&", "7", true)
+        case "8": return ("8", "8", false); case "*": return ("*", "8", true)
+        case "9": return ("9", "9", false); case "(": return ("(", "9", true)
+        case "0": return ("0", "0", false); case ")": return (")", "0", true)
+        case "-": return ("-", "-", false); case "_": return ("_", "-", true)
+        case "=": return ("=", "=", false); case "+": return ("+", "=", true)
+        case "[": return ("[", "[", false); case "{": return ("{", "[", true)
+        case "]": return ("]", "]", false); case "}": return ("}", "]", true)
+        case ",": return (",", ",", false); case "<": return ("<", ",", true)
+        case ".": return (".", ".", false); case ">": return (">", ".", true)
+        case "/": return ("/", "/", false); case "?": return ("?", "/", true)
+        case ";": return (";", ";", false); case ":": return (":", ";", true)
+        case "'": return ("'", "'", false); case "\"": return ("\"", "'", true)
+        case "`": return ("`", "`", false); case "~": return ("~", "`", true)
+        default: return nil
+        }
+    }
+
+    private func commitAlternatesSelection() {
+        // Selection is now handled by KeyAlternatesPopupView's onCommit
+    }
+
+    private func dismissAlternatesPopup() {
+        alternatesPopup = nil
     }
 }

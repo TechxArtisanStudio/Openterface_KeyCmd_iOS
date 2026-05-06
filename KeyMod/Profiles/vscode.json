@@ -1,0 +1,70 @@
+{
+  "id": "vscode",
+  "name": "VS Code",
+  "icon": "chevron.left.slash.chevron.right",
+  "themeColorHex": "#007ACC",
+  "hasNumpad": false,
+  "categories": [
+    {
+      "id": "navigation",
+      "name": "Navigation",
+      "icon": "arrow.left.arrow.right",
+      "colorHex": "#007ACC",
+      "shortcuts": [
+        { "id": "v-nav-1", "description": "Quick Open", "key": "P", "modifier": "Cmd", "keyCode": "P" },
+        { "id": "v-nav-2", "description": "Cmd Palette", "key": "P", "modifier": "Cmd+Shift", "keyCode": "P" },
+        { "id": "v-nav-3", "description": "Go to Line", "key": "G", "modifier": "Cmd", "keyCode": "G" },
+        { "id": "v-nav-4", "description": "Explorer", "key": "E", "modifier": "Cmd+Shift", "keyCode": "E" },
+        { "id": "v-nav-5", "description": "Search", "key": "F", "modifier": "Cmd+Shift", "keyCode": "F" },
+        { "id": "v-nav-6", "description": "Extensions", "key": "X", "modifier": "Cmd+Shift", "keyCode": "X" },
+        { "id": "v-nav-7", "description": "Terminal", "key": "`", "modifier": "Ctrl", "keyCode": "Grave" }
+      ]
+    },
+    {
+      "id": "edit",
+      "name": "Edit",
+      "icon": "pencil",
+      "colorHex": "#007AFF",
+      "shortcuts": [
+        { "id": "v-e-1", "description": "Find", "key": "F", "modifier": "Cmd", "keyCode": "F" },
+        { "id": "v-e-2", "description": "Replace", "key": "H", "modifier": "Cmd", "keyCode": "H" },
+        { "id": "v-e-3", "description": "Comment", "key": "/", "modifier": "Cmd", "keyCode": "Slash" },
+        { "id": "v-e-4", "description": "Format", "key": "F", "modifier": "Shift+Alt", "keyCode": "F" },
+        { "id": "v-e-5", "description": "Undo", "key": "Z", "modifier": "Cmd", "keyCode": "Z" },
+        { "id": "v-e-6", "description": "Redo", "key": "Z", "modifier": "Cmd+Shift", "keyCode": "Z" },
+        { "id": "v-e-7", "description": "Dup. Line", "key": "Down", "modifier": "Shift+Alt", "keyCode": "Down" },
+        { "id": "v-e-8", "description": "Move Line Up", "key": "Up", "modifier": "Alt", "keyCode": "Up" },
+        { "id": "v-e-9", "description": "Move Line Dn", "key": "Down", "modifier": "Alt", "keyCode": "Down" },
+        { "id": "v-e-10", "description": "Delete Line", "key": "K", "modifier": "Cmd+Shift", "keyCode": "K" }
+      ]
+    },
+    {
+      "id": "code",
+      "name": "Code",
+      "icon": "curlybraces.square",
+      "colorHex": "#34C759",
+      "shortcuts": [
+        { "id": "v-c-1", "description": "Save", "key": "S", "modifier": "Cmd", "keyCode": "S" },
+        { "id": "v-c-2", "description": "Save All", "key": "S", "modifier": "Cmd+Alt", "keyCode": "S" },
+        { "id": "v-c-3", "description": "Rename", "key": "F2", "modifier": null, "keyCode": "F2" },
+        { "id": "v-c-4", "description": "Go to Def.", "key": "F12", "modifier": null, "keyCode": "F12" },
+        { "id": "v-c-5", "description": "Peek Def.", "key": "F12", "modifier": "Alt", "keyCode": "F12" },
+        { "id": "v-c-6", "description": "Find All Refs.", "key": "F12", "modifier": "Shift", "keyCode": "F12" },
+        { "id": "v-c-7", "description": "Quick Fix", "key": ".", "modifier": "Cmd", "keyCode": "Period" }
+      ]
+    },
+    {
+      "id": "view",
+      "name": "View",
+      "icon": "eye",
+      "colorHex": "#FF9500",
+      "shortcuts": [
+        { "id": "v-v-1", "description": "Sidebar", "key": "B", "modifier": "Cmd", "keyCode": "B" },
+        { "id": "v-v-2", "description": "Full Screen", "key": "F11", "modifier": null, "keyCode": "F11" },
+        { "id": "v-v-3", "description": "Split Editor", "key": "\\", "modifier": "Cmd", "keyCode": "Backslash" },
+        { "id": "v-v-4", "description": "Zoom In", "key": "+", "modifier": "Cmd", "keyCode": "Equals" },
+        { "id": "v-v-5", "description": "Zoom Out", "key": "-", "modifier": "Cmd", "keyCode": "Minus" }
+      ]
+    }
+  ]
+}

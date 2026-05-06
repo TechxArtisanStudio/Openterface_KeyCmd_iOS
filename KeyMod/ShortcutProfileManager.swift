@@ -34,7 +34,7 @@ class ShortcutProfileManager: ObservableObject {
     }()
 
     /// Names of JSON files to load as built-in profiles, in display order.
-    private let builtInFileNames = ["blender", "kicad", "nomad", "fusion360"]
+    private let builtInFileNames = ["standard", "blender", "kicad", "nomad", "fusion360", "photoshop", "vscode"]
 
     private var documentsURL: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]

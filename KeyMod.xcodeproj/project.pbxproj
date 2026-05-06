@@ -408,11 +408,16 @@
 				CODE_SIGN_ENTITLEMENTS = KeyMod/KeyMod.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 12;
 				DEVELOPMENT_ASSET_PATHS = "\"KeyMod/Preview Content\"";
 				DEVELOPMENT_TEAM = NXWD68TXUQ;
 				ENABLE_PREVIEWS = YES;
+				EXCLUDED_SOURCE_FILE_NAMES = (
+					"KeyMod/Openterface_Core/tests/*.c",
+					"KeyMod/Openterface_Core/cli/*.c",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "KeyMod needs microphone access for voice input.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "KeyMod uses speech recognition to convert your voice into text that can be typed on the target device.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -428,8 +433,10 @@
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = "KeyMod/KeyMod-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -443,11 +450,16 @@
 				CODE_SIGN_ENTITLEMENTS = KeyMod/KeyMod.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 12;
 				DEVELOPMENT_ASSET_PATHS = "\"KeyMod/Preview Content\"";
 				DEVELOPMENT_TEAM = NXWD68TXUQ;
 				ENABLE_PREVIEWS = YES;
+				EXCLUDED_SOURCE_FILE_NAMES = (
+					"KeyMod/Openterface_Core/tests/*.c",
+					"KeyMod/Openterface_Core/cli/*.c",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "KeyMod needs microphone access for voice input.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "KeyMod uses speech recognition to convert your voice into text that can be typed on the target device.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -463,8 +475,10 @@
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = "KeyMod/KeyMod-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};

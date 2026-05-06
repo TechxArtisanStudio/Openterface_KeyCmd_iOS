@@ -1,0 +1,59 @@
+{
+  "id": "photoshop",
+  "name": "Photoshop",
+  "icon": "paintbrush",
+  "themeColorHex": "#31A8FF",
+  "hasNumpad": false,
+  "categories": [
+    {
+      "id": "tools",
+      "name": "Tools",
+      "icon": "wrench.and.screwdriver",
+      "colorHex": "#31A8FF",
+      "shortcuts": [
+        { "id": "ps-t-1", "description": "Move", "key": "V", "modifier": null, "keyCode": "V" },
+        { "id": "ps-t-2", "description": "Brush", "key": "B", "modifier": null, "keyCode": "B" },
+        { "id": "ps-t-3", "description": "Eraser", "key": "E", "modifier": null, "keyCode": "E" },
+        { "id": "ps-t-4", "description": "Clone Stamp", "key": "S", "modifier": null, "keyCode": "S" },
+        { "id": "ps-t-5", "description": "Healing Brush", "key": "J", "modifier": null, "keyCode": "J" },
+        { "id": "ps-t-6", "description": "Text", "key": "T", "modifier": null, "keyCode": "T" },
+        { "id": "ps-t-7", "description": "Pen", "key": "P", "modifier": null, "keyCode": "P" },
+        { "id": "ps-t-8", "description": "Rectangle", "key": "U", "modifier": null, "keyCode": "U" },
+        { "id": "ps-t-9", "description": "Hand", "key": "H", "modifier": null, "keyCode": "H" },
+        { "id": "ps-t-10", "description": "Zoom", "key": "Z", "modifier": null, "keyCode": "Z" }
+      ]
+    },
+    {
+      "id": "edit",
+      "name": "Edit",
+      "icon": "pencil",
+      "colorHex": "#007AFF",
+      "shortcuts": [
+        { "id": "ps-e-1", "description": "Undo", "key": "Z", "modifier": "Cmd", "keyCode": "Z" },
+        { "id": "ps-e-2", "description": "Redo", "key": "Y", "modifier": "Cmd", "keyCode": "Y" },
+        { "id": "ps-e-3", "description": "Copy", "key": "C", "modifier": "Cmd", "keyCode": "C" },
+        { "id": "ps-e-4", "description": "Paste", "key": "V", "modifier": "Cmd", "keyCode": "V" },
+        { "id": "ps-e-5", "description": "Save", "key": "S", "modifier": "Cmd", "keyCode": "S" },
+        { "id": "ps-e-6", "description": "Free Transform", "key": "T", "modifier": "Cmd", "keyCode": "T" },
+        { "id": "ps-e-7", "description": "Deselect", "key": "D", "modifier": "Cmd", "keyCode": "D" },
+        { "id": "ps-e-8", "description": "Select All", "key": "A", "modifier": "Cmd", "keyCode": "A" },
+        { "id": "ps-e-9", "description": "Levels", "key": "L", "modifier": "Cmd", "keyCode": "L" },
+        { "id": "ps-e-10", "description": "Curves", "key": "M", "modifier": "Cmd", "keyCode": "M" },
+        { "id": "ps-e-11", "description": "New Layer", "key": "N", "modifier": "Cmd+Shift", "keyCode": "N" }
+      ]
+    },
+    {
+      "id": "view",
+      "name": "View",
+      "icon": "eye",
+      "colorHex": "#34C759",
+      "shortcuts": [
+        { "id": "ps-v-1", "description": "Zoom In", "key": "+", "modifier": "Cmd", "keyCode": "Equals" },
+        { "id": "ps-v-2", "description": "Zoom Out", "key": "-", "modifier": "Cmd", "keyCode": "Minus" },
+        { "id": "ps-v-3", "description": "Fit Screen", "key": "0", "modifier": "Cmd", "keyCode": "0" },
+        { "id": "ps-v-4", "description": "100%", "key": "0", "modifier": "Cmd+Alt", "keyCode": "0" },
+        { "id": "ps-v-5", "description": "Rulers", "key": "R", "modifier": "Cmd", "keyCode": "R" }
+      ]
+    }
+  ]
+}

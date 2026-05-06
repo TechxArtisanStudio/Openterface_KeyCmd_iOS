@@ -1,0 +1,69 @@
+{
+  "id": "standard",
+  "name": "Standard",
+  "icon": "keyboard",
+  "themeColorHex": "#007AFF",
+  "hasNumpad": false,
+  "categories": [
+    {
+      "id": "edit",
+      "name": "Edit",
+      "icon": "pencil",
+      "colorHex": "#007AFF",
+      "shortcuts": [
+        { "id": "std-edit-1", "description": "Select All", "key": "A", "modifier": "Cmd", "keyCode": "A" },
+        { "id": "std-edit-2", "description": "Copy", "key": "C", "modifier": "Cmd", "keyCode": "C" },
+        { "id": "std-edit-3", "description": "Cut", "key": "X", "modifier": "Cmd", "keyCode": "X" },
+        { "id": "std-edit-4", "description": "Paste", "key": "V", "modifier": "Cmd", "keyCode": "V" },
+        { "id": "std-edit-5", "description": "Undo", "key": "Z", "modifier": "Cmd", "keyCode": "Z" },
+        { "id": "std-edit-6", "description": "Redo", "key": "Z", "modifier": "Cmd+Shift", "keyCode": "Z" },
+        { "id": "std-edit-7", "description": "Save", "key": "S", "modifier": "Cmd", "keyCode": "S" },
+        { "id": "std-edit-8", "description": "Find", "key": "F", "modifier": "Cmd", "keyCode": "F" },
+        { "id": "std-edit-9", "description": "Find & Replace", "key": "H", "modifier": "Cmd", "keyCode": "H" }
+      ]
+    },
+    {
+      "id": "navigation",
+      "name": "Navigation",
+      "icon": "arrow.left.arrow.right",
+      "colorHex": "#34C759",
+      "shortcuts": [
+        { "id": "std-nav-1", "description": "Up", "key": "Up", "modifier": null, "keyCode": "Up" },
+        { "id": "std-nav-2", "description": "Down", "key": "Down", "modifier": null, "keyCode": "Down" },
+        { "id": "std-nav-3", "description": "Left", "key": "Left", "modifier": null, "keyCode": "Left" },
+        { "id": "std-nav-4", "description": "Right", "key": "Right", "modifier": null, "keyCode": "Right" },
+        { "id": "std-nav-5", "description": "Page Up", "key": "PgUp", "modifier": null, "keyCode": "PgUp" },
+        { "id": "std-nav-6", "description": "Page Down", "key": "PgDn", "modifier": null, "keyCode": "PgDn" },
+        { "id": "std-nav-7", "description": "Home", "key": "Home", "modifier": null, "keyCode": "Home" },
+        { "id": "std-nav-8", "description": "End", "key": "End", "modifier": null, "keyCode": "End" },
+        { "id": "std-nav-9", "description": "Insert", "key": "Insert", "modifier": null, "keyCode": "Insert" }
+      ]
+    },
+    {
+      "id": "system",
+      "name": "System",
+      "icon": "gear",
+      "colorHex": "#FF9500",
+      "shortcuts": [
+        { "id": "std-sys-1", "description": "Escape", "key": "Esc", "modifier": null, "keyCode": "Escape" },
+        { "id": "std-sys-2", "description": "Tab", "key": "Tab", "modifier": null, "keyCode": "Tab" },
+        { "id": "std-sys-3", "description": "Backspace", "key": "Backspace", "modifier": null, "keyCode": "Backspace" },
+        { "id": "std-sys-4", "description": "Delete", "key": "Del", "modifier": null, "keyCode": "Delete" },
+        { "id": "std-sys-5", "description": "Enter", "key": "Enter", "modifier": null, "keyCode": "Enter" },
+        { "id": "std-sys-6", "description": "Space", "key": "Space", "modifier": null, "keyCode": "Space" },
+        { "id": "std-sys-7", "description": "Caps Lock", "key": "Caps", "modifier": null, "keyCode": "Caps" }
+      ]
+    },
+    {
+      "id": "modifiers",
+      "name": "Modifiers",
+      "icon": "hand.tap",
+      "colorHex": "#AF52DE",
+      "shortcuts": [
+        { "id": "std-mod-1", "description": "Ctrl Toggle", "key": "Ctrl", "modifier": null, "keyCode": "Ctrl" },
+        { "id": "std-mod-2", "description": "Alt Toggle", "key": "Alt", "modifier": null, "keyCode": "Alt" },
+        { "id": "std-mod-3", "description": "Shift Toggle", "key": "Shift", "modifier": null, "keyCode": "Shift" }
+      ]
+    }
+  ]
+}

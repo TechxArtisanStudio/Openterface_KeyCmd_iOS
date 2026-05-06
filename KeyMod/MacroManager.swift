@@ -78,28 +78,9 @@ class MacroManager: ObservableObject {
             }
         }
 
-        // Tokenize
+        // Tokenize in the shared core so iOS and Android can consume the same script grammar.
         print("[MacroDebug] buildFlatTokens depth=\(depth) macro='\(macro.label)' data after substitution: \(data.debugDescription)")
-        var tokens: [String] = []
-        if let regex = try? NSRegularExpression(pattern: "</?([A-Z0-9]+)>") {
-            let nsData = data as NSString
-            var lastIndex = 0
-            for match in regex.matches(in: data, range: NSRange(location: 0, length: nsData.length)) {
-                let range = match.range
-                if range.location > lastIndex {
-                    tokens.append(contentsOf: nsData
-                        .substring(with: NSRange(location: lastIndex, length: range.location - lastIndex))
-                        .map { String($0) })
-                }
-                tokens.append(nsData.substring(with: range))
-                lastIndex = range.location + range.length
-            }
-            if lastIndex < nsData.length {
-                tokens.append(contentsOf: nsData.substring(from: lastIndex).map { String($0) })
-            }
-        } else {
-            tokens = data.map { String($0) }
-        }
+        let tokens = Keymod.tokenizeScript(data)
 
         // DEBUG: show what was tokenized before expansion
         print("[MacroDebug] buildFlatTokens depth=\(depth) macro='\(macro.label)' raw tokens: \(tokens)")

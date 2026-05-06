@@ -84,8 +84,27 @@ struct GeneralSettingsView: View {
                     .foregroundColor(.secondary)
             }
             .padding(.vertical, 4)
+
+            // Scroll Sensitivity (synced from Android)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Scroll Sensitivity")
+                    Spacer()
+                    Text("\(touchpadSettings.scrollSensitivity, specifier: "%.1f")x")
+                        .foregroundColor(.secondary)
+                }
+                Slider(
+                    value: $touchpadSettings.scrollSensitivity,
+                    in: 0.2...2.0,
+                    step: 0.1
+                )
+                Text("Adjusts scroll sensitivity for two-finger scrolling (lower = slower, higher = faster)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.vertical, 4)
         }
-        
+
         Section(header: Text("Clipboard Monitoring")) {
             HStack {
                 Text("Enable Clipboard Monitoring")
@@ -171,6 +190,11 @@ struct GeneralSettingsView: View {
                 Text("Click Delay:")
                 Spacer()
                 Text("\(touchpadSettings.tapDelayThreshold, specifier: "%.2f")s")
+            }
+            HStack {
+                Text("Scroll Sensitivity:")
+                Spacer()
+                Text("\(touchpadSettings.scrollSensitivity, specifier: "%.1f")x")
             }
         }
     }

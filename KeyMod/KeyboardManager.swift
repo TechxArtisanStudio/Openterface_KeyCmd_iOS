@@ -13,9 +13,85 @@ class KeyboardManager: ObservableObject {
     @Published var capsLockActive: Bool = false
     @Published var pressedKeys: Set<String> = [] // Track currently pressed keys
     @Published var isGameMode: Bool = false // Track current mode
+    @Published var isFnLocked: Bool = false // Fn lock for F1-F12 mapping
+    @Published var isSymbolMode: Bool = false // Symbol mode keyboard layout
     let compositeKeyManager: CompositeKeyManager
     private let hapticManager = HapticFeedbackManager.shared
     private let logger = LogManager.shared
+
+    /// Fn lock mapping: letter key → F-key (matches Android CustomKeyboardView.resolveFnMapping)
+    let fnMapping: [String: String] = [
+        "q": "F1", "w": "F2", "e": "F3", "r": "F4", "t": "F5",
+        "y": "F6", "u": "F7", "i": "F8", "o": "F9", "p": "F10",
+        "a": "F11", "s": "F12"
+    ]
+
+    /// Key alternates definition matching Android XML keyAlternates attributes.
+    /// Each entry: (label, symbolLabel, alternates, cornerHint)
+    struct KeyDef {
+        let label: String
+        let symbolLabel: String
+        let alternates: [String]  // ordered list of alternate chars
+        let cornerHint: String
+        let keyCode: String      // base key name for HID lookup
+        let requiresShift: Bool  // true if this key needs shift modifier
+
+        init(_ label: String, _ symbolLabel: String = "", _ alternates: [String] = [], _ cornerHint: String = "", _ keyCode: String? = nil, _ requiresShift: Bool = false) {
+            self.label = label
+            self.symbolLabel = symbolLabel
+            self.alternates = alternates
+            self.cornerHint = cornerHint
+            self.keyCode = keyCode ?? label
+            self.requiresShift = requiresShift
+        }
+    }
+
+    /// Portrait letter key definitions with alternates (matches Android keyboard_lower_portrait.xml)
+    let portraitLetterKeys: [[KeyDef]] = [
+        [ // Row 1: q-p with number alternates
+            KeyDef("q", "Q", ["1"], "1", "q"),
+            KeyDef("w", "W", ["2"], "2", "w"),
+            KeyDef("e", "E", ["3"], "3", "e"),
+            KeyDef("r", "R", ["4"], "4", "r"),
+            KeyDef("t", "T", ["5"], "5", "t"),
+            KeyDef("y", "Y", ["6"], "6", "y"),
+            KeyDef("u", "U", ["7"], "7", "u"),
+            KeyDef("i", "I", ["8"], "8", "i"),
+            KeyDef("o", "O", ["9"], "9", "o"),
+            KeyDef("p", "P", ["0"], "0", "p")
+        ],
+        [ // Row 2: a-l + Backspace with symbol alternates
+            KeyDef("a", "A", ["@"], "@", "a"),
+            KeyDef("s", "S", ["#"], "#", "s"),
+            KeyDef("d", "D", ["$"], "$", "d"),
+            KeyDef("f", "F", ["%"], "%", "f"),
+            KeyDef("g", "G", ["^"], "^", "g"),
+            KeyDef("h", "H", ["&"], "&", "h"),
+            KeyDef("j", "J", ["*"], "*", "j"),
+            KeyDef("k", "K", ["(", "{", "[", "<"], "(", "k"),
+            KeyDef("l", "L", [")", "}", "]", ">"], ")", "l"),
+            KeyDef("Backspace", "", [], "", "Backspace")
+        ],
+        [ // Row 3: z-/ with symbol alternates
+            KeyDef("Shift", "", [], "", "Shift"),
+            KeyDef("z", "Z", ["!"], "!", "z"),
+            KeyDef("x", "X", ["?"], "?", "x"),
+            KeyDef("c", "C", [";"], ";", "c"),
+            KeyDef("v", "V", [":"], ":", "v"),
+            KeyDef("b", "B", ["'"], "'", "b"),
+            KeyDef("n", "N", ["\""], "\"", "n"),
+            KeyDef("m", "M", ["_"], "_", "m"),
+            KeyDef("/", "?", ["+", "`", "~"], "+", "/")
+        ],
+        [ // Row 4: Fn, comma, Win, Space, period, Enter
+            KeyDef("Fn", "", [], "", "Fn"),
+            KeyDef(",", ";", ["-", ":"], "-", ","),
+            KeyDef("Cmd", "", [], "", "Cmd"),
+            KeyDef("Space", "", [], "", "Space"),
+            KeyDef(".", "'", ["=", "\""], "=", "."),
+            KeyDef("Enter", "", [], "", "Enter")
+        ]
+    ]
 
     /// Optional handler invoked (on the background thread) when a
     /// `<Macro>label</Macro>` token is encountered in
@@ -35,63 +111,23 @@ class KeyboardManager: ObservableObject {
     /// Slightly longer delay used after modifier release / character commit.
     private var commitDelayUs: UInt32 { UInt32(AISettings.shared.bleKeyDelayMs + 20) * 1_000 }
     
-    // HID keyboard usage codes for common keys
-    private let keyboardCodes: [String: UInt8] = [
-        // Letters (uppercase)
-        "A": 0x04, "B": 0x05, "C": 0x06, "D": 0x07, "E": 0x08, "F": 0x09,
-        "G": 0x0A, "H": 0x0B, "I": 0x0C, "J": 0x0D, "K": 0x0E, "L": 0x0F,
-        "M": 0x10, "N": 0x11, "O": 0x12, "P": 0x13, "Q": 0x14, "R": 0x15,
-        "S": 0x16, "T": 0x17, "U": 0x18, "V": 0x19, "W": 0x1A, "X": 0x1B,
-        "Y": 0x1C, "Z": 0x1D,
-        
-        // Letters (lowercase) - same codes as uppercase
-        "a": 0x04, "b": 0x05, "c": 0x06, "d": 0x07, "e": 0x08, "f": 0x09,
-        "g": 0x0A, "h": 0x0B, "i": 0x0C, "j": 0x0D, "k": 0x0E, "l": 0x0F,
-        "m": 0x10, "n": 0x11, "o": 0x12, "p": 0x13, "q": 0x14, "r": 0x15,
-        "s": 0x16, "t": 0x17, "u": 0x18, "v": 0x19, "w": 0x1A, "x": 0x1B,
-        "y": 0x1C, "z": 0x1D,
-        
-        // Numbers
-        "1": 0x1E, "2": 0x1F, "3": 0x20, "4": 0x21, "5": 0x22,
-        "6": 0x23, "7": 0x24, "8": 0x25, "9": 0x26, "0": 0x27,
-        
-        // Special characters
-        "Enter": 0x28, "Escape": 0x29, "Backspace": 0x2A, "Tab": 0x2B,
-        "Space": 0x2C, "-": 0x2D, "=": 0x2E, "[": 0x2F, "]": 0x30,
-        "\\": 0x31, ";": 0x33, "'": 0x34, "`": 0x35, ",": 0x36,
-        ".": 0x37, "/": 0x38, "Caps": 0x39,
-        
-        // Function keys
-        "F1": 0x3A, "F2": 0x3B, "F3": 0x3C, "F4": 0x3D, "F5": 0x3E, "F6": 0x3F,
-        "F7": 0x40, "F8": 0x41, "F9": 0x42, "F10": 0x43, "F11": 0x44, "F12": 0x45,
-        
-        // Additional keys
-        "Delete": 0x4C, "Insert": 0x49, "Home": 0x4A, "End": 0x4D,
-        "PageUp": 0x4B, "PageDown": 0x4E,
-        "PgUp": 0x4B, "PgDn": 0x4E, // Add these aliases
-        
-        // Arrow keys
-        "Right": 0x4F, "Left": 0x50, "Down": 0x51, "Up": 0x52,
-        
-        // Numpad keys
-        "Numpad0": 0x62, "Numpad1": 0x59, "Numpad2": 0x5A, "Numpad3": 0x5B,
-        "Numpad4": 0x5C, "Numpad5": 0x5D, "Numpad6": 0x5E, "Numpad7": 0x5F,
-        "Numpad8": 0x60, "Numpad9": 0x61, "NumpadDot": 0x63, "NumpadSlash": 0x54,
-        "NumpadAsterisk": 0x55, "NumpadMinus": 0x56, "NumpadPlus": 0x57,
-        "NumpadEnter": 0x58, "NumpadEquals": 0x67, "NumLock": 0x53,
-        
-        // Modifier keys (special handling)
-        "Ctrl": 0xE0, "Shift": 0xE1, "Alt": 0xE2, "Cmd": 0xE3, "Win": 0xE3
-    ]
-    
-    // Modifier key bitmasks
-    private let modifierMasks: [String: UInt8] = [
-        "Ctrl": 0x01,   // Left Control
-        "Shift": 0x02,  // Left Shift
-        "Alt": 0x04,    // Left Alt
-        "Cmd": 0x08,    // Left GUI (Command / macOS)
-        "Win": 0x08     // Left GUI (Windows / Linux Super key — same HID bit as Cmd)
-    ]
+    // HID keyboard usage code lookup via OpenterfaceCore
+    private func hidCode(forKey key: String) -> UInt8? {
+        let code = Keymod.hidCode(forKey: key)
+        guard code >= 0 else { return nil }
+        return UInt8(code)
+    }
+
+    // Modifier key bitmasks via KMod
+    private func modifierMask(for key: String) -> UInt8? {
+        switch key {
+        case "Ctrl":  return KMod.ctrl.rawValue
+        case "Shift": return KMod.shift.rawValue
+        case "Alt":   return KMod.alt.rawValue
+        case "Cmd", "Win": return KMod.gui.rawValue
+        default:      return nil
+        }
+    }
     
     // Handle key press events
     func handleKeyPress(_ key: String) {
@@ -101,7 +137,7 @@ class KeyboardManager: ObservableObject {
         hapticManager.triggerButtonPress()
         
         // Handle modifier keys with toggle behavior
-        if modifierMasks.keys.contains(key) {
+        if modifierMask(for: key) != nil {
             handleModifierToggle(key)
             return
         }
@@ -116,9 +152,13 @@ class KeyboardManager: ObservableObject {
         
         // Map common aliases to standard names
         let keyAlias = mapKeyAlias(key)
-        
-        guard let keyCode = keyboardCodes[keyAlias] else {
-            logger.log("Unknown key: \(key)", category: "Keyboard", level: .warning)
+
+        // Apply Fn lock mapping: if Fn is locked and this key maps to an F-key,
+        // send the F-key instead of the letter.
+        let effectiveKey = resolveFnKey(keyAlias) ?? keyAlias
+
+        guard let keyCode = hidCode(forKey: effectiveKey) else {
+            logger.log("Unknown key: \(key) (resolved: \(effectiveKey))", category: "Keyboard", level: .warning)
             return
         }
         
@@ -127,27 +167,27 @@ class KeyboardManager: ObservableObject {
         
         // Apply active modifiers
         for modifier in activeModifiers {
-            if let modifierMask = modifierMasks[modifier] {
+            if let modifierMask = modifierMask(for: modifier) {
                 modifierByte |= modifierMask
             }
         }
-        
+
         // Apply caps lock effect for letters
-        if keyAlias.count == 1 && keyAlias.first!.isLetter {
+        if effectiveKey.count == 1 && effectiveKey.first!.isLetter {
             let shouldBeUppercase = capsLockActive != activeModifiers.contains("Shift")
             if shouldBeUppercase {
-                modifierByte |= modifierMasks["Shift"] ?? 0x00
+                modifierByte |= KMod.shift.rawValue
             }
         }
-        
+
         // Send key press
         sendKeyboardData(modifier: modifierByte, keyCodes: keyCodes)
-        
+
         // Send key release after a short delay (but keep modifiers active)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             var releaseModifierByte: UInt8 = 0x00
             for modifier in self.activeModifiers {
-                if let modifierMask = self.modifierMasks[modifier] {
+                if let modifierMask = self.modifierMask(for: modifier) {
                     releaseModifierByte |= modifierMask
                 }
             }
@@ -165,14 +205,14 @@ class KeyboardManager: ObservableObject {
         DispatchQueue.main.sync {
             logger.log("Key pressed: \(key)", category: "Keyboard")
             hapticManager.triggerButtonPress()
-            if modifierMasks.keys.contains(key) { handleModifierToggle(key); return }
+            if modifierMask(for: key) != nil { handleModifierToggle(key); return }
             if key == "Caps" { capsLockActive.toggle(); sendCapsLockState(); return }
             let keyAlias = mapKeyAlias(key)
-            guard let keyCode = keyboardCodes[keyAlias] else { return }
+            guard let keyCode = hidCode(forKey: keyAlias) else { return }
             var modByte: UInt8 = 0x00
-            for m in activeModifiers { modByte |= modifierMasks[m] ?? 0 }
+            for m in activeModifiers { modByte |= modifierMask(for: m) ?? 0 }
             if keyAlias.count == 1, let ch = keyAlias.first, ch.isLetter {
-                if capsLockActive != activeModifiers.contains("Shift") { modByte |= modifierMasks["Shift"] ?? 0 }
+                if capsLockActive != activeModifiers.contains("Shift") { modByte |= KMod.shift.rawValue }
             }
             sendKeyboardData(modifier: modByte, keyCodes: [keyCode, 0, 0, 0, 0, 0])
         }
@@ -218,9 +258,9 @@ class KeyboardManager: ObservableObject {
     func sendKeyComboSynchronous(modifiers: [String], key: String) {
         DispatchQueue.main.sync {
             logger.log("Key combo: \(modifiers.joined(separator: "+"))+\(key)", category: "Keyboard")
-            guard let keyCode = keyboardCodes[key] else { return }
+            guard let keyCode = hidCode(forKey: key) else { return }
             var modByte: UInt8 = 0x00
-            for m in modifiers { modByte |= modifierMasks[m] ?? 0 }
+            for m in modifiers { modByte |= modifierMask(for: m) ?? 0 }
             sendKeyboardData(modifier: modByte, keyCodes: [keyCode, 0, 0, 0, 0, 0])
         }
         usleep(50_000)
@@ -244,7 +284,7 @@ class KeyboardManager: ObservableObject {
         // Send current modifier state
         var modifierByte: UInt8 = 0x00
         for activeModifier in activeModifiers {
-            if let modifierMask = modifierMasks[activeModifier] {
+            if let modifierMask = modifierMask(for: activeModifier) {
                 modifierByte |= modifierMask
             }
         }
@@ -254,7 +294,7 @@ class KeyboardManager: ObservableObject {
     
     // Send caps lock state
     private func sendCapsLockState() {
-        let capsKeyCode = keyboardCodes["Caps"] ?? 0x39
+        guard let capsKeyCode = hidCode(forKey: "Caps") else { return }
         let keyCodes: [UInt8] = [capsKeyCode, 0x00, 0x00, 0x00, 0x00, 0x00]
         
         sendKeyboardData(modifier: 0x00, keyCodes: keyCodes)
@@ -268,18 +308,18 @@ class KeyboardManager: ObservableObject {
     // Handle key combinations (e.g., Ctrl+C)
     func handleKeyCombo(modifiers: [String], key: String) {
         logger.log("Key combo: \(modifiers.joined(separator: "+"))+\(key)", category: "Keyboard")
-        
-        guard let keyCode = keyboardCodes[key] else {
+
+        guard let keyCode = hidCode(forKey: key) else {
             logger.log("Unknown key: \(key)", category: "Keyboard", level: .warning)
             return
         }
-        
+
         var modifierByte: UInt8 = 0x00
         let keyCodes: [UInt8] = [keyCode, 0x00, 0x00, 0x00, 0x00, 0x00]
-        
+
         // Apply modifiers
         for modifier in modifiers {
-            if let modifierMask = modifierMasks[modifier] {
+            if let modifierMask = modifierMask(for: modifier) {
                 modifierByte |= modifierMask
             }
         }
@@ -302,18 +342,12 @@ class KeyboardManager: ObservableObject {
 
     // Send keyboard data via BLE
     private func sendKeyboardData(modifier: UInt8, keyCodes: [UInt8]) {
-        // HID keyboard report format:
-        // [Report ID, Modifier, Reserved, Key1, Key2, Key3, Key4, Key5, Key6]
-        var dataPacket: [UInt8] = getDataPacketHeader() // Use dynamic header based on mode
-        dataPacket.append(modifier)
-        dataPacket.append(0x00) // Reserved byte
-        dataPacket.append(contentsOf: keyCodes)
-        
-        // Calculate checksum
-        let sum = dataPacket.reduce(0 as UInt32, { $0 + UInt32($1) }) & 0xFF
-        dataPacket.append(UInt8(sum))
-        
-        bleManager.sendTouchData(data: Data(dataPacket))
+        var packet = Keymod.buildKeyboard(modifiers: modifier, keys: keyCodes)
+        // Override header byte 3 for game mode (Core uses 0x02, game mode uses 0x12)
+        if isGameMode {
+            packet[3] = 0x12
+        }
+        bleManager.sendTouchData(data: packet)
     }
     
     // Handle special keys that might need different behavior
@@ -326,6 +360,42 @@ class KeyboardManager: ObservableObject {
         default:
             handleKeyPress(key)
         }
+    }
+
+    // MARK: - Fn Lock & Key Resolution
+
+    /// Resolve the effective key name when Fn lock is active.
+    /// Matches Android CustomKeyboardView.resolveFnMapping(): q→F1, w→F2, ..., a→F11, s→F12.
+    func resolveFnKey(_ key: String) -> String? {
+        guard isFnLocked else { return nil }
+        // Fn lock only applies to letter keys that map to F-keys
+        return fnMapping[key.lowercased()]
+    }
+
+    /// Find the KeyDef for a given label in the portrait letter keys.
+    func findKeyDef(for label: String) -> KeyDef? {
+        for row in portraitLetterKeys {
+            for kd in row {
+                if kd.label == label { return kd }
+            }
+        }
+        return nil
+    }
+
+    /// Check if a key is a modifier or special key that should not show alternates.
+    func isModifierOrSpecialKey(_ label: String) -> Bool {
+        let skipSet = ["Shift", "Ctrl", "Alt", "Cmd", "Win", "Fn", "Space", "Enter", "Backspace", "Caps", "Tab", "Esc", "Escape"]
+        return skipSet.contains(label)
+    }
+
+    /// Check if a key should have a long-press alternates popup.
+    /// Matches Android CustomKeyboardView.shouldEnableAlternates().
+    func shouldShowAlternates(for label: String) -> Bool {
+        guard !isModifierOrSpecialKey(label) else { return false }
+        guard !isFnLocked else { return false }
+        guard label.count == 1 else { return false }
+        // Only single-char letter/number/symbol keys
+        return true
     }
     
     // Handle text input (for typing strings)
@@ -358,14 +428,16 @@ class KeyboardManager: ObservableObject {
                     } else if char == "\t" {
                         self.sendKeyPressAndRelease(key: "Tab")
                     } else {
-                        let needsShift = "!@#$%^&*()_+{}|:\"<>?~".contains(char)
-                        
-                        if needsShift {
-                            let shiftedChar = self.getShiftedCharacter(char)
-                            self.sendKeyPressAndRelease(modifiers: ["Shift"], key: shiftedChar)
+                        let (code, needsShift) = Keymod.hidCode(for: char)
+                        if code >= 0 {
+                            if needsShift {
+                                self.sendKeyPressAndRelease(modifiers: ["Shift"], key: String(char), rawHidCode: UInt8(code))
+                            } else {
+                                self.sendKeyPressAndRelease(key: String(char), rawHidCode: UInt8(code))
+                            }
                         } else {
-                            let key = String(char).uppercased()
-                            self.sendKeyPressAndRelease(key: key)
+                            // Fallback for unmappable chars
+                            self.sendKeyPressAndRelease(key: String(char).uppercased())
                         }
                     }
                 }
@@ -381,30 +453,36 @@ class KeyboardManager: ObservableObject {
     
     /// Send a complete key press and release cycle synchronously.
     /// Internal so that UnicodeManager can use it from a background thread.
-    func sendKeyPressAndRelease(modifiers: [String] = [], key: String) {
-        guard let keyCode = keyboardCodes[key] else {
-            logger.log("Unknown key: \(key)", category: "Keyboard", level: .warning)
-            return
+    /// If `hidCode` is provided, it is used directly instead of looking up `key`.
+    func sendKeyPressAndRelease(modifiers: [String] = [], key: String, rawHidCode: UInt8? = nil) {
+        let keyCode: UInt8
+        if let code = rawHidCode {
+            keyCode = code
+        } else {
+            guard let code = hidCode(forKey: key) else {
+                logger.log("Unknown key: \(key)", category: "Keyboard", level: .warning)
+                return
+            }
+            keyCode = code
         }
-        
+
         logger.log("Key pressed: \(key)", category: "Keyboard")
-        
+
         var modifierByte: UInt8 = 0x00
-        let keyCodes: [UInt8] = [keyCode, 0x00, 0x00, 0x00, 0x00, 0x00]
-        
+
         // Apply modifiers
         for modifier in modifiers {
-            if let modifierMask = modifierMasks[modifier] {
+            if let modifierMask = modifierMask(for: modifier) {
                 modifierByte |= modifierMask
             }
         }
-        
+
         // Send key press
-        sendKeyboardData(modifier: modifierByte, keyCodes: keyCodes)
-        
+        sendKeyboardData(modifier: modifierByte, keyCodes: [keyCode, 0x00, 0x00, 0x00, 0x00, 0x00])
+
         // Wait 100ms for key to be held
         usleep(commitDelayUs)
-        
+
         // Send key release
         sendKeyboardData(modifier: 0x00, keyCodes: [0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
     }
@@ -426,12 +504,15 @@ class KeyboardManager: ObservableObject {
         } else if char == "\t" {
             sendKeyPressAndRelease(key: "Tab")
         } else {
-            let shiftSymbols = "!@#$%^&*()_+{}|:\"<>?~"
-            if shiftSymbols.contains(char) {
-                let baseKey = getShiftedCharacter(char)
-                sendKeyPressAndRelease(modifiers: ["Shift"], key: baseKey)
+            let (code, needsShift) = Keymod.hidCode(for: char)
+            if code >= 0 {
+                if needsShift {
+                    sendKeyPressAndRelease(modifiers: ["Shift"], key: String(char), rawHidCode: UInt8(code))
+                } else {
+                    sendKeyPressAndRelease(key: String(char), rawHidCode: UInt8(code))
+                }
             } else {
-                sendKeyPressAndRelease(key: String(char).uppercased())
+                sendKeyPressAndRelease(key: String(char))
             }
         }
     }
@@ -513,19 +594,6 @@ class KeyboardManager: ObservableObject {
         print("All modifiers cleared")
     }
     
-    // Map shifted characters to their base keys
-    private func getShiftedCharacter(_ char: Character) -> String {
-        let shiftMap: [Character: String] = [
-            "!": "1", "@": "2", "#": "3", "$": "4", "%": "5",
-            "^": "6", "&": "7", "*": "8", "(": "9", ")": "0",
-            "_": "-", "+": "=", "{": "[", "}": "]", "|": "\\",
-            ":": ";", "\"": "'", "<": ",", ">": ".", "?": "/",
-            "~": "`"
-        ]
-        
-        return shiftMap[char] ?? String(char).uppercased()
-    }
-    
     // MARK: - Gamepad Key Control Methods
     
     // Handle key press down (without auto-release) - supports single key
@@ -536,20 +604,20 @@ class KeyboardManager: ObservableObject {
     // Handle multiple keys press down simultaneously (for composite directions)
     func handleKeysDown(_ keys: [String]) {
         logger.log("Keys down: \(keys.joined(separator: ", "))", category: "Keyboard")
-        
+
         var modifierByte: UInt8 = 0x00
-        
+
         // Process each key
         for key in keys {
             // Handle modifier keys with toggle behavior
-            if modifierMasks.keys.contains(key) {
+            if modifierMask(for: key) != nil {
                 if !activeModifiers.contains(key) {
                     activeModifiers.insert(key)
                     logger.log("\(key) pressed", category: "Keyboard")
                 }
                 continue
             }
-            
+
             // Handle Caps Lock
             if key == "Caps" {
                 capsLockActive.toggle()
@@ -557,42 +625,42 @@ class KeyboardManager: ObservableObject {
                 sendCapsLockState()
                 continue
             }
-            
+
             // Map common aliases to standard names
             let keyAlias = mapKeyAlias(key)
-            
-            guard keyboardCodes[keyAlias] != nil else {
+
+            guard hidCode(forKey: keyAlias) != nil else {
                 logger.log("Unknown key: \(key)", category: "Keyboard", level: .warning)
                 continue
             }
-            
+
             // Add to pressed keys set
             pressedKeys.insert(keyAlias)
         }
-        
+
         // Apply active modifiers
         for modifier in activeModifiers {
-            if let modifierMask = modifierMasks[modifier] {
+            if let modifierMask = modifierMask(for: modifier) {
                 modifierByte |= modifierMask
             }
         }
-        
+
         // Apply caps lock effect for letters in the key list
         for key in keys {
             let keyAlias = mapKeyAlias(key)
             if keyAlias.count == 1 && keyAlias.first!.isLetter {
                 let shouldBeUppercase = capsLockActive != activeModifiers.contains("Shift")
                 if shouldBeUppercase {
-                    modifierByte |= modifierMasks["Shift"] ?? 0x00
+                    modifierByte |= KMod.shift.rawValue
                 }
                 break // Only need to apply once
             }
         }
-        
+
         // Build key codes array with ALL currently pressed keys (up to 6 keys can be pressed simultaneously in HID)
         var keyCodesToSend: [UInt8] = []
         for pressedKey in pressedKeys {
-            if let keyCode = keyboardCodes[pressedKey], keyCodesToSend.count < 6 {
+            if let keyCode = hidCode(forKey: pressedKey), keyCodesToSend.count < 6 {
                 keyCodesToSend.append(keyCode)
             }
         }
@@ -614,39 +682,39 @@ class KeyboardManager: ObservableObject {
     // Handle multiple keys release simultaneously
     func handleKeysUp(_ keys: [String]) {
         logger.log("Keys up: \(keys.joined(separator: ", "))", category: "Keyboard")
-        
+
         // Process each key
         for key in keys {
             // Handle modifier keys
-            if modifierMasks.keys.contains(key) {
+            if modifierMask(for: key) != nil {
                 if activeModifiers.contains(key) {
                     activeModifiers.remove(key)
                     logger.log("\(key) released", category: "Keyboard")
                 }
                 continue
             }
-            
+
             // Map common aliases to standard names
             let keyAlias = mapKeyAlias(key)
-            
+
             // Remove from pressed keys set
             pressedKeys.remove(keyAlias)
         }
-        
+
         // Send key release with current state of all remaining pressed keys
         var keyCodesToSend: [UInt8] = []
         var modifierByte: UInt8 = 0x00
-        
+
         // Apply active modifiers
         for modifier in activeModifiers {
-            if let modifierMask = modifierMasks[modifier] {
+            if let modifierMask = modifierMask(for: modifier) {
                 modifierByte |= modifierMask
             }
         }
-        
+
         // Add remaining pressed keys (excluding the ones we're releasing)
         for pressedKey in pressedKeys {
-            if let keyCode = keyboardCodes[pressedKey], keyCodesToSend.count < 6 {
+            if let keyCode = hidCode(forKey: pressedKey), keyCodesToSend.count < 6 {
                 keyCodesToSend.append(keyCode)
             }
         }
@@ -714,7 +782,7 @@ class KeyboardManager: ObservableObject {
             }
         }
 
-        let tokens = tokenizeInput(processedText)
+        let tokens = Keymod.tokenizeScript(processedText)
 
         // Run on a background thread so that non-ASCII characters (sent via
         // UnicodeManager, which blocks with usleep()) and ASCII characters are
@@ -761,14 +829,12 @@ class KeyboardManager: ObservableObject {
                 }
                 // Handle special tokens (arrow keys, Enter, Esc, etc.)
                 // Use synchronous send so the release is guaranteed before the next token.
-                else if self.isSpecialToken(token) {
-                    let key = self.specialTokenToKeyName(token)
-                    if !key.isEmpty {
-                        if activeModifiers.isEmpty {
-                            self.sendKeyPressSynchronous(key)
-                        } else {
-                            self.sendKeyComboSynchronous(modifiers: activeModifiers, key: key)
-                        }
+                else if let hidCode = self.specialTokenHidCode(token) {
+                    if activeModifiers.isEmpty {
+                        self.sendKeyPressAndRelease(key: Keymod.label(for: Int32(hidCode)))
+                    } else {
+                        let keyName = Keymod.label(for: Int32(hidCode))
+                        self.sendKeyComboSynchronous(modifiers: activeModifiers, key: keyName)
                     }
                 }
                 // Regular text
@@ -807,7 +873,8 @@ class KeyboardManager: ObservableObject {
                 // Inter-token gap. Skip for delay tokens (already slept) and
                 // multi-char tokens (per-char gap applied above).
                 let isDelayToken = token == "<DELAY1S>" || token == "<DELAY2S>" || token == "<DELAY5S>" || token == "<DELAY10S>"
-                if !isDelayToken && (token.count <= 1 || self.isSpecialToken(token)) {
+                let isSpecial = token.hasPrefix("<") && token.hasSuffix(">") && !token.hasPrefix("</")
+                if !isDelayToken && (token.count <= 1 || isSpecial) {
                     usleep(self.keyDelayUs)
                 }
             }
@@ -823,167 +890,12 @@ class KeyboardManager: ObservableObject {
         }
     }
     
-    /// Tokenize input string to separate special tokens from regular text
-    private func tokenizeInput(_ text: String) -> [String] {
-        // [A-Z0-9]+ covers mixed tokens like DELAY1S, DELAY10S, MLABEL0, F12 etc.
-        let pattern = "</?[A-Z0-9]+>|."
-        let regex = try? NSRegularExpression(pattern: pattern)
-        let nsText = text as NSString
-        var result: [String] = []
-        
-        if let regex = regex {
-            let matches = regex.matches(in: text, range: NSRange(location: 0, length: nsText.length))
-            for match in matches {
-                let token = nsText.substring(with: match.range)
-                result.append(token)
-            }
-        } else {
-            result = text.map { String($0) }
-        }
-        
-        return result
-    }
-    
-    /// Map a special token like "<LEFT>" to a key name like "Left" for use with
-    /// sendKeyPressSynchronous / sendKeyComboSynchronous.
-    /// Returns an empty string for tokens that are not recognised.
-    func specialTokenToKeyName(_ token: String) -> String {
-        let content = String(token.dropFirst().dropLast()).uppercased()
-        switch content {
-        case "ENTER":     return "Enter"
-        case "ESC":       return "Escape"
-        case "BACK":      return "Backspace"
-        case "TAB":       return "Tab"
-        case "SPACE":     return "Space"
-        case "LEFT":      return "Left"
-        case "RIGHT":     return "Right"
-        case "UP":        return "Up"
-        case "DOWN":      return "Down"
-        case "HOME":      return "Home"
-        case "END":       return "End"
-        case "PAGEUP", "PGUP":  return "PageUp"
-        case "PAGEDOWN", "PGDN": return "PageDown"
-        case "INSERT":    return "Insert"
-        case "DELETE":    return "Delete"
-        case "F1":  return "F1";  case "F2":  return "F2";  case "F3":  return "F3"
-        case "F4":  return "F4";  case "F5":  return "F5";  case "F6":  return "F6"
-        case "F7":  return "F7";  case "F8":  return "F8";  case "F9":  return "F9"
-        case "F10": return "F10"; case "F11": return "F11"; case "F12": return "F12"
-        default:          return ""
-        }
-    }
-
     /// Check if a token is a special token (e.g., <CTRL>, <SHIFT>, etc.)
-    private func isSpecialToken(_ token: String) -> Bool {
-        return token.hasPrefix("<") && token.hasSuffix(">") && !token.hasPrefix("</")
-    }
-    
-    /// Handle special tokens with optional active modifiers
-    private func handleSpecialTokenWithModifiers(_ token: String, modifiers: [String]) {
-        let content = String(token.dropFirst().dropLast()).uppercased()  // Remove < > and uppercase
-        
-        switch content {
-        case "ENTER":
-            if modifiers.isEmpty {
-                handleKeyPress("Enter")
-            } else {
-                handleKeyCombo(modifiers: modifiers, key: "Enter")
-            }
-        case "ESC":
-            if modifiers.isEmpty {
-                handleKeyPress("Escape")
-            } else {
-                handleKeyCombo(modifiers: modifiers, key: "Escape")
-            }
-        case "BACK":
-            if modifiers.isEmpty {
-                handleKeyPress("Backspace")
-            } else {
-                handleKeyCombo(modifiers: modifiers, key: "Backspace")
-            }
-        case "TAB":
-            if modifiers.isEmpty {
-                handleKeyPress("Tab")
-            } else {
-                handleKeyCombo(modifiers: modifiers, key: "Tab")
-            }
-        case "SPACE":
-            if modifiers.isEmpty {
-                handleKeyPress("Space")
-            } else {
-                handleKeyCombo(modifiers: modifiers, key: "Space")
-            }
-        case "LEFT":
-            if modifiers.isEmpty {
-                handleKeyPress("Left")
-            } else {
-                handleKeyCombo(modifiers: modifiers, key: "Left")
-            }
-        case "RIGHT":
-            if modifiers.isEmpty {
-                handleKeyPress("Right")
-            } else {
-                handleKeyCombo(modifiers: modifiers, key: "Right")
-            }
-        case "UP":
-            if modifiers.isEmpty {
-                handleKeyPress("Up")
-            } else {
-                handleKeyCombo(modifiers: modifiers, key: "Up")
-            }
-        case "DOWN":
-            if modifiers.isEmpty {
-                handleKeyPress("Down")
-            } else {
-                handleKeyCombo(modifiers: modifiers, key: "Down")
-            }
-        case "HOME":
-            if modifiers.isEmpty {
-                handleKeyPress("Home")
-            } else {
-                handleKeyCombo(modifiers: modifiers, key: "Home")
-            }
-        case "END":
-            if modifiers.isEmpty {
-                handleKeyPress("End")
-            } else {
-                handleKeyCombo(modifiers: modifiers, key: "End")
-            }
-        case "DELETE", "DEL":
-            if modifiers.isEmpty {
-                handleKeyPress("Delete")
-            } else {
-                handleKeyCombo(modifiers: modifiers, key: "Delete")
-            }
-        case "PAGEUP", "PGUP":
-            if modifiers.isEmpty {
-                handleKeyPress("PageUp")
-            } else {
-                handleKeyCombo(modifiers: modifiers, key: "PageUp")
-            }
-        case "PAGEDOWN", "PGDN":
-            if modifiers.isEmpty {
-                handleKeyPress("PageDown")
-            } else {
-                handleKeyCombo(modifiers: modifiers, key: "PageDown")
-            }
-        default:
-            // Handle function keys F1-F12
-            if content.hasPrefix("F") && content.dropFirst().allSatisfy({ $0.isNumber }) {
-                if modifiers.isEmpty {
-                    handleKeyPress(content)
-                } else {
-                    handleKeyCombo(modifiers: modifiers, key: content)
-                }
-            } else {
-                logger.log("⚠️ Unknown special token: \(token)", category: "Keyboard", level: .warning)
-            }
-        }
-    }
-    
-    /// Handle special tokens like <CTRL>, <SHIFT>, <ALT>, <CMD>, <F1>-<F12>, <ENTER>, etc.
-    private func handleSpecialToken(_ token: String) {
-        handleSpecialTokenWithModifiers(token, modifiers: [])
+    /// and get its HID code via Core. Returns nil if not a special token or unmappable.
+    private func specialTokenHidCode(_ token: String) -> UInt8? {
+        let result = Keymod.parseToken(token)
+        guard result.hidCode >= 0 else { return nil }
+        return UInt8(result.hidCode)
     }
     
     // MARK: - Mode Management

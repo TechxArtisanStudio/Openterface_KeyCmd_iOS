@@ -59,10 +59,14 @@ class ViewManager: ObservableObject {
     }
     
     private func loadLastView() {
+        // TEMP: Force keyboardMouse for testing
+        currentView = .keyboardMouse
+        /*
         if let savedViewRawValue = userDefaults.string(forKey: lastViewKey),
            let savedView = ViewType.fromStoredRawValue(savedViewRawValue) {
             currentView = savedView
         }
+        */
     }
     
     private func saveCurrentView() {

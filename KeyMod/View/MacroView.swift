@@ -422,31 +422,7 @@ struct TokenizedMacroView: View {
     }
     // Tokenize macro string into text and special tokens, including spaces and delay tokens as separate tokens
     func tokenize(_ str: String) -> [String] {
-        let pattern = "</?([A-Z0-9]+S?)>| " // Match special tokens (opening and closing), delay tokens, or spaces
-        let regex = try? NSRegularExpression(pattern: pattern)
-        let nsStr = str as NSString
-        var lastIndex = 0
-        var result: [String] = []
-        if let regex = regex {
-            let matches = regex.matches(in: str, range: NSRange(location: 0, length: nsStr.length))
-            for match in matches {
-                let range = match.range
-                if range.location > lastIndex {
-                    let text = nsStr.substring(with: NSRange(location: lastIndex, length: range.location - lastIndex))
-                    result.append(contentsOf: text.map { String($0) })
-                }
-                let token = nsStr.substring(with: range)
-                result.append(token)
-                lastIndex = range.location + range.length
-            }
-            if lastIndex < nsStr.length {
-                let text = nsStr.substring(from: lastIndex)
-                result.append(contentsOf: text.map { String($0) })
-            }
-        } else {
-            result = str.map { String($0) }
-        }
-        return result
+        Keymod.tokenizeScript(str)
     }
     // Remove token at index
     func removeToken(_ token: String, at idx: Int) {
