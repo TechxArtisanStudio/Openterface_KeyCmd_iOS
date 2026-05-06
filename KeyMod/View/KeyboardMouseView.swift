@@ -390,7 +390,7 @@ struct KeyboardMouseView: View {
                                                                         Text(getDisplayValue(for: key))
                                                                             .font(.system(size: 12))
                                                                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                                                            .background(.white)
+                                                                            .background(Self.regularKeyBg)
                                                                             .cornerRadius(9)
                                                                             .foregroundColor(.primary)
                                                                     }
@@ -678,12 +678,14 @@ struct KeyboardMouseView: View {
         return functionLabels.contains(kd.label) || keyboardManager.isSymbolMode && ["ABC", "12/34", "!?#"].contains(kd.label)
     }
 
-    private static let functionKeyBg = Color(red: 0.914, green: 0.914, blue: 0.925) // #FFE9E9EC
+    /// System-adaptive backgrounds for keys (auto light/dark).
+    private static let functionKeyBg = Color(UIColor.secondarySystemBackground)
+    private static let regularKeyBg = Color(UIColor.systemBackground)
 
     private func keyBackground(for kd: KeyboardManager.KeyDef, pressed: Bool, active: Bool) -> Color {
         if pressed || active { return .blue }
         if isFunctionKey(kd) { return Self.functionKeyBg }
-        return .white // #FFFFFFFF
+        return Self.regularKeyBg
     }
 
     @ViewBuilder
