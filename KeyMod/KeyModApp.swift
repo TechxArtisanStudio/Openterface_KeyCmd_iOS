@@ -21,6 +21,7 @@ public class AppDelegate: NSObject, UIApplicationDelegate {
 struct KeyModApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var launchPanelManager = LaunchPanelManager()
+    @StateObject private var themeManager = ThemeManager.shared
     
     init() {
         // No forced orientation on startup - let the app start in current device orientation
@@ -39,6 +40,7 @@ struct KeyModApp: App {
                 }
             }
             .ignoresSafeArea()
+            .tint(themeManager.accentColor)
         }
     }
 }

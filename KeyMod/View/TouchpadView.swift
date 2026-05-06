@@ -55,6 +55,14 @@ class TouchpadUIView: UIView {
     private var pendingTapLocation: CGPoint?
     private var tapStartTime: Date?
     private var twoFingerScrollPrevious: CGPoint?
+
+    // Double-tap suppression (matches Android suppressSingleTapFromDoubleTap)
+    private var suppressSingleTapFromDoubleTap = false
+
+    // Fractional scroll accumulation (matches Android twoFingerScrollAccumX/Y)
+    private var scrollAccumX: Float = 0
+    private var scrollAccumY: Float = 0
+
     private let hapticManager = HapticFeedbackManager.shared
 
     // Pointer tip indicator layers
@@ -193,6 +201,7 @@ class TouchpadUIView: UIView {
     @objc private func handleDoubleTap() {
         print("Double tap detected - performing double click")
         cancelPendingTap() // Cancel any pending single tap
+        suppressSingleTapFromDoubleTap = true // Prevent stray single-tap after double-tap
         mouseManager?.handleDoubleClick()
     }
 
@@ -220,6 +229,7 @@ class TouchpadUIView: UIView {
             pointerTipState?.pointerPosition = nil
             pointerTipState?.isDragging = false
             mouseManager?.handleDragEnded()
+            sendTouchRelease()
         default:
             break
         }
@@ -233,30 +243,55 @@ class TouchpadUIView: UIView {
             print("🖱️ Two-finger scroll began")
             cancelPendingTap() // Cancel any pending tap when scroll starts
             twoFingerScrollPrevious = location
+            scrollAccumX = 0
+            scrollAccumY = 0
         case .changed:
             guard let previousLocation = twoFingerScrollPrevious else { return }
 
             let deltaX = location.x - previousLocation.x
             let deltaY = location.y - previousLocation.y
 
-            // Apply configurable scroll sensitivity (default 1.0x, range 0.2x-2.0x)
-            let sensitivity = touchpadSettings?.scrollSensitivity ?? 1.0
-            let scrollDeltaX = Int(deltaX / 3.0 * sensitivity)
-            let scrollDeltaY = Int(-deltaY / 3.0 * sensitivity)
+            // Apply configurable scroll sensitivity and accumulate fractional values
+            // Matches Android TouchPadView: accum += (delta / 3) * sensitivity
+            let sensitivity = Float(touchpadSettings?.scrollSensitivity ?? 1.0)
+            scrollAccumX += Float(deltaX / 3.0) * sensitivity
+            scrollAccumY += Float(-deltaY / 3.0) * sensitivity
+
+            // Extract integer portions
+            let scrollX = Int(scrollAccumX)
+            let scrollY = Int(scrollAccumY)
+
+            // Subtract flushed portions from accumulators
+            if scrollX != 0 {
+                scrollAccumX -= Float(scrollX)
+            }
+            if scrollY != 0 {
+                scrollAccumY -= Float(scrollY)
+            }
 
             // Only send scroll if there's meaningful movement
-            if abs(scrollDeltaX) > 0 || abs(scrollDeltaY) > 0 {
-                print("🖱️ Two-finger scroll - deltaX: \(scrollDeltaX), deltaY: \(scrollDeltaY)")
-                mouseManager?.handleScroll(deltaX: scrollDeltaX, deltaY: scrollDeltaY)
+            if scrollX != 0 || scrollY != 0 {
+                print("🖱️ Two-finger scroll - deltaX: \(scrollX), deltaY: \(scrollY)")
+                mouseManager?.handleScroll(deltaX: scrollX, deltaY: scrollY)
             }
 
             twoFingerScrollPrevious = location
         case .ended, .cancelled:
             print("🖱️ Two-finger scroll ended")
             twoFingerScrollPrevious = nil
+            scrollAccumX = 0
+            scrollAccumY = 0
         default:
             break
         }
+    }
+
+    /// Send a touch-release event to reset mouse button state on the host.
+    /// Matches Android's listener.onTouchRelease() on ACTION_UP/ACTION_CANCEL.
+    private func sendTouchRelease() {
+        // Send all-zeros mouse report to release any held buttons
+        let packet = Keymod.buildMouseRel(buttons: 0x00, dx: 0, dy: 0, wheel: 0)
+        mouseManager?.bleManager.sendTouchData(data: packet)
     }
 
     // Override touch methods for better tap detection
@@ -315,6 +350,7 @@ class TouchpadUIView: UIView {
               let startTime = tapStartTime,
               let tapLocation = pendingTapLocation else {
             print("❌ touchesEnded - missing required data (touch/startTime/tapLocation)")
+            sendTouchRelease()
             return
         }
 
@@ -326,7 +362,7 @@ class TouchpadUIView: UIView {
         // Check if it's a valid single tap
         if touches.count == 1 &&
            event?.allTouches?.count == 1 &&
-           tapDuration < tapDurationThreshold { // Increased to allow slightly slower taps
+           tapDuration < tapDurationThreshold {
 
             let distance = sqrt(pow(currentLocation.x - tapLocation.x, 2) +
                               pow(currentLocation.y - tapLocation.y, 2))
@@ -347,6 +383,7 @@ class TouchpadUIView: UIView {
         // Clean up
         tapStartTime = nil
         pendingTapLocation = nil
+        sendTouchRelease()
         print("🧹 touchesEnded - cleaned up tap tracking variables")
     }
 
@@ -356,6 +393,7 @@ class TouchpadUIView: UIView {
         cancelPendingTap()
         tapStartTime = nil
         pendingTapLocation = nil
+        sendTouchRelease()
     }
 
     private func schedulePendingTap() {
@@ -367,7 +405,14 @@ class TouchpadUIView: UIView {
         // Schedule a delayed tap to check if a drag gesture follows
         tapTimer = Timer.scheduledTimer(withTimeInterval: tapDelayThreshold, repeats: false) { [weak self] _ in
             print("⏰ Timer fired - executing pending tap")
-            self?.executePendingTap()
+            guard let self = self else { return }
+            // Check double-tap suppression (matches Android suppressSingleTapFromDoubleTap)
+            if self.suppressSingleTapFromDoubleTap {
+                self.suppressSingleTapFromDoubleTap = false
+                print("🚫 Pending tap suppressed due to double-tap")
+            } else {
+                self.executePendingTap()
+            }
         }
     }
 

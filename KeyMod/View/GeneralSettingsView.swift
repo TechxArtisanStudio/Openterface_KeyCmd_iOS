@@ -12,8 +12,54 @@ struct GeneralSettingsView: View {
     @StateObject private var hapticManager = HapticFeedbackManager.shared
     @AppStorage("clipboardMonitoringEnabled") private var clipboardMonitoringEnabled = true
     @ObservedObject private var aiSettings = AISettings.shared
+    @ObservedObject private var themeManager = ThemeManager.shared
 
     var body: some View {
+        // MARK: - Theme (matches Android ThemeManager)
+        Section(header: Text("Appearance")) {
+            Picker("Color Family", selection: $themeManager.colorFamily) {
+                ForEach(ThemeManager.ColorFamily.allCases) { family in
+                    HStack {
+                        Circle()
+                            .fill(family.accentColor)
+                            .frame(width: 12, height: 12)
+                        Text(family.displayName)
+                    }
+                    .tag(family)
+                }
+            }
+            Toggle("Follow System Appearance", isOn: $themeManager.followSystem)
+                .onChange(of: themeManager.followSystem) { _ in
+                    themeManager.updateAppearance()
+                }
+            if !themeManager.followSystem {
+                Picker("Theme Mode", selection: $themeManager.modeOverride) {
+                    ForEach(ThemeManager.ThemeMode.allCases, id: \.self) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
+                }
+                .onChange(of: themeManager.modeOverride) { _ in
+                    themeManager.updateAppearance()
+                }
+            }
+            // Preview swatches
+            HStack(spacing: 8) {
+                ForEach(ThemeManager.ColorFamily.allCases) { family in
+                    Circle()
+                        .fill(family.accentColor)
+                        .frame(width: 24, height: 24)
+                        .overlay(
+                            Circle()
+                                .stroke(Color.primary.opacity(0.2), lineWidth: family == themeManager.colorFamily ? 2 : 0)
+                        )
+                        .onTapGesture {
+                            withAnimation { themeManager.colorFamily = family }
+                        }
+                }
+            }
+            .padding(.vertical, 4)
+        }
+
         Section(header: Text("Target System")) {
             HStack {
                 Label("Target OS", systemImage: aiSettings.targetOS.systemImage)

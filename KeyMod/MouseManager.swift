@@ -5,6 +5,7 @@ class MouseManager: ObservableObject {
     var bleManager: BLEManager
     @Published var previousPosition: CGPoint? = nil
     @Published var isSelectMode: Bool = false
+    @ObservedObject private var touchpadSettings = TouchpadSettings.shared
     private let hapticManager = HapticFeedbackManager.shared
 
     init(bleManager: BLEManager) {
@@ -85,6 +86,20 @@ class MouseManager: ObservableObject {
         }
     }
 
+    /// Middle click (button=0x04). Matches Android MouseRelHidTransport.sendMiddleClick().
+    func handleMiddleClick() {
+        print("Performing middle click action")
+        hapticManager.triggerButtonPress()
+
+        let press = Keymod.buildMouseRel(buttons: 0x04, dx: 0, dy: 0, wheel: 0)
+        bleManager.sendTouchData(data: press)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            let release = Keymod.buildMouseRel(buttons: 0x00, dx: 0, dy: 0, wheel: 0)
+            self.bleManager.sendTouchData(data: release)
+        }
+    }
+
     // MARK: - Drag mode toggle
 
     func handleDragModeToggle() {
@@ -97,19 +112,24 @@ class MouseManager: ObservableObject {
 
     // MARK: - Scroll
 
+    /// Send scroll with pre-computed integer deltas.
+    /// TouchpadView handles fractional accumulation and sensitivity.
+    /// Vertical scroll uses wheel byte; horizontal scroll uses dx byte (separate packets).
+    /// Matches Android sendScroll: vertical packet has wheel in byte 4, horizontal has dx in byte 2.
     func handleScroll(deltaX: Int, deltaY: Int) {
-        print("Performing scroll action - deltaX: \(deltaX), deltaY: \(deltaY)")
-        let scrollSensitivity = 3
-        let boundedDeltaY = Int8(max(-127, min(127, deltaY * scrollSensitivity)))
-        let boundedDeltaX = Int8(max(-127, min(127, deltaX * scrollSensitivity)))
+        guard deltaX != 0 || deltaY != 0 else { return }
 
-        // Vertical scroll
-        let vPacket = Keymod.buildMouseRel(buttons: 0x00, dx: 0, dy: 0, wheel: boundedDeltaY)
-        bleManager.sendTouchData(data: vPacket)
+        // Vertical scroll (wheel byte)
+        if deltaY != 0 {
+            let boundedY = Int8(max(-127, min(127, deltaY)))
+            let vPacket = Keymod.buildMouseRel(buttons: 0x00, dx: 0, dy: 0, wheel: boundedY)
+            bleManager.sendTouchData(data: vPacket)
+        }
 
-        // Horizontal scroll (separate packet if supported)
-        if boundedDeltaX != 0 {
-            let hPacket = Keymod.buildMouseRel(buttons: 0x00, dx: 0, dy: Int8(boundedDeltaX), wheel: 0)
+        // Horizontal scroll (dx byte)
+        if deltaX != 0 {
+            let boundedX = Int8(max(-127, min(127, deltaX)))
+            let hPacket = Keymod.buildMouseRel(buttons: 0x00, dx: boundedX, dy: 0, wheel: 0)
             bleManager.sendTouchData(data: hPacket)
         }
     }
