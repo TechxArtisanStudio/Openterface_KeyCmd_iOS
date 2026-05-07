@@ -435,6 +435,8 @@ struct ContentView: View {
                     mouseManager: mouseManager,
                     keyboardManager: keyboardManager
                 )
+                .id(viewManager.currentView)
+                .onAppear { print("🟢 [ContentView] BasicKeyboardMouseView appeared") }
             case .keyboardMousePro:
                 ProKeyboardMouseView(
                     mouseManager: mouseManager,
@@ -442,16 +444,30 @@ struct ContentView: View {
                     compositeKeyManager: keyboardManager.compositeKeyManager,
                     orientationManager: orientationManager
                 )
+                .id(viewManager.currentView)
             case .gamepad:
                 GamepadView(
-                    orientationManager: orientationManager, 
+                    orientationManager: orientationManager,
                     keyboardManager: keyboardManager,
                     mouseManager: mouseManager,
                     selectedLayout: selectedGamepadLayout,
                     isEditMode: isGamepadEditMode
                 )
+                .id(viewManager.currentView)
             case .numpad:
                 NumPadView(keyboardManager: keyboardManager)
+                    .id(viewManager.currentView)
+            case .shortcutHub:
+                ShortcutHubView(keyboardManager: keyboardManager)
+                    .id(viewManager.currentView)
+            case .macros:
+                MacroView(keyboardManager: keyboardManager)
+                    .id(viewManager.currentView)
+            case .voiceInput:
+                VoiceInputView(keyboardManager: keyboardManager)
+                    .id(viewManager.currentView)
+            }
+        }
         .onAppear {
             print("🎮 MainContent view type: \(viewManager.currentView.rawValue)")
             print("   Frame: maxWidth=.infinity, maxHeight=.infinity")
@@ -459,12 +475,6 @@ struct ContentView: View {
         .onChange(of: viewManager.currentView) { newView in
             print("🔄 View switched to: \(newView.rawValue)")
         }
-            case .shortcutHub:
-                ShortcutHubView(keyboardManager: keyboardManager)
-            case .macros:
-                MacroView(keyboardManager: keyboardManager)
-            case .voiceInput:
-                VoiceInputView(keyboardManager: keyboardManager)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

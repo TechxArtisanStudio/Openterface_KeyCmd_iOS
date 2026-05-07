@@ -47,6 +47,15 @@ struct BasicKeyboardMouseView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .onAppear {
+                print("🔵 [BasicKeyboardMouseView] Appeared — size: \(geometry.size.width) x \(geometry.size.height), submode: \(selectedSubmode.rawValue)")
+            }
+            .onChange(of: selectedSubmode) { new in
+                print("🔵 [BasicKeyboardMouseView] Submode changed to: \(new.rawValue)")
+            }
+            .onChange(of: geometry.size) { newSize in
+                print("🔵 [BasicKeyboardMouseView] Geometry changed: \(newSize.width) x \(newSize.height)")
+            }
         }
     }
 
