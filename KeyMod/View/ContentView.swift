@@ -55,26 +55,48 @@ struct ContentView: View {
     }
     
     private var sidebarHeader: some View {
-        HStack(spacing: 8) {
-            Button(action: {
-                withAnimation {
-                    sidebarVisible.toggle()
-                }
-            }) {
-                Image(systemName: "ellipsis")
-                    .rotationEffect(.degrees(90))
-                    .font(.title2)
-                    .foregroundColor(.primary)
-            }
-            .buttonStyle(PlainButtonStyle())
-            Text("KeyMod")
-                .font(.headline)
-                .foregroundColor(.primary)
-                .onTapGesture {
+        VStack(spacing: 4) {
+            HStack(spacing: 8) {
+                Button(action: {
                     withAnimation {
                         sidebarVisible.toggle()
                     }
+                }) {
+                    Image(systemName: "ellipsis")
+                        .rotationEffect(.degrees(90))
+                        .font(.title2)
+                        .foregroundColor(.primary)
                 }
+                .buttonStyle(PlainButtonStyle())
+                Text("KeyMod")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                    .onTapGesture {
+                        withAnimation {
+                            sidebarVisible.toggle()
+                        }
+                    }
+            }
+            // Mode indicator badge
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(viewManager.currentMode == .basic ? Color.green : Color.purple)
+                    .frame(width: 8, height: 8)
+                Text(viewManager.currentMode.rawValue)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(viewManager.currentMode == .basic ? .green : .purple)
+                    .textCase(.uppercase)
+                Spacer()
+                // Mode switch button
+                Button(action: {
+                    viewManager.switchToMode(viewManager.currentMode == .basic ? .pro : .basic)
+                }) {
+                    Image(systemName: "arrow.left.arrow.right")
+                        .font(.system(size: 12))
+                        .foregroundColor(.blue)
+                }
+            }
+            .padding(.leading, 16)
         }
         .padding(.vertical, 12)
         .padding(.leading, 16)
@@ -138,6 +160,7 @@ struct ContentView: View {
             }
             .buttonStyle(PlainButtonStyle())
         }
+        .id(viewManager.currentMode) // Force re-render when mode changes
     }
     
     // MARK: - Main Content View
