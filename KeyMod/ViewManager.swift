@@ -7,17 +7,36 @@
 
 import SwiftUI
 
+/// Matches Android's Basic vs Pro mode distinction
+enum ViewMode: String, CaseIterable, Identifiable {
+    case basic = "Basic"
+    case pro = "Pro"
+
+    var id: String { rawValue }
+
+    /// Sub-navigation views for each mode
+    var views: [ViewType] {
+        switch self {
+        case .basic:
+            return [.keyboardMouseBasic, .gamepad, .numpad, .macros, .voiceInput]
+        case .pro:
+            return [.keyboardMousePro, .gamepad, .numpad, .shortcutHub, .macros, .voiceInput]
+        }
+    }
+}
+
 enum ViewType: String, CaseIterable {
-    case keyboardMouse = "Keyboard & Mouse"
+    case keyboardMouseBasic = "Keyboard & Mouse"
+    case keyboardMousePro = "Keyboard & Mouse Pro"
     case gamepad = "Gamepad"
     case numpad = "Numpad"
     case shortcutHub = "Shortcuts"
     case macros = "Macros"
     case voiceInput = "Voice Input"
-    
+
     var iconName: String {
         switch self {
-        case .keyboardMouse:
+        case .keyboardMouseBasic, .keyboardMousePro:
             return "keyboard"
         case .gamepad:
             return "gamecontroller"
@@ -29,6 +48,15 @@ enum ViewType: String, CaseIterable {
             return "square.and.pencil"
         case .voiceInput:
             return "mic.circle"
+        }
+    }
+
+    var mode: ViewMode {
+        switch self {
+        case .keyboardMouseBasic, .gamepad, .numpad, .macros, .voiceInput:
+            return .basic
+        case .keyboardMousePro, .shortcutHub:
+            return .pro
         }
     }
 
@@ -47,20 +75,36 @@ enum ViewType: String, CaseIterable {
 }
 
 class ViewManager: ObservableObject {
-    @Published var currentView: ViewType = .keyboardMouse
+    @Published var currentView: ViewType = .keyboardMouseBasic
+    @Published var currentMode: ViewMode = .basic {
+        didSet {
+            UserDefaults.standard.set(currentMode.rawValue, forKey: "viewMode")
+            // When mode changes, switch to the first view in that mode
+            if let firstView = currentMode.views.first {
+                currentView = firstView
+            }
+        }
+    }
     var onViewChange: ((ViewType) -> Void)?
     var keyboardManager: KeyboardManager?
-    
+
     private let userDefaults = UserDefaults.standard
     private let lastViewKey = "LastSelectedView"
-    
+    private let modeKey = "viewMode"
+
     init() {
         loadLastView()
     }
-    
+
     private func loadLastView() {
-        // TEMP: Force keyboardMouse for testing
-        currentView = .keyboardMouse
+        // Load saved mode
+        if let savedModeRaw = userDefaults.string(forKey: modeKey),
+           let savedMode = ViewMode(rawValue: savedModeRaw) {
+            currentMode = savedMode
+        }
+
+        // Load saved view
+        currentView = .keyboardMouseBasic
         /*
         if let savedViewRawValue = userDefaults.string(forKey: lastViewKey),
            let savedView = ViewType.fromStoredRawValue(savedViewRawValue) {
@@ -68,15 +112,18 @@ class ViewManager: ObservableObject {
         }
         */
     }
-    
+
     private func saveCurrentView() {
         userDefaults.set(currentView.rawValue, forKey: lastViewKey)
     }
-    
+
     func switchToView(_ viewType: ViewType) {
+        // Update mode to match the view
+        currentMode = viewType.mode
+
         currentView = viewType
         saveCurrentView()
-        
+
         // Automatically switch keyboard mode based on view
         if let keyboardManager = keyboardManager {
             if viewType == .gamepad {
@@ -85,10 +132,22 @@ class ViewManager: ObservableObject {
                 keyboardManager.switchToNormalMode()
             }
         }
-        
+
         onViewChange?(viewType)
     }
-    
+
+    func switchToMode(_ mode: ViewMode) {
+        if currentMode == mode { return }
+        currentMode = mode
+        // Switch to the keyboard view of the new mode
+        switch mode {
+        case .basic:
+            switchToView(.keyboardMouseBasic)
+        case .pro:
+            switchToView(.keyboardMousePro)
+        }
+    }
+
     func setKeyboardManager(_ keyboardManager: KeyboardManager) {
         self.keyboardManager = keyboardManager
     }

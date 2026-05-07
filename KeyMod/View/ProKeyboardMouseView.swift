@@ -1,14 +1,15 @@
 //
-//  KeyboardMouseView.swift
+//  ProKeyboardMouseView.swift
 //  KeyMod
 //
 //  Created by System on 2025/6/21.
+//  Renamed to align with Android's KM Pro view.
 //
 
 import SwiftUI
 import UIKit
 
-struct KeyboardMouseView: View {
+struct ProKeyboardMouseView: View {
     // Function keys row (F1-F12)
     let functionKeys = ["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"]
 

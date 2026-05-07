@@ -9,7 +9,7 @@ import SwiftUI
 
 class LaunchPanelManager: ObservableObject {
     @Published var showLaunchPanel = false
-    @Published var selectedMode: ViewType = .keyboardMouse
+    @Published var selectedMode: ViewType = .keyboardMouseBasic
     
     private let userDefaults = UserDefaults.standard
     private let hasSeenLaunchPanelKey = "HasSeenLaunchPanel"

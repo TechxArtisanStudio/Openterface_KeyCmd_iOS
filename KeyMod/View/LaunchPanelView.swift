@@ -9,7 +9,7 @@ import SwiftUI
 
 struct LaunchPanelView: View {
     @ObservedObject var launchPanelManager: LaunchPanelManager
-    @State private var selectedMode: ViewType = .keyboardMouse
+    @State private var selectedMode: ViewType = .keyboardMouseBasic
     @State private var rememberChoice = true
     
     var body: some View {
@@ -36,50 +36,62 @@ struct LaunchPanelView: View {
                         ModeCard(
                             title: "Keyboard & Mouse",
                             icon: "keyboard",
-                            isSelected: selectedMode == .keyboardMouse,
-                            action: { selectedMode = .keyboardMouse }
+                            isSelected: selectedMode == .keyboardMouseBasic,
+                            action: { selectedMode = .keyboardMouseBasic }
                         )
-                        
+
+                        ModeCard(
+                            title: "Keyboard & Mouse Pro",
+                            icon: "keyboard.badge.ellipsis",
+                            isSelected: selectedMode == .keyboardMousePro,
+                            action: { selectedMode = .keyboardMousePro }
+                        )
+                    }
+
+                    // Second row
+                    HStack(spacing: 12) {
                         ModeCard(
                             title: "Gamepad",
                             icon: "gamecontroller",
                             isSelected: selectedMode == .gamepad,
                             action: { selectedMode = .gamepad }
                         )
-                    }
-                    
-                    // Second row
-                    HStack(spacing: 12) {
+
                         ModeCard(
                             title: "Numpad",
                             icon: "grid.circle",
                             isSelected: selectedMode == .numpad,
                             action: { selectedMode = .numpad }
                         )
-                        
+                    }
+
+                    // Third row
+                    HStack(spacing: 12) {
                         ModeCard(
                             title: "Shortcuts",
                             icon: "square.grid.2x2",
                             isSelected: selectedMode == .shortcutHub,
                             action: { selectedMode = .shortcutHub }
                         )
-                    }
-                    
-                    // Third row
-                    HStack(spacing: 12) {
+
                         ModeCard(
                             title: "Macros",
                             icon: "square.and.pencil",
                             isSelected: selectedMode == .macros,
                             action: { selectedMode = .macros }
                         )
+                    }
 
+                    // Fourth row
+                    HStack(spacing: 12) {
                         ModeCard(
                             title: "Voice Input",
                             icon: "mic.circle",
                             isSelected: selectedMode == .voiceInput,
                             action: { selectedMode = .voiceInput }
                         )
+
+                        Spacer()
                     }
                 }
                 .padding(.horizontal, 16)

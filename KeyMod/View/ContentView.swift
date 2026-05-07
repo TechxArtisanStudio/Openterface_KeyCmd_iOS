@@ -110,7 +110,7 @@ struct ContentView: View {
     }
     
     private var sidebarNavigation: some View {
-        ForEach(ViewType.allCases, id: \.self) { viewType in
+        ForEach(viewManager.currentMode.views, id: \.self) { viewType in
             Button(action: {
                 viewManager.switchToView(viewType)
                 // Exit edit mode when switching away from gamepad
@@ -381,18 +381,18 @@ struct ContentView: View {
     
     private var sidebarModeSelectionButton: some View {
         Button(action: {
-            launchPanelManager.showLaunchPanelAgain()
+            viewManager.switchToMode(viewManager.currentMode == .basic ? .pro : .basic)
             withAnimation {
                 sidebarVisible = false
             }
         }) {
             HStack {
-                Image(systemName: "sparkles")
+                Image(systemName: viewManager.currentMode == .basic ? "gearshape.circle.fill" : "sparkles")
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 20, height: 20)
                     .foregroundColor(.blue)
-                Text("Choose Mode")
+                Text(viewManager.currentMode == .basic ? "Switch to Pro" : "Switch to Basic")
                     .font(.body)
                     .foregroundColor(.primary)
             }
@@ -407,8 +407,14 @@ struct ContentView: View {
     private var mainContent: some View {
         ZStack {
             switch viewManager.currentView {
-            case .keyboardMouse:
-                KeyboardMouseView(
+            case .keyboardMouseBasic:
+                BasicKeyboardMouseView(
+                    mouseManager: mouseManager,
+                    keyboardManager: keyboardManager,
+                    orientationManager: orientationManager
+                )
+            case .keyboardMousePro:
+                ProKeyboardMouseView(
                     mouseManager: mouseManager,
                     keyboardManager: keyboardManager,
                     compositeKeyManager: keyboardManager.compositeKeyManager,
@@ -536,7 +542,7 @@ struct ContentView: View {
                 }
                 
                 // If user selected a mode from launch panel, switch to it
-                if !launchPanelManager.showLaunchPanel && launchPanelManager.selectedMode != .keyboardMouse {
+                if !launchPanelManager.showLaunchPanel && launchPanelManager.selectedMode != .keyboardMouseBasic {
                     viewManager.switchToView(launchPanelManager.selectedMode)
                 }
                 
