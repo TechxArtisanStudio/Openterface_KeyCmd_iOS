@@ -484,6 +484,7 @@ struct ContentView: View {
             .onAppear {
                 print("📐 GEOMETRY DEBUG:")
                 print("  Screen size: \(geometry.size.width) x \(geometry.size.height)")
+                orientationManager.isLandscape = geometry.size.width > geometry.size.height
                 print("  Safe area: top=\(geometry.safeAreaInsets.top), bottom=\(geometry.safeAreaInsets.bottom), leading=\(geometry.safeAreaInsets.leading), trailing=\(geometry.safeAreaInsets.trailing)")
                 print("  Window scene: \(UIApplication.shared.connectedScenes.first)")
                 if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
@@ -494,6 +495,7 @@ struct ContentView: View {
             }
             .onChange(of: geometry.size) { newSize in
                 print("🔄 Geometry changed: \(newSize.width) x \(newSize.height)")
+                orientationManager.isLandscape = newSize.width > newSize.height
             }
             .overlay(
                 // Orientation instruction overlay
