@@ -433,8 +433,7 @@ struct ContentView: View {
             case .keyboardMouseBasic:
                 BasicKeyboardMouseView(
                     mouseManager: mouseManager,
-                    keyboardManager: keyboardManager,
-                    orientationManager: orientationManager
+                    keyboardManager: keyboardManager
                 )
             case .keyboardMousePro:
                 ProKeyboardMouseView(

@@ -10,7 +10,6 @@ import SwiftUI
 struct BasicKeyboardMouseView: View {
     @ObservedObject var mouseManager: MouseManager
     @ObservedObject var keyboardManager: KeyboardManager
-    @ObservedObject var orientationManager: OrientationManager
 
     enum Submode: String, CaseIterable {
         case keyboard = "Keyboard"
@@ -39,11 +38,7 @@ struct BasicKeyboardMouseView: View {
                 Group {
                     switch selectedSubmode {
                     case .keyboard:
-                        if orientationManager.isLandscape {
-                            landscapeKeyboardSubmode
-                        } else {
-                            portraitKeyboardSubmode
-                        }
+                        landscapeKeyboardSubmode
                     case .touchpad:
                         touchpadSubmode
                     case .numpad:
@@ -86,30 +81,6 @@ struct BasicKeyboardMouseView: View {
         .buttonStyle(PlainButtonStyle())
     }
 
-    // MARK: - Portrait Keyboard Submode
-
-    @ViewBuilder
-    private var portraitKeyboardSubmode: some View {
-        GeometryReader { geometry in
-            VStack(spacing: 0) {
-                // F-row (hidden in landscape, matching Android)
-                functionKeyRow
-                // Letter keys from portraitLetterKeys
-                ForEach(keyboardManager.portraitLetterKeys.indices, id: \.self) { rowIdx in
-                    let row = keyboardManager.portraitLetterKeys[rowIdx]
-                    HStack(spacing: 0) {
-                        ForEach(row.indices, id: \.self) { colIdx in
-                            let kd = row[colIdx]
-                            portraitKeyButton(for: kd)
-                        }
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 4)
-        }
-    }
-
     // MARK: - Landscape Keyboard Submode
 
     @ViewBuilder
@@ -125,117 +96,6 @@ struct BasicKeyboardMouseView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-    }
-
-    private var functionKeyRow: some View {
-        HStack(spacing: 0) {
-            ForEach(["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"], id: \.self) { key in
-                Button(action: { keyboardManager.handleSpecialKey(key) }) {
-                    Text(key)
-                        .font(.system(size: 10))
-                        .frame(maxWidth: .infinity, maxHeight: 32)
-                        .background(Color(UIColor.secondarySystemBackground))
-                        .cornerRadius(9)
-                        .foregroundColor(.primary)
-                }
-            }
-        }
-        .padding(.horizontal, 2)
-        .padding(.bottom, 2)
-    }
-
-    // MARK: - Portrait Key Buttons
-
-    @ViewBuilder
-    private func portraitKeyButton(for kd: KeyboardManager.KeyDef) -> some View {
-        let displayText = portraitDisplayLabel(for: kd)
-        let isModifier = ["Ctrl", "Alt", "Cmd", "Win", "Shift"].contains(kd.label)
-        let isPressed = isModifier && keyboardManager.activeModifiers.contains(kd.label)
-        let isCapsActive = kd.label == "Caps" && keyboardManager.capsLockActive
-        let isFnActive = kd.label == "Fn" && keyboardManager.isFnLocked
-
-        Button(action: { keyboardManager.handleSpecialKey(kd.keyCode) }) {
-            portraitKeyContent(for: kd, displayText: displayText)
-                .frame(maxWidth: .infinity, maxHeight: 48)
-                .background(keyBackground(for: kd, pressed: isPressed, active: isCapsActive || isFnActive))
-                .cornerRadius(9)
-                .foregroundColor(isPressed || isCapsActive || isFnActive ? .white : .primary)
-        }
-        .buttonStyle(PlainButtonStyle())
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .overlay(
-            cornerHint(for: kd),
-            alignment: .topTrailing
-        )
-    }
-
-    @ViewBuilder
-    private func portraitKeyContent(for kd: KeyboardManager.KeyDef, displayText: String) -> some View {
-        if kd.label == "Backspace" {
-            Image(systemName: "delete.left").font(.system(size: 16))
-        } else if kd.label == "Enter" {
-            Image(systemName: "return").font(.system(size: 16))
-        } else if kd.label == "Shift" {
-            Image(systemName: "shift").font(.system(size: 16))
-        } else if ["Ctrl", "Alt", "Cmd"].contains(kd.label) {
-            Text(portraitDisplayValue(for: kd.label)).font(.system(size: 12))
-        } else if kd.label == "Caps" {
-            Text("Caps").font(.system(size: 11))
-        } else if kd.label == "Fn" {
-            Text("Fn").font(.system(size: 12, weight: .bold))
-        } else if kd.label == "Cmd" {
-            let targetOs = UserDefaults.standard.string(forKey: "target_os") ?? "macos"
-            switch targetOs {
-            case "windows": Text("Win").font(.system(size: 12))
-            case "linux": Text("Super").font(.system(size: 10))
-            default: Text("Cmd").font(.system(size: 12))
-            }
-        } else if keyboardManager.isSymbolMode && !kd.symbolLabel.isEmpty {
-            Text(kd.symbolLabel).font(.system(size: 14))
-        } else {
-            Text(displayText).font(.system(size: 12))
-        }
-    }
-
-    private func portraitDisplayLabel(for kd: KeyboardManager.KeyDef) -> String {
-        if let fnKey = keyboardManager.resolveFnKey(kd.label) {
-            return fnKey
-        }
-        if keyboardManager.isSymbolMode && !kd.symbolLabel.isEmpty {
-            return kd.symbolLabel
-        }
-        if kd.label.count == 1 && kd.label.first!.isLetter {
-            let isShiftActive = keyboardManager.activeModifiers.contains("Shift")
-            let isCapsActive = keyboardManager.capsLockActive
-            let shouldBeUppercase = (isShiftActive && !isCapsActive) || (!isShiftActive && isCapsActive)
-            return shouldBeUppercase ? kd.label.uppercased() : kd.label.lowercased()
-        }
-        return kd.label
-    }
-
-    private func portraitDisplayValue(for key: String) -> String {
-        let specialKeys = ["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
-                          "Tab", "Caps", "Enter", "Shift", "Ctrl", "Alt", "Space", "Backspace"]
-        if specialKeys.contains(key) { return key }
-        let isShiftActive = keyboardManager.activeModifiers.contains("Shift")
-        let isCapsActive = keyboardManager.capsLockActive
-        if key.count == 1 && key.first!.isLetter {
-            let shouldBeUppercase = (isShiftActive && !isCapsActive) || (!isShiftActive && isCapsActive)
-            return shouldBeUppercase ? key.uppercased() : key.lowercased()
-        }
-        return key
-    }
-
-    @ViewBuilder
-    private func cornerHint(for kd: KeyboardManager.KeyDef) -> some View {
-        if !kd.cornerHint.isEmpty && !keyboardManager.isFnLocked && keyboardManager.isSymbolMode == false {
-            Text(kd.cornerHint)
-                .font(.system(size: 9, weight: .bold))
-                .foregroundColor(.secondary.opacity(0.25))
-                .padding(.trailing, 6)
-                .padding(.top, 2)
-                .allowsHitTesting(false)
         }
     }
 
@@ -297,17 +157,6 @@ struct BasicKeyboardMouseView: View {
 
     private static let functionKeyBg = Color(UIColor.secondarySystemBackground)
     private static let regularKeyBg = Color(UIColor.systemBackground)
-
-    private func isFunctionKey(_ kd: KeyboardManager.KeyDef) -> Bool {
-        let functionLabels = ["Esc", "Tab", "Caps", "Shift", "Ctrl", "Alt", "Fn", "Backspace", "Enter"]
-        return functionLabels.contains(kd.label) || keyboardManager.isSymbolMode && ["ABC", "12/34", "!?#"].contains(kd.label)
-    }
-
-    private func keyBackground(for kd: KeyboardManager.KeyDef, pressed: Bool, active: Bool) -> Color {
-        if pressed || active { return .blue }
-        if isFunctionKey(kd) { return Self.functionKeyBg }
-        return Self.regularKeyBg
-    }
 
     private func keyBackground(for key: String, pressed: Bool, active: Bool) -> Color {
         let functionLabels = ["Esc", "Tab", "Caps", "Shift", "Ctrl", "Alt", "Backspace", "Enter"]
