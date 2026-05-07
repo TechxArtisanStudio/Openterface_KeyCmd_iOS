@@ -475,8 +475,6 @@ struct ContentView: View {
         .onChange(of: viewManager.currentView) { newView in
             print("🔄 View switched to: \(newView.rawValue)")
         }
-            }
-        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 

@@ -45,6 +45,7 @@ struct BasicKeyboardMouseView: View {
                         numpadSubmode
                     }
                 }
+                .id(selectedSubmode.rawValue)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .onAppear {
@@ -92,19 +93,26 @@ struct BasicKeyboardMouseView: View {
 
     // MARK: - Landscape Keyboard Submode
 
-    @ViewBuilder
     private var landscapeKeyboardSubmode: some View {
         GeometryReader { innerGeometry in
-            VStack(spacing: 0) {
-                ForEach(landscapeKeys, id: \.self) { row in
-                    HStack(spacing: 0) {
-                        ForEach(row, id: \.self) { key in
-                            landscapeKeyButton(key: key)
+            ZStack {
+                // DEBUG: subtle tint to confirm landscape view is rendering
+                Color.red.opacity(0.05)
+                VStack(spacing: 0) {
+                    ForEach(landscapeKeys.indices, id: \.self) { rowIdx in
+                        let row = landscapeKeys[rowIdx]
+                        HStack(spacing: 0) {
+                            ForEach(row.indices, id: \.self) { colIdx in
+                                landscapeKeyButton(key: row[colIdx])
+                            }
                         }
                     }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .onAppear {
+                print("🔴 LANDSCAPE KEYBOARD APPEARED — \(innerGeometry.size.width)x\(innerGeometry.size.height)")
+            }
         }
     }
 
