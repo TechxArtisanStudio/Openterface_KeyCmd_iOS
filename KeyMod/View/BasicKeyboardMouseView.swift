@@ -175,6 +175,20 @@ struct BasicKeyboardMouseView: View {
                     macKeyboardLayout
                 }
             }
+            .coordinateSpace(name: "keyboardLayout")
+            .overlayPreferenceValue(KeyCalloutInfoKey.self) { info in
+                if let info = info {
+                    Text(info.text)
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(Color.black.opacity(0.82)))
+                        .position(x: info.frame.midX,
+                                  y: info.below ? info.frame.maxY + 36 : info.frame.minY - 36)
+                        .allowsHitTesting(false)
+                }
+            }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .onAppear {
                 print("🔴 LANDSCAPE KEYBOARD APPEARED — \(innerGeometry.size.width)x\(innerGeometry.size.height)")
@@ -272,14 +286,19 @@ struct BasicKeyboardMouseView: View {
                 windowsBottomKey("Super")
                 windowsBottomKey("Alt")
                 // Space key — wide
-                Text("Openterface")
-                    .font(.system(size: 11, weight: .medium))
-                    .frame(width: 150)
-                    .frame(maxHeight: .infinity)
-                    .background(Self.functionKeyBg)
-                    .cornerRadius(6)
-                    .foregroundColor(.primary)
-                    .onTapGesture { keyboardManager.handleSpecialKey("Space") }
+                KeyPressButton(
+                    onPress: { keyboardManager.handleKeyDown("Space") },
+                    onRelease: { keyboardManager.handleKeyUp("Space") },
+                    keyPreview: "Space"
+                ) { isActive in
+                    Text("Openterface")
+                        .font(.system(size: 11, weight: .medium))
+                        .frame(width: 150)
+                        .frame(maxHeight: .infinity)
+                        .background(Self.functionKeyBg)
+                        .cornerRadius(6)
+                        .foregroundColor(isActive ? .white : .primary)
+                }
                 windowsBottomKey("Alt")
                 windowsBottomKey("Ctrl")
                 Spacer()
@@ -352,14 +371,19 @@ struct BasicKeyboardMouseView: View {
                 windowsBottomKey("Option")
                 windowsBottomKey("Cmd")
                 // Space key — wide
-                Text("Openterface")
-                    .font(.system(size: 11, weight: .medium))
-                    .frame(width: 150)
-                    .frame(maxHeight: .infinity)
-                    .background(Self.functionKeyBg)
-                    .cornerRadius(6)
-                    .foregroundColor(.primary)
-                    .onTapGesture { keyboardManager.handleSpecialKey("Space") }
+                KeyPressButton(
+                    onPress: { keyboardManager.handleKeyDown("Space") },
+                    onRelease: { keyboardManager.handleKeyUp("Space") },
+                    keyPreview: "Space"
+                ) { isActive in
+                    Text("Openterface")
+                        .font(.system(size: 11, weight: .medium))
+                        .frame(width: 150)
+                        .frame(maxHeight: .infinity)
+                        .background(Self.functionKeyBg)
+                        .cornerRadius(6)
+                        .foregroundColor(isActive ? .white : .primary)
+                }
                 windowsBottomKey("Cmd")
                 windowsBottomKey("Option")
                 Spacer()
@@ -389,7 +413,7 @@ struct BasicKeyboardMouseView: View {
                 let row = landscapeKeys[rowIdx]
                 HStack(spacing: 0) {
                     ForEach(row.indices, id: \.self) { colIdx in
-                        landscapeKeyButton(key: row[colIdx])
+                        landscapeKeyButton(key: row[colIdx], previewBelow: rowIdx < 2)
                     }
                 }
             }
@@ -446,14 +470,19 @@ struct BasicKeyboardMouseView: View {
                 windowsBottomKey("Win")
                 windowsBottomKey("Alt")
                 // Space key — wide
-                Text("Openterface")
-                    .font(.system(size: 11, weight: .medium))
-                    .frame(width: 150)
-                    .frame(maxHeight: .infinity)
-                    .background(Self.functionKeyBg)
-                    .cornerRadius(6)
-                    .foregroundColor(.primary)
-                    .onTapGesture { keyboardManager.handleSpecialKey("Space") }
+                KeyPressButton(
+                    onPress: { keyboardManager.handleKeyDown("Space") },
+                    onRelease: { keyboardManager.handleKeyUp("Space") },
+                    keyPreview: "Space"
+                ) { isActive in
+                    Text("Openterface")
+                        .font(.system(size: 11, weight: .medium))
+                        .frame(width: 150)
+                        .frame(maxHeight: .infinity)
+                        .background(Self.functionKeyBg)
+                        .cornerRadius(6)
+                        .foregroundColor(isActive ? .white : .primary)
+                }
                 windowsBottomKey("Alt")
                 windowsBottomKey("Ctrl")
                 Spacer()
@@ -479,7 +508,6 @@ struct BasicKeyboardMouseView: View {
 
     @ViewBuilder
     private func windowsBottomKey(_ key: String) -> some View {
-        let isPressed = keyboardManager.activeModifiers.contains(key)
         let displayLabel: String = {
             switch key {
             case "Cmd": return "⌘"
@@ -488,24 +516,29 @@ struct BasicKeyboardMouseView: View {
             default: return key
             }
         }()
-        Text(displayLabel)
-            .font(.system(size: 12, weight: .medium))
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Self.functionKeyBg)
-            .cornerRadius(6)
-            .foregroundColor(isPressed ? .white : .primary)
-            .onTapGesture { keyboardManager.handleSpecialKey(key) }
+        ModifierKeyButton(key: key, keyboardManager: keyboardManager, keyPreview: displayLabel) { isPhysical, isLocked in
+            Text(displayLabel)
+                .font(.system(size: 12, weight: .medium))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(isLocked ? Color.blue : (isPhysical ? Color.blue.opacity(0.6) : Self.functionKeyBg))
+                .cornerRadius(6)
+                .foregroundColor(isPhysical || isLocked ? .white : .primary)
+        }
     }
 
     @ViewBuilder
     private func arrowButton(_ action: String, image: String, height: CGFloat = 52) -> some View {
-        RepeatingKeyButton(action: { keyboardManager.handleSpecialKey(action) }) {
+        KeyPressButton(
+            onPress: { keyboardManager.handleKeyDown(action) },
+            onRelease: { keyboardManager.handleKeyUp(action) },
+            keyPreview: action
+        ) { isActive in
             Image(systemName: image)
                 .font(.system(size: 18, weight: .bold))
                 .frame(width: 58, height: height)
-                .background(Self.functionKeyBg)
+                .background(isActive ? Color.blue : Self.functionKeyBg)
                 .cornerRadius(6)
-                .foregroundColor(.primary)
+                .foregroundColor(isActive ? .white : .primary)
         }
     }
 
@@ -532,7 +565,7 @@ struct BasicKeyboardMouseView: View {
         }()
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Self.functionKeyBg)
+            .background(isPressed ? Color.blue : Self.functionKeyBg)
             .cornerRadius(6)
             .foregroundColor(isPressed ? .white : .primary)
     }
@@ -540,18 +573,35 @@ struct BasicKeyboardMouseView: View {
     @ViewBuilder
     private func windowsKeyButton(key: String, height: CGFloat) -> some View {
         let displayText = windowsDisplayValue(for: key)
-        let isModifier = ["Ctrl", "Alt", "Cmd", "Win", "Option", "Super", "Shift"].contains(key)
-        let isPressed = isModifier && keyboardManager.activeModifiers.contains(key)
+        let modifierKeys: Set<String> = ["Ctrl", "Alt", "Cmd", "Win", "Option", "Super", "Shift"]
+        let isCapsActive = key == "Caps" && keyboardManager.capsLockActive
+        // F-row (height 28) and number row (height 30) show preview below; other rows above
+        let previewBelow = height <= 30
 
-        if Self.noRepeatKeys.contains(key) {
-            Button(action: { keyboardManager.handleSpecialKey(key) }) {
-                windowsKeyVisual(key: key, displayText: displayText, isPressed: isPressed)
+        if modifierKeys.contains(key) {
+            ModifierKeyButton(key: key, keyboardManager: keyboardManager, keyPreview: displayText, previewBelow: previewBelow) { isPhysical, isLocked in
+                windowsKeyVisual(key: key, displayText: displayText, isPressed: isPhysical || isLocked)
             }
             .frame(height: height)
-            .buttonStyle(PlainButtonStyle())
+        } else if key == "Caps" {
+            KeyPressButton(
+                onPress: { keyboardManager.handleSpecialKey("Caps") },
+                onRelease: { },
+                keyPreview: "⇪",
+                previewBelow: previewBelow
+            ) { isActive in
+                windowsKeyVisual(key: key, displayText: displayText, isPressed: isActive || isCapsActive)
+            }
+            .frame(height: height)
         } else {
-            RepeatingKeyButton(action: { keyboardManager.handleSpecialKey(key) }) {
-                windowsKeyVisual(key: key, displayText: displayText, isPressed: isPressed)
+            let effectiveKey = key == "Esc" ? "Escape" : key
+            KeyPressButton(
+                onPress: { keyboardManager.handleKeyDown(effectiveKey) },
+                onRelease: { keyboardManager.handleKeyUp(effectiveKey) },
+                keyPreview: displayText,
+                previewBelow: previewBelow
+            ) { isActive in
+                windowsKeyVisual(key: key, displayText: displayText, isPressed: isActive)
             }
             .frame(height: height)
         }
@@ -584,21 +634,50 @@ struct BasicKeyboardMouseView: View {
     // MARK: - Landscape Key Buttons
 
     @ViewBuilder
-    private func landscapeKeyButton(key: String) -> some View {
+    private func landscapeKeyButton(key: String, previewBelow: Bool = false) -> some View {
         let displayText = landscapeDisplayValue(for: key)
-        let isModifier = ["Ctrl", "Alt", "Cmd", "Win", "Option", "Shift"].contains(key)
-        let isPressed = isModifier && keyboardManager.activeModifiers.contains(key)
+        let modifierKeys: Set<String> = ["Ctrl", "Alt", "Cmd", "Win", "Option", "Shift"]
         let isCapsActive = key == "Caps" && keyboardManager.capsLockActive
 
-        Button(action: { keyboardManager.handleSpecialKey(key) }) {
-            landscapeKeyContent(for: key, displayText: displayText)
-                .font(.system(size: 12))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(keyBackground(for: key, pressed: isPressed, active: isCapsActive))
-                .cornerRadius(9)
-                .foregroundColor(isPressed || isCapsActive ? .white : .primary)
+        if modifierKeys.contains(key) {
+            ModifierKeyButton(key: key, keyboardManager: keyboardManager, keyPreview: displayText, previewBelow: previewBelow) { isPhysical, isLocked in
+                landscapeKeyContent(for: key, displayText: displayText)
+                    .font(.system(size: 12))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(isLocked ? Color.blue : (isPhysical ? Color.blue.opacity(0.7) : keyBackground(for: key, pressed: false, active: false)))
+                    .cornerRadius(9)
+                    .foregroundColor(isPhysical || isLocked ? .white : .primary)
+            }
+        } else if key == "Caps" {
+            KeyPressButton(
+                onPress: { keyboardManager.handleSpecialKey("Caps") },
+                onRelease: { },
+                keyPreview: "⇪",
+                previewBelow: previewBelow
+            ) { isActive in
+                landscapeKeyContent(for: key, displayText: displayText)
+                    .font(.system(size: 12))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(keyBackground(for: key, pressed: isActive, active: isCapsActive))
+                    .cornerRadius(9)
+                    .foregroundColor(isActive || isCapsActive ? .white : .primary)
+            }
+        } else {
+            let effectiveKey = key == "Esc" ? "Escape" : key
+            KeyPressButton(
+                onPress: { keyboardManager.handleKeyDown(effectiveKey) },
+                onRelease: { keyboardManager.handleKeyUp(effectiveKey) },
+                keyPreview: displayText,
+                previewBelow: previewBelow
+            ) { isActive in
+                landscapeKeyContent(for: key, displayText: displayText)
+                    .font(.system(size: 12))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(keyBackground(for: key, pressed: isActive, active: false))
+                    .cornerRadius(9)
+                    .foregroundColor(isActive ? .white : .primary)
+            }
         }
-        .buttonStyle(PlainButtonStyle())
     }
 
     @ViewBuilder
@@ -714,7 +793,184 @@ struct BasicKeyboardMouseView: View {
     }
 }
 
+// MARK: - Key Callout Preview
+
+private struct KeyCalloutInfo: Equatable {
+    let text: String
+    let frame: CGRect
+    let below: Bool
+}
+
+private struct KeyCalloutInfoKey: PreferenceKey {
+    static var defaultValue: KeyCalloutInfo? = nil
+    static func reduce(value: inout KeyCalloutInfo?, nextValue: () -> KeyCalloutInfo?) {
+        if let next = nextValue() { value = next }
+    }
+}
+
 // MARK: - Repeating Key Button
+
+/// Press = key-down, release = key-up, long-press = sticky lock (tap again to unlock).
+/// The label closure receives (isPhysicallyPressed, isLocked).
+struct ModifierKeyButton<Label: View>: View {
+    let key: String
+    let keyboardManager: KeyboardManager
+    var keyPreview: String? = nil
+    var previewBelow: Bool = false
+    let label: (Bool, Bool) -> Label
+
+    @State private var isPressed = false
+    @State private var isLocked = false
+    @State private var longPressTimer: Timer?
+    @State private var showLockHint = false
+    /// True during the finger-lift that immediately follows sliding to the lock icon.
+    /// Prevents that release from being counted as an "unlock" tap.
+    @State private var justLocked = false
+
+    private let lockThreshold: TimeInterval = 0.5
+    /// How far above the top edge the lock icon floats (pt)
+    private let lockIconAbove: CGFloat = 32
+    /// Tap radius to register the lock icon as hit (pt)
+    private let lockIconRadius: CGFloat = 30
+
+    init(key: String, keyboardManager: KeyboardManager, keyPreview: String? = nil, previewBelow: Bool = false, @ViewBuilder label: @escaping (Bool, Bool) -> Label) {
+        self.key = key
+        self.keyboardManager = keyboardManager
+        self.keyPreview = keyPreview
+        self.previewBelow = previewBelow
+        self.label = label
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack {
+                label(isPressed, isLocked)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                if showLockHint {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(12)
+                        .background(Circle().fill(Color.orange))
+                        // Center of ZStack is (w/2, h/2); shift up so icon sits lockIconAbove pt above top edge
+                        .offset(y: -(geo.size.height / 2 + lockIconAbove))
+                        .allowsHitTesting(false)
+                        .zIndex(99)
+                        .transition(.scale(scale: 0.4).combined(with: .opacity))
+                }
+            }
+            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: showLockHint)
+            .overlay(
+                PressDetectorView(
+                    isPressed: $isPressed,
+                    onPress: { handlePress() },
+                    onRelease: { handleRelease() },
+                    onMoved: { pt in handleMoved(pt, size: geo.size) }
+                )
+            )
+            .preference(
+                key: KeyCalloutInfoKey.self,
+                value: isPressed && keyPreview != nil ?
+                    KeyCalloutInfo(text: keyPreview!, frame: geo.frame(in: .named("keyboardLayout")), below: previewBelow)
+                    : nil
+            )
+        }
+        .onDisappear { cleanup() }
+    }
+
+    private func handlePress() {
+        if isLocked {
+            // Don't unlock on press — wait for release so mid-combo touches don't break the lock
+        } else {
+            keyboardManager.handleKeyDown(key)
+            longPressTimer = Timer.scheduledTimer(withTimeInterval: lockThreshold, repeats: false) { _ in
+                DispatchQueue.main.async { self.showLockHint = true }
+            }
+        }
+    }
+
+    private func handleRelease() {
+        longPressTimer?.invalidate()
+        longPressTimer = nil
+        showLockHint = false
+        if isLocked {
+            if justLocked {
+                // This is the lift that completed the slide-to-lock gesture — don't unlock.
+                justLocked = false
+            } else {
+                // Deliberate press+release on locked modifier → unlock
+                isLocked = false
+                keyboardManager.unlockModifier(key)
+            }
+        } else {
+            keyboardManager.handleKeyUp(key)
+        }
+    }
+
+    /// Called when finger moves. If the floating lock icon is visible and finger enters its area, lock.
+    private func handleMoved(_ pt: CGPoint, size: CGSize) {
+        guard showLockHint && !isLocked else { return }
+        // Icon center in PressDetectorView's local coords: x = w/2, y = -lockIconAbove
+        let iconCenter = CGPoint(x: size.width / 2, y: -lockIconAbove)
+        let dx = pt.x - iconCenter.x
+        let dy = pt.y - iconCenter.y
+        if sqrt(dx * dx + dy * dy) < lockIconRadius {
+            longPressTimer?.invalidate()
+            longPressTimer = nil
+            isLocked = true
+            justLocked = true  // mark so the upcoming finger-lift doesn't unlock
+            showLockHint = false
+            keyboardManager.lockModifier(key)
+        }
+    }
+
+    private func cleanup() {
+        longPressTimer?.invalidate()
+        longPressTimer = nil
+        if isLocked {
+            isLocked = false
+            keyboardManager.unlockModifier(key)
+        } else if isPressed {
+            isPressed = false
+            keyboardManager.handleKeyUp(key)
+        }
+    }
+}
+
+/// Sends key-down on touch, key-up on release. Label closure receives current pressed state.
+struct KeyPressButton<Label: View>: View {
+    let onPress: () -> Void
+    let onRelease: () -> Void
+    var keyPreview: String? = nil
+    var previewBelow: Bool = false
+    let label: (Bool) -> Label
+
+    @State private var isPressed = false
+
+    init(onPress: @escaping () -> Void, onRelease: @escaping () -> Void, keyPreview: String? = nil, previewBelow: Bool = false, @ViewBuilder label: @escaping (Bool) -> Label) {
+        self.onPress = onPress
+        self.onRelease = onRelease
+        self.keyPreview = keyPreview
+        self.previewBelow = previewBelow
+        self.label = label
+    }
+
+    var body: some View {
+        label(isPressed)
+            .background(GeometryReader { geo in
+                Color.clear.preference(
+                    key: KeyCalloutInfoKey.self,
+                    value: isPressed && keyPreview != nil ?
+                        KeyCalloutInfo(text: keyPreview!, frame: geo.frame(in: .named("keyboardLayout")), below: previewBelow)
+                        : nil
+                )
+            })
+            .overlay(
+                PressDetectorView(isPressed: $isPressed, onPress: onPress, onRelease: onRelease)
+            )
+    }
+}
 
 /// UIKit-backed press detector to avoid SwiftUI gesture cancellation during multi-touch.
 /// UILongPressGestureRecognizer with minimumPressDuration=0 and unlimited allowableMovement
@@ -723,9 +979,10 @@ private struct PressDetectorView: UIViewRepresentable {
     @Binding var isPressed: Bool
     let onPress: () -> Void
     let onRelease: () -> Void
+    var onMoved: ((CGPoint) -> Void)? = nil
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(isPressed: $isPressed, onPress: onPress, onRelease: onRelease)
+        Coordinator(isPressed: $isPressed, onPress: onPress, onRelease: onRelease, onMoved: onMoved)
     }
 
     func makeUIView(context: Context) -> UIView {
@@ -749,17 +1006,24 @@ private struct PressDetectorView: UIViewRepresentable {
         @Binding var isPressed: Bool
         let onPress: () -> Void
         let onRelease: () -> Void
+        let onMoved: ((CGPoint) -> Void)?
 
-        init(isPressed: Binding<Bool>, onPress: @escaping () -> Void, onRelease: @escaping () -> Void) {
+        init(isPressed: Binding<Bool>, onPress: @escaping () -> Void, onRelease: @escaping () -> Void, onMoved: ((CGPoint) -> Void)?) {
             self._isPressed = isPressed
             self.onPress = onPress
             self.onRelease = onRelease
+            self.onMoved = onMoved
         }
 
         @objc func handle(_ gr: UILongPressGestureRecognizer) {
             switch gr.state {
             case .began:
                 DispatchQueue.main.async { self.isPressed = true; self.onPress() }
+            case .changed:
+                if let onMoved = onMoved {
+                    let pt = gr.location(in: gr.view)
+                    DispatchQueue.main.async { onMoved(pt) }
+                }
             case .ended, .cancelled, .failed:
                 DispatchQueue.main.async { self.isPressed = false; self.onRelease() }
             default:

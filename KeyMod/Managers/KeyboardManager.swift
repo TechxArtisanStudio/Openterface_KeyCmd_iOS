@@ -10,6 +10,7 @@ import Foundation
 class KeyboardManager: ObservableObject {
     var bleManager: BLEManager
     @Published var activeModifiers: Set<String> = []
+    @Published var lockedModifiers: Set<String> = []
     @Published var capsLockActive: Bool = false
     @Published var pressedKeys: Set<String> = [] // Track currently pressed keys
     @Published var isGameMode: Bool = false // Track current mode
@@ -224,8 +225,8 @@ class KeyboardManager: ObservableObject {
         switch key {
         case "Ctrl":  return KMod.ctrl.rawValue
         case "Shift": return KMod.shift.rawValue
-        case "Alt":   return KMod.alt.rawValue
-        case "Cmd", "Win": return KMod.gui.rawValue
+        case "Alt", "Option": return KMod.alt.rawValue
+        case "Cmd", "Win", "Super": return KMod.gui.rawValue
         default:      return nil
         }
     }
@@ -788,6 +789,8 @@ class KeyboardManager: ObservableObject {
         for key in keys {
             // Handle modifier keys
             if modifierMask(for: key) != nil {
+                // Don't release if locked
+                if lockedModifiers.contains(key) { continue }
                 if activeModifiers.contains(key) {
                     activeModifiers.remove(key)
                     logger.log("\(key) released", category: "Keyboard")
@@ -847,8 +850,37 @@ class KeyboardManager: ObservableObject {
     func releaseAllKeys() {
         pressedKeys.removeAll()
         activeModifiers.removeAll()
+        lockedModifiers.removeAll()
         sendKeyboardData(modifier: 0x00, keyCodes: [0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
         logger.log("All keys released", category: "Keyboard")
+    }
+
+    /// Lock a modifier (sticky key). Modifier stays in activeModifiers until unlocked.
+    func lockModifier(_ key: String) {
+        lockedModifiers.insert(key)
+        if !activeModifiers.contains(key) {
+            activeModifiers.insert(key)
+            var modByte: UInt8 = 0x00
+            for m in activeModifiers { modByte |= modifierMask(for: m) ?? 0 }
+            sendKeyboardData(modifier: modByte, keyCodes: [0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+        }
+    }
+
+    /// Unlock a locked modifier and release it.
+    func unlockModifier(_ key: String) {
+        lockedModifiers.remove(key)
+        activeModifiers.remove(key)
+        var modByte: UInt8 = 0x00
+        for m in activeModifiers { modByte |= modifierMask(for: m) ?? 0 }
+        // Maintain any currently pressed regular keys in the HID report
+        var keyCodes: [UInt8] = []
+        for pressedKey in pressedKeys {
+            if let code = hidCode(forKey: pressedKey), keyCodes.count < 6 {
+                keyCodes.append(code)
+            }
+        }
+        while keyCodes.count < 6 { keyCodes.append(0x00) }
+        sendKeyboardData(modifier: modByte, keyCodes: keyCodes)
     }
     
     // Check if a key is currently pressed

@@ -219,6 +219,7 @@ struct ContentView: View {
                     ).landscapeTabBar
                 }
             }
+            targetOSButton
             Spacer()
             topBarButtons
         }
@@ -242,7 +243,6 @@ struct ContentView: View {
     
     private var topBarButtons: some View {
         HStack(spacing: 10) {
-            targetOSButton
             // Show gamepad layout selector only when in gamepad view
             if viewManager.currentView == .gamepad {
                 gamepadEditModeButton
