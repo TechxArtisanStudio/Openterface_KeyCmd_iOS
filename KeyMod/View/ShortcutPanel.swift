@@ -102,12 +102,12 @@ struct ShortcutPageView: View {
     var body: some View {
         GeometryReader { _ in
             VStack(spacing: 0) {
-                // Page title
-                Text(page.title)
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 1)
+                // Page title removed to save space
+                // Text(page.title)
+                //     .font(.system(size: 9, weight: .bold))
+                //     .foregroundColor(.secondary)
+                //     .frame(maxWidth: .infinity, alignment: .center)
+                //     .padding(.vertical, 1)
 
                 // 2 rows of 7 buttons
                 ForEach(0..<2, id: \.self) { rowIndex in

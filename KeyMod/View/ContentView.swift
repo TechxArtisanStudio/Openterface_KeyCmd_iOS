@@ -46,7 +46,7 @@ struct ContentView: View {
             sidebarNavigation
             Spacer()
             sidebarOSPicker
-            sidebarModeSelectionButton
+            // sidebarModeSelectionButton - Hidden as requested
             sidebarSettingsButton
         }
         .frame(width: 180)
@@ -77,7 +77,8 @@ struct ContentView: View {
                         }
                     }
             }
-            // Mode indicator badge
+            // Mode indicator badge - Hidden as both modes now show all views
+            /*
             HStack(spacing: 4) {
                 Circle()
                     .fill(viewManager.currentMode == .basic ? Color.green : Color.purple)
@@ -97,6 +98,7 @@ struct ContentView: View {
                 }
             }
             .padding(.leading, 16)
+            */
         }
         .padding(.vertical, 12)
         .padding(.leading, 16)
