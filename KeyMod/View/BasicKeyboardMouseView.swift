@@ -686,14 +686,16 @@ struct BasicKeyboardMouseView: View {
     }
 
     private func mouseButton(label: String, icon: String, button: MouseButton) -> some View {
-        Button(action: {
-            HapticFeedbackManager.shared.triggerButtonPress()
-            switch button {
-            case .left: mouseManager.handleClick()
-            case .middle: mouseManager.handleMiddleClick()
-            case .right: mouseManager.handleRightClick()
+        let bits: UInt8 = button == .left ? 0x01 : button == .right ? 0x02 : 0x04
+        return MousePressButton(
+            onPress: {
+                HapticFeedbackManager.shared.triggerButtonPress()
+                mouseManager.sendButtonDown(buttons: bits)
+            },
+            onRelease: {
+                mouseManager.sendButtonUp(buttons: bits)
             }
-        }) {
+        ) {
             Text(label)
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(.primary)
@@ -701,7 +703,6 @@ struct BasicKeyboardMouseView: View {
                 .background(Color(UIColor.tertiarySystemBackground))
                 .cornerRadius(8)
         }
-        .buttonStyle(PlainButtonStyle())
     }
 
     enum MouseButton { case left, middle, right }
@@ -714,6 +715,79 @@ struct BasicKeyboardMouseView: View {
 }
 
 // MARK: - Repeating Key Button
+
+/// UIKit-backed press detector to avoid SwiftUI gesture cancellation during multi-touch.
+/// UILongPressGestureRecognizer with minimumPressDuration=0 and unlimited allowableMovement
+/// fires .began on first touch, .ended/.cancelled when the finger lifts — reliably.
+private struct PressDetectorView: UIViewRepresentable {
+    @Binding var isPressed: Bool
+    let onPress: () -> Void
+    let onRelease: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(isPressed: $isPressed, onPress: onPress, onRelease: onRelease)
+    }
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .clear
+        let gr = UILongPressGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handle(_:))
+        )
+        gr.minimumPressDuration = 0
+        gr.allowableMovement = .greatestFiniteMagnitude
+        gr.cancelsTouchesInView = false
+        gr.delaysTouchesBegan = false
+        view.addGestureRecognizer(gr)
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {}
+
+    final class Coordinator: NSObject {
+        @Binding var isPressed: Bool
+        let onPress: () -> Void
+        let onRelease: () -> Void
+
+        init(isPressed: Binding<Bool>, onPress: @escaping () -> Void, onRelease: @escaping () -> Void) {
+            self._isPressed = isPressed
+            self.onPress = onPress
+            self.onRelease = onRelease
+        }
+
+        @objc func handle(_ gr: UILongPressGestureRecognizer) {
+            switch gr.state {
+            case .began:
+                DispatchQueue.main.async { self.isPressed = true; self.onPress() }
+            case .ended, .cancelled, .failed:
+                DispatchQueue.main.async { self.isPressed = false; self.onRelease() }
+            default:
+                break
+            }
+        }
+    }
+}
+
+/// Sends press on touch-down and release on touch-up, supporting hold.
+struct MousePressButton<Label: View>: View {
+    let onPress: () -> Void
+    let onRelease: () -> Void
+    @ViewBuilder let label: () -> Label
+
+    @State private var isPressed = false
+
+    var body: some View {
+        label()
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.primary.opacity(isPressed ? 0.18 : 0))
+            )
+            .overlay(
+                PressDetectorView(isPressed: $isPressed, onPress: onPress, onRelease: onRelease)
+            )
+    }
+}
 
 /// Fires its action on touch-down, then repeats at key-repeat rate while held.
 /// Use this for all regular (non-modifier) keys.
