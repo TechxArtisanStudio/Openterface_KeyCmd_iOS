@@ -10,10 +10,11 @@ import UIKit
 
 // AppDelegate to handle orientation
 public class AppDelegate: NSObject, UIApplicationDelegate {
-    public var orientationLock: UIInterfaceOrientationMask = .all
-    
+    // Static so any caller can read/write without needing an instance
+    public static var orientationLock: UIInterfaceOrientationMask = .all
+
     public func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
-        return orientationLock
+        return AppDelegate.orientationLock
     }
 }
 

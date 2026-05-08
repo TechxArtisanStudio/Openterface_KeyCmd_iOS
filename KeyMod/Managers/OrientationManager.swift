@@ -68,10 +68,8 @@ class OrientationManager: ObservableObject {
         preferredOrientation = newIsLandscape ? .landscape : .portrait
         
         // Update AppDelegate orientation lock if available
-        if let appDelegate = UIApplication.shared.delegate as? AppDelegate {
-            appDelegate.orientationLock = preferredOrientation
-            print("Updated AppDelegate orientation lock to: \(preferredOrientation)")
-        }
+        AppDelegate.orientationLock = preferredOrientation
+        print("Updated AppDelegate orientation lock to: \(preferredOrientation)")
         
         // Multiple methods to try to force orientation change
         
@@ -177,8 +175,6 @@ class OrientationManager: ObservableObject {
     }
     
     private static func setOrientationLock(_ mask: UIInterfaceOrientationMask) {
-        if let appDelegate = UIApplication.shared.delegate as? AppDelegate {
-            appDelegate.orientationLock = mask
-        }
+        AppDelegate.orientationLock = mask
     }
 }

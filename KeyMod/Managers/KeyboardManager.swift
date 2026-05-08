@@ -93,6 +93,107 @@ class KeyboardManager: ObservableObject {
         ]
     ]
 
+    /// Windows-style portrait layout (target_os == "windows")
+    /// Row 1: Esc F1-F12 (short height)
+    let portraitWindowsFRow: [KeyDef] = [
+        KeyDef("Esc", "", [], "", "Esc"),
+        KeyDef("F1", "", [], "", "F1"),
+        KeyDef("F2", "", [], "", "F2"),
+        KeyDef("F3", "", [], "", "F3"),
+        KeyDef("F4", "", [], "", "F4"),
+        KeyDef("F5", "", [], "", "F5"),
+        KeyDef("F6", "", [], "", "F6"),
+        KeyDef("F7", "", [], "", "F7"),
+        KeyDef("F8", "", [], "", "F8"),
+        KeyDef("F9", "", [], "", "F9"),
+        KeyDef("F10", "", [], "", "F10"),
+        KeyDef("F11", "", [], "", "F11"),
+        KeyDef("F12", "", [], "", "F12")
+    ]
+
+    /// Row 2: ` 1 2 3 4 5 6 7 8 9 0 - = Backspace (short height)
+    let portraitWindowsNumberRow: [KeyDef] = [
+        KeyDef("`", "~", [], "`", "`"),
+        KeyDef("1", "!", [], "1", "1"),
+        KeyDef("2", "@", [], "2", "2"),
+        KeyDef("3", "#", [], "3", "3"),
+        KeyDef("4", "$", [], "4", "4"),
+        KeyDef("5", "%", [], "5", "5"),
+        KeyDef("6", "^", [], "6", "6"),
+        KeyDef("7", "&", [], "7", "7"),
+        KeyDef("8", "*", [], "8", "8"),
+        KeyDef("9", "(", [], "9", "9"),
+        KeyDef("0", ")", [], "0", "0"),
+        KeyDef("-", "_", [], "-", "-"),
+        KeyDef("=", "+", [], "=", "="),
+        KeyDef("Backspace", "", [], "", "Backspace")
+    ]
+
+    /// Row 3: Tab q w e r t y u i o p [ ] \ (normal height)
+    let portraitWindowsRow3: [KeyDef] = [
+        KeyDef("Tab", "", [], "", "Tab"),
+        KeyDef("q", "Q", [], "q", "q"),
+        KeyDef("w", "W", [], "w", "w"),
+        KeyDef("e", "E", [], "e", "e"),
+        KeyDef("r", "R", [], "r", "r"),
+        KeyDef("t", "T", [], "t", "t"),
+        KeyDef("y", "Y", [], "y", "y"),
+        KeyDef("u", "U", [], "u", "u"),
+        KeyDef("i", "I", [], "i", "i"),
+        KeyDef("o", "O", [], "o", "o"),
+        KeyDef("p", "P", [], "p", "p"),
+        KeyDef("[", "{", [], "[", "["),
+        KeyDef("]", "}", [], "]", "]"),
+        KeyDef("\\", "|", [], "\\", "\\")
+    ]
+
+    /// Row 4: Caps a s d f g h j k l ; ' Enter (normal height)
+    let portraitWindowsRow4: [KeyDef] = [
+        KeyDef("Caps", "", [], "", "Caps"),
+        KeyDef("a", "A", [], "a", "a"),
+        KeyDef("s", "S", [], "s", "s"),
+        KeyDef("d", "D", [], "d", "d"),
+        KeyDef("f", "F", [], "f", "f"),
+        KeyDef("g", "G", [], "g", "g"),
+        KeyDef("h", "H", [], "h", "h"),
+        KeyDef("j", "J", [], "j", "j"),
+        KeyDef("k", "K", [], "k", "k"),
+        KeyDef("l", "L", [], "l", "l"),
+        KeyDef(";", ":", [], ";", ";"),
+        KeyDef("'", "\"", [], "'", "'"),
+        KeyDef("Enter", "", [], "", "Enter")
+    ]
+
+    /// Row 5: Shift z x c v b n m , . / Shift Up (normal height, Up arrow occupies rightmost slot)
+    let portraitWindowsRow5: [KeyDef] = [
+        KeyDef("Shift", "", [], "", "Shift"),
+        KeyDef("z", "Z", [], "z", "z"),
+        KeyDef("x", "X", [], "x", "x"),
+        KeyDef("c", "C", [], "c", "c"),
+        KeyDef("v", "V", [], "v", "v"),
+        KeyDef("b", "B", [], "b", "b"),
+        KeyDef("n", "N", [], "n", "n"),
+        KeyDef("m", "M", [], "m", "m"),
+        KeyDef(",", "<", [], ",", ","),
+        KeyDef(".", ">", [], ".", "."),
+        KeyDef("/", "?", [], "/", "/"),
+        KeyDef("Shift", "", [], "", "Shift"),
+        KeyDef("Up", "", [], "↑", "Up")
+    ]
+
+    /// Row 6: Ctrl Win Alt Space Alt Ctrl Left Down Right (normal height)
+    let portraitWindowsRow6: [KeyDef] = [
+        KeyDef("Ctrl", "", [], "", "Ctrl"),
+        KeyDef("Win", "", [], "", "Win"),
+        KeyDef("Alt", "", [], "", "Alt"),
+        KeyDef("Space", "", [], "", "Space"),
+        KeyDef("Alt", "", [], "", "Alt"),
+        KeyDef("Ctrl", "", [], "", "Ctrl"),
+        KeyDef("Left", "", [], "←", "Left"),
+        KeyDef("Down", "", [], "↓", "Down"),
+        KeyDef("Right", "", [], "→", "Right")
+    ]
+
     /// Optional handler invoked (on the background thread) when a
     /// `<Macro>label</Macro>` token is encountered in
     /// `handleTextInputWithTokens`. Set by VoiceInputView to resolve

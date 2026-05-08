@@ -2,6 +2,7 @@ import SwiftUI
 
 struct NumPadView: View {
     @ObservedObject var keyboardManager: KeyboardManager
+    @ObservedObject var orientationManager: OrientationManager
     @StateObject private var hapticManager = HapticFeedbackManager.shared
     // Layout for a standard 101-key numpad
     private let numpadKeys: [[String?]] = [
@@ -11,12 +12,10 @@ struct NumPadView: View {
         ["1", "2", "3"],
         ["0", ".", nil]
     ]
-    
+
     var body: some View {
         GeometryReader { geometry in
-            let keyWidth = geometry.size.width / 4 - 8
-            let keyHeight = geometry.size.height / 5 - 8
-            HStack(spacing: 4) {
+            HStack(alignment: .top, spacing: 4) {
                 VStack(spacing: 4) {
                     ForEach(0..<numpadKeys.count, id: \.self) { row in
                         HStack(spacing: 4) {
@@ -30,8 +29,8 @@ struct NumPadView: View {
                                         .font(.system(size: min(geometry.size.width, geometry.size.height) / 14, weight: .bold))
                                         .foregroundColor(.white)
                                         .frame(
-                                            width: keyWidth * 2 + 4, // span two columns
-                                            height: keyHeight
+                                            width: keyWidth(for: geometry) * 2 + 4,
+                                            height: keyHeight(for: geometry)
                                         )
                                         .background(Color.gray.opacity(0.2))
                                         .cornerRadius(6)
@@ -46,14 +45,14 @@ struct NumPadView: View {
                                             .font(.system(size: min(geometry.size.width, geometry.size.height) / 14, weight: .bold))
                                             .foregroundColor(.white)
                                             .frame(
-                                                width: keyWidth,
-                                                height: keyHeight
+                                                width: keyWidth(for: geometry),
+                                                height: keyHeight(for: geometry)
                                             )
                                             .background(Color.gray.opacity(0.2))
                                             .cornerRadius(6)
                                     }
                                 } else {
-                                    Spacer().frame(width: keyWidth)
+                                    Spacer().frame(width: keyWidth(for: geometry))
                                 }
                             } else {
                                 ForEach(0..<3, id: \.self) { col in
@@ -66,14 +65,14 @@ struct NumPadView: View {
                                                 .font(.system(size: min(geometry.size.width, geometry.size.height) / 14, weight: .bold))
                                                 .foregroundColor(.white)
                                                 .frame(
-                                                    width: keyWidth,
-                                                    height: keyHeight
+                                                    width: keyWidth(for: geometry),
+                                                    height: keyHeight(for: geometry)
                                                 )
                                                 .background(Color.gray.opacity(0.2))
                                                 .cornerRadius(6)
                                         }
                                     } else {
-                                        Spacer().frame(width: keyWidth)
+                                        Spacer().frame(width: keyWidth(for: geometry))
                                     }
                                 }
                             }
@@ -81,8 +80,7 @@ struct NumPadView: View {
                     }
                 }
                 VStack(spacing: 4) {
-                    // Minus key (top right) aligned with first row
-                    Spacer().frame(height: 0)
+                    // Minus key
                     Button(action: {
                         hapticManager.triggerButtonPress()
                         keyboardManager.handleKeyPress("-")
@@ -91,13 +89,13 @@ struct NumPadView: View {
                             .font(.system(size: min(geometry.size.width, geometry.size.height) / 14, weight: .bold))
                             .foregroundColor(.white)
                             .frame(
-                                width: keyWidth,
-                                height: keyHeight
+                                width: keyWidth(for: geometry),
+                                height: keyHeight(for: geometry)
                             )
                             .background(Color.gray.opacity(0.2))
                             .cornerRadius(6)
                     }
-                    // Plus key spans two rows
+                    // Plus key
                     Button(action: {
                         hapticManager.triggerButtonPress()
                         keyboardManager.handleKeyPress("+")
@@ -106,8 +104,23 @@ struct NumPadView: View {
                             .font(.system(size: min(geometry.size.width, geometry.size.height) / 14, weight: .bold))
                             .foregroundColor(.white)
                             .frame(
-                                width: keyWidth,
-                                height: keyHeight * 2 + 4 // span two rows
+                                width: keyWidth(for: geometry),
+                                height: keyHeight(for: geometry)
+                            )
+                            .background(Color.gray.opacity(0.2))
+                            .cornerRadius(6)
+                    }
+                    // Backspace key
+                    Button(action: {
+                        hapticManager.triggerButtonPress()
+                        keyboardManager.handleKeyPress("Backspace")
+                    }) {
+                        Image(systemName: "delete.left")
+                            .font(.system(size: min(geometry.size.width, geometry.size.height) / 14, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(
+                                width: keyWidth(for: geometry),
+                                height: keyHeight(for: geometry)
                             )
                             .background(Color.gray.opacity(0.2))
                             .cornerRadius(6)
@@ -121,17 +134,18 @@ struct NumPadView: View {
                             .font(.system(size: min(geometry.size.width, geometry.size.height) / 14, weight: .bold))
                             .foregroundColor(.white)
                             .frame(
-                                width: keyWidth,
-                                height: keyHeight * 2 + 4 // span two rows
+                                width: keyWidth(for: geometry),
+                                height: keyHeight(for: geometry) * 2 + 4
                             )
                             .background(Color.gray.opacity(0.2))
                             .cornerRadius(6)
                     }
                     Spacer()
                 }
+                Spacer()
             }
-            .frame(width: geometry.size.width, height: geometry.size.height)
             .padding(8)
+            .padding(.leading, orientationManager.isLandscape ? max(geometry.safeAreaInsets.leading, 45) : 0)
             .background(
                 RoundedRectangle(cornerRadius: 12)
                     .stroke(Color.gray, lineWidth: 1)
@@ -139,11 +153,20 @@ struct NumPadView: View {
         }
         .edgesIgnoringSafeArea(.all)
     }
+
+    private func keyWidth(for geometry: GeometryProxy) -> CGFloat {
+        geometry.size.width / 4 - 8
+    }
+
+    private func keyHeight(for geometry: GeometryProxy) -> CGFloat {
+        geometry.size.height / 6 - 8
+    }
 }
 
 struct NumPadView_Previews: PreviewProvider {
     static var previews: some View {
-        NumPadView(keyboardManager: KeyboardManager(bleManager: BLEManager()))
+        let orientationManager = OrientationManager()
+        return NumPadView(keyboardManager: KeyboardManager(bleManager: BLEManager()), orientationManager: orientationManager)
             .previewLayout(.sizeThatFits)
             .padding()
     }

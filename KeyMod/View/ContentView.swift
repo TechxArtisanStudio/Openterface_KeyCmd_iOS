@@ -24,6 +24,7 @@ struct ContentView: View {
     @State private var showSettings = false
     @State private var selectedGamepadLayout: GamepadLayout = .xbox
     @State private var isGamepadEditMode = false
+    @State private var basicSubmode: BasicKeyboardMouseView.Submode = .keyboard
     
     init(launchPanelManager: LaunchPanelManager) {
         self.launchPanelManager = launchPanelManager
@@ -45,7 +46,6 @@ struct ContentView: View {
             modifiersDisplay
             sidebarNavigation
             Spacer()
-            sidebarOSPicker
             // sidebarModeSelectionButton - Hidden as requested
             sidebarSettingsButton
         }
@@ -209,6 +209,15 @@ struct ContentView: View {
                             }
                         }
                 }
+                // Submode tabs in landscape for keyboard&mouse view
+                if orientationManager.isLandscape && viewManager.currentView == .keyboardMouseBasic {
+                    BasicKeyboardMouseView(
+                        mouseManager: mouseManager,
+                        keyboardManager: keyboardManager,
+                        orientationManager: orientationManager,
+                        selectedSubmode: $basicSubmode
+                    ).landscapeTabBar
+                }
             }
             Spacer()
             topBarButtons
@@ -233,12 +242,12 @@ struct ContentView: View {
     
     private var topBarButtons: some View {
         HStack(spacing: 10) {
+            targetOSButton
             // Show gamepad layout selector only when in gamepad view
             if viewManager.currentView == .gamepad {
                 gamepadEditModeButton
                 gamepadLayoutSelector
             }
-            orientationButton
             bleButton
         }
         .onAppear {
@@ -309,28 +318,38 @@ struct ContentView: View {
         }
     }
     
-    private var orientationButton: some View {
+    private var targetOSButton: some View {
         VStack(spacing: 2) {
-            Button(action: {
-                orientationManager.toggleOrientationWithInstruction()
-            }) {
-                Image(systemName: orientationManager.isLandscape ? "iphone.landscape" : "iphone")
+            Menu {
+                ForEach(TargetOS.allCases, id: \.self) { os in
+                    Button(action: {
+                        aiSettings.targetOS = os
+                    }) {
+                        HStack {
+                            Label(os.displayName, systemImage: os.systemImage)
+                            if aiSettings.targetOS == os {
+                                Spacer()
+                                Image(systemName: "checkmark")
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                    }
+                }
+            } label: {
+                Image(systemName: aiSettings.targetOS.systemImage)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 24, height: 24)
-                    .foregroundColor(.orange)
+                    .frame(width: 18, height: 18)
+                    .foregroundColor(.purple)
             }
-            .frame(width: 40, height: 40)
+            .frame(width: 32, height: 32)
             .background(Color.clear)
-            Text(orientationManager.isLandscape ? "Land" : "Port")
+            Text(aiSettings.targetOS.shortName)
                 .font(.caption2)
                 .foregroundColor(.secondary)
         }
-        .onAppear {
-            print("📱 OrientationButton rendered")
-        }
     }
-    
+
     private var bleButton: some View {
         VStack(spacing: 2) {
             Button(action: {
@@ -345,10 +364,10 @@ struct ContentView: View {
                 Image(systemName: "antenna.radiowaves.left.and.right")
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 24, height: 24)
+                    .frame(width: 18, height: 18)
                     .foregroundColor(bleManager.connectedDevices.isEmpty ? .blue : .green)
             }
-            .frame(width: 40, height: 40)
+            .frame(width: 32, height: 32)
             .background(Color.clear)
             if let rssi = bleManager.currentRSSI {
                 Text("\(rssi.intValue) dBm")
@@ -361,23 +380,6 @@ struct ContentView: View {
         }
     }
     
-    private var sidebarOSPicker: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Target OS")
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 12)
-            Picker("Target OS", selection: $aiSettings.targetOS) {
-                ForEach(TargetOS.allCases, id: \.self) { os in
-                    Text(os.shortName).tag(os)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 12)
-        }
-        .padding(.bottom, 8)
-    }
-
     private var sidebarSettingsButton: some View {
         Button(action: {
             showSettings = true
@@ -435,7 +437,9 @@ struct ContentView: View {
             case .keyboardMouseBasic:
                 BasicKeyboardMouseView(
                     mouseManager: mouseManager,
-                    keyboardManager: keyboardManager
+                    keyboardManager: keyboardManager,
+                    orientationManager: orientationManager,
+                    selectedSubmode: $basicSubmode
                 )
                 .id(viewManager.currentView)
                 .onAppear { print("🟢 [ContentView] BasicKeyboardMouseView appeared") }
@@ -457,7 +461,7 @@ struct ContentView: View {
                 )
                 .id(viewManager.currentView)
             case .numpad:
-                NumPadView(keyboardManager: keyboardManager)
+                NumPadView(keyboardManager: keyboardManager, orientationManager: orientationManager)
                     .id(viewManager.currentView)
             case .shortcutHub:
                 ShortcutHubView(keyboardManager: keyboardManager)
