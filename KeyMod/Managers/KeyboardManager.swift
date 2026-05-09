@@ -310,11 +310,18 @@ class KeyboardManager: ObservableObject {
             if modifierMask(for: key) != nil { handleModifierToggle(key); return }
             if key == "Caps" { capsLockActive.toggle(); sendCapsLockState(); return }
             let keyAlias = mapKeyAlias(key)
-            guard let keyCode = hidCode(forKey: keyAlias) else { return }
+            // For single letter keys, use the uppercased form for HID lookup so that
+            // both "a" and "A" resolve to the same key code. Original case is preserved
+            // in keyAlias to determine whether Shift is required.
+            let lookupAlias = (keyAlias.count == 1 && keyAlias.first?.isLetter == true)
+                ? keyAlias.uppercased() : keyAlias
+            guard let keyCode = hidCode(forKey: lookupAlias) else { return }
             var modByte: UInt8 = 0x00
             for m in activeModifiers { modByte |= modifierMask(for: m) ?? 0 }
             if keyAlias.count == 1, let ch = keyAlias.first, ch.isLetter {
-                if capsLockActive != activeModifiers.contains("Shift") { modByte |= KMod.shift.rawValue }
+                // Add Shift when the intended case differs from the CapsLock state.
+                let wantUppercase = ch.isUppercase
+                if wantUppercase != capsLockActive { modByte |= KMod.shift.rawValue }
             }
             sendKeyboardData(modifier: modByte, keyCodes: [keyCode, 0, 0, 0, 0, 0])
         }
@@ -983,9 +990,9 @@ class KeyboardManager: ObservableObject {
                     } else {
                         // sendKeyPressSynchronous already reads activeModifiers for both
                         // press and restore-release, so no need to pass them explicitly.
-                        // Uppercase letters still need Shift in the modifier byte; the
-                        // synchronous helper handles that via the existing modifierByte logic.
-                        self.sendKeyPressSynchronous(token.uppercased())
+                        // Pass the token as-is (do NOT uppercase) so that sendKeyPressSynchronous
+                        // can detect the original case and add Shift for uppercase letters.
+                        self.sendKeyPressSynchronous(token)
                     }
                 } else {
                     // Multiple characters - send each
@@ -998,7 +1005,8 @@ class KeyboardManager: ObservableObject {
                                 self.sendASCIICharInline(char)
                             }
                         } else {
-                            self.sendKeyPressSynchronous(charStr.uppercased())
+                            // Pass charStr as-is so sendKeyPressSynchronous can detect case.
+                            self.sendKeyPressSynchronous(charStr)
                         }
                         usleep(self.keyDelayUs)
                     }
@@ -1026,6 +1034,10 @@ class KeyboardManager: ObservableObject {
     /// Check if a token is a special token (e.g., <CTRL>, <SHIFT>, etc.)
     /// and get its HID code via Core. Returns nil if not a special token or unmappable.
     private func specialTokenHidCode(_ token: String) -> UInt8? {
+        // Only handle angle-bracket tokens like <ENTER>, <F1>, <UP> etc.
+        // Plain single characters like "H" or "a" must NOT match here — they
+        // need to go through sendASCIICharInline so that case is preserved.
+        guard token.hasPrefix("<") && token.hasSuffix(">") else { return nil }
         let result = Keymod.parseToken(token)
         guard result.hidCode >= 0 else { return nil }
         return UInt8(result.hidCode)

@@ -17,6 +17,7 @@ struct BasicKeyboardMouseView: View {
     enum Submode: String, CaseIterable {
         case keyboard = "Keyboard"
         case touchpad = "Touchpad"
+        case ime = "IME"
         case numpad = "Numpad"
     }
 
@@ -78,6 +79,8 @@ struct BasicKeyboardMouseView: View {
                         touchpadSubmode
                     case .numpad:
                         numpadSubmode
+                    case .ime:
+                        imeSubmode
                     }
                 }
                 .id(selectedSubmode.rawValue)
@@ -791,6 +794,12 @@ struct BasicKeyboardMouseView: View {
 
     private var numpadSubmode: some View {
         NumPadView(keyboardManager: keyboardManager, orientationManager: orientationManager)
+    }
+
+    // MARK: - IME Submode
+
+    private var imeSubmode: some View {
+        IMEView(keyboardManager: keyboardManager)
     }
 }
 
