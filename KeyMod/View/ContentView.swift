@@ -219,7 +219,6 @@ struct ContentView: View {
                     ).landscapeTabBar
                 }
             }
-            targetOSButton
             Spacer()
             topBarButtons
         }
@@ -243,6 +242,7 @@ struct ContentView: View {
     
     private var topBarButtons: some View {
         HStack(spacing: 10) {
+            targetOSButton
             // Show gamepad layout selector only when in gamepad view
             if viewManager.currentView == .gamepad {
                 gamepadEditModeButton
@@ -339,10 +339,10 @@ struct ContentView: View {
                 Image(systemName: aiSettings.targetOS.systemImage)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 18, height: 18)
+                    .frame(width: 26, height: 26)
                     .foregroundColor(.purple)
             }
-            .frame(width: 32, height: 32)
+            .frame(width: 40, height: 40)
             .background(Color.clear)
             Text(aiSettings.targetOS.shortName)
                 .font(.caption2)
@@ -364,10 +364,10 @@ struct ContentView: View {
                 Image(systemName: "antenna.radiowaves.left.and.right")
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 18, height: 18)
+                    .frame(width: 26, height: 26)
                     .foregroundColor(bleManager.connectedDevices.isEmpty ? .blue : .green)
             }
-            .frame(width: 32, height: 32)
+            .frame(width: 40, height: 40)
             .background(Color.clear)
             if let rssi = bleManager.currentRSSI {
                 Text("\(rssi.intValue) dBm")

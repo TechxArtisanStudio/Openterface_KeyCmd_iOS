@@ -242,7 +242,7 @@ struct BasicKeyboardMouseView: View {
             // Row 1: Esc + F1-F12
             HStack(spacing: 1) {
                 ForEach(windowsFRow.indices, id: \.self) { idx in
-                    windowsKeyButton(key: windowsFRow[idx], height: 28)
+                    windowsKeyButton(key: windowsFRow[idx], height: 36)
                 }
             }
             .padding(.horizontal, 2)
@@ -250,7 +250,7 @@ struct BasicKeyboardMouseView: View {
             // Row 2: ` 1 2 3 4 5 6 7 8 9 0 - = Backspace
             HStack(spacing: 1) {
                 ForEach(windowsNumberRow.indices, id: \.self) { idx in
-                    windowsKeyButton(key: windowsNumberRow[idx], height: 30)
+                    windowsKeyButton(key: windowsNumberRow[idx], height: 38)
                 }
             }
             .padding(.horizontal, 2)
@@ -327,7 +327,7 @@ struct BasicKeyboardMouseView: View {
             // Row 1: Esc + F1-F12
             HStack(spacing: 1) {
                 ForEach(windowsFRow.indices, id: \.self) { idx in
-                    windowsKeyButton(key: windowsFRow[idx], height: 28)
+                    windowsKeyButton(key: windowsFRow[idx], height: 36)
                 }
             }
             .padding(.horizontal, 2)
@@ -335,7 +335,7 @@ struct BasicKeyboardMouseView: View {
             // Row 2: ` 1 2 3 4 5 6 7 8 9 0 - = Backspace
             HStack(spacing: 1) {
                 ForEach(windowsNumberRow.indices, id: \.self) { idx in
-                    windowsKeyButton(key: windowsNumberRow[idx], height: 30)
+                    windowsKeyButton(key: windowsNumberRow[idx], height: 38)
                 }
             }
             .padding(.horizontal, 2)
@@ -425,7 +425,7 @@ struct BasicKeyboardMouseView: View {
             // Row 1: Esc + F1-F12
             HStack(spacing: 1) {
                 ForEach(windowsFRow.indices, id: \.self) { idx in
-                    windowsKeyButton(key: windowsFRow[idx], height: 28)
+                    windowsKeyButton(key: windowsFRow[idx], height: 36)
                 }
             }
             .padding(.horizontal, 2)
@@ -433,7 +433,7 @@ struct BasicKeyboardMouseView: View {
             // Row 2: ` 1 2 3 4 5 6 7 8 9 0 - = Backspace
             HStack(spacing: 1) {
                 ForEach(windowsNumberRow.indices, id: \.self) { idx in
-                    windowsKeyButton(key: windowsNumberRow[idx], height: 30)
+                    windowsKeyButton(key: windowsNumberRow[idx], height: 38)
                 }
             }
             .padding(.horizontal, 2)
@@ -575,8 +575,8 @@ struct BasicKeyboardMouseView: View {
         let displayText = windowsDisplayValue(for: key)
         let modifierKeys: Set<String> = ["Ctrl", "Alt", "Cmd", "Win", "Option", "Super", "Shift"]
         let isCapsActive = key == "Caps" && keyboardManager.capsLockActive
-        // F-row (height 28) and number row (height 30) show preview below; other rows above
-        let previewBelow = height <= 30
+        // F-row (height 36) and number row (height 38) show preview below; other rows above
+        let previewBelow = height <= 38
 
         if modifierKeys.contains(key) {
             ModifierKeyButton(key: key, keyboardManager: keyboardManager, keyPreview: displayText, previewBelow: previewBelow) { isPhysical, isLocked in
@@ -766,21 +766,22 @@ struct BasicKeyboardMouseView: View {
 
     private func mouseButton(label: String, icon: String, button: MouseButton) -> some View {
         let bits: UInt8 = button == .left ? 0x01 : button == .right ? 0x02 : 0x04
-        return MousePressButton(
-            onPress: {
+        return MouseLockButton(
+            onDown: {
                 HapticFeedbackManager.shared.triggerButtonPress()
                 mouseManager.sendButtonDown(buttons: bits)
             },
-            onRelease: {
-                mouseManager.sendButtonUp(buttons: bits)
-            }
-        ) {
+            onUp: { mouseManager.sendButtonUp(buttons: bits) }
+        ) { isPressed, isLocked in
             Text(label)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.primary)
+                .foregroundColor(isPressed || isLocked ? .white : .primary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(UIColor.tertiarySystemBackground))
+                .background(isLocked ? Color.blue : (isPressed ? Color.blue.opacity(0.7) : Color(UIColor.tertiarySystemBackground)))
                 .cornerRadius(8)
+                .overlay(
+                    isLocked ? RoundedRectangle(cornerRadius: 8).stroke(Color.blue, lineWidth: 2) : nil
+                )
         }
     }
 
@@ -1029,6 +1030,107 @@ private struct PressDetectorView: UIViewRepresentable {
             default:
                 break
             }
+        }
+    }
+}
+
+/// Mouse button with lock support: short tap = click, long press (0.5s) = lock held down, tap again to unlock.
+struct MouseLockButton<Label: View>: View {
+    let onDown: () -> Void
+    let onUp: () -> Void
+    let label: (Bool, Bool) -> Label
+
+    @State private var isPressed = false
+    @State private var isLocked = false
+    @State private var longPressTimer: Timer?
+    @State private var showLockHint = false
+    @State private var justLocked = false
+
+    private let lockThreshold: TimeInterval = 0.5
+    private let lockIconAbove: CGFloat = 32
+    private let lockIconRadius: CGFloat = 30
+
+    init(onDown: @escaping () -> Void, onUp: @escaping () -> Void, @ViewBuilder label: @escaping (Bool, Bool) -> Label) {
+        self.onDown = onDown
+        self.onUp = onUp
+        self.label = label
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack {
+                label(isPressed, isLocked)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                if showLockHint {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(12)
+                        .background(Circle().fill(Color.orange))
+                        .offset(y: -(geo.size.height / 2 + lockIconAbove))
+                        .allowsHitTesting(false)
+                        .zIndex(99)
+                        .transition(.scale(scale: 0.4).combined(with: .opacity))
+                }
+            }
+            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: showLockHint)
+            .overlay(
+                PressDetectorView(
+                    isPressed: $isPressed,
+                    onPress: { handlePress() },
+                    onRelease: { handleRelease() },
+                    onMoved: { pt in handleMoved(pt, size: geo.size) }
+                )
+            )
+        }
+        .onDisappear {
+            longPressTimer?.invalidate()
+            longPressTimer = nil
+            if isLocked { isLocked = false; onUp() }
+            else if isPressed { isPressed = false; onUp() }
+        }
+    }
+
+    private func handlePress() {
+        if isLocked {
+            // Don't unlock on press — wait for release
+        } else {
+            onDown()
+            longPressTimer = Timer.scheduledTimer(withTimeInterval: lockThreshold, repeats: false) { _ in
+                DispatchQueue.main.async { self.showLockHint = true }
+            }
+        }
+    }
+
+    private func handleRelease() {
+        longPressTimer?.invalidate()
+        longPressTimer = nil
+        showLockHint = false
+        if isLocked {
+            if justLocked {
+                justLocked = false  // lift after slide-to-lock — stay locked
+            } else {
+                isLocked = false
+                onUp()
+            }
+        } else {
+            onUp()
+        }
+    }
+
+    private func handleMoved(_ pt: CGPoint, size: CGSize) {
+        guard showLockHint && !isLocked else { return }
+        let iconCenter = CGPoint(x: size.width / 2, y: -lockIconAbove)
+        let dx = pt.x - iconCenter.x
+        let dy = pt.y - iconCenter.y
+        if sqrt(dx * dx + dy * dy) < lockIconRadius {
+            longPressTimer?.invalidate()
+            longPressTimer = nil
+            isLocked = true
+            justLocked = true
+            showLockHint = false
+            // button is already held down via onDown() — nothing extra needed
         }
     }
 }
