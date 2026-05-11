@@ -431,7 +431,8 @@ struct ProKeyboardMouseView: View {
                                     .allowsHitTesting(false)
                                     .zIndex(1)
                                 }
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: geometry.size.height * 0.50)
                                 .opacity(isTextInputMode && isTextInputExpanded ? 0 : 1)
                             }
                             // Handle removed to save space
@@ -479,6 +480,7 @@ struct ProKeyboardMouseView: View {
                                         .padding(.bottom, keyboardHeight > 0 ? keyboardHeight : 0)
                                     }
                             } else if !isTextInputMode {
+                                VStack(spacing: 0) {
                                 // Keyboard mode
                                 // Swipeable shortcut panels
                                 if !shortcutPages.isEmpty {
@@ -502,6 +504,7 @@ struct ProKeyboardMouseView: View {
                                 bottomToolbar
                                     .padding(.horizontal, 4)
                                     .padding(.bottom, 4)
+                                }
                             }
                         }
                     }
