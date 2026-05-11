@@ -18,9 +18,9 @@ enum ViewMode: String, CaseIterable, Identifiable {
     var views: [ViewType] {
         switch self {
         case .basic:
-            return [.keyboardMouseBasic, .gamepad, .numpad, .macros, .voiceInput]
+            return [.keyboardMouseBasic, .keyboardMousePro, .gamepad, .numpad, .shortcutHub, .macros, .voiceInput]
         case .pro:
-            return [.keyboardMousePro, .gamepad, .numpad, .shortcutHub, .macros, .voiceInput]
+            return [.keyboardMouseBasic, .keyboardMousePro, .gamepad, .numpad, .shortcutHub, .macros, .voiceInput]
         }
     }
 }

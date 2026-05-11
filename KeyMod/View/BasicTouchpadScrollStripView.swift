@@ -9,6 +9,7 @@ import SwiftUI
 
 struct BasicTouchpadScrollStripView: View {
     let mouseManager: MouseManager
+    var labelFontSize: CGFloat = 7
 
     @State private var lastScrollY: CGFloat?
     @State private var isScrolling: Bool = false
@@ -22,7 +23,7 @@ struct BasicTouchpadScrollStripView: View {
                 .overlay(
                     VStack {
                         Text("scroll")
-                            .font(.system(size: 7, weight: .bold))
+                            .font(.system(size: labelFontSize, weight: .bold))
                             .foregroundColor(.secondary.opacity(0.5))
                             .rotationEffect(.degrees(-90))
                         Spacer()

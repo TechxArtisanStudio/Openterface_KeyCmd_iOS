@@ -10,6 +10,7 @@ import Foundation
 class KeyboardManager: ObservableObject {
     var bleManager: BLEManager
     @Published var activeModifiers: Set<String> = []
+    @Published var lockedModifiers: Set<String> = []
     @Published var capsLockActive: Bool = false
     @Published var pressedKeys: Set<String> = [] // Track currently pressed keys
     @Published var isGameMode: Bool = false // Track current mode
@@ -93,6 +94,107 @@ class KeyboardManager: ObservableObject {
         ]
     ]
 
+    /// Windows-style portrait layout (target_os == "windows")
+    /// Row 1: Esc F1-F12 (short height)
+    let portraitWindowsFRow: [KeyDef] = [
+        KeyDef("Esc", "", [], "", "Esc"),
+        KeyDef("F1", "", [], "", "F1"),
+        KeyDef("F2", "", [], "", "F2"),
+        KeyDef("F3", "", [], "", "F3"),
+        KeyDef("F4", "", [], "", "F4"),
+        KeyDef("F5", "", [], "", "F5"),
+        KeyDef("F6", "", [], "", "F6"),
+        KeyDef("F7", "", [], "", "F7"),
+        KeyDef("F8", "", [], "", "F8"),
+        KeyDef("F9", "", [], "", "F9"),
+        KeyDef("F10", "", [], "", "F10"),
+        KeyDef("F11", "", [], "", "F11"),
+        KeyDef("F12", "", [], "", "F12")
+    ]
+
+    /// Row 2: ` 1 2 3 4 5 6 7 8 9 0 - = Backspace (short height)
+    let portraitWindowsNumberRow: [KeyDef] = [
+        KeyDef("`", "~", [], "`", "`"),
+        KeyDef("1", "!", [], "1", "1"),
+        KeyDef("2", "@", [], "2", "2"),
+        KeyDef("3", "#", [], "3", "3"),
+        KeyDef("4", "$", [], "4", "4"),
+        KeyDef("5", "%", [], "5", "5"),
+        KeyDef("6", "^", [], "6", "6"),
+        KeyDef("7", "&", [], "7", "7"),
+        KeyDef("8", "*", [], "8", "8"),
+        KeyDef("9", "(", [], "9", "9"),
+        KeyDef("0", ")", [], "0", "0"),
+        KeyDef("-", "_", [], "-", "-"),
+        KeyDef("=", "+", [], "=", "="),
+        KeyDef("Backspace", "", [], "", "Backspace")
+    ]
+
+    /// Row 3: Tab q w e r t y u i o p [ ] \ (normal height)
+    let portraitWindowsRow3: [KeyDef] = [
+        KeyDef("Tab", "", [], "", "Tab"),
+        KeyDef("q", "Q", [], "q", "q"),
+        KeyDef("w", "W", [], "w", "w"),
+        KeyDef("e", "E", [], "e", "e"),
+        KeyDef("r", "R", [], "r", "r"),
+        KeyDef("t", "T", [], "t", "t"),
+        KeyDef("y", "Y", [], "y", "y"),
+        KeyDef("u", "U", [], "u", "u"),
+        KeyDef("i", "I", [], "i", "i"),
+        KeyDef("o", "O", [], "o", "o"),
+        KeyDef("p", "P", [], "p", "p"),
+        KeyDef("[", "{", [], "[", "["),
+        KeyDef("]", "}", [], "]", "]"),
+        KeyDef("\\", "|", [], "\\", "\\")
+    ]
+
+    /// Row 4: Caps a s d f g h j k l ; ' Enter (normal height)
+    let portraitWindowsRow4: [KeyDef] = [
+        KeyDef("Caps", "", [], "", "Caps"),
+        KeyDef("a", "A", [], "a", "a"),
+        KeyDef("s", "S", [], "s", "s"),
+        KeyDef("d", "D", [], "d", "d"),
+        KeyDef("f", "F", [], "f", "f"),
+        KeyDef("g", "G", [], "g", "g"),
+        KeyDef("h", "H", [], "h", "h"),
+        KeyDef("j", "J", [], "j", "j"),
+        KeyDef("k", "K", [], "k", "k"),
+        KeyDef("l", "L", [], "l", "l"),
+        KeyDef(";", ":", [], ";", ";"),
+        KeyDef("'", "\"", [], "'", "'"),
+        KeyDef("Enter", "", [], "", "Enter")
+    ]
+
+    /// Row 5: Shift z x c v b n m , . / Shift Up (normal height, Up arrow occupies rightmost slot)
+    let portraitWindowsRow5: [KeyDef] = [
+        KeyDef("Shift", "", [], "", "Shift"),
+        KeyDef("z", "Z", [], "z", "z"),
+        KeyDef("x", "X", [], "x", "x"),
+        KeyDef("c", "C", [], "c", "c"),
+        KeyDef("v", "V", [], "v", "v"),
+        KeyDef("b", "B", [], "b", "b"),
+        KeyDef("n", "N", [], "n", "n"),
+        KeyDef("m", "M", [], "m", "m"),
+        KeyDef(",", "<", [], ",", ","),
+        KeyDef(".", ">", [], ".", "."),
+        KeyDef("/", "?", [], "/", "/"),
+        KeyDef("Shift", "", [], "", "Shift"),
+        KeyDef("Up", "", [], "↑", "Up")
+    ]
+
+    /// Row 6: Ctrl Win Alt Space Alt Ctrl Left Down Right (normal height)
+    let portraitWindowsRow6: [KeyDef] = [
+        KeyDef("Ctrl", "", [], "", "Ctrl"),
+        KeyDef("Win", "", [], "", "Win"),
+        KeyDef("Alt", "", [], "", "Alt"),
+        KeyDef("Space", "", [], "", "Space"),
+        KeyDef("Alt", "", [], "", "Alt"),
+        KeyDef("Ctrl", "", [], "", "Ctrl"),
+        KeyDef("Left", "", [], "←", "Left"),
+        KeyDef("Down", "", [], "↓", "Down"),
+        KeyDef("Right", "", [], "→", "Right")
+    ]
+
     /// Optional handler invoked (on the background thread) when a
     /// `<Macro>label</Macro>` token is encountered in
     /// `handleTextInputWithTokens`. Set by VoiceInputView to resolve
@@ -123,8 +225,8 @@ class KeyboardManager: ObservableObject {
         switch key {
         case "Ctrl":  return KMod.ctrl.rawValue
         case "Shift": return KMod.shift.rawValue
-        case "Alt":   return KMod.alt.rawValue
-        case "Cmd", "Win": return KMod.gui.rawValue
+        case "Alt", "Option": return KMod.alt.rawValue
+        case "Cmd", "Win", "Super": return KMod.gui.rawValue
         default:      return nil
         }
     }
@@ -208,11 +310,18 @@ class KeyboardManager: ObservableObject {
             if modifierMask(for: key) != nil { handleModifierToggle(key); return }
             if key == "Caps" { capsLockActive.toggle(); sendCapsLockState(); return }
             let keyAlias = mapKeyAlias(key)
-            guard let keyCode = hidCode(forKey: keyAlias) else { return }
+            // For single letter keys, use the uppercased form for HID lookup so that
+            // both "a" and "A" resolve to the same key code. Original case is preserved
+            // in keyAlias to determine whether Shift is required.
+            let lookupAlias = (keyAlias.count == 1 && keyAlias.first?.isLetter == true)
+                ? keyAlias.uppercased() : keyAlias
+            guard let keyCode = hidCode(forKey: lookupAlias) else { return }
             var modByte: UInt8 = 0x00
             for m in activeModifiers { modByte |= modifierMask(for: m) ?? 0 }
             if keyAlias.count == 1, let ch = keyAlias.first, ch.isLetter {
-                if capsLockActive != activeModifiers.contains("Shift") { modByte |= KMod.shift.rawValue }
+                // Add Shift when the intended case differs from the CapsLock state.
+                let wantUppercase = ch.isUppercase
+                if wantUppercase != capsLockActive { modByte |= KMod.shift.rawValue }
             }
             sendKeyboardData(modifier: modByte, keyCodes: [keyCode, 0, 0, 0, 0, 0])
         }
@@ -687,6 +796,8 @@ class KeyboardManager: ObservableObject {
         for key in keys {
             // Handle modifier keys
             if modifierMask(for: key) != nil {
+                // Don't release if locked
+                if lockedModifiers.contains(key) { continue }
                 if activeModifiers.contains(key) {
                     activeModifiers.remove(key)
                     logger.log("\(key) released", category: "Keyboard")
@@ -746,8 +857,37 @@ class KeyboardManager: ObservableObject {
     func releaseAllKeys() {
         pressedKeys.removeAll()
         activeModifiers.removeAll()
+        lockedModifiers.removeAll()
         sendKeyboardData(modifier: 0x00, keyCodes: [0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
         logger.log("All keys released", category: "Keyboard")
+    }
+
+    /// Lock a modifier (sticky key). Modifier stays in activeModifiers until unlocked.
+    func lockModifier(_ key: String) {
+        lockedModifiers.insert(key)
+        if !activeModifiers.contains(key) {
+            activeModifiers.insert(key)
+            var modByte: UInt8 = 0x00
+            for m in activeModifiers { modByte |= modifierMask(for: m) ?? 0 }
+            sendKeyboardData(modifier: modByte, keyCodes: [0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+        }
+    }
+
+    /// Unlock a locked modifier and release it.
+    func unlockModifier(_ key: String) {
+        lockedModifiers.remove(key)
+        activeModifiers.remove(key)
+        var modByte: UInt8 = 0x00
+        for m in activeModifiers { modByte |= modifierMask(for: m) ?? 0 }
+        // Maintain any currently pressed regular keys in the HID report
+        var keyCodes: [UInt8] = []
+        for pressedKey in pressedKeys {
+            if let code = hidCode(forKey: pressedKey), keyCodes.count < 6 {
+                keyCodes.append(code)
+            }
+        }
+        while keyCodes.count < 6 { keyCodes.append(0x00) }
+        sendKeyboardData(modifier: modByte, keyCodes: keyCodes)
     }
     
     // Check if a key is currently pressed
@@ -850,9 +990,9 @@ class KeyboardManager: ObservableObject {
                     } else {
                         // sendKeyPressSynchronous already reads activeModifiers for both
                         // press and restore-release, so no need to pass them explicitly.
-                        // Uppercase letters still need Shift in the modifier byte; the
-                        // synchronous helper handles that via the existing modifierByte logic.
-                        self.sendKeyPressSynchronous(token.uppercased())
+                        // Pass the token as-is (do NOT uppercase) so that sendKeyPressSynchronous
+                        // can detect the original case and add Shift for uppercase letters.
+                        self.sendKeyPressSynchronous(token)
                     }
                 } else {
                     // Multiple characters - send each
@@ -865,7 +1005,8 @@ class KeyboardManager: ObservableObject {
                                 self.sendASCIICharInline(char)
                             }
                         } else {
-                            self.sendKeyPressSynchronous(charStr.uppercased())
+                            // Pass charStr as-is so sendKeyPressSynchronous can detect case.
+                            self.sendKeyPressSynchronous(charStr)
                         }
                         usleep(self.keyDelayUs)
                     }
@@ -893,6 +1034,10 @@ class KeyboardManager: ObservableObject {
     /// Check if a token is a special token (e.g., <CTRL>, <SHIFT>, etc.)
     /// and get its HID code via Core. Returns nil if not a special token or unmappable.
     private func specialTokenHidCode(_ token: String) -> UInt8? {
+        // Only handle angle-bracket tokens like <ENTER>, <F1>, <UP> etc.
+        // Plain single characters like "H" or "a" must NOT match here — they
+        // need to go through sendASCIICharInline so that case is preserved.
+        guard token.hasPrefix("<") && token.hasSuffix(">") else { return nil }
         let result = Keymod.parseToken(token)
         guard result.hidCode >= 0 else { return nil }
         return UInt8(result.hidCode)

@@ -48,11 +48,29 @@ struct ProKeyboardMouseView: View {
     /// Prevents the Button action from also sending the original key (matches Android ACTION_UP behavior).
     @State private var alternatesCommitHandled = false
 
+    // Track if a key press is currently in progress to prevent multiple triggers
+    @State private var keyPressInProgress = false
+    
+    // Track long press timer for alternates popup
+    @State private var longPressTimer: Timer?
+    
+    // Track which key is currently being pressed (for visual feedback)
+    @State private var currentlyPressedKey: String?
+
     // Key repeat controller
     @State private var keyRepeatController = KeyRepeatController()
 
     // Shortcut panel state
     @State private var shortcutPage = 0
+    
+    // Text input mode state
+    @State private var isTextInputMode = false
+    @State private var textInputContent = ""
+    @State private var savedTextInputContent = ""
+    @State private var isTextInputExpanded = false
+    
+    // Keyboard height for avoiding keyboard obstruction
+    @State private var keyboardHeight: CGFloat = 0
 
     // Symbol mode layout keys
     let symbolKeysPortrait: [[String]] = [
@@ -236,40 +254,20 @@ struct ProKeyboardMouseView: View {
                             }
                             .padding(.top, 8)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                            // Overlay: Title and tips at the center
-                            VStack(alignment: .center, spacing: 8) {
-                                HStack(spacing: 8) {
+                            // Overlay: Text at the bottom
+                            VStack {
+                                Spacer()
+                                VStack(spacing: 4) {
                                     Text("Touch Pad")
-                                        .font(.headline)
-                                        .foregroundColor(.primary)
-                                    if mouseManager.isSelectMode {
-                                        Text("Drag Mode ON")
-                                            .font(.caption)
-                                            .foregroundColor(.blue)
-                                    }
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Text("Openterface")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary.opacity(0.7))
                                 }
-                                VStack(alignment: .center, spacing: 2) {
-                                    Text("Single tap → Click")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                    Text("Double tap → Double click")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                    Text("Two finger tap → Right click")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                    Text("Two finger drag → Scroll")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                    Text("Long press → Toggle drag mode")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                }
+                                .padding(.bottom, 8)
                             }
-                            .padding(20)
-                            .background(Color.clear)
-                            .cornerRadius(12)
-                            .shadow(radius: 6)
+                            .allowsHitTesting(false)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -282,59 +280,46 @@ struct ProKeyboardMouseView: View {
                                         Rectangle()
                                             .foregroundColor(mouseManager.isSelectMode ? Color.blue.opacity(0.3) : Color(UIColor.tertiarySystemBackground))
                                         
-                                        VStack {
-                                            Text("Touch Pad")
-                                                .font(.headline)
-                                                .foregroundColor(.primary)
-                                            if mouseManager.isSelectMode {
-                                                Text("Drag Mode ON")
-                                                    .font(.caption)
-                                                    .foregroundColor(.blue)
-                                            }
-                                            VStack(spacing: 2) {
-                                                Text("Single tap → Click")
-                                                    .font(.caption2)
-                                                    .foregroundColor(.secondary)
-                                                Text("Double tap → Double click")
-                                                    .font(.caption2)
-                                                    .foregroundColor(.secondary)
-                                                Text("Two finger tap → Right click")
-                                                    .font(.caption2)
-                                                    .foregroundColor(.secondary)
-                                                Text("Two finger drag → Scroll")
-                                                    .font(.caption2)
-                                                    .foregroundColor(.secondary)
-                                                Text("Long press → Toggle drag mode")
-                                                    .font(.caption2)
-                                                    .foregroundColor(.secondary)
-                                            }
-                                        }
-                                        
                                         TouchpadView(mouseManager: mouseManager, pointerTipState: pointerTipState)
+                                        
+                                        VStack {
+                                            Spacer()
+                                            VStack(spacing: 4) {
+                                                Text("Touch Pad")
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondary)
+                                                Text("Openterface")
+                                                    .font(.caption2)
+                                                    .foregroundColor(.secondary.opacity(0.7))
+                                            }
+                                            .padding(.bottom, 8)
+                                        }
+                                        .allowsHitTesting(false)
+                                        .zIndex(1)
                                     }
                                     .frame(maxHeight: .infinity)
                                 }
                                 .frame(maxWidth: geometry.size.width * 0.3)
                             }
-                            // Handle between touchpad and keyboard
-                            VStack {
-                                Spacer()
-                                Button(action: { displayMode.toggle() }) {
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Color(UIColor.secondarySystemBackground))
-                                        .frame(width: 20, height: 48)
-                                        .overlay(
-                                            Rectangle()
-                                                .fill(Color.gray.opacity(0.6))
-                                                .frame(width: 3, height: 36)
-                                                .cornerRadius(1.5)
-                                        )
-                                        .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                                Spacer(minLength: 2)
-                            }
-                            .frame(width: 36)
+                            // Handle removed to save space
+                            // VStack {
+                            //     Spacer()
+                            //     Button(action: { displayMode.toggle() }) {
+                            //         RoundedRectangle(cornerRadius: 8)
+                            //             .fill(Color(UIColor.secondarySystemBackground))
+                            //             .frame(width: 20, height: 48)
+                            //             .overlay(
+                            //                 Rectangle()
+                            //                     .fill(Color.gray.opacity(0.6))
+                            //                     .frame(width: 3, height: 36)
+                            //                     .cornerRadius(1.5)
+                            //             )
+                            //             .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
+                            //     }
+                            //     .buttonStyle(PlainButtonStyle())
+                            //     Spacer(minLength: 2)
+                            // }
+                            // .frame(width: 36)
                             if displayMode != .touchpad {
                                 HStack(spacing: 0) {
                                     // Add black space for camera area only on the top side in landscape keyboard-only mode
@@ -422,83 +407,122 @@ struct ProKeyboardMouseView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 } else {
-                    VStack(spacing: 0) {
-                        if displayMode != .keyboard {
-                            ZStack {
-                                Rectangle()
-                                    .foregroundColor(mouseManager.isSelectMode ? Color.blue.opacity(0.3) : Color(UIColor.tertiarySystemBackground))
-                                
-                                VStack {
-                                    Text("Touch Pad")
-                                        .font(.headline)
-                                        .foregroundColor(.primary)
-                                    if mouseManager.isSelectMode {
-                                        Text("Drag Mode ON")
-                                            .font(.caption)
-                                            .foregroundColor(.blue)
+                    ZStack {
+                        VStack(spacing: 0) {
+                            if displayMode != .keyboard {
+                                ZStack {
+                                    Rectangle()
+                                        .foregroundColor(mouseManager.isSelectMode ? Color.blue.opacity(0.3) : Color(UIColor.tertiarySystemBackground))
+                                    
+                                    TouchpadView(mouseManager: mouseManager, pointerTipState: pointerTipState)
+                                    
+                                    VStack {
+                                        Spacer()
+                                        VStack(spacing: 4) {
+                                            Text("Touch Pad")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                            Text("Openterface")
+                                                .font(.caption2)
+                                                .foregroundColor(.secondary.opacity(0.7))
+                                        }
+                                        .padding(.bottom, 8)
                                     }
-                                    VStack(spacing: 2) {
-                                        Text("Single tap → Click")
-                                            .font(.caption2)
-                                            .foregroundColor(.secondary)
-                                        Text("Double tap → Double click")
-                                            .font(.caption2)
-                                            .foregroundColor(.secondary)
-                                        Text("Two finger tap → Right click")
-                                            .font(.caption2)
-                                            .foregroundColor(.secondary)
-                                        Text("Two finger drag → Scroll")
-                                            .font(.caption2)
-                                            .foregroundColor(.secondary)
-                                        Text("Long press → Toggle drag mode")
-                                            .font(.caption2)
-                                            .foregroundColor(.secondary)
+                                    .allowsHitTesting(false)
+                                    .zIndex(1)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: geometry.size.height * 0.50)
+                                .opacity(isTextInputMode && isTextInputExpanded ? 0 : 1)
+                            }
+                            // Handle removed to save space
+                            // HStack {
+                            //     Spacer()
+                            //     // Portrait handle
+                            //     Button(action: { displayMode.toggle() }) {
+                            //         RoundedRectangle(cornerRadius: 6)
+                            //             .fill(Color(UIColor.secondarySystemBackground))
+                            //             .frame(width: 48, height: 20)
+                            //             .overlay(
+                            //                 Rectangle()
+                            //                     .fill(Color.gray.opacity(0.6))
+                            //                     .frame(width: 36, height: 3)
+                            //                     .cornerRadius(1.5)
+                            //             )
+                            //             .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
+                            //     }
+                            //     .buttonStyle(PlainButtonStyle())
+                            //     Spacer()
+                            // }
+                            // .frame(height: 36)
+                            if displayMode != .touchpad {
+                                if isTextInputMode && !isTextInputExpanded {
+                                    // Text input mode with ScrollView for keyboard avoidance
+                                    ScrollView {
+                                        VStack(spacing: 0) {
+                                            // Swipeable shortcut panels
+                                            if !shortcutPages.isEmpty {
+                                                ShortcutPanelPager(pages: shortcutPages)
+                                                    .padding(.horizontal, 4)
+                                                    .padding(.top, 4)
+                                                    .padding(.bottom, 2)
+                                            }
+                                            
+                                            textInputView
+                                                .frame(height: 140)
+                                                .padding(.bottom, 10)
+                                            
+                                            // Bottom toolbar
+                                            bottomToolbar
+                                                .padding(.horizontal, 4)
+                                                .padding(.bottom, 4)
+                                        }
+                                        .padding(.bottom, keyboardHeight > 0 ? keyboardHeight : 0)
                                     }
+                            } else if !isTextInputMode {
+                                VStack(spacing: 0) {
+                                // Keyboard mode
+                                // Swipeable shortcut panels
+                                if !shortcutPages.isEmpty {
+                                    ShortcutPanelPager(pages: shortcutPages)
+                                        .padding(.horizontal, 4)
+                                        .padding(.top, 4)
+                                        .padding(.bottom, 2)
+                                }
+
+                                // Keyboard layout
+                                keyboardLayoutView
+                                    .frame(height: 240)
+                                    .padding(.bottom, 10)
+                                // Show extra keys only in keyboard-only mode and only in portrait
+                                if displayMode == .keyboard && !orientationManager.isLandscape {
+                                    extraKeysView
+                                        .padding(.top, 8)
                                 }
                                 
-                                TouchpadView(mouseManager: mouseManager, pointerTipState: pointerTipState)
-                            }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        }
-                        // Handle between touchpad and keyboard (portrait)
-                        HStack {
-                            Spacer()
-                            // Portrait handle
-                            Button(action: { displayMode.toggle() }) {
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(Color(UIColor.secondarySystemBackground))
-                                    .frame(width: 48, height: 20)
-                                    .overlay(
-                                        Rectangle()
-                                            .fill(Color.gray.opacity(0.6))
-                                            .frame(width: 36, height: 3)
-                                            .cornerRadius(1.5)
-                                    )
-                                    .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                            Spacer()
-                        }
-                        .frame(height: 36)
-                        if displayMode != .touchpad {
-                            // Swipeable shortcut panels (matches Android topShortcutPanels)
-                            if !shortcutPages.isEmpty {
-                                ShortcutPanelPager(pages: shortcutPages)
+                                // Bottom toolbar
+                                bottomToolbar
                                     .padding(.horizontal, 4)
-                                    .padding(.top, 4)
-                                    .padding(.bottom, 2)
-                            }
-
-                            // Keyboard layout
-                            keyboardLayoutView
-                                .frame(height: 240)
-                                .padding(.bottom, 10)
-                            // Show extra keys only in keyboard-only mode and only in portrait
-                            if displayMode == .keyboard && !orientationManager.isLandscape {
-                                extraKeysView
-                                    .padding(.top, 8)
+                                    .padding(.bottom, 4)
+                                }
                             }
                         }
+                    }
+                    
+                    // Expanded text input overlay
+                    if isTextInputMode && isTextInputExpanded {
+                        VStack(spacing: 8) {
+                            textInputView
+                                .frame(maxHeight: geometry.size.height * 0.50)
+                            
+                            bottomToolbar
+                                .padding(.horizontal, 4)
+                        }
+                        .padding(.top, 90)  // Increased from 10 to 80 to move down by two button heights
+                        .padding(.bottom, 30)
+                        .padding(.horizontal, 8)
+                        .background(Color(UIColor.systemBackground))
+                        .zIndex(10)
                     }
                 }
                 // Alternates popup overlay (3x3 grid)
@@ -525,6 +549,35 @@ struct ProKeyboardMouseView: View {
                     .transition(.scale.combined(with: .opacity))
                 }
             }
+            }
+            }
+            .offset(y: isTextInputMode ? (keyboardHeight > 0 ? -keyboardHeight * 0.65 : 30) : 0)
+            .animation(.easeOut(duration: 0.3), value: keyboardHeight)
+            .animation(.easeOut(duration: 0.3), value: isTextInputMode)
+            .onAppear {
+                // Listen for keyboard show/hide notifications
+                NotificationCenter.default.addObserver(
+                    forName: UIResponder.keyboardWillShowNotification,
+                    object: nil,
+                    queue: .main
+                ) { notification in
+                    if let keyboardFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
+                        keyboardHeight = keyboardFrame.height
+                    }
+                }
+                
+                NotificationCenter.default.addObserver(
+                    forName: UIResponder.keyboardWillHideNotification,
+                    object: nil,
+                    queue: .main
+                ) { _ in
+                    keyboardHeight = 0
+                }
+            }
+            .onDisappear {
+                // Clean up notification observers
+                NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardWillShowNotification, object: nil)
+                NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardWillHideNotification, object: nil)
             }
         }
     }
@@ -610,28 +663,91 @@ struct ProKeyboardMouseView: View {
         let isCapsActive = kd.label == "Caps" && keyboardManager.capsLockActive
         let isFnActive = kd.label == "Fn" && keyboardManager.isFnLocked
 
-        Button(action: { handleKeyAction(kd) }) {
-            keyContent(for: kd, displayText: displayText)
-                .frame(maxWidth: .infinity, maxHeight: 48)
-                .background(keyBackground(for: kd, pressed: isPressed, active: isCapsActive || isFnActive))
-                .cornerRadius(9)
-                .foregroundColor(isPressed || isCapsActive || isFnActive ? .white : .primary)
+        keyContent(for: kd, displayText: displayText)
+            .frame(maxWidth: .infinity, maxHeight: 48)
+            .background(keyBackground(for: kd, pressed: isPressed, active: isCapsActive || isFnActive))
+            .cornerRadius(9)
+            .foregroundColor(isPressed || isCapsActive || isFnActive ? .white : .primary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(
+                cornerHint(for: kd),
+                alignment: .topTrailing
+            )
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        // Only trigger action once when touch begins
+                        if !keyPressInProgress {
+                            keyPressInProgress = true
+                            currentlyPressedKey = kd.label
+                            handleKeyPress(kd)
+                            
+                            // Start timer for long press (alternates popup after 0.4s)
+                            if keyboardManager.shouldShowAlternates(for: kd.label) {
+                                longPressTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { _ in
+                                    showAlternatesPopup(for: kd)
+                                }
+                            }
+                        }
+                    }
+                    .onEnded { _ in
+                        // Cancel long press timer
+                        longPressTimer?.invalidate()
+                        longPressTimer = nil
+                        
+                        keyPressInProgress = false
+                        currentlyPressedKey = nil
+                        handleKeyRelease()
+                    }
+            )
+    }
+    
+    /// Unified handler for key press - handles both single tap and long press
+    private func handleKeyPress(_ kd: KeyboardManager.KeyDef) {
+        // If the alternates popup was committed for this touch, skip normal key action
+        if alternatesCommitHandled {
+            alternatesCommitHandled = false
+            return
         }
-        .buttonStyle(PlainButtonStyle())
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .overlay(
-            cornerHint(for: kd),
-            alignment: .topTrailing
-        )
-        // Detect finger lift to stop key repeat
-        .simultaneousGesture(
-            LongPressGesture(minimumDuration: 0)
-                .onEnded { _ in
-                    handleKeyRelease()
-                }
-        )
-        .onLongPressGesture(minimumDuration: 0.4) {
-            showAlternatesPopup(for: kd)
+
+        HapticFeedbackManager.shared.triggerButtonPress()
+
+        // Fn toggle
+        if kd.label == "Fn" {
+            keyboardManager.isFnLocked.toggle()
+            return
+        }
+        // Symbol mode toggle
+        if kd.label == "ABC" || kd.label == "12/34" {
+            keyboardManager.isSymbolMode.toggle()
+            return
+        }
+        if kd.label == "!?#" {
+            keyboardManager.isSymbolMode = true
+            return
+        }
+        // Modifiers
+        if ["Ctrl", "Alt", "Cmd", "Win", "Shift"].contains(kd.label) {
+            keyboardManager.handleSpecialKey(kd.label)
+            return
+        }
+        
+        // Fn-resolved key
+        let effectiveKey = keyboardManager.resolveFnKey(kd.keyCode) ?? kd.keyCode
+        
+        // For repeatable keys (arrows, backspace): execute once immediately, then start repeat timer
+        if KeyRepeatController.repeatableKeys.contains(effectiveKey) {
+            // Execute immediately for single tap
+            keyboardManager.handleSpecialKey(effectiveKey)
+            // Start repeat controller for long press (will repeat after 0.4s)
+            keyRepeatController.startRepeating(keyAction: {
+                keyboardManager.handleSpecialKey(effectiveKey)
+            })
+        } else {
+            // For normal keys: just execute once
+            keyRepeatController.stopRepeating()
+            keyboardManager.handleSpecialKey(effectiveKey)
         }
     }
 
@@ -779,51 +895,6 @@ struct ProKeyboardMouseView: View {
 
     // MARK: - Key Action Handler
 
-    /// Handle key press — toggles modifiers, Fn, symbol mode; sends regular keys.
-    private func handleKeyAction(_ kd: KeyboardManager.KeyDef) {
-        // If the alternates popup was committed for this touch, skip normal key action.
-        // This matches Android: ACTION_UP checks isAlternatePopupVisible() and skips
-        // handleKeyPress() when the popup was the active interaction.
-        if alternatesCommitHandled {
-            alternatesCommitHandled = false
-            return
-        }
-
-        HapticFeedbackManager.shared.triggerButtonPress()
-
-        // Fn toggle
-        if kd.label == "Fn" {
-            keyboardManager.isFnLocked.toggle()
-            return
-        }
-        // Symbol mode toggle: ABC -> letters, 12/34 -> symbols
-        if kd.label == "ABC" || kd.label == "12/34" {
-            keyboardManager.isSymbolMode.toggle()
-            return
-        }
-        // !?# -> go to symbol sub-page
-        if kd.label == "!?#" {
-            keyboardManager.isSymbolMode = true
-            return
-        }
-        // Modifiers
-        if ["Ctrl", "Alt", "Cmd", "Win", "Shift"].contains(kd.label) {
-            keyboardManager.handleSpecialKey(kd.label)
-            return
-        }
-        // Fn-resolved key
-        let effectiveKey = keyboardManager.resolveFnKey(kd.keyCode) ?? kd.keyCode
-        // Key repeat for arrow/backspace
-        if KeyRepeatController.repeatableKeys.contains(effectiveKey) {
-            keyRepeatController.startRepeating(keyAction: {
-                keyboardManager.handleSpecialKey(effectiveKey)
-            })
-        } else {
-            keyRepeatController.stopRepeating()
-            keyboardManager.handleSpecialKey(effectiveKey)
-        }
-    }
-
     /// Called when finger lifts off any key — stops key repeat if active.
     private func handleKeyRelease() {
         keyRepeatController.stopRepeating()
@@ -930,5 +1001,170 @@ struct ProKeyboardMouseView: View {
 
     private func dismissAlternatesPopup() {
         alternatesPopup = nil
+    }
+    
+    // MARK: - Text Input View
+    
+    /// Text input area with placeholder and send functionality
+    private var textInputView: some View {
+        VStack(spacing: 8) {
+            ZStack(alignment: .topLeading) {
+                TextEditor(text: $textInputContent)
+                    .font(.system(size: 14))
+                    .padding(8)
+                    .padding(.trailing, 40)  // Make space for expand button
+                    .padding(.bottom, 40)  // Make space for expand button
+                    .background(Color(UIColor.systemBackground))
+                    .cornerRadius(8)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color(UIColor.separator), lineWidth: 1)
+                    )
+                
+                if textInputContent.isEmpty {
+                    Text("Type and edit long text here - tap Send to send it to the connected device")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 16)
+                        .allowsHitTesting(false)
+                }
+                
+                // Expand button at bottom-right corner
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        Button(action: {
+                            withAnimation {
+                                isTextInputExpanded.toggle()
+                            }
+                        }) {
+                            Image(systemName: isTextInputExpanded ? "chevron.down" : "chevron.up")
+                                .font(.system(size: 14))
+                                .foregroundColor(.blue)
+                                .padding(8)
+                                .background(Color(UIColor.secondarySystemBackground))
+                                .cornerRadius(6)
+                        }
+                        .padding(8)
+                    }
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+        }
+        .background(Color(UIColor.secondarySystemBackground))
+        .cornerRadius(12)
+    }
+    
+    /// Bottom toolbar with mode switch, restore, and clear buttons
+    private var bottomToolbar: some View {
+        HStack(spacing: 4) {
+            // Switch mode button
+            Button(action: {
+                withAnimation {
+                    isTextInputMode.toggle()
+                }
+            }) {
+                HStack(spacing: 2) {
+                    Image(systemName: isTextInputMode ? "keyboard" : "text.alignleft")
+                        .font(.system(size: 12))
+                    Text(isTextInputMode ? "Key" : "Text")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .foregroundColor(.blue)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(Color(UIColor.secondarySystemBackground))
+                .cornerRadius(6)
+            }
+            
+            // Restore button
+            Button(action: {
+                textInputContent = savedTextInputContent
+            }) {
+                HStack(spacing: 2) {
+                    Image(systemName: "arrow.uturn.backward")
+                        .font(.system(size: 12))
+                    Text("Restore")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .foregroundColor(.orange)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(Color(UIColor.secondarySystemBackground))
+                .cornerRadius(6)
+            }
+            .disabled(savedTextInputContent.isEmpty)
+            
+            // Clear button
+            Button(action: {
+                savedTextInputContent = textInputContent
+                textInputContent = ""
+            }) {
+                HStack(spacing: 2) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 12))
+                    Text("Clear")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .foregroundColor(.red)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(Color(UIColor.secondarySystemBackground))
+                .cornerRadius(6)
+            }
+            .disabled(textInputContent.isEmpty)
+            
+            Spacer()
+            
+            // Send button
+            Button(action: {
+                sendTextToDevice()
+            }) {
+                HStack(spacing: 2) {
+                    Image(systemName: "paperplane.fill")
+                        .font(.system(size: 12))
+                    Text("Send")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(textInputContent.isEmpty ? Color.gray : Color.blue)
+                .cornerRadius(6)
+            }
+            .disabled(textInputContent.isEmpty)
+        }
+    }
+    
+    /// Send text content to the connected device
+    private func sendTextToDevice() {
+        guard !textInputContent.isEmpty else { return }
+        
+        // Save current content before sending
+        savedTextInputContent = textInputContent
+        
+        // Send each character to the keyboard manager with delay
+        let characters = Array(textInputContent)
+        for (index, char) in characters.enumerated() {
+            // Use delay to ensure each character is properly sent and released
+            // KeyboardManager releases keys after 0.1s, so we need at least 0.12s between characters
+            DispatchQueue.main.asyncAfter(deadline: .now() + Double(index) * 0.12) {
+                let charString = String(char)
+                if char.isNewline {
+                    self.keyboardManager.handleKeyPress("Enter")
+                } else {
+                    self.keyboardManager.handleKeyPress(charString)
+                }
+            }
+        }
+        
+        // Clear the input after all characters are queued for sending
+        textInputContent = ""
+        
+        // Show feedback
+        HapticFeedbackManager.shared.triggerButtonPress()
     }
 }

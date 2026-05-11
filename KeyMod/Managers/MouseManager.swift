@@ -5,6 +5,8 @@ class MouseManager: ObservableObject {
     var bleManager: BLEManager
     @Published var previousPosition: CGPoint? = nil
     @Published var isSelectMode: Bool = false
+    /// Bitmask of buttons currently held via the L/M/R press buttons (0x01=L, 0x02=R, 0x04=M).
+    @Published var heldButtons: UInt8 = 0
     @ObservedObject private var touchpadSettings = TouchpadSettings.shared
     private let hapticManager = HapticFeedbackManager.shared
 
@@ -18,7 +20,7 @@ class MouseManager: ObservableObject {
         var xDelta = Int(currentPosition.x - (previousPosition?.x ?? currentPosition.x))
         var yDelta = Int(currentPosition.y - (previousPosition?.y ?? currentPosition.y))
         previousPosition = currentPosition
-        let buttons: UInt8 = isSelectMode ? 0x01 : 0x00
+        let buttons: UInt8 = heldButtons | (isSelectMode ? 0x01 : 0x00)
         xDelta *= 4
         yDelta *= 4
         let boundedXDelta = Int8(max(-127, min(127, xDelta)))
@@ -30,7 +32,7 @@ class MouseManager: ObservableObject {
     func handleDragEnded() {
         previousPosition = nil
         if !isSelectMode {
-            let packet = Keymod.buildMouseRel(buttons: 0x00, dx: 0, dy: 0, wheel: 0)
+            let packet = Keymod.buildMouseRel(buttons: heldButtons, dx: 0, dy: 0, wheel: 0)
             bleManager.sendTouchData(data: packet)
         }
     }
@@ -98,6 +100,20 @@ class MouseManager: ObservableObject {
             let release = Keymod.buildMouseRel(buttons: 0x00, dx: 0, dy: 0, wheel: 0)
             self.bleManager.sendTouchData(data: release)
         }
+    }
+
+    // MARK: - Press / Release (for L/M/R hold buttons)
+
+    func sendButtonDown(buttons: UInt8) {
+        heldButtons |= buttons
+        let packet = Keymod.buildMouseRel(buttons: heldButtons, dx: 0, dy: 0, wheel: 0)
+        bleManager.sendTouchData(data: packet)
+    }
+
+    func sendButtonUp(buttons: UInt8) {
+        heldButtons &= ~buttons
+        let packet = Keymod.buildMouseRel(buttons: heldButtons, dx: 0, dy: 0, wheel: 0)
+        bleManager.sendTouchData(data: packet)
     }
 
     // MARK: - Drag mode toggle
