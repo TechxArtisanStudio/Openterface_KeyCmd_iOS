@@ -13,6 +13,7 @@ struct ShortcutEntry: Identifiable {
     let id = UUID()
     let label: String
     let icon: String?  // SF Symbol name, nil for text-only
+    var badge: String? = nil  // optional badge shown bottom-right (e.g. "A"/"B")
     let action: () -> Void
 }
 
@@ -78,7 +79,7 @@ struct ShortcutPanelPager: View {
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
-                .frame(height: 90)
+                .frame(height: 135)
 
                 // Page indicator dots
                 if pages.count > 1 {
@@ -109,13 +110,18 @@ struct ShortcutPageView: View {
                 //     .frame(maxWidth: .infinity, alignment: .center)
                 //     .padding(.vertical, 1)
 
-                // 2 rows of 7 buttons
-                ForEach(0..<2, id: \.self) { rowIndex in
+                // 3 rows of 7 buttons
+                ForEach(0..<3, id: \.self) { rowIndex in
                     HStack(spacing: 2) {
                         ForEach(0..<7, id: \.self) { colIndex in
                             let entryIndex = rowIndex * 7 + colIndex
                             if entryIndex < page.entries.count {
-                                ShortcutButton(entry: page.entries[entryIndex])
+                                ShortcutButton(
+                                    entry: page.entries[entryIndex],
+                                    background: rowIndex == 0
+                                        ? Color.orange.opacity(0.25)
+                                        : Color(UIColor.tertiarySystemBackground)
+                                )
                             } else {
                                 Color.clear
                             }
@@ -130,21 +136,38 @@ struct ShortcutPageView: View {
 
 struct ShortcutButton: View {
     let entry: ShortcutEntry
+    var background: Color = Color(UIColor.tertiarySystemBackground)
 
     var body: some View {
         Button(action: entry.action) {
-            VStack(spacing: 1) {
-                if let icon = entry.icon {
-                    Image(systemName: icon)
-                        .font(.system(size: 12))
+            ZStack(alignment: .bottomTrailing) {
+                VStack(spacing: 1) {
+                    if let icon = entry.icon {
+                        Image(systemName: icon)
+                            .font(.system(size: 12))
+                    }
+                    if !entry.label.isEmpty {
+                        Text(entry.label)
+                            .font(.system(size: 8))
+                            .lineLimit(1)
+                    }
                 }
-                Text(entry.label)
-                    .font(.system(size: 8))
-                    .lineLimit(1)
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(background)
+                .cornerRadius(4)
+
+                if let badge = entry.badge {
+                    Text(badge)
+                        .font(.system(size: 7, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 2)
+                        .padding(.vertical, 1)
+                        .background(Color.orange)
+                        .cornerRadius(2)
+                        .offset(x: 2, y: 2)
+                }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(UIColor.tertiarySystemBackground))
-            .cornerRadius(4)
         }
     }
 }

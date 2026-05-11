@@ -63,6 +63,9 @@ struct ProKeyboardMouseView: View {
     // Shortcut panel state
     @State private var shortcutPage = 0
     
+    // Reactive target OS — changes trigger shortcutPages rebuild
+    @ObservedObject private var aiSettings = AISettings.shared
+    
     // Text input mode state
     @State private var isTextInputMode = false
     @State private var textInputContent = ""
@@ -71,6 +74,8 @@ struct ProKeyboardMouseView: View {
     
     // Keyboard height for avoiding keyboard obstruction
     @State private var keyboardHeight: CGFloat = 0
+    // Key frame cache for alternates popup positioning (key label → frame in proKMView coordinate space)
+    @State private var keyFrames: [String: CGRect] = [:]
 
     // Symbol mode layout keys
     let symbolKeysPortrait: [[String]] = [
@@ -91,32 +96,75 @@ struct ProKeyboardMouseView: View {
     /// Shortcut pages: Standard default panel first, then user favorited shortcuts from profiles.
     private var shortcutPages: [ShortcutPage] {
         var pages: [ShortcutPage] = []
-        let pageSize = 14 // 7 columns × 2 rows
+        let pageSize = 21 // 7 columns × 3 rows
         let profileMgr = ShortcutProfileManager.shared
 
         // 1. "Standard" default panel — always shown, matching Android buildStandardTopPanelKeys()
-        let isMacOS = UserDefaults.standard.string(forKey: "target_os") ?? "macos" == "macos"
+        let isMacOS = aiSettings.targetOS == .macOS
+        let isWindows = aiSettings.targetOS == .windows
+        // isLinux = everything else
         let primaryModifier = isMacOS ? "Cmd" : "Ctrl"
         let combo = { (mods: [String], key: String) in
             self.keyboardManager.handleKeyCombo(modifiers: mods, key: key)
         }
-        let standardEntries: [ShortcutEntry] = [
-            ShortcutEntry(label: "ALL", icon: "text.badge.checkmark") { combo([primaryModifier], "A") },
-            ShortcutEntry(label: "COPY", icon: "doc.on.doc") { combo([primaryModifier], "C") },
-            ShortcutEntry(label: "CUT", icon: "scissors") { combo([primaryModifier], "X") },
-            ShortcutEntry(label: "PASTE", icon: "clipboard") { combo([primaryModifier], "V") },
-            ShortcutEntry(label: "SAVE", icon: "externaldrive") { combo([primaryModifier], "S") },
-            ShortcutEntry(label: "UP", icon: "arrow.up") { self.keyboardManager.handleKeyPress("Up") },
-            ShortcutEntry(label: "UNDO", icon: "arrow.uturn.backward") { combo([primaryModifier], "Z") },
-            ShortcutEntry(label: "ESC", icon: nil) { self.keyboardManager.handleKeyPress("Escape") },
-            ShortcutEntry(label: "CTRL", icon: nil) { self.keyboardManager.handleModifierToggle("Ctrl") },
-            ShortcutEntry(label: "ALT", icon: nil) { self.keyboardManager.handleModifierToggle("Alt") },
-            ShortcutEntry(label: "TAB", icon: "arrow.right.to.line.compact") { self.keyboardManager.handleKeyPress("Tab") },
-            ShortcutEntry(label: "LEFT", icon: "arrow.left") { self.keyboardManager.handleKeyPress("Left") },
-            ShortcutEntry(label: "DOWN", icon: "arrow.down") { self.keyboardManager.handleKeyPress("Down") },
-            ShortcutEntry(label: "RIGHT", icon: "arrow.right") { self.keyboardManager.handleKeyPress("Right") },
+
+        // Row 2 modifier keys differ per target OS:
+        //   macOS:   ⌃ (control.fill) · ⌥ (option) · ⌘ (command)          — icon only
+        //   Windows: CTRL (text) · ALT (text) · Win (logo windows icon)
+        //   Linux:   CTRL (text) · ALT (text) · SUP (text)
+        let modRow2: [ShortcutEntry]
+        if isMacOS {
+            modRow2 = [
+                ShortcutEntry(label: "", icon: "control")   { self.keyboardManager.handleModifierToggle("Ctrl") },
+                ShortcutEntry(label: "", icon: "option")    { self.keyboardManager.handleModifierToggle("Alt") },
+                ShortcutEntry(label: "", icon: "command")   { self.keyboardManager.handleModifierToggle("Cmd") },
+            ]
+        } else if isWindows {
+            modRow2 = [
+                ShortcutEntry(label: "CTRL", icon: nil)             { self.keyboardManager.handleModifierToggle("Ctrl") },
+                ShortcutEntry(label: "ALT",  icon: nil)             { self.keyboardManager.handleModifierToggle("Alt") },
+                ShortcutEntry(label: "",     icon: "logo.windows")  { self.keyboardManager.handleModifierToggle("Cmd") },
+            ]
+        } else {
+            // Linux
+            modRow2 = [
+                ShortcutEntry(label: "CTRL", icon: nil) { self.keyboardManager.handleModifierToggle("Ctrl") },
+                ShortcutEntry(label: "ALT",  icon: nil) { self.keyboardManager.handleModifierToggle("Alt") },
+                ShortcutEntry(label: "SUP",  icon: nil) { self.keyboardManager.handleModifierToggle("Cmd") },
+            ]
+        }
+
+        // Standard panel — 3 rows × 7 columns
+        // Row 1: ALL  COPY  CUT  PASTE  SAVE  UNDO  Ctrl+F
+        // Row 2: CTRL/⌃ OPT/ALT CMD/Win/SUP TAB UP ENTER Built-in
+        // Row 3: ESC  SHIFT DEL→  LEFT  DOWN  RIGHT Layout
+        let standardPage: [ShortcutEntry] = [
+            // Row 1 (indices 0-6)
+            ShortcutEntry(label: "ALL",   icon: "text.badge.checkmark")        { combo([primaryModifier], "A") },
+            ShortcutEntry(label: "COPY",  icon: "doc.on.doc")                  { combo([primaryModifier], "C") },
+            ShortcutEntry(label: "CUT",   icon: "scissors")                    { combo([primaryModifier], "X") },
+            ShortcutEntry(label: "PASTE", icon: "clipboard")                   { combo([primaryModifier], "V") },
+            ShortcutEntry(label: "SAVE",  icon: "externaldrive")               { combo([primaryModifier], "S") },
+            ShortcutEntry(label: "UNDO",  icon: "arrow.uturn.backward")        { combo([primaryModifier], "Z") },
+            ShortcutEntry(label: "Ctrl+F",icon: "magnifyingglass")             { combo(["Ctrl"], "F") },
+            // Row 2 (indices 7-13) — first 3 are OS-dependent modifier keys
+            modRow2[0],
+            modRow2[1],
+            modRow2[2],
+            ShortcutEntry(label: "TAB",   icon: "arrow.right.to.line.compact") { self.keyboardManager.handleKeyPress("Tab") },
+            ShortcutEntry(label: "UP",    icon: "arrow.up")                    { self.keyboardManager.handleKeyPress("Up") },
+            ShortcutEntry(label: "ENTER", icon: "return")                      { self.keyboardManager.handleKeyPress("Enter") },
+            ShortcutEntry(label: "", icon: "keyboard", badge: isTextInputMode ? "A" : "B") { withAnimation { self.isTextInputMode.toggle() } },
+            // Row 3 (indices 14-20)
+            ShortcutEntry(label: "ESC",   icon: "escape")                      { self.keyboardManager.handleKeyPress("Escape") },
+            ShortcutEntry(label: "SHIFT", icon: "shift")                       { self.keyboardManager.handleModifierToggle("Shift") },
+            ShortcutEntry(label: "DEL",   icon: "delete.forward")              { self.keyboardManager.handleKeyPress("Delete") },
+            ShortcutEntry(label: "LEFT",  icon: "arrow.left")                  { self.keyboardManager.handleKeyPress("Left") },
+            ShortcutEntry(label: "DOWN",  icon: "arrow.down")                  { self.keyboardManager.handleKeyPress("Down") },
+            ShortcutEntry(label: "RIGHT", icon: "arrow.right")                 { self.keyboardManager.handleKeyPress("Right") },
+            ShortcutEntry(label: "Layout",icon: self.displayMode.icon)         { self.displayMode.toggle() },
         ]
-        pages.append(ShortcutPage(title: "Standard", entries: standardEntries))
+        pages.append(ShortcutPage(title: "Standard", entries: standardPage))
 
         // 2. User favorited shortcuts from profiles
         for profile in profileMgr.allProfiles {
@@ -551,6 +599,7 @@ struct ProKeyboardMouseView: View {
             }
             }
             }
+            .coordinateSpace(name: "proKMView")
             .offset(y: isTextInputMode ? (keyboardHeight > 0 ? -keyboardHeight * 0.65 : 30) : 0)
             .animation(.easeOut(duration: 0.3), value: keyboardHeight)
             .animation(.easeOut(duration: 0.3), value: isTextInputMode)
@@ -602,10 +651,6 @@ struct ProKeyboardMouseView: View {
     @ViewBuilder
     private var keyboardLayoutView: some View {
         VStack(spacing: 0) {
-            // F-row (hidden in landscape, matches Android)
-            if !orientationManager.isLandscape {
-                functionKeyRow
-            }
             // Letter/symbol keys from portraitLetterKeys
             ForEach(keyboardManager.portraitLetterKeys.indices, id: \.self) { rowIdx in
                 let row = keyboardManager.portraitLetterKeys[rowIdx]
@@ -701,6 +746,14 @@ struct ProKeyboardMouseView: View {
                         handleKeyRelease()
                     }
             )
+            .background(
+                GeometryReader { geo -> Color in
+                    DispatchQueue.main.async {
+                        self.keyFrames[kd.label] = geo.frame(in: .named("proKMView"))
+                    }
+                    return Color.clear
+                }
+            )
     }
     
     /// Unified handler for key press - handles both single tap and long press
@@ -774,10 +827,9 @@ struct ProKeyboardMouseView: View {
                 .font(.system(size: 12, weight: .bold))
         } else if kd.label == "Cmd" {
             // Target OS label: show Cmd/Win/Super based on settings
-            let targetOs = UserDefaults.standard.string(forKey: "target_os") ?? "macos"
-            switch targetOs {
-            case "windows": Text("Win").font(.system(size: 12))
-            case "linux": Text("Super").font(.system(size: 10))
+            switch aiSettings.targetOS {
+            case .windows: Text("Win").font(.system(size: 12))
+            case .linux: Text("Super").font(.system(size: 10))
             default: Text("Cmd").font(.system(size: 12))
             }
         } else if keyboardManager.isSymbolMode && !kd.symbolLabel.isEmpty {
@@ -950,7 +1002,7 @@ struct ProKeyboardMouseView: View {
 
         let options = Array(slotMap.values)
         guard options.count >= 2 else { return }
-        alternatesPopup = (options, CGRect.zero, kd)
+        alternatesPopup = (options, keyFrames[kd.label] ?? CGRect.zero, kd)
     }
 
     /// Build the center (default) option for a key.
@@ -1061,81 +1113,64 @@ struct ProKeyboardMouseView: View {
     /// Bottom toolbar with mode switch, restore, and clear buttons
     private var bottomToolbar: some View {
         HStack(spacing: 4) {
-            // Switch mode button
-            Button(action: {
-                withAnimation {
-                    isTextInputMode.toggle()
+            if isTextInputMode {
+                // Restore button
+                Button(action: {
+                    textInputContent = savedTextInputContent
+                }) {
+                    HStack(spacing: 2) {
+                        Image(systemName: "arrow.uturn.backward")
+                            .font(.system(size: 12))
+                        Text("Restore")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundColor(.orange)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(Color(UIColor.secondarySystemBackground))
+                    .cornerRadius(6)
                 }
-            }) {
-                HStack(spacing: 2) {
-                    Image(systemName: isTextInputMode ? "keyboard" : "text.alignleft")
-                        .font(.system(size: 12))
-                    Text(isTextInputMode ? "Key" : "Text")
-                        .font(.system(size: 11, weight: .medium))
+                .disabled(savedTextInputContent.isEmpty)
+                
+                // Clear button
+                Button(action: {
+                    savedTextInputContent = textInputContent
+                    textInputContent = ""
+                }) {
+                    HStack(spacing: 2) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 12))
+                        Text("Clear")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundColor(.red)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(Color(UIColor.secondarySystemBackground))
+                    .cornerRadius(6)
                 }
-                .foregroundColor(.blue)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(Color(UIColor.secondarySystemBackground))
-                .cornerRadius(6)
+                .disabled(textInputContent.isEmpty)
+                
+                Spacer()
+                
+                // Send button
+                Button(action: {
+                    sendTextToDevice()
+                }) {
+                    HStack(spacing: 2) {
+                        Image(systemName: "paperplane.fill")
+                            .font(.system(size: 12))
+                        Text("Send")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(textInputContent.isEmpty ? Color.gray : Color.blue)
+                    .cornerRadius(6)
+                }
+                .disabled(textInputContent.isEmpty)
             }
-            
-            // Restore button
-            Button(action: {
-                textInputContent = savedTextInputContent
-            }) {
-                HStack(spacing: 2) {
-                    Image(systemName: "arrow.uturn.backward")
-                        .font(.system(size: 12))
-                    Text("Restore")
-                        .font(.system(size: 11, weight: .medium))
-                }
-                .foregroundColor(.orange)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(Color(UIColor.secondarySystemBackground))
-                .cornerRadius(6)
-            }
-            .disabled(savedTextInputContent.isEmpty)
-            
-            // Clear button
-            Button(action: {
-                savedTextInputContent = textInputContent
-                textInputContent = ""
-            }) {
-                HStack(spacing: 2) {
-                    Image(systemName: "trash")
-                        .font(.system(size: 12))
-                    Text("Clear")
-                        .font(.system(size: 11, weight: .medium))
-                }
-                .foregroundColor(.red)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(Color(UIColor.secondarySystemBackground))
-                .cornerRadius(6)
-            }
-            .disabled(textInputContent.isEmpty)
-            
-            Spacer()
-            
-            // Send button
-            Button(action: {
-                sendTextToDevice()
-            }) {
-                HStack(spacing: 2) {
-                    Image(systemName: "paperplane.fill")
-                        .font(.system(size: 12))
-                    Text("Send")
-                        .font(.system(size: 11, weight: .medium))
-                }
-                .foregroundColor(.white)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(textInputContent.isEmpty ? Color.gray : Color.blue)
-                .cornerRadius(6)
-            }
-            .disabled(textInputContent.isEmpty)
         }
     }
     
