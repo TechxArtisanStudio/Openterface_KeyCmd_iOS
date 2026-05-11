@@ -22,6 +22,7 @@ struct ContentView: View {
     @State private var showPopup = false
     @State private var sidebarVisible = false
     @State private var showSettings = false
+    @State private var showSetupSheet = false
     @State private var selectedGamepadLayout: GamepadLayout = .xbox
     @State private var isGamepadEditMode = false
     @State private var basicSubmode: BasicKeyboardMouseView.Submode = .keyboard
@@ -248,13 +249,48 @@ struct ContentView: View {
                 gamepadEditModeButton
                 gamepadLayoutSelector
             }
+            // Show KM Basic setup button between targetOS and BLE
+            if viewManager.currentView == .keyboardMouseBasic {
+                kmBasicSetupButton
+            }
             bleButton
         }
         .onAppear {
             print("🎯 TopBarButtons appeared - Current view: \(viewManager.currentView.rawValue)")
         }
     }
-    
+
+    private var kmBasicSetupButton: some View {
+        VStack(spacing: 2) {
+            Button(action: { showSetupSheet = true }) {
+                Image(systemName: "gearshape")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 20, height: 20)
+                    .foregroundColor(.gray)
+            }
+            .frame(width: 34, height: 34)
+            .popover(isPresented: $showSetupSheet, arrowEdge: .top) {
+                NavigationView {
+                    Form {
+                        KmBasicSettingsView()
+                    }
+                    .navigationTitle("Setup")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("Done") { showSetupSheet = false }
+                        }
+                    }
+                }
+                .frame(minWidth: 320, idealWidth: 380, minHeight: 450)
+            }
+            Text("Setup")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+    }
+
     private var gamepadEditModeButton: some View {
         VStack(spacing: 2) {
             Button(action: {
@@ -339,10 +375,10 @@ struct ContentView: View {
                 Image(systemName: aiSettings.targetOS.systemImage)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 26, height: 26)
+                    .frame(width: 20, height: 20)
                     .foregroundColor(.purple)
             }
-            .frame(width: 40, height: 40)
+            .frame(width: 34, height: 34)
             .background(Color.clear)
             Text(aiSettings.targetOS.shortName)
                 .font(.caption2)
@@ -364,10 +400,10 @@ struct ContentView: View {
                 Image(systemName: "antenna.radiowaves.left.and.right")
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 26, height: 26)
+                    .frame(width: 20, height: 20)
                     .foregroundColor(bleManager.connectedDevices.isEmpty ? .blue : .green)
             }
-            .frame(width: 40, height: 40)
+            .frame(width: 34, height: 34)
             .background(Color.clear)
             if let rssi = bleManager.currentRSSI {
                 Text("\(rssi.intValue) dBm")

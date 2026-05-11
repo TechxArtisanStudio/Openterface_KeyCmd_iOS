@@ -17,6 +17,8 @@ struct BasicTouchpadScrollStripView: View {
     /// Pixels per wheel unit (matches Android STRIP_PIXELS_PER_WHEEL_UNIT = 5f)
     private let pixelsPerWheelUnit: CGFloat = 5.0
 
+    private var sensitivity: Double { KmBasicKeyboardPrefs.shared.stripScrollSensitivity }
+
     var body: some View {
         GeometryReader { geometry in
             Color(UIColor.secondarySystemBackground)
@@ -44,7 +46,7 @@ struct BasicTouchpadScrollStripView: View {
 
                             // Only send scroll after moving past threshold
                             if abs(deltaY) > pixelsPerWheelUnit {
-                                let wheelUnits = Int(deltaY / pixelsPerWheelUnit)
+                                let wheelUnits = Int(deltaY / pixelsPerWheelUnit * sensitivity)
                                 if wheelUnits != 0 {
                                     mouseManager.handleScroll(deltaX: 0, deltaY: -wheelUnits)
                                     lastScrollY = value.location.y

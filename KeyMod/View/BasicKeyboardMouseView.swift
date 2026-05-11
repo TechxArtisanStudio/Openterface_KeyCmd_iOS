@@ -531,9 +531,10 @@ struct BasicKeyboardMouseView: View {
 
     @ViewBuilder
     private func arrowButton(_ action: String, image: String, height: CGFloat = 52) -> some View {
+        let repeatMode = KmBasicKeyboardPrefs.shared.isLongPressRepeatMode
         KeyPressButton(
-            onPress: { keyboardManager.handleKeyDown(action) },
-            onRelease: { keyboardManager.handleKeyUp(action) },
+            onPress: { repeatMode ? keyboardManager.startKeyRepeat(action) : keyboardManager.handleKeyDown(action) },
+            onRelease: { repeatMode ? keyboardManager.stopKeyRepeat() : keyboardManager.handleKeyUp(action) },
             keyPreview: action
         ) { isActive in
             Image(systemName: image)
@@ -598,9 +599,10 @@ struct BasicKeyboardMouseView: View {
             .frame(height: height)
         } else {
             let effectiveKey = key == "Esc" ? "Escape" : key
+            let repeatMode = KmBasicKeyboardPrefs.shared.isLongPressRepeatMode
             KeyPressButton(
-                onPress: { keyboardManager.handleKeyDown(effectiveKey) },
-                onRelease: { keyboardManager.handleKeyUp(effectiveKey) },
+                onPress: { repeatMode ? keyboardManager.startKeyRepeat(effectiveKey) : keyboardManager.handleKeyDown(effectiveKey) },
+                onRelease: { repeatMode ? keyboardManager.stopKeyRepeat() : keyboardManager.handleKeyUp(effectiveKey) },
                 keyPreview: displayText,
                 previewBelow: previewBelow
             ) { isActive in
@@ -667,9 +669,10 @@ struct BasicKeyboardMouseView: View {
             }
         } else {
             let effectiveKey = key == "Esc" ? "Escape" : key
+            let repeatMode = KmBasicKeyboardPrefs.shared.isLongPressRepeatMode
             KeyPressButton(
-                onPress: { keyboardManager.handleKeyDown(effectiveKey) },
-                onRelease: { keyboardManager.handleKeyUp(effectiveKey) },
+                onPress: { repeatMode ? keyboardManager.startKeyRepeat(effectiveKey) : keyboardManager.handleKeyDown(effectiveKey) },
+                onRelease: { repeatMode ? keyboardManager.stopKeyRepeat() : keyboardManager.handleKeyUp(effectiveKey) },
                 keyPreview: displayText,
                 previewBelow: previewBelow
             ) { isActive in
@@ -820,8 +823,18 @@ private struct KeyCalloutInfoKey: PreferenceKey {
 
 // MARK: - Repeating Key Button
 
-/// Press = key-down, release = key-up, long-press = sticky lock (tap again to unlock).
-/// The label closure receives (isPhysicallyPressed, isLocked).
+/// Modifier key with two behaviour modes controlled by KmBasicKeyboardPrefs:
+///
+/// **Momentary-chord (default):** Press = key-down, release = key-up.
+///   Long-press (0.5 s) reveals a floating lock icon; slide onto it to latch the modifier
+///   so it persists across multiple key strokes (tap the locked key again to release).
+///   Chord-sustain setting controls whether a real HID modifier-down is sent immediately
+///   on press, or only when a regular key is chorded.
+///
+/// **Sticky:** Tap to latch the modifier on (it stays active until tapped again).
+///   No momentary press behaviour — the modifier is fully toggled on release.
+///
+/// The label closure receives (isPhysicallyPressed, isLocked/latched).
 struct ModifierKeyButton<Label: View>: View {
     let key: String
     let keyboardManager: KeyboardManager
@@ -829,6 +842,7 @@ struct ModifierKeyButton<Label: View>: View {
     var previewBelow: Bool = false
     let label: (Bool, Bool) -> Label
 
+    @ObservedObject private var prefs = KmBasicKeyboardPrefs.shared
     @State private var isPressed = false
     @State private var isLocked = false
     @State private var longPressTimer: Timer?
@@ -857,7 +871,8 @@ struct ModifierKeyButton<Label: View>: View {
                 label(isPressed, isLocked)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                if showLockHint {
+                // Lock hint only shown in momentary-chord mode
+                if showLockHint && prefs.modifierBehavior == .momentaryChord {
                     Image(systemName: "lock.fill")
                         .font(.system(size: 22, weight: .bold))
                         .foregroundColor(.white)
@@ -890,36 +905,60 @@ struct ModifierKeyButton<Label: View>: View {
     }
 
     private func handlePress() {
-        if isLocked {
-            // Don't unlock on press — wait for release so mid-combo touches don't break the lock
-        } else {
-            keyboardManager.handleKeyDown(key)
-            longPressTimer = Timer.scheduledTimer(withTimeInterval: lockThreshold, repeats: false) { _ in
-                DispatchQueue.main.async { self.showLockHint = true }
+        switch prefs.modifierBehavior {
+        case .sticky:
+            // In sticky mode nothing happens on press — the toggle fires on release.
+            break
+        case .momentaryChord:
+            if isLocked {
+                // Don't unlock on press — wait for release so mid-combo touches don't break the lock
+            } else {
+                // Send modifier-down (or only track it locally when chord sustain is off)
+                if prefs.chordSustainHid {
+                    keyboardManager.handleKeyDown(key)
+                } else {
+                    keyboardManager.addModifierTrackedOnly(key)
+                }
+                longPressTimer = Timer.scheduledTimer(withTimeInterval: lockThreshold, repeats: false) { _ in
+                    DispatchQueue.main.async { self.showLockHint = true }
+                }
             }
         }
     }
 
     private func handleRelease() {
-        longPressTimer?.invalidate()
-        longPressTimer = nil
-        showLockHint = false
-        if isLocked {
-            if justLocked {
-                // This is the lift that completed the slide-to-lock gesture — don't unlock.
-                justLocked = false
-            } else {
-                // Deliberate press+release on locked modifier → unlock
+        switch prefs.modifierBehavior {
+        case .sticky:
+            // Tap-toggle: latch on if not active, latch off if active.
+            if isLocked {
                 isLocked = false
                 keyboardManager.unlockModifier(key)
+            } else {
+                isLocked = true
+                keyboardManager.lockModifier(key)
             }
-        } else {
-            keyboardManager.handleKeyUp(key)
+        case .momentaryChord:
+            longPressTimer?.invalidate()
+            longPressTimer = nil
+            showLockHint = false
+            if isLocked {
+                if justLocked {
+                    // This is the lift that completed the slide-to-lock gesture — don't unlock.
+                    justLocked = false
+                } else {
+                    // Deliberate press+release on locked modifier → unlock
+                    isLocked = false
+                    keyboardManager.unlockModifier(key)
+                }
+            } else {
+                keyboardManager.handleKeyUp(key)
+            }
         }
     }
 
-    /// Called when finger moves. If the floating lock icon is visible and finger enters its area, lock.
+    /// Called when finger moves. Only active in momentary-chord mode.
     private func handleMoved(_ pt: CGPoint, size: CGSize) {
+        guard prefs.modifierBehavior == .momentaryChord else { return }
         guard showLockHint && !isLocked else { return }
         // Icon center in PressDetectorView's local coords: x = w/2, y = -lockIconAbove
         let iconCenter = CGPoint(x: size.width / 2, y: -lockIconAbove)
@@ -943,7 +982,12 @@ struct ModifierKeyButton<Label: View>: View {
             keyboardManager.unlockModifier(key)
         } else if isPressed {
             isPressed = false
-            keyboardManager.handleKeyUp(key)
+            switch prefs.modifierBehavior {
+            case .sticky:
+                break  // nothing to release — was never pressed down
+            case .momentaryChord:
+                keyboardManager.handleKeyUp(key)
+            }
         }
     }
 }
