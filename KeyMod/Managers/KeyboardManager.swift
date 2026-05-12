@@ -923,8 +923,10 @@ class KeyboardManager: ObservableObject {
             guard let self = self else { return }
             self.repeatTimer = Timer.scheduledTimer(withTimeInterval: self.repeatInterval, repeats: true) { [weak self] _ in
                 guard let self = self, let k = self.repeatKey else { return }
-                // Brief press+release cycle for each repeat tick
-                self.handleKeyPress(k)
+                // Bounce the key: up then down — generates a new key event on the host
+                // without asyncAfter so there is no overlap between repeat ticks.
+                self.handleKeyUp(k)
+                self.handleKeyDown(k)
             }
         }
     }

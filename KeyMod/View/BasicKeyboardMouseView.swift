@@ -741,32 +741,33 @@ struct BasicKeyboardMouseView: View {
 
     private var touchpadSubmode: some View {
         let isLandscape = orientationManager.isLandscape
-        let scrollWidth: CGFloat = isLandscape ? 72 : 28
         let scrollFontSize: CGFloat = isLandscape ? 13 : 7
         let buttonRowHeight: CGFloat = isLandscape ? 50 : 60
 
-        return VStack(spacing: 0) {
-            // Touchpad + scroll strip
-            HStack(spacing: 0) {
-                TouchpadView(mouseManager: mouseManager, pointerTipState: PointerTipState())
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                BasicTouchpadScrollStripView(mouseManager: mouseManager, labelFontSize: scrollFontSize)
-                    .frame(width: scrollWidth)
-            }
-            .frame(maxHeight: .infinity)
+        return GeometryReader { stripGeo in
+            VStack(spacing: 0) {
+                // Touchpad + scroll strip
+                HStack(spacing: 0) {
+                    TouchpadView(mouseManager: mouseManager, pointerTipState: PointerTipState())
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    BasicTouchpadScrollStripView(mouseManager: mouseManager, labelFontSize: scrollFontSize)
+                        .frame(width: stripGeo.size.width * 0.3)
+                }
+                .frame(maxHeight: .infinity)
 
-            // Mouse buttons row
-            HStack(spacing: 8) {
-                mouseButton(label: "L", icon: "cursorarrow", button: .left)
-                    .frame(maxWidth: .infinity)
-                mouseButton(label: "M", icon: "cursorarrow", button: .middle)
-                    .frame(maxWidth: .infinity)
-                mouseButton(label: "R", icon: "cursorarrow", button: .right)
-                    .frame(maxWidth: .infinity)
+                // Mouse buttons row
+                HStack(spacing: 8) {
+                    mouseButton(label: "L", icon: "cursorarrow", button: .left)
+                        .frame(maxWidth: .infinity)
+                    mouseButton(label: "M", icon: "cursorarrow", button: .middle)
+                        .frame(maxWidth: .infinity)
+                    mouseButton(label: "R", icon: "cursorarrow", button: .right)
+                        .frame(maxWidth: .infinity)
+                }
+                .frame(height: buttonRowHeight)
+                .padding(.horizontal, 12)
+                .padding(.vertical, isLandscape ? 4 : 8)
             }
-            .frame(height: buttonRowHeight)
-            .padding(.horizontal, 12)
-            .padding(.vertical, isLandscape ? 4 : 8)
         }
     }
 

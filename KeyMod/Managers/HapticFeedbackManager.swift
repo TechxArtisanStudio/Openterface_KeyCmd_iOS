@@ -39,6 +39,18 @@ class HapticFeedbackManager: ObservableObject {
         #endif
     }
     
+    /// Triggers a subtle haptic tick for scroll wheel feedback
+    func triggerScrollTick() {
+        guard isHapticEnabled else { return }
+
+        #if os(iOS)
+        let impactFeedback = UIImpactFeedbackGenerator(style: .rigid)
+        impactFeedback.impactOccurred()
+        #elseif os(macOS)
+        NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+        #endif
+    }
+
     /// Triggers a medium haptic feedback for special actions
     func triggerMediumFeedback() {
         guard isHapticEnabled else { return }
