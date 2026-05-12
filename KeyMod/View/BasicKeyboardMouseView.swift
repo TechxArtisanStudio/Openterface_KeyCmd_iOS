@@ -739,6 +739,28 @@ struct BasicKeyboardMouseView: View {
 
     // MARK: - Touchpad Submode
 
+    @State private var isLeftButtonHeld = false
+    @State private var isMiddleButtonHeld = false
+    @State private var isRightButtonHeld = false
+    @State private var pointerMoving: Bool = false
+
+    private var isAnyButtonHeld: Bool { isLeftButtonHeld || isMiddleButtonHeld || isRightButtonHeld }
+
+    private var touchpadButtonsText: String {
+        var parts: [String] = []
+        if mouseManager.isSelectMode {
+            parts.append("drag")
+        }
+        if isLeftButtonHeld { parts.append("left held") }
+        if isMiddleButtonHeld { parts.append("middle held") }
+        if isRightButtonHeld { parts.append("right held") }
+        return parts.isEmpty ? "up (no drag)" : parts.joined(separator: " + ")
+    }
+
+    private var touchpadTouchText: String {
+        pointerMoving ? "moving pointer" : "idle"
+    }
+
     private var touchpadSubmode: some View {
         let isLandscape = orientationManager.isLandscape
         let scrollFontSize: CGFloat = isLandscape ? 13 : 7
@@ -748,8 +770,59 @@ struct BasicKeyboardMouseView: View {
             VStack(spacing: 0) {
                 // Touchpad + scroll strip
                 HStack(spacing: 0) {
-                    TouchpadView(mouseManager: mouseManager, pointerTipState: PointerTipState())
+                    ZStack {
+                        TouchpadView(
+                            mouseManager: mouseManager,
+                            pointerTipState: PointerTipState(),
+                            onPointerMoving: { moving in
+                                withAnimation(.easeInOut(duration: 0.1)) {
+                                    pointerMoving = moving
+                                }
+                            }
+                        )
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                        // Glow border when drag or buttons are held
+                        if isAnyButtonHeld || mouseManager.isSelectMode {
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.blue.opacity(0.6), lineWidth: 3)
+                                .shadow(color: .blue.opacity(0.4), radius: 8, x: 0, y: 0)
+                                .transition(.opacity)
+                        }
+
+                        // Centered status overlay
+                        VStack(spacing: 4) {
+                            Text("TouchPad")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.primary)
+                            Text("Buttons: \(touchpadButtonsText)")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(.secondary)
+                            Text("Touch: \(touchpadTouchText)")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color(UIColor.secondarySystemBackground).opacity(0.88))
+                        )
+                        .allowsHitTesting(false)
+
+                        // Visual indicator when left button is held (matches Android hold-lock feedback)
+                        if isLeftButtonHeld {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.white.opacity(0.35))
+                                    .frame(width: 24, height: 24)
+                                Circle()
+                                    .stroke(Color.blue, lineWidth: 2)
+                                    .frame(width: 24, height: 24)
+                            }
+                            .transition(.scale.combined(with: .opacity))
+                        }
+                    }
                     BasicTouchpadScrollStripView(mouseManager: mouseManager, labelFontSize: scrollFontSize)
                         .frame(width: stripGeo.size.width * 0.3)
                 }
@@ -757,12 +830,23 @@ struct BasicKeyboardMouseView: View {
 
                 // Mouse buttons row
                 HStack(spacing: 8) {
-                    mouseButton(label: "L", icon: "cursorarrow", button: .left)
-                        .frame(maxWidth: .infinity)
-                    mouseButton(label: "M", icon: "cursorarrow", button: .middle)
-                        .frame(maxWidth: .infinity)
-                    mouseButton(label: "R", icon: "cursorarrow", button: .right)
-                        .frame(maxWidth: .infinity)
+                    mouseButton(label: "L", icon: "cursorarrow", button: .left, onStateChange: { held in
+                        withAnimation(.spring(response: 0.2, dampingFraction: 0.6)) {
+                            isLeftButtonHeld = held
+                        }
+                    })
+                    .frame(maxWidth: .infinity)
+                    mouseButton(label: "M", icon: "cursorarrow", button: .middle, onStateChange: { held in
+                        withAnimation(.spring(response: 0.2, dampingFraction: 0.6)) {
+                            isMiddleButtonHeld = held
+                        }
+                    })
+                    .frame(maxWidth: .infinity)
+                    mouseButton(label: "R", icon: "cursorarrow", button: .right, onStateChange: { held in
+                        withAnimation(.spring(response: 0.2, dampingFraction: 0.6)) {
+                            isRightButtonHeld = held
+                        }
+                    })
                 }
                 .frame(height: buttonRowHeight)
                 .padding(.horizontal, 12)
@@ -771,14 +855,21 @@ struct BasicKeyboardMouseView: View {
         }
     }
 
-    private func mouseButton(label: String, icon: String, button: MouseButton) -> some View {
+    private func mouseButton(label: String, icon: String, button: MouseButton, onStateChange: ((Bool) -> Void)? = nil) -> some View {
         let bits: UInt8 = button == .left ? 0x01 : button == .right ? 0x02 : 0x04
         return MouseLockButton(
             onDown: {
                 HapticFeedbackManager.shared.triggerButtonPress()
+                onStateChange?(true)
                 mouseManager.sendButtonDown(buttons: bits)
             },
-            onUp: { mouseManager.sendButtonUp(buttons: bits) }
+            onUp: {
+                onStateChange?(false)
+                mouseManager.sendButtonUp(buttons: bits)
+            },
+            onLockChange: button == .left ? { locked in
+                onStateChange?(locked)
+            } : nil
         ) { isPressed, isLocked in
             Text(label)
                 .font(.system(size: 16, weight: .semibold))
@@ -1092,6 +1183,8 @@ private struct PressDetectorView: UIViewRepresentable {
 struct MouseLockButton<Label: View>: View {
     let onDown: () -> Void
     let onUp: () -> Void
+    /// Called with the new "held" state whenever the button is pressed/released or locked/unlocked.
+    let onLockChange: ((Bool) -> Void)?
     let label: (Bool, Bool) -> Label
 
     @State private var isPressed = false
@@ -1104,9 +1197,10 @@ struct MouseLockButton<Label: View>: View {
     private let lockIconAbove: CGFloat = 32
     private let lockIconRadius: CGFloat = 30
 
-    init(onDown: @escaping () -> Void, onUp: @escaping () -> Void, @ViewBuilder label: @escaping (Bool, Bool) -> Label) {
+    init(onDown: @escaping () -> Void, onUp: @escaping () -> Void, onLockChange: ((Bool) -> Void)? = nil, @ViewBuilder label: @escaping (Bool, Bool) -> Label) {
         self.onDown = onDown
         self.onUp = onUp
+        self.onLockChange = onLockChange
         self.label = label
     }
 
@@ -1141,8 +1235,8 @@ struct MouseLockButton<Label: View>: View {
         .onDisappear {
             longPressTimer?.invalidate()
             longPressTimer = nil
-            if isLocked { isLocked = false; onUp() }
-            else if isPressed { isPressed = false; onUp() }
+            if isLocked { isLocked = false; onLockChange?(false); onUp() }
+            else if isPressed { isPressed = false; onLockChange?(false); onUp() }
         }
     }
 
@@ -1164,11 +1258,14 @@ struct MouseLockButton<Label: View>: View {
         if isLocked {
             if justLocked {
                 justLocked = false  // lift after slide-to-lock — stay locked
+                onLockChange?(true)
             } else {
                 isLocked = false
+                onLockChange?(false)
                 onUp()
             }
         } else {
+            onLockChange?(false)
             onUp()
         }
     }

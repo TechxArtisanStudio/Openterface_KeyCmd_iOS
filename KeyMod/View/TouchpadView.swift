@@ -20,6 +20,8 @@ struct TouchpadView: UIViewRepresentable {
     let mouseManager: MouseManager
     let pointerTipState: PointerTipState
     @ObservedObject private var touchpadSettings = TouchpadSettings.shared
+    /// Callback when pointer movement state changes (true = moving, false = idle)
+    var onPointerMoving: ((Bool) -> Void)?
 
     func makeUIView(context: Context) -> UIView {
         let view = TouchpadUIView()
@@ -27,6 +29,7 @@ struct TouchpadView: UIViewRepresentable {
         view.touchpadSettings = touchpadSettings
         view.pointerTipState = pointerTipState
         view.backgroundColor = UIColor.clear
+        view.onPointerMoving = onPointerMoving
         return view
     }
 
@@ -40,6 +43,9 @@ struct TouchpadView: UIViewRepresentable {
 class TouchpadUIView: UIView {
     var mouseManager: MouseManager?
     var touchpadSettings: TouchpadSettings?
+    /// Fires when pointer movement state changes (true = moving, false = idle)
+    var onPointerMoving: ((Bool) -> Void)?
+    private var wasPointerMoving = false
     var pointerTipState: PointerTipState? {
         didSet {
             pointerTipObserver = pointerTipState?.objectWillChange.sink { [weak self] _ in
@@ -190,10 +196,15 @@ class TouchpadUIView: UIView {
         mouseManager?.handleRightClick()
     }
 
+    // Tracks whether a long-press just toggled drag mode, to prevent pan's
+    // .ended from immediately releasing the button via sendTouchRelease().
+    private var longPressJustFired = false
+
     @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
         if gesture.state == .began {
             print("Long press detected - toggling drag mode")
             hapticManager.triggerMediumFeedback()
+            longPressJustFired = true
             mouseManager?.handleDragModeToggle()
         }
     }
@@ -216,6 +227,7 @@ class TouchpadUIView: UIView {
             isDragging = true
             pointerTipState?.pointerPosition = location
             pointerTipState?.isDragging = true
+            onPointerMoving?(true)
             mouseManager?.handleDragChanged(currentPosition: location)
         case .changed:
             if isDragging {
@@ -228,8 +240,15 @@ class TouchpadUIView: UIView {
             dragStartPosition = nil
             pointerTipState?.pointerPosition = nil
             pointerTipState?.isDragging = false
+            onPointerMoving?(false)
             mouseManager?.handleDragEnded()
-            sendTouchRelease()
+            // Don't release buttons if long-press just toggled drag mode
+            // or if currently in select (drag) mode — user must tap to cancel.
+            if longPressJustFired {
+                longPressJustFired = false
+            } else if !(mouseManager?.isSelectMode ?? false) {
+                sendTouchRelease()
+            }
         default:
             break
         }
@@ -417,7 +436,15 @@ class TouchpadUIView: UIView {
     }
 
     private func executePendingTap() {
-        print("🎯 executePendingTap - isDragging: \(isDragging)")
+        print("🎯 executePendingTap - isDragging: \(isDragging), isSelectMode: \(mouseManager?.isSelectMode ?? false)")
+
+        // In drag mode, single tap exits drag mode instead of sending click
+        if mouseManager?.isSelectMode == true {
+            print("🔓 Single tap in drag mode — exiting drag mode")
+            mouseManager?.handleDragModeToggle()
+            tapTimer = nil
+            return
+        }
 
         // Only execute if we're not currently dragging
         if !isDragging {
