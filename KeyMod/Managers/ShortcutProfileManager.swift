@@ -17,15 +17,31 @@ class ShortcutProfileManager: ObservableObject {
 
     // MARK: - Published state
 
-    @Published private(set) var builtInProfiles: [ShortcutProfileData] = []
-    @Published private(set) var userProfiles: [ShortcutProfileData] = []
+    @Published var builtInProfiles: [ShortcutProfileData] = []
+    @Published var userProfiles: [ShortcutProfileData] = []
 
     /// Combined list: built-in first, then user-created.
     var allProfiles: [ShortcutProfileData] { builtInProfiles + userProfiles }
 
+    /// The currently active profile ID. Changes trigger @Published updates.
+    @Published var activeProfileId = "" {
+        didSet {
+            userDefaults.set(activeProfileId, forKey: activeProfileKey)
+        }
+    }
+
+    /// The active profile data object (nil if ID is invalid).
+    var activeProfile: ShortcutProfileData? {
+        allProfiles.first { $0.id == activeProfileId }
+    }
+
+    /// All profiles available for picking in the profile switcher.
+    var profilesForPicking: [ShortcutProfileData] { allProfiles }
+
     // MARK: - Private
 
     private let userDefaults = UserDefaults.standard
+    private let activeProfileKey = "ShortcutProfiles_activeProfileId"
     private let decoder = JSONDecoder()
     private let encoder: JSONEncoder = {
         let e = JSONEncoder()
@@ -45,6 +61,10 @@ class ShortcutProfileManager: ObservableObject {
     private init() {
         loadBuiltInProfiles()
         loadUserProfiles()
+        // Restore last active profile, default to first built-in
+        let lastId = userDefaults.string(forKey: activeProfileKey)
+            ?? builtInFileNames.first
+        self.activeProfileId = lastId ?? ""
     }
 
     // MARK: - Built-in profiles

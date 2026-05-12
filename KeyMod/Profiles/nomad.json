@@ -99,10 +99,10 @@
       "icon": "pencil.and.outline",
       "colorHex": "#A2845E",
       "shortcuts": [
-        { "id": "n-e-1", "description": "Undo", "key": "Ctrl+Z", "modifier": null, "keyCode": "Ctrl+Z" },
-        { "id": "n-e-2", "description": "Redo", "key": "Ctrl+Y", "modifier": null, "keyCode": "Ctrl+Y" },
-        { "id": "n-e-3", "description": "Save", "key": "Ctrl+S", "modifier": null, "keyCode": "Ctrl+S" },
-        { "id": "n-e-4", "description": "Duplicate object", "key": "Ctrl+D", "modifier": null, "keyCode": "Ctrl+D" },
+        { "id": "n-e-1", "description": "Undo", "key": "Z", "modifier": "Ctrl", "keyCode": "Z" },
+        { "id": "n-e-2", "description": "Redo", "key": "Y", "modifier": "Ctrl", "keyCode": "Y" },
+        { "id": "n-e-3", "description": "Save", "key": "S", "modifier": "Ctrl", "keyCode": "S" },
+        { "id": "n-e-4", "description": "Duplicate object", "key": "D", "modifier": "Ctrl", "keyCode": "D" },
         { "id": "n-e-5", "description": "Delete object", "key": "Delete", "modifier": null, "keyCode": "Delete" },
         { "id": "n-e-6", "description": "Select all", "key": "A", "modifier": "Ctrl", "keyCode": "A" }
       ]
