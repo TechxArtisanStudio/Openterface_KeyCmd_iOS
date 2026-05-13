@@ -16,7 +16,7 @@
         { "id": "k-vz-3", "description": "Redraw Zoom", "key": "F3", "modifier": null, "keyCode": "F3" },
         { "id": "k-vz-4", "description": "Center Zoom", "key": "F4", "modifier": null, "keyCode": "F4" },
         { "id": "k-vz-5", "description": "Fit on Screen", "key": "Home", "modifier": null, "keyCode": "Home" },
-        { "id": "k-vz-6", "description": "Switch Units", "key": "Ctrl+U", "modifier": null, "keyCode": "Ctrl+U" },
+        { "id": "k-vz-6", "description": "Switch Units", "key": "U", "modifier": "Ctrl", "keyCode": "U" },
         { "id": "k-vz-7", "description": "Reset Coordinates", "key": "Space", "modifier": null, "keyCode": "Space" }
       ]
     },
@@ -30,7 +30,7 @@
         { "id": "k-l-2", "description": "Component Layer", "key": "PgUp", "modifier": null, "keyCode": "PageUp" },
         { "id": "k-l-3", "description": "Inner Layer 1", "key": "F5", "modifier": null, "keyCode": "F5" },
         { "id": "k-l-4", "description": "Inner Layer 2", "key": "F6", "modifier": null, "keyCode": "F6" },
-        { "id": "k-l-5", "description": "Next Layer", "key": "+", "modifier": null, "keyCode": "+" },
+        { "id": "k-l-5", "description": "Next Layer", "key": "+", "modifier": "Shift", "keyCode": "+" },
         { "id": "k-l-6", "description": "Previous Layer", "key": "-", "modifier": null, "keyCode": "-" },
         { "id": "k-l-7", "description": "High Contrast Mode", "key": "H", "modifier": null, "keyCode": "H" }
       ]
@@ -92,13 +92,13 @@
       "shortcuts": [
         { "id": "k-pd-1", "description": "Add Track", "key": "X", "modifier": null, "keyCode": "X" },
         { "id": "k-pd-2", "description": "Add Via", "key": "V", "modifier": null, "keyCode": "V" },
-        { "id": "k-pd-3", "description": "Add Microvia", "key": "Ctrl+V", "modifier": null, "keyCode": "Ctrl+V" },
-        { "id": "k-pd-4", "description": "Switch Track Posture", "key": "/", "modifier": null, "keyCode": "F4" },
+        { "id": "k-pd-3", "description": "Add Microvia", "key": "V", "modifier": "Ctrl", "keyCode": "V" },
+        { "id": "k-pd-4", "description": "Switch Track Posture", "key": "/", "modifier": null, "keyCode": "/" },
         { "id": "k-pd-5", "description": "Drag Track", "key": "D", "modifier": null, "keyCode": "D" },
         { "id": "k-pd-6", "description": "End Track", "key": "End", "modifier": null, "keyCode": "End" },
         { "id": "k-pd-7", "description": "Add Module", "key": "O", "modifier": null, "keyCode": "O" },
         { "id": "k-pd-8", "description": "Track Width ↑", "key": "W", "modifier": null, "keyCode": "W" },
-        { "id": "k-pd-9", "description": "Track Width ↓", "key": "Ctrl+W", "modifier": null, "keyCode": "Ctrl+W" }
+        { "id": "k-pd-9", "description": "Track Width -", "key": "W", "modifier": "Ctrl", "keyCode": "W" }
       ]
     },
     {
@@ -107,11 +107,11 @@
       "icon": "folder",
       "colorHex": "#A2845E",
       "shortcuts": [
-        { "id": "k-f-1", "description": "Save Board", "key": "Ctrl+S", "modifier": null, "keyCode": "Ctrl+S" },
-        { "id": "k-f-2", "description": "Load Board", "key": "Ctrl+L", "modifier": null, "keyCode": "Ctrl+L" },
-        { "id": "k-f-3", "description": "Find Item", "key": "Ctrl+F", "modifier": null, "keyCode": "Ctrl+F" },
-        { "id": "k-f-4", "description": "Undo", "key": "Ctrl+Z", "modifier": null, "keyCode": "Ctrl+Z" },
-        { "id": "k-f-5", "description": "Redo", "key": "Ctrl+Y", "modifier": null, "keyCode": "Ctrl+Y" },
+        { "id": "k-f-1", "description": "Save Board", "key": "S", "modifier": "Ctrl", "keyCode": "S" },
+        { "id": "k-f-2", "description": "Load Board", "key": "L", "modifier": "Ctrl", "keyCode": "L" },
+        { "id": "k-f-3", "description": "Find Item", "key": "F", "modifier": "Ctrl", "keyCode": "F" },
+        { "id": "k-f-4", "description": "Undo", "key": "Z", "modifier": "Ctrl", "keyCode": "Z" },
+        { "id": "k-f-5", "description": "Redo", "key": "Y", "modifier": "Ctrl", "keyCode": "Y" },
         { "id": "k-f-6", "description": "Delete Item", "key": "Del", "modifier": null, "keyCode": "Delete" },
         { "id": "k-f-7", "description": "Delete Track Segment", "key": "BkSp", "modifier": null, "keyCode": "Backspace" }
       ]

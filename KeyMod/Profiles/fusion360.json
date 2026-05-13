@@ -11,7 +11,6 @@
       "icon": "move.3d",
       "colorHex": "#007AFF",
       "shortcuts": [
-        { "id": "f-nav-1", "description": "Pan", "key": "MMB", "modifier": null, "keyCode": "Shift+MiddleMouse" },
         { "id": "f-nav-2", "description": "Zoom to Fit", "key": "F6", "modifier": null, "keyCode": "F6" },
         { "id": "f-nav-3", "description": "Home View", "key": "Home", "modifier": null, "keyCode": "Home" },
         { "id": "f-nav-4", "description": "Look At", "key": "L", "modifier": null, "keyCode": "L" },

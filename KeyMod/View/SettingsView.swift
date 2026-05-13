@@ -23,6 +23,7 @@ struct SettingsView: View {
                 // Tab Switcher
                 Picker("Settings Tab", selection: $selectedSettingsTab) {
                     Text("General").tag("general")
+                    Text("Keyboard").tag("keyboard")
                     Text("Voice Input").tag("voice_input")
                     Text("AI Settings").tag("ai_settings")
                     Text("History").tag("history")
@@ -37,6 +38,8 @@ struct SettingsView: View {
                     Form {
                         if selectedSettingsTab == "general" {
                             GeneralSettingsView()
+                        } else if selectedSettingsTab == "keyboard" {
+                            KmBasicSettingsView()
                         } else if selectedSettingsTab == "voice_input" {
                             WhisperSettingsView()
                         } else if selectedSettingsTab == "ai_settings" {

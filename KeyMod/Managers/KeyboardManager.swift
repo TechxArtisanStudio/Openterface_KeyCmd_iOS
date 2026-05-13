@@ -344,6 +344,18 @@ class KeyboardManager: ObservableObject {
         logger.log("\(modifier) queued (silent)", category: "Keyboard")
     }
 
+    /// Track a modifier locally without sending a HID modifier-down report.
+    /// Used in momentary-chord mode when chord-sustain HID is disabled — the modifier
+    /// is included in the next regular-key HID report but no standalone modifier-down
+    /// is sent to the host until a key is chorded.
+    /// Must be called on the main thread.
+    func addModifierTrackedOnly(_ modifier: String) {
+        if modifierMask(for: modifier) != nil {
+            activeModifiers.insert(modifier)
+            logger.log("\(modifier) tracked (no HID report)", category: "Keyboard")
+        }
+    }
+
     /// Remove a modifier from activeModifiers without sending a BLE report.
     /// Must be called on the main thread.
     func removeModifierSilently(_ modifier: String) {
@@ -889,7 +901,47 @@ class KeyboardManager: ObservableObject {
         while keyCodes.count < 6 { keyCodes.append(0x00) }
         sendKeyboardData(modifier: modByte, keyCodes: keyCodes)
     }
-    
+
+    // MARK: - Long-press key repeat (KM Basic)
+
+    /// Initial delay before auto-repeat starts (matches typical physical keyboard).
+    private let repeatInitialDelay: TimeInterval = 0.4
+    /// Interval between repeated key reports.
+    private let repeatInterval: TimeInterval = 0.08
+
+    private var repeatTimer: Timer?
+    private var repeatKey: String?
+
+    /// Start sending a key-down HID report and schedule auto-repeat.
+    /// Call on the main thread. Sends the first key-down immediately, then
+    /// after `repeatInitialDelay` fires repeated press-release cycles.
+    func startKeyRepeat(_ key: String) {
+        stopKeyRepeat()
+        repeatKey = key
+        handleKeyDown(key)
+        repeatTimer = Timer.scheduledTimer(withTimeInterval: repeatInitialDelay, repeats: false) { [weak self] _ in
+            guard let self = self else { return }
+            self.repeatTimer = Timer.scheduledTimer(withTimeInterval: self.repeatInterval, repeats: true) { [weak self] _ in
+                guard let self = self, let k = self.repeatKey else { return }
+                // Bounce the key: up then down — generates a new key event on the host
+                // without asyncAfter so there is no overlap between repeat ticks.
+                self.handleKeyUp(k)
+                self.handleKeyDown(k)
+            }
+        }
+    }
+
+    /// Stop auto-repeat and send key-up for the currently repeating key.
+    /// Call on the main thread.
+    func stopKeyRepeat() {
+        repeatTimer?.invalidate()
+        repeatTimer = nil
+        if let k = repeatKey {
+            handleKeyUp(k)
+            repeatKey = nil
+        }
+    }
+
     // Check if a key is currently pressed
     func isKeyPressed(_ key: String) -> Bool {
         let keyAlias = mapKeyAlias(key)

@@ -28,7 +28,7 @@
         { "id": "b-s-3", "description": "Select linked all", "key": "L", "modifier": "Ctrl", "keyCode": "L" },
         { "id": "b-s-4", "description": "Invert selection", "key": "I", "modifier": "Ctrl", "keyCode": "I" },
         { "id": "b-s-5", "description": "Circle select", "key": "C", "modifier": null, "keyCode": "C" },
-        { "id": "b-s-6", "description": "Grow selection", "key": "+", "modifier": "Ctrl", "keyCode": "+" },
+        { "id": "b-s-6", "description": "Grow selection", "key": "+", "modifier": "Ctrl+Shift", "keyCode": "+" },
         { "id": "b-s-7", "description": "Shrink selection", "key": "-", "modifier": "Ctrl", "keyCode": "-" }
       ]
     },
@@ -121,7 +121,7 @@
       "icon": "location",
       "colorHex": "#00C7BE",
       "shortcuts": [
-        { "id": "b-n-1", "description": "Zoom in", "key": "+", "modifier": null, "keyCode": "+" },
+        { "id": "b-n-1", "description": "Zoom in", "key": "+", "modifier": "Shift", "keyCode": "+" },
         { "id": "b-n-2", "description": "Zoom out", "key": "-", "modifier": null, "keyCode": "-" },
         { "id": "b-n-3", "description": "Reset cursor to origin", "key": "C", "modifier": "Shift", "keyCode": "C" }
       ]
