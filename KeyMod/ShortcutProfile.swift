@@ -77,6 +77,43 @@ struct ShortcutItem: Codable, Identifiable, Equatable {
     }
 }
 
+// MARK: - Rows 2–3 strip profile
+
+/// One Rows 2–3 keyboard strip profile: per-slot overrides and the shortcut definitions
+/// referenced by those slots. Mirrors Android `Rows23StripProfile`.
+struct Rows23StripProfile: Codable, Identifiable {
+    var id: String
+    var name: String
+    var createdAt: TimeInterval
+    /// slotKey (e.g. "b-p2r2c1") → shortcut id in `shortcuts`
+    var slotMap: [String: String]
+    /// Shortcut definitions used by this strip profile's slot overrides.
+    var shortcuts: [ShortcutItem]
+
+    init(id: String = UUID().uuidString,
+         name: String,
+         createdAt: TimeInterval = Date().timeIntervalSince1970,
+         slotMap: [String: String] = [:],
+         shortcuts: [ShortcutItem] = []) {
+        self.id = id
+        self.name = name
+        self.createdAt = createdAt
+        self.slotMap = slotMap
+        self.shortcuts = shortcuts
+    }
+}
+
+// MARK: - Rows23 strip profile constants
+
+enum Rows23StripProfileConstants {
+    static let defaultProfileId  = "strip_default"
+    static let personalProfileId = "strip_personal"
+
+    static func isBuiltIn(id: String) -> Bool {
+        id == defaultProfileId || id == personalProfileId
+    }
+}
+
 // MARK: - Numpad key
 
 struct NumpadKeyData: Codable {

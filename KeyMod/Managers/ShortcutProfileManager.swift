@@ -174,4 +174,104 @@ class ShortcutProfileManager: ObservableObject {
         guard let data = try? encoder.encode(items) else { return }
         userDefaults.set(data, forKey: myShortcutsKey(for: profileId))
     }
+
+    // MARK: - Shortcut mutation (user profiles only)
+
+    func isUserProfile(id: String) -> Bool {
+        userProfiles.contains { $0.id == id }
+    }
+
+    /// Adds a shortcut to a specific category in a user profile.
+    /// If `categoryId` is nil, adds to the first available category.
+    func addShortcut(_ item: ShortcutItem, toCategoryId categoryId: String?, inProfileId profileId: String) {
+        guard let profIdx = userProfiles.firstIndex(where: { $0.id == profileId }) else { return }
+        let profile = userProfiles[profIdx]
+        let targetId = categoryId ?? profile.categories.first?.id
+        let cats: [ShortcutCategoryData] = profile.categories.map { cat in
+            guard cat.id == targetId else { return cat }
+            return ShortcutCategoryData(id: cat.id, name: cat.name, icon: cat.icon,
+                                        colorHex: cat.colorHex,
+                                        shortcuts: cat.shortcuts + [item])
+        }
+        saveUserProfile(ShortcutProfileData(id: profile.id, name: profile.name,
+                                            icon: profile.icon, themeColorHex: profile.themeColorHex,
+                                            hasNumpad: profile.hasNumpad, categories: cats,
+                                            numpad: profile.numpad))
+    }
+
+    /// Updates an existing shortcut (by id) in all categories of a user profile.
+    func updateShortcutInProfile(_ item: ShortcutItem, inProfileId profileId: String) {
+        guard let profIdx = userProfiles.firstIndex(where: { $0.id == profileId }) else { return }
+        let profile = userProfiles[profIdx]
+        let cats: [ShortcutCategoryData] = profile.categories.map { cat in
+            ShortcutCategoryData(id: cat.id, name: cat.name, icon: cat.icon,
+                                 colorHex: cat.colorHex,
+                                 shortcuts: cat.shortcuts.map { $0.id == item.id ? item : $0 })
+        }
+        saveUserProfile(ShortcutProfileData(id: profile.id, name: profile.name,
+                                            icon: profile.icon, themeColorHex: profile.themeColorHex,
+                                            hasNumpad: profile.hasNumpad, categories: cats,
+                                            numpad: profile.numpad))
+        // Keep My Shortcuts in sync
+        var mine = myShortcuts(for: profileId)
+        mine = mine.map { $0.id == item.id ? item : $0 }
+        updateMyShortcuts(for: profileId, items: mine)
+    }
+
+    /// Removes a shortcut (by id) from all categories and My Shortcuts of a user profile.
+    func deleteShortcutFromProfile(shortcutId: String, inProfileId profileId: String) {
+        guard let profIdx = userProfiles.firstIndex(where: { $0.id == profileId }) else { return }
+        let profile = userProfiles[profIdx]
+        let cats: [ShortcutCategoryData] = profile.categories.map { cat in
+            ShortcutCategoryData(id: cat.id, name: cat.name, icon: cat.icon,
+                                 colorHex: cat.colorHex,
+                                 shortcuts: cat.shortcuts.filter { $0.id != shortcutId })
+        }
+        saveUserProfile(ShortcutProfileData(id: profile.id, name: profile.name,
+                                            icon: profile.icon, themeColorHex: profile.themeColorHex,
+                                            hasNumpad: profile.hasNumpad, categories: cats,
+                                            numpad: profile.numpad))
+        var mine = myShortcuts(for: profileId)
+        mine.removeAll { $0.id == shortcutId }
+        updateMyShortcuts(for: profileId, items: mine)
+    }
+
+    private func saveUserProfile(_ profile: ShortcutProfileData) {
+        let fm = FileManager.default
+        if !fm.fileExists(atPath: userProfilesURL.path) {
+            try? fm.createDirectory(at: userProfilesURL, withIntermediateDirectories: true)
+        }
+        let fileURL = userProfilesURL.appendingPathComponent("\(profile.id).json")
+        if let data = try? encoder.encode(profile) {
+            try? data.write(to: fileURL, options: .atomic)
+        }
+        if let idx = userProfiles.firstIndex(where: { $0.id == profile.id }) {
+            userProfiles[idx] = profile
+        }
+    }
+
+    // MARK: - Create blank user profile
+
+    /// Creates a new empty user profile with the given display name and saves it to disk.
+    func createUserProfile(name: String) {
+        let profile = ShortcutProfileData(
+            id: UUID().uuidString,
+            name: name,
+            icon: "keyboard",
+            themeColorHex: "#29B6F6",
+            hasNumpad: false,
+            categories: [
+                ShortcutCategoryData(
+                    id: "general",
+                    name: "General",
+                    icon: nil,
+                    colorHex: "#29B6F6",
+                    shortcuts: []
+                )
+            ],
+            numpad: nil
+        )
+        guard let data = try? encoder.encode(profile) else { return }
+        try? addCustomProfile(from: data)
+    }
 }
