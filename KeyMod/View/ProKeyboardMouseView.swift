@@ -10,24 +10,6 @@ import SwiftUI
 import UIKit
 
 struct ProKeyboardMouseView: View {
-    let keys: [[String]] = [
-        ["Esc", "`", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=", "Backspace"],
-        ["Tab", "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "[", "]"],
-        ["Caps", "a", "s", "d", "f", "g", "h", "j", "k", "l", ";", "'", "Enter"],
-        ["Shift", "z", "x", "c", "v", "b", "n", "m", ",", ".", "/", "Shift"],
-        ["Ctrl", "Alt", "Space", "Alt", "Ctrl"]
-    ]
-
-    let extraKeys: [[String?]] = [
-        ["PrtSc", "Scroll Lock", "Pause"],
-        ["Insert", "Home", "PgUp"],
-        ["Delete", "End", "PgDn"],
-        [nil, nil, "↑", nil, nil],
-        [nil, "←", "↓", "→", nil]
-    ]
-
-    let extraNumberKeys: [String] = ["7", "8", "9", "4", "5", "6", "1", "2", "3", "0", "."]
-
     @ObservedObject var mouseManager: MouseManager
     @ObservedObject var keyboardManager: KeyboardManager
     @ObservedObject var compositeKeyManager: CompositeKeyManager
@@ -490,49 +472,18 @@ struct ProKeyboardMouseView: View {
     private var landscapeKeyboardView: some View {
         GeometryReader { innerGeometry in
             VStack(spacing: 0) {
-                ForEach(keysForCurrentOrientation, id: \.self) { row in
+                ForEach(currentKeys.indices, id: \.self) { rowIdx in
+                    let row = currentKeys[rowIdx]
                     HStack(spacing: 0) {
-                        ForEach(row, id: \.self) { key in legacyKeyButton(key) }
+                        ForEach(row.indices, id: \.self) { colIdx in
+                            let kd = row[colIdx]
+                            keyButton(for: kd, width: keyWidth(for: kd, row: row))
+                        }
                     }
-                    .frame(maxHeight: innerGeometry.size.height / CGFloat(keysForCurrentOrientation.count))
+                    .frame(maxHeight: innerGeometry.size.height / CGFloat(currentKeys.count))
                 }
             }
         }
-    }
-
-    @ViewBuilder
-    private func legacyKeyButton(_ key: String) -> some View {
-        Button(action: { keyboardManager.handleSpecialKey(key) }) {
-            legacyKeyContent(key)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(legacyKeyBg(key)).cornerRadius(9)
-                .foregroundColor(legacyKeyFg(key))
-        }
-    }
-
-    @ViewBuilder
-    private func legacyKeyContent(_ key: String) -> some View {
-        switch key {
-        case "Backspace": Image(systemName: "delete.left").font(.system(size: 16))
-        case "Enter": Image(systemName: "return").font(.system(size: 16))
-        case "Shift":
-            Image(systemName: "shift").font(.system(size: 16))
-        default:
-            Text(getDisplayValue(for: key)).font(.system(size: 12))
-        }
-    }
-
-    private func legacyKeyBg(_ key: String) -> Color {
-        if key == "Shift" { return keyboardManager.activeModifiers.contains("Shift") ? .blue : Self.functionKeyBg }
-        if ["Ctrl", "Alt", "Cmd"].contains(key) { return keyboardManager.activeModifiers.contains(key) ? .blue : Self.functionKeyBg }
-        if key == "Caps" { return keyboardManager.capsLockActive ? .green : Self.functionKeyBg }
-        return Self.regularKeyBg
-    }
-
-    private func legacyKeyFg(_ key: String) -> Color {
-        if ["Shift", "Ctrl", "Alt", "Cmd"].contains(key) { return keyboardManager.activeModifiers.contains(key) ? .white : .primary }
-        if key == "Caps" { return keyboardManager.capsLockActive ? .white : .primary }
-        return .primary
     }
 
     // MARK: - Portrait layout
@@ -560,7 +511,6 @@ struct ProKeyboardMouseView: View {
             ShortcutStripPager(pages: shortcutPages).id(profileMgr.activeProfileId).padding(.horizontal, 4)
             FixedRowsPager(pages: fixedRowsPages, defaultPageIndex: 1).padding(.horizontal, 4).padding(.bottom, 2)
             keyboardLayoutView.frame(height: 240).padding(.bottom, 10)
-            if displayMode == .keyboard && !orientationManager.isLandscape { extraKeysView.padding(.top, 8) }
             if isTextInputMode && !isTextInputExpanded { textInputView.frame(height: 140).padding(.bottom, 10) }
             bottomToolbar.padding(.horizontal, 4).padding(.bottom, 4)
         }
@@ -584,7 +534,11 @@ struct ProKeyboardMouseView: View {
         return UIDevice.current.orientation == .landscapeRight
     }
 
-    var keysForCurrentOrientation: [[String]] { keys }
+    var currentKeys: [[KeyboardManager.KeyDef]] {
+        orientationManager.isLandscape
+            ? keyboardManager.landscapeKeys(for: aiSettings.targetOS)
+            : keyboardManager.portraitLetterKeys
+    }
 
     @ViewBuilder
     private var keyboardLayoutView: some View {
@@ -603,16 +557,31 @@ struct ProKeyboardMouseView: View {
     }
 
     private func keyWidth(for kd: KeyboardManager.KeyDef, row: [KeyboardManager.KeyDef]) -> CGFloat {
-        // Special widths matching Android layout
+        // Portrait layout widths (Android keyboard_lower_portrait_no_gui.xml)
+        if !orientationManager.isLandscape {
+            switch kd.label {
+            case "Shift": return 0.16
+            case "Enter": return 0.12
+            case "Fn": return 0.095
+            case "Ctrl": return 0.10
+            case "Space": return 0.47
+            case "Alt": return 0.10
+            case "Win": return 0.19
+            case "Tab": return 0.10
+            case "Del": return 0.115
+            default: return 1.0 / CGFloat(row.count)
+            }
+        }
+        // Landscape layout widths
         switch kd.label {
-        case "Shift": return 0.15
-        case "Fn": return 0.15
-        case "Cmd", "Win": return 0.10
+        case "Tab": return 0.10
+        case "Backspace": return 0.10
+        case "Fn": return 0.095
+        case "Delete", "FwdDel": return 0.115
+        case "Shift": return 0.16
+        case "Enter": return 0.12
         case "Space": return 0.40
-        case "Enter": return 0.15
-        case "Backspace": return 0.095
-        case ",", ".": return 0.10
-        case "/": return 0.15
+        case "Ctrl", "Alt", "Win", "Cmd", "Option", "App": return 0.10
         default: return 1.0 / CGFloat(row.count)
         }
     }
@@ -621,7 +590,7 @@ struct ProKeyboardMouseView: View {
     @ViewBuilder
     private func keyButton(for kd: KeyboardManager.KeyDef, width: CGFloat) -> some View {
         let displayText = displayLabel(for: kd)
-        let isModifier = ["Ctrl", "Alt", "Cmd", "Win", "Shift"].contains(kd.label)
+        let isModifier = ["Ctrl", "Alt", "Cmd", "Win", "Shift", "Option"].contains(kd.label)
         let isPressed = isModifier && keyboardManager.activeModifiers.contains(kd.label)
         let isActive = (kd.label == "Caps" && keyboardManager.capsLockActive) || (kd.label == "Fn" && keyboardManager.isFnLocked)
 
@@ -717,6 +686,8 @@ struct ProKeyboardMouseView: View {
             Image(systemName: "return").font(.system(size: 16))
         case "Shift":
             Image(systemName: "shift").font(.system(size: 16))
+        case "Del", "Delete", "FwdDel":
+            Image(systemName: "delete.forward").font(.system(size: 16))
         case "Cmd":
             // Target OS label: show Cmd/Win/Super based on settings
             switch aiSettings.targetOS {
@@ -724,10 +695,19 @@ struct ProKeyboardMouseView: View {
             case .linux: Text("Super").font(.system(size: 10))
             default: Text("Cmd").font(.system(size: 12))
             }
-        case "Ctrl", "Alt":
+        case "Option":
+            switch aiSettings.targetOS {
+            case .windows: Text("Alt").font(.system(size: 12))
+            case .linux: Text("AltGr").font(.system(size: 11))
+            default: Text("Opt").font(.system(size: 12))
+            }
+        case "App":
+            Image(systemName: "app").font(.system(size: 14))
+        case "Ctrl", "Alt", "Win":
             Text(getDisplayValue(for: kd.label)).font(.system(size: 12))
         case "Caps": Text("Caps").font(.system(size: 11))
         case "Fn": Text("Fn").font(.system(size: 12, weight: .bold))
+        case "Tab": Image(systemName: "arrow.right.to.line.compact").font(.system(size: 14))
         default:
             if keyboardManager.isSymbolMode && !kd.symbolLabel.isEmpty {
                 Text(kd.symbolLabel).font(.system(size: 14))
@@ -739,7 +719,7 @@ struct ProKeyboardMouseView: View {
 
     /// Whether a key is a "function" key (F-row, modifiers, special action keys) that gets a gray bg.
     private func isFunctionKey(_ kd: KeyboardManager.KeyDef) -> Bool {
-        let functionLabels = ["Esc", "Tab", "Caps", "Shift", "Ctrl", "Alt", "Fn", "Backspace", "Enter"]
+        let functionLabels = ["Esc", "Tab", "Caps", "Shift", "Ctrl", "Alt", "Fn", "Backspace", "Enter", "Delete", "Forward Delete", "FwdDel", "Del", "App", "Option"]
         return functionLabels.contains(kd.label) || keyboardManager.isSymbolMode && ["ABC", "12/34", "!?#"].contains(kd.label)
     }
 
@@ -762,49 +742,6 @@ struct ProKeyboardMouseView: View {
                 .padding(.trailing, 6)
                 .padding(.top, 2)
                 .allowsHitTesting(false)
-        }
-    }
-    
-    @ViewBuilder
-    private var extraKeysView: some View {
-        let arrowMap = ["↑": "Up", "↓": "Down", "←": "Left", "→": "Right"]
-        VStack(spacing: 4) {
-            ForEach(extraKeys.indices, id: \.self) { rowIdx in
-                HStack(spacing: 4) {
-                    ForEach(extraKeys[rowIdx].indices, id: \.self) { colIdx in
-                        if let key = extraKeys[rowIdx][colIdx] {
-                            let mapped = arrowMap[key] ?? key
-                            Button(action: { keyboardManager.handleSpecialKey(mapped) }) {
-                                Text(key).font(.system(size: 12, weight: .medium))
-                                    .frame(maxWidth: .infinity, minHeight: 36)
-                                    .background(Self.functionKeyBg).cornerRadius(9).foregroundColor(.primary)
-                            }
-                        } else { Spacer() }
-                    }
-                }
-            }
-            if displayMode == .keyboard && !orientationManager.isLandscape { numberPadView }
-        }.padding(.horizontal, 8)
-    }
-
-    @ViewBuilder
-    private var numberPadView: some View {
-        VStack(spacing: 3) {
-            ForEach(0..<3, id: \.self) { row in
-                HStack(spacing: 3) {
-                    ForEach(0..<3, id: \.self) { col in numberPadButton(extraNumberKeys[row * 3 + col]) }
-                }
-            }
-            HStack(spacing: 3) { numberPadButton("0"); numberPadButton(".") }
-        }
-    }
-
-    private func numberPadButton(_ key: String) -> some View {
-        let mapped = key == "0" ? "Numpad0" : key == "." ? "NumpadDot" : "Numpad\(key)"
-        return Button(action: { keyboardManager.handleSpecialKey(mapped) }) {
-            Text(key).font(.system(size: 14, weight: .medium))
-                .frame(maxWidth: .infinity, minHeight: 36)
-                .background(Self.functionKeyBg).cornerRadius(9).foregroundColor(.primary)
         }
     }
 

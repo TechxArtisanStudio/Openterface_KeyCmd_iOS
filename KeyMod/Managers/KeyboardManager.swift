@@ -47,50 +47,52 @@ class KeyboardManager: ObservableObject {
         }
     }
 
-    /// Portrait letter key definitions with alternates (matches Android keyboard_lower_portrait.xml)
+    /// Portrait letter key definitions with alternates
+    /// Matches Android keyboard_lower_portrait_no_gui.xml (4 rows)
     let portraitLetterKeys: [[KeyDef]] = [
-        [ // Row 1: q-p with number alternates
-            KeyDef("q", "Q", ["1"], "1", "q"),
-            KeyDef("w", "W", ["2"], "2", "w"),
-            KeyDef("e", "E", ["3"], "3", "e"),
-            KeyDef("r", "R", ["4"], "4", "r"),
-            KeyDef("t", "T", ["5"], "5", "t"),
-            KeyDef("y", "Y", ["6"], "6", "y"),
-            KeyDef("u", "U", ["7"], "7", "u"),
-            KeyDef("i", "I", ["8"], "8", "i"),
-            KeyDef("o", "O", ["9"], "9", "o"),
-            KeyDef("p", "P", ["0"], "0", "p")
+        [ // Row 1: q-p (10 letter keys, equal width)
+            KeyDef("q", "Q", ["1"], "!", "q"),
+            KeyDef("w", "W", ["2"], "@", "w"),
+            KeyDef("e", "E", ["3"], "#", "e"),
+            KeyDef("r", "R", ["4"], "$", "r"),
+            KeyDef("t", "T", ["5"], "%", "t"),
+            KeyDef("y", "Y", ["6"], "^", "y"),
+            KeyDef("u", "U", ["7"], "&", "u"),
+            KeyDef("i", "I", ["8"], "*", "i"),
+            KeyDef("o", "O", ["9"], ",", "o"),
+            KeyDef("p", "P", ["0"], ".", "p")
         ],
-        [ // Row 2: a-l + Backspace with symbol alternates
-            KeyDef("a", "A", ["@"], "@", "a"),
-            KeyDef("s", "S", ["#"], "#", "s"),
-            KeyDef("d", "D", ["$"], "$", "d"),
-            KeyDef("f", "F", ["%"], "%", "f"),
-            KeyDef("g", "G", ["^"], "^", "g"),
-            KeyDef("h", "H", ["&"], "&", "h"),
-            KeyDef("j", "J", ["*"], "*", "j"),
-            KeyDef("k", "K", ["(", "{", "[", "<"], "(", "k"),
-            KeyDef("l", "L", [")", "}", "]", ">"], ")", "l"),
-            KeyDef("Backspace", "", [], "", "Backspace")
+        [ // Row 2: Tab + a-l + Forward Delete
+            KeyDef("Tab", "", [], "", "Tab"),
+            KeyDef("a", "A", ["¥", "£", "€"], "¥", "a"),
+            KeyDef("s", "S", ["`", "~"], "`", "s"),
+            KeyDef("d", "D", ["-", "_"], "-", "d"),
+            KeyDef("f", "F", ["+", "="], "+", "f"),
+            KeyDef("g", "G", ["/", "?"], "/", "g"),
+            KeyDef("h", "H", ["<", ">"], "<", "h"),
+            KeyDef("j", "J", ["[", "]"], "[", "j"),
+            KeyDef("k", "K", ["{", "}"], "{", "k"),
+            KeyDef("l", "L", ["(", ")"], "(", "l"),
+            KeyDef("Del", "", [], "", "Delete")
         ],
-        [ // Row 3: z-/ with symbol alternates
+        [ // Row 3: Shift + z-m + / + Enter
             KeyDef("Shift", "", [], "", "Shift"),
-            KeyDef("z", "Z", ["!"], "!", "z"),
-            KeyDef("x", "X", ["?"], "?", "x"),
+            KeyDef("z", "Z", ["'"], "'", "z"),
+            KeyDef("x", "X", ["\""], "\"", "x"),
             KeyDef("c", "C", [";"], ";", "c"),
             KeyDef("v", "V", [":"], ":", "v"),
-            KeyDef("b", "B", ["'"], "'", "b"),
-            KeyDef("n", "N", ["\""], "\"", "n"),
-            KeyDef("m", "M", ["_"], "_", "m"),
-            KeyDef("/", "?", ["+", "`", "~"], "+", "/")
-        ],
-        [ // Row 4: Fn, comma, Win, Space, period, Enter
-            KeyDef("Fn", "", [], "", "Fn"),
-            KeyDef(",", ";", ["-", ":"], "-", ","),
-            KeyDef("Cmd", "", [], "", "Cmd"),
-            KeyDef("Space", "", [], "", "Space"),
-            KeyDef(".", "'", ["=", "\""], "=", "."),
+            KeyDef("b", "B", ["/"], "/", "b"),
+            KeyDef("n", "N", ["|"], "|", "n"),
+            KeyDef("m", "M", ["\\"], "\\", "m"),
+            KeyDef("/", "?", ["|"], "/", "/"),
             KeyDef("Enter", "", [], "", "Enter")
+        ],
+        [ // Row 4: Fn + Ctrl + Space + Alt + Win
+            KeyDef("Fn", "", [], "", "Fn"),
+            KeyDef("Ctrl", "", [], "", "Ctrl"),
+            KeyDef("Space", "", [], "", "Space"),
+            KeyDef("Alt", "", [], "", "Alt"),
+            KeyDef("Win", "", [], "", "Win")
         ]
     ]
 
@@ -193,6 +195,112 @@ class KeyboardManager: ObservableObject {
         KeyDef("Left", "", [], "←", "Left"),
         KeyDef("Down", "", [], "↓", "Down"),
         KeyDef("Right", "", [], "→", "Right")
+    ]
+
+    // MARK: - Landscape Key Definitions (matches Android keyboard_lower_landscape_no_gui_*.xml)
+
+    /// macOS landscape layout — symmetrical bottom row: Ctrl + Opt + Cmd + Space + Cmd + Opt + Ctrl
+    let landscapeMacKeys: [[KeyDef]] = [
+        [ // Row 1: Tab + q-p + Backspace
+            KeyDef("Tab", "", [], "", "Tab"),
+            KeyDef("q", "Q", ["1"], "!", "q"),
+            KeyDef("w", "W", ["2"], "@", "w"),
+            KeyDef("e", "E", ["3"], "#", "e"),
+            KeyDef("r", "R", ["4"], "$", "r"),
+            KeyDef("t", "T", ["5"], "%", "t"),
+            KeyDef("y", "Y", ["6"], "^", "y"),
+            KeyDef("u", "U", ["7"], "&", "u"),
+            KeyDef("i", "I", ["8"], "*", "i"),
+            KeyDef("o", "O", ["9"], ",", "o"),
+            KeyDef("p", "P", ["0"], ".", "p"),
+            KeyDef("Backspace", "", [], "", "Backspace")
+        ],
+        [ // Row 2: Fn + a-l + Delete
+            KeyDef("Fn", "", [], "", "Fn"),
+            KeyDef("a", "A", ["¥", "£", "€"], "¥", "a"),
+            KeyDef("s", "S", ["`", "~"], "`", "s"),
+            KeyDef("d", "D", ["-", "_"], "-", "d"),
+            KeyDef("f", "F", ["+", "="], "+", "f"),
+            KeyDef("g", "G", ["/", "?"], "/", "g"),
+            KeyDef("h", "H", ["<", ">"], "<", "h"),
+            KeyDef("j", "J", ["[", "]"], "[", "j"),
+            KeyDef("k", "K", ["{", "}"], "{", "k"),
+            KeyDef("l", "L", ["(", ")"], "(", "l"),
+            KeyDef("Delete", "", [], "", "Delete")
+        ],
+        [ // Row 3: Shift + z-m + / + Enter
+            KeyDef("Shift", "", [], "", "Shift"),
+            KeyDef("z", "Z", ["'"], "'", "z"),
+            KeyDef("x", "X", ["\""], "\"", "x"),
+            KeyDef("c", "C", [";"], ";", "c"),
+            KeyDef("v", "V", [":"], ":", "v"),
+            KeyDef("b", "B", ["/"], "/", "b"),
+            KeyDef("n", "N", ["|"], "|", "n"),
+            KeyDef("m", "M", ["\\"], "\\", "m"),
+            KeyDef("/", "?", ["|"], "/", "/"),
+            KeyDef("Enter", "", [], "", "Enter")
+        ],
+        [ // Row 4: Ctrl + Opt + Cmd + Space + Cmd + Opt + Ctrl
+            KeyDef("Ctrl", "", [], "", "Ctrl"),
+            KeyDef("Option", "", [], "", "Alt"),
+            KeyDef("Cmd", "", [], "", "Cmd"),
+            KeyDef("Space", "", [], "", "Space"),
+            KeyDef("Cmd", "", [], "", "Cmd"),
+            KeyDef("Option", "", [], "", "Alt"),
+            KeyDef("Ctrl", "", [], "", "Ctrl")
+        ]
+    ]
+
+    /// Windows/Linux landscape layout — bottom row: Ctrl + Win + Alt + Space + Alt + App + Right Ctrl
+    let landscapePcKeys: [[KeyDef]] = [
+        [ // Row 1: Tab + q-p + Backspace
+            KeyDef("Tab", "", [], "", "Tab"),
+            KeyDef("q", "Q", ["1"], "!", "q"),
+            KeyDef("w", "W", ["2"], "@", "w"),
+            KeyDef("e", "E", ["3"], "#", "e"),
+            KeyDef("r", "R", ["4"], "$", "r"),
+            KeyDef("t", "T", ["5"], "%", "t"),
+            KeyDef("y", "Y", ["6"], "^", "y"),
+            KeyDef("u", "U", ["7"], "&", "u"),
+            KeyDef("i", "I", ["8"], "*", "i"),
+            KeyDef("o", "O", ["9"], ",", "o"),
+            KeyDef("p", "P", ["0"], ".", "p"),
+            KeyDef("Backspace", "", [], "", "Backspace")
+        ],
+        [ // Row 2: Fn + a-l + Forward Delete
+            KeyDef("Fn", "", [], "", "Fn"),
+            KeyDef("a", "A", ["¥", "£", "€"], "¥", "a"),
+            KeyDef("s", "S", ["`", "~"], "`", "s"),
+            KeyDef("d", "D", ["-", "_"], "-", "d"),
+            KeyDef("f", "F", ["+", "="], "+", "f"),
+            KeyDef("g", "G", ["/", "?"], "/", "g"),
+            KeyDef("h", "H", ["<", ">"], "<", "h"),
+            KeyDef("j", "J", ["[", "]"], "[", "j"),
+            KeyDef("k", "K", ["{", "}"], "{", "k"),
+            KeyDef("l", "L", ["(", ")"], "(", "l"),
+            KeyDef("FwdDel", "", [], "", "Delete")
+        ],
+        [ // Row 3: Shift + z-m + / + Enter
+            KeyDef("Shift", "", [], "", "Shift"),
+            KeyDef("z", "Z", ["'"], "'", "z"),
+            KeyDef("x", "X", ["\""], "\"", "x"),
+            KeyDef("c", "C", [";"], ";", "c"),
+            KeyDef("v", "V", [":"], ":", "v"),
+            KeyDef("b", "B", ["/"], "/", "b"),
+            KeyDef("n", "N", ["|"], "|", "n"),
+            KeyDef("m", "M", ["\\"], "\\", "m"),
+            KeyDef("/", "?", ["|"], "/", "/"),
+            KeyDef("Enter", "", [], "", "Enter")
+        ],
+        [ // Row 4: Ctrl + Win + Alt + Space + Alt + App + Right Ctrl
+            KeyDef("Ctrl", "", [], "", "Ctrl"),
+            KeyDef("Win", "", [], "", "Win"),
+            KeyDef("Alt", "", [], "", "Alt"),
+            KeyDef("Space", "", [], "", "Space"),
+            KeyDef("Alt", "", [], "", "Alt"),
+            KeyDef("App", "", [], "", "App"),
+            KeyDef("Ctrl", "", [], "", "Ctrl")
+        ]
     ]
 
     /// Optional handler invoked (on the background thread) when a
@@ -503,9 +611,17 @@ class KeyboardManager: ObservableObject {
         return nil
     }
 
+    /// Select the appropriate landscape keyboard layout based on target OS.
+    func landscapeKeys(for targetOS: TargetOS) -> [[KeyDef]] {
+        switch targetOS {
+        case .macOS: return landscapeMacKeys
+        case .windows, .linux: return landscapePcKeys
+        }
+    }
+
     /// Check if a key is a modifier or special key that should not show alternates.
     func isModifierOrSpecialKey(_ label: String) -> Bool {
-        let skipSet = ["Shift", "Ctrl", "Alt", "Cmd", "Win", "Fn", "Space", "Enter", "Backspace", "Caps", "Tab", "Esc", "Escape"]
+        let skipSet = ["Shift", "Ctrl", "Alt", "Cmd", "Win", "Fn", "Space", "Enter", "Backspace", "Caps", "Tab", "Esc", "Escape", "Delete", "Forward Delete", "FwdDel", "Del", "App", "Option"]
         return skipSet.contains(label)
     }
 
