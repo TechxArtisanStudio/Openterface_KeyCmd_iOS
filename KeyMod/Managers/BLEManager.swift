@@ -40,7 +40,7 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     }
 
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
-        if let name = peripheral.name?.lowercased(), (name.hasPrefix("openterface") || name.hasPrefix("kvm")) {
+        if let name = peripheral.name?.lowercased(), (name.hasPrefix("openterface") || name.hasPrefix("kvm") || name.hasPrefix("keymod")) {
             logger.log("Discovered device: \(peripheral.name ?? "Unknown")", category: "BLE")
             logger.log("RSSI\(RSSI)", category: "BLE")
             if let serviceUUIDs = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] {
