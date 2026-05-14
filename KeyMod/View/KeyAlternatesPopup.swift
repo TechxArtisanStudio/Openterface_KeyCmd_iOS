@@ -2,135 +2,113 @@
 //  KeyAlternatesPopup.swift
 //  KeyMod
 //
-//  3x3 grid popup for alternate character selection via gesture.
-//  Synced from Android's showAlternatesPopup / AlternatePopupGeometry.
+//  System-keyboard-style horizontal alternates popup.
+//  Long-press a key → horizontal bubble strip appears above the key.
+//  Slide left/right to highlight a character; lift finger to commit.
 //
 
 import SwiftUI
 
-/// A single alternate option in a 3x3 grid slot.
+/// A single alternate option.
 struct AlternateOption: Identifiable {
     let id = UUID()
     let display: String
     let keyCode: String
     let requiresShift: Bool
-    let slot: Int // AlternatePopupGeometry slot index
+    let slot: Int // AlternatePopupGeometry slot index (kept for API compat)
 }
 
 struct KeyAlternatesPopupView: View {
-    let options: [AlternateOption] // non-nil slots
+    let options: [AlternateOption]
     let anchorFrame: CGRect
+    /// Current drag location in the parent coordinate space (proKMView).
+    var dragLocation: CGPoint?
+    /// Binding to parent-owned selected index so parent can commit on drag end.
+    @Binding var selectedIndex: Int
     let onCommit: (AlternateOption) -> Void
     let onCancel: () -> Void
 
-    @State private var selectedSlot: Int = AlternatePopupGeometry.slotCenter
-    @State private var gestureStart: CGPoint?
+    // Sorted display order: center slot first, then left, right, up, down, corners
+    private var sortedOptions: [AlternateOption] {
+        let order = [
+            AlternatePopupGeometry.slotCenter,
+            AlternatePopupGeometry.slotLeft,
+            AlternatePopupGeometry.slotRight,
+            AlternatePopupGeometry.slotUp,
+            AlternatePopupGeometry.slotDown,
+            AlternatePopupGeometry.slotUpLeft,
+            AlternatePopupGeometry.slotUpRight,
+            AlternatePopupGeometry.slotDownLeft,
+            AlternatePopupGeometry.slotDownRight,
+        ]
+        let slotMap = Dictionary(uniqueKeysWithValues: options.map { ($0.slot, $0) })
+        return order.compactMap { slotMap[$0] }
+    }
 
-    // Geometry constants matching Android defaults (in points, approximate dp)
-    private let rMinPx: CGFloat = 12
-    private let rCancelPx: CGFloat = 228
-    private let axisDeadzonePx: CGFloat = 18
+    @State private var stripOriginX: CGFloat = 0
 
-    // Row-major layout: top row (UL, U, UR), mid row (L, C, R), bot row (DL, D, DR)
-    private static let layout: [[Int]] = [
-        [AlternatePopupGeometry.slotUpLeft, AlternatePopupGeometry.slotUp, AlternatePopupGeometry.slotUpRight],
-        [AlternatePopupGeometry.slotLeft, AlternatePopupGeometry.slotCenter, AlternatePopupGeometry.slotRight],
-        [AlternatePopupGeometry.slotDownLeft, AlternatePopupGeometry.slotDown, AlternatePopupGeometry.slotDownRight],
-    ]
+    private let cellWidth: CGFloat = 36
+    private let cellHeight: CGFloat = 44
+    private let cellSpacing: CGFloat = 2
 
     var body: some View {
         GeometryReader { geometry in
-            gridContent
-                .position(x: anchorFrame.midX, y: anchorFrame.minY - 80)
-                .gesture(dragGesture)
+            let sorted = sortedOptions
+            let popupWidth = CGFloat(sorted.count) * (cellWidth + cellSpacing) - cellSpacing + 16
+            let idealX = anchorFrame.midX - popupWidth / 2
+            let clampedX = min(max(idealX, 4), geometry.size.width - popupWidth - 4)
+            let popupY = anchorFrame.minY - cellHeight - 16
+
+            popupStrip(sorted: sorted)
+                .frame(width: popupWidth)
+                .position(x: clampedX + popupWidth / 2, y: popupY + cellHeight / 2)
                 .onAppear {
-                    selectedSlot = AlternatePopupGeometry.slotCenter
-                    gestureStart = nil
+                    selectedIndex = 0
+                    stripOriginX = clampedX + 8
+                }
+                .onChange(of: dragLocation) { loc in
+                    guard let loc = loc else { return }
+                    updateSelectionFromDrag(loc: loc, sorted: sorted, stripOriginX: clampedX + 8)
                 }
         }
-        .transition(.scale.combined(with: .opacity))
     }
 
-    // MARK: - Grid building
-
-    private var slotMap: [Int: AlternateOption] {
-        var dict: [Int: AlternateOption] = [:]
-        for opt in options { dict[opt.slot] = opt }
-        return dict
+    /// Map the drag X position (in proKMView coords) to a cell index.
+    private func updateSelectionFromDrag(loc: CGPoint, sorted: [AlternateOption], stripOriginX: CGFloat) {
+        let step = cellWidth + cellSpacing
+        let localX = loc.x - stripOriginX
+        let idx = Int(localX / step)
+        let clamped = max(0, min(sorted.count - 1, idx))
+        if clamped != selectedIndex { selectedIndex = clamped }
     }
 
-    private var gridContent: some View {
-        let rows = Self.layout.map { row in
-            row.map { slot in slotMap[slot] }
-        }
-        return gridBody(rows: rows)
-    }
-
-    private func gridBody(rows: [[AlternateOption?]]) -> some View {
-        let rowViews = rows.map { row -> AnyView in
-            let cells = row.map { cell -> AnyView in
-                if let opt = cell {
-                    return AnyView(optionCell(for: opt))
-                } else {
-                    return AnyView(Color.clear.frame(minWidth: 40, minHeight: 44))
+    private func popupStrip(sorted: [AlternateOption]) -> some View {
+        HStack(spacing: cellSpacing) {
+            ForEach(Array(sorted.enumerated()), id: \.offset) { idx, opt in
+                let isSelected = idx == selectedIndex
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(isSelected ? Color.blue : Color(UIColor.secondarySystemBackground))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color(UIColor.separator).opacity(0.5), lineWidth: 0.5)
+                        )
+                    Text(opt.display)
+                        .font(.system(size: 18, weight: isSelected ? .semibold : .regular))
+                        .foregroundColor(isSelected ? .white : .primary)
+                        .minimumScaleFactor(0.6)
                 }
+                .frame(width: cellWidth, height: cellHeight)
+                .scaleEffect(isSelected ? 1.15 : 1.0)
+                .animation(.spring(response: 0.15, dampingFraction: 0.7), value: isSelected)
             }
-            return AnyView(HStack(spacing: 2) { ForEach(Array(cells.indices), id: \.self) { AnyView(cells[$0]) } })
         }
-        return VStack(spacing: 2) {
-            ForEach(Array(rowViews.indices), id: \.self) { AnyView(rowViews[$0]) }
-        }
-        .padding(6)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color(UIColor.systemBackground))
-                .shadow(color: Color.black.opacity(0.25), radius: 8, y: 4)
+                .shadow(color: Color.black.opacity(0.25), radius: 10, y: 4)
         )
-    }
-
-    private func optionCell(for option: AlternateOption) -> some View {
-        let isSelected = selectedSlot == option.slot
-        return Text(option.display)
-            .font(.system(size: 16, weight: .medium))
-            .frame(minWidth: 40, minHeight: 44)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(isSelected ? Color.blue : Color(UIColor.secondarySystemBackground))
-            )
-            .foregroundColor(isSelected ? .white : .primary)
-    }
-
-    // MARK: - Gesture handling
-
-    private var dragGesture: some Gesture {
-        DragGesture(minimumDistance: 0)
-            .onChanged { value in updateSelection(from: value) }
-            .onEnded { value in commitSelection(from: value) }
-    }
-
-    private func updateSelection(from value: DragGesture.Value) {
-        if gestureStart == nil { gestureStart = value.location }
-        guard let start = gestureStart else { return }
-
-        let dx = value.location.x - start.x
-        let dy = value.location.y - start.y
-        let slot = AlternatePopupGeometry.pickSlot(
-            dx: dx, dy: dy,
-            rMinPx: rMinPx, rCancelPx: rCancelPx,
-            axisDeadzonePx: axisDeadzonePx
-        )
-
-        if slot == -2 {
-            onCancel()
-        } else if slot == -1 {
-            selectedSlot = AlternatePopupGeometry.slotCenter
-        } else {
-            selectedSlot = slot
-        }
-    }
-
-    private func commitSelection(from value: DragGesture.Value) {
-        guard let option = options.first(where: { $0.slot == selectedSlot }) else { return }
-        onCommit(option)
     }
 }

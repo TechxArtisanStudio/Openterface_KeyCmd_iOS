@@ -37,6 +37,8 @@ struct ProKeyboardMouseView: View {
 
     @State private var alternatesPopup: (options: [AlternateOption], anchor: CGRect, keyDef: KeyboardManager.KeyDef)? = nil
     @State private var alternatesCommitHandled = false
+    @State private var alternateDragLocation: CGPoint? = nil
+    @State private var alternatesSelectedIndex: Int = 0
 
     @State private var keyPressInProgress = false
     @State private var longPressTimer: Timer?
@@ -57,6 +59,7 @@ struct ProKeyboardMouseView: View {
     @State private var textInputContent = ""
     @State private var savedTextInputContent = ""
     @State private var isTextInputExpanded = false
+    @State private var showTouchpadHelp = false
 
 
     // MARK: - Android-parity shortcut strip data
@@ -264,13 +267,39 @@ struct ProKeyboardMouseView: View {
 
     // MARK: - Touchpad helper
 
-    private func touchpadOverlay() -> some View {
-        ZStack {
-            Rectangle()
-                .foregroundColor(mouseManager.isSelectMode ? Color.blue.opacity(0.3) : Color(UIColor.tertiarySystemBackground))
-            TouchpadView(mouseManager: mouseManager, pointerTipState: pointerTipState)
-            VStack { Spacer(); touchpadLabel.padding(.bottom, 8) }
-                .allowsHitTesting(false).zIndex(1)
+    private func touchpadOverlay(showLabel: Bool = true) -> some View {
+        GeometryReader { geo in
+            let stripWidth = max(28, geo.size.width * 0.30)
+            HStack(spacing: 0) {
+                ZStack(alignment: .topTrailing) {
+                    TouchpadView(mouseManager: mouseManager, pointerTipState: pointerTipState)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                    Button(action: { showTouchpadHelp = true }) {
+                        Image(systemName: "questionmark.circle.fill")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(.secondary)
+                            .padding(8)
+                            .background(Color(UIColor.secondarySystemBackground).opacity(0.9))
+                            .clipShape(Circle())
+                    }
+                    .padding(8)
+
+                    if showLabel {
+                        touchpadLabel
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                            .allowsHitTesting(false)
+                    }
+                }
+                .frame(width: max(0, geo.size.width - stripWidth))
+
+                BasicTouchpadScrollStripView(
+                    mouseManager: mouseManager,
+                    labelFontSize: orientationManager.isLandscape ? 10 : 7
+                )
+                .frame(width: stripWidth)
+            }
+            .background(mouseManager.isSelectMode ? Color.blue.opacity(0.3) : Color(UIColor.tertiarySystemBackground))
         }
     }
 
@@ -279,6 +308,48 @@ struct ProKeyboardMouseView: View {
             Text("Touch Pad").font(.caption).foregroundColor(.secondary)
             Text("Openterface").font(.caption2).foregroundColor(.secondary.opacity(0.7))
         }
+    }
+
+    private var touchpadHelpSheet: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Touchpad Help")
+                    .font(.headline)
+                Spacer()
+                Button("Done") { showTouchpadHelp = false }
+                    .font(.subheadline)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color(UIColor.secondarySystemBackground))
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Use these gestures in Pro Keyboard & Mouse mode:")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+
+                    Group {
+                        Text("1. One finger drag: move pointer")
+                        Text("2. Single tap: left click")
+                        Text("3. Double tap: double click")
+                        Text("4. Two-finger tap: right click")
+                        Text("5. Two-finger drag: wheel scrolling")
+                        Text("6. Long press: toggle drag mode")
+                        Text("7. Right vertical strip: quick page scroll")
+                    }
+                    .font(.body)
+
+                    Text("Tip: While drag mode is active, the touchpad background turns blue.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                        .padding(.top, 4)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+            }
+        }
+        .background(Color(UIColor.systemBackground))
     }
 
     enum DisplayMode: Int, CaseIterable {
@@ -343,6 +414,8 @@ struct ProKeyboardMouseView: View {
                 // Alternates popup overlay
                 if let popup = alternatesPopup {
                     KeyAlternatesPopupView(options: popup.options, anchorFrame: popup.anchor,
+                        dragLocation: alternateDragLocation,
+                        selectedIndex: $alternatesSelectedIndex,
                         onCommit: { option in
                             alternatesCommitHandled = true
                             HapticFeedbackManager.shared.triggerButtonPress()
@@ -356,6 +429,9 @@ struct ProKeyboardMouseView: View {
                 }
             }
             .coordinateSpace(name: "proKMView")
+            .sheet(isPresented: $showTouchpadHelp) {
+                touchpadHelpSheet
+            }
             .offset(y: isTextInputMode ? (keyboardHeight > 0 ? -keyboardHeight * 0.65 : 30) : 0)
             .animation(.easeOut(duration: 0.3), value: keyboardHeight)
             .animation(.easeOut(duration: 0.3), value: isTextInputMode)
@@ -378,11 +454,8 @@ struct ProKeyboardMouseView: View {
     private func landscapeContent(_ geometry: GeometryProxy) -> some View {
         if displayMode == .touchpad {
             ZStack {
-                TouchpadView(mouseManager: mouseManager, pointerTipState: pointerTipState).frame(maxWidth: .infinity, maxHeight: .infinity)
-                Rectangle().foregroundColor(mouseManager.isSelectMode ? Color.blue.opacity(0.3) : Color(UIColor.tertiarySystemBackground)).allowsHitTesting(false)
+                touchpadOverlay().frame(maxWidth: .infinity, maxHeight: .infinity)
                 landscapeHandleButton
-                VStack { Spacer(); touchpadLabel.padding(.bottom, 8) }
-                    .allowsHitTesting(false).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             }
         } else {
             HStack(spacing: 0) {
@@ -560,20 +633,48 @@ struct ProKeyboardMouseView: View {
             .overlay(cornerHint(for: kd), alignment: .topTrailing)
             .contentShape(Rectangle())
             .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { _ in
-                        guard !keyPressInProgress else { return }
-                        keyPressInProgress = true; currentlyPressedKey = kd.label
-                        handleKeyPress(kd)
-                        if keyboardManager.shouldShowAlternates(for: kd.label) {
-                            longPressTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { _ in
-                                showAlternatesPopup(for: kd)
+                DragGesture(minimumDistance: 0, coordinateSpace: .named("proKMView"))
+                    .onChanged { value in
+                        if !keyPressInProgress {
+                            keyPressInProgress = true; currentlyPressedKey = kd.label
+                            handleKeyPress(kd)
+                            if keyboardManager.shouldShowAlternates(for: kd.label) {
+                                longPressTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { _ in
+                                    showAlternatesPopup(for: kd)
+                                }
                             }
                         }
+                        // Forward drag location to popup if it is showing
+                        if alternatesPopup != nil {
+                            alternateDragLocation = value.location
+                        }
                     }
-                    .onEnded { _ in
+                    .onEnded { value in
                         longPressTimer?.invalidate(); longPressTimer = nil
                         keyPressInProgress = false; currentlyPressedKey = nil
+                        if let popup = alternatesPopup {
+                            // Commit the currently highlighted alternate option
+                            let sorted = popup.options.sorted { a, b in
+                                let order = [AlternatePopupGeometry.slotCenter, AlternatePopupGeometry.slotLeft, AlternatePopupGeometry.slotRight,
+                                             AlternatePopupGeometry.slotUp, AlternatePopupGeometry.slotDown,
+                                             AlternatePopupGeometry.slotUpLeft, AlternatePopupGeometry.slotUpRight,
+                                             AlternatePopupGeometry.slotDownLeft, AlternatePopupGeometry.slotDownRight]
+                                let ai = order.firstIndex(of: a.slot) ?? 99
+                                let bi = order.firstIndex(of: b.slot) ?? 99
+                                return ai < bi
+                            }
+                            if alternatesSelectedIndex < sorted.count {
+                                let option = sorted[alternatesSelectedIndex]
+                                alternatesCommitHandled = true
+                                HapticFeedbackManager.shared.triggerButtonPress()
+                                if option.requiresShift {
+                                    keyboardManager.handleKeyCombo(modifiers: ["Shift"], key: option.keyCode)
+                                } else {
+                                    keyboardManager.handleKeyPress(option.keyCode)
+                                }
+                            }
+                            dismissAlternatesPopup()
+                        }
                         handleKeyRelease()
                     }
             )
@@ -774,6 +875,8 @@ struct ProKeyboardMouseView: View {
 
     private func dismissAlternatesPopup() {
         alternatesPopup = nil
+        alternateDragLocation = nil
+        alternatesCommitHandled = false
     }
     
     // MARK: - Text Input View

@@ -81,38 +81,72 @@ struct ShortcutButton: View {
 
 // MARK: - ShortcutStripPager (row 1 — horizontally scrollable favorites)
 
-/// Horizontally scrollable single-row strip — all shortcuts visible by swiping.
-/// Uses ScrollView(.horizontal) so it works correctly inside a vertical ScrollView.
-/// Apply `.id(profileId)` at the call site to scroll back to the start on profile switch.
+/// Swipeable single-row pager — 7 shortcuts per page.
+/// Matches Android behavior where the whole row flips page together.
+/// Apply `.id(profileId)` at the call site to reset to page 0 on profile switch.
 struct ShortcutStripPager: View {
     let pages: [ShortcutPage]
 
-    private var allEntries: [ShortcutEntry] {
-        pages.flatMap { $0.entries }
-    }
+    @State private var currentPage: Int = 0
+    @State private var dragOffset: CGFloat = 0
+    @State private var isDragging: Bool = false
 
     var body: some View {
-        let entries = allEntries
-        if entries.isEmpty { return AnyView(EmptyView()) }
+        if pages.isEmpty { return AnyView(EmptyView()) }
         return AnyView(
-            GeometryReader { geo in
-                // Each button takes exactly 1/7 of the available width so 7 are
-                // visible at a time; extra entries scroll into view.
-                let btnWidth = (geo.size.width - 8) / 7
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 2) {
-                        ForEach(entries) { entry in
-                            ShortcutButton(
-                                entry: entry,
+            VStack(spacing: 0) {
+                GeometryReader { geo in
+                    let w = geo.size.width
+                    HStack(spacing: 0) {
+                        ForEach(0..<pages.count, id: \.self) { idx in
+                            ShortcutStripRowView(
+                                entries: pages[idx].entries,
                                 background: Color.orange.opacity(0.18)
                             )
-                            .frame(width: max(btnWidth, 20))
+                            .padding(.horizontal, 2)
+                            .frame(width: w)
+                            .allowsHitTesting(!isDragging)
                         }
                     }
-                    .padding(.horizontal, 2)
+                    .offset(x: -CGFloat(currentPage) * w + dragOffset)
+                    .animation(.interactiveSpring(response: 0.3, dampingFraction: 0.8),
+                               value: currentPage)
+                    .frame(width: w, alignment: .leading)
+                    .clipped()
+                    .highPriorityGesture(
+                        DragGesture(minimumDistance: 5, coordinateSpace: .local)
+                            .onChanged { v in
+                                isDragging = true
+                                dragOffset = v.translation.width
+                            }
+                            .onEnded { v in
+                                let threshold = w * 0.12
+                                withAnimation(.easeOut(duration: 0.2)) {
+                                    if v.translation.width < -threshold,
+                                       currentPage < pages.count - 1 {
+                                        currentPage += 1
+                                    } else if v.translation.width > threshold,
+                                              currentPage > 0 {
+                                        currentPage -= 1
+                                    }
+                                    dragOffset = 0
+                                }
+                                isDragging = false
+                            }
+                    )
                 }
+                .frame(height: 40)
+
+                // Page indicator dots (same style as fixed rows pager)
+                HStack(spacing: 4) {
+                    ForEach(0..<pages.count, id: \.self) { idx in
+                        Circle()
+                            .fill(idx == currentPage ? Color.blue : Color.gray.opacity(0.3))
+                            .frame(width: 5, height: 5)
+                    }
+                }
+                .frame(height: 9)
             }
-            .frame(height: 40)
         )
     }
 }
