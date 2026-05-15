@@ -103,7 +103,7 @@ struct ShortcutStripPager: View {
                                 entries: pages[idx].entries,
                                 background: Color.orange.opacity(0.18)
                             )
-                            .padding(.horizontal, 2)
+                            .padding(.horizontal, 0)
                             .frame(width: w)
                             .allowsHitTesting(!isDragging)
                         }
@@ -174,7 +174,7 @@ struct FixedRowsPager: View {
                                 ShortcutStripRowView(entries: pages[idx].row2,
                                                     background: rowBackground)
                             }
-                            .padding(.horizontal, 2)
+                            .padding(.horizontal, 0)
                             .frame(width: w)
                             .allowsHitTesting(!isDragging)
                         }

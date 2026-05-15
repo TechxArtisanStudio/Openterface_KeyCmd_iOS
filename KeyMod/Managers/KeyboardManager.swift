@@ -73,7 +73,7 @@ class KeyboardManager: ObservableObject {
             KeyDef("j", "J", ["*", "<", ">"], "*", "j"),
             KeyDef("k", "K", ["(", ")"], "(", "k"),
             KeyDef("l", "L", ["[", "]"], "[", "l"),
-            KeyDef("Del", "", [], "", "Delete")
+            KeyDef("Backspace", "", [], "", "Backspace")
         ],
         [ // Row 3: Shift + z-m + / + Enter
             KeyDef("Shift", "", [], "", "Shift"),

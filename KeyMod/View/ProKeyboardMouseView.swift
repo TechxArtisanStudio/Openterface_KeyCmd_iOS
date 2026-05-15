@@ -217,9 +217,9 @@ struct ProKeyboardMouseView: View {
         let row2: [ShortcutEntry]
 
         if fixedRowsLocalFnLocked {
-            let keyboardToggleBadge = orientationManager.isLandscape
-                ? (isSplitLayout ? "S" : "F")
-                : (!isImeSurface ? "A" : "B")
+            let keyboardToggleLabel = orientationManager.isLandscape
+                ? (isSplitLayout ? "Split" : "Full")
+                : (isImeSurface ? "IME" : "BI")
             row1 = [
                 Self.keyEntry(keyboardManager, label: "SCR", icon: "", key: "Scroll Lock"),
                 Self.keyEntry(keyboardManager, label: "PRT", icon: "", key: "PrtSc"),
@@ -227,7 +227,7 @@ struct ProKeyboardMouseView: View {
                 Self.keyEntry(keyboardManager, label: "PAUSE", icon: "", key: "Pause"),
                 Self.keyEntry(keyboardManager, label: "HOME", icon: "", key: "Home"),
                 Self.keyEntry(keyboardManager, label: "PGUP", icon: "", key: "PgUp"),
-                ShortcutEntry(label: "", icon: "keyboard", badge: keyboardToggleBadge) {
+                ShortcutEntry(label: keyboardToggleLabel, icon: "keyboard") {
                     withAnimation {
                         if orientationManager.isLandscape {
                             isSplitLayout.toggle()
@@ -250,14 +250,14 @@ struct ProKeyboardMouseView: View {
                 fixedRowsToggleEntry,
             ]
         } else {
-            let keyboardToggleBadge = orientationManager.isLandscape
-                ? (isSplitLayout ? "S" : "F")
-                : (!isImeSurface ? "A" : "B")
+            let keyboardToggleLabel = orientationManager.isLandscape
+                ? (isSplitLayout ? "Split" : "Full")
+                : (isImeSurface ? "IME" : "BI")
             row1 = modifierEntries + [
                 Self.keyEntry(keyboardManager, label: "TAB", icon: "arrow.right.to.line.compact", key: "Tab"),
                 Self.keyEntry(keyboardManager, label: "UP", icon: "arrow.up", key: "Up"),
                 Self.keyEntry(keyboardManager, label: "ENTER", icon: "return", key: "Enter"),
-                ShortcutEntry(label: "", icon: "keyboard", badge: keyboardToggleBadge) {
+                ShortcutEntry(label: keyboardToggleLabel, icon: "keyboard") {
                     withAnimation {
                         if orientationManager.isLandscape {
                             isSplitLayout.toggle()
@@ -562,6 +562,7 @@ struct ProKeyboardMouseView: View {
                     }
                 }
             }
+            .background(Color(UIColor.secondarySystemBackground))
         }
     }
 
@@ -663,6 +664,7 @@ struct ProKeyboardMouseView: View {
             ShortcutStripPager(pages: shortcutPages).id(profileMgr.activeProfileId)
             FixedRowsPager(pages: fixedRowsPages, defaultPageIndex: 1)
         }
+        .background(Color(UIColor.secondarySystemBackground))
     }
 
     private var splitShortcutPageCount: Int {
@@ -884,6 +886,7 @@ struct ProKeyboardMouseView: View {
                     else { VStack(spacing: 0) { shortcutPanelContent }.frame(maxWidth: .infinity) }
                 }
             }
+            .background(Color(UIColor.secondarySystemBackground))
             if isTextInputMode && isTextInputExpanded { expandedTextInputView(geometry) }
             if isImeSurface { imeCaptureOverlay }
         }
@@ -940,8 +943,8 @@ struct ProKeyboardMouseView: View {
 
     private var shortcutPanelContent: some View {
         VStack(spacing: 0) {
-            ShortcutStripPager(pages: shortcutPages).id(profileMgr.activeProfileId).padding(.horizontal, 4)
-            FixedRowsPager(pages: fixedRowsPages, defaultPageIndex: 1).padding(.horizontal, 4)
+            ShortcutStripPager(pages: shortcutPages).id(profileMgr.activeProfileId)
+            FixedRowsPager(pages: fixedRowsPages, defaultPageIndex: 1)
             if !isImeSurface {
                 keyboardLayoutView
                     .frame(height: 380)
