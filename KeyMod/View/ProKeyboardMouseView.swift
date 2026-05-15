@@ -9,6 +9,61 @@
 import SwiftUI
 import UIKit
 
+/// Transparent UITextField that captures system-keyboard (IME) input in portrait B mode.
+/// Matches Android's km_pro_ime_host: transparent background, 1sp text, no cursor, no suggestions.
+private struct ImeCaptureTextField: UIViewRepresentable {
+    @Binding var text: String
+    var isActive: Bool
+
+    func makeUIView(context: Context) -> UITextField {
+        let tf = UITextField()
+        tf.backgroundColor = .clear
+        tf.textColor = .clear
+        tf.tintColor = .clear
+        tf.borderStyle = .none
+        tf.font = .systemFont(ofSize: 1)
+        tf.autocorrectionType = .no
+        tf.autocapitalizationType = .none
+        tf.spellCheckingType = .no
+        tf.smartDashesType = .no
+        tf.smartQuotesType = .no
+        tf.returnKeyType = .default
+        tf.inputAssistantItem.leadingBarButtonGroups = []
+        tf.inputAssistantItem.trailingBarButtonGroups = []
+        tf.addTarget(context.coordinator, action: #selector(Coordinator.textChanged), for: .editingChanged)
+        tf.delegate = context.coordinator
+        return tf
+    }
+
+    func updateUIView(_ uiView: UITextField, context: Context) {
+        if isActive && !uiView.isFirstResponder {
+            DispatchQueue.main.async { uiView.becomeFirstResponder() }
+        } else if !isActive && uiView.isFirstResponder {
+            uiView.resignFirstResponder()
+        }
+        if uiView.text != text { uiView.text = text }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    final class Coordinator: NSObject, UITextFieldDelegate {
+        var parent: ImeCaptureTextField
+        init(_ parent: ImeCaptureTextField) { self.parent = parent }
+
+        @objc func textChanged(_ tf: UITextField) {
+            parent.text = tf.text ?? ""
+        }
+
+        // Append newline so LCP diff sends HID Enter; return false keeps keyboard visible.
+        func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+            let newText = (textField.text ?? "") + "\n"
+            textField.text = newText
+            parent.text = newText
+            return false
+        }
+    }
+}
+
 struct ProKeyboardMouseView: View {
     @ObservedObject var mouseManager: MouseManager
     @ObservedObject var keyboardManager: KeyboardManager
@@ -18,9 +73,9 @@ struct ProKeyboardMouseView: View {
     @StateObject private var pointerTipState = PointerTipState()
 
     @State private var alternatesPopup: (options: [AlternateOption], anchor: CGRect, keyDef: KeyboardManager.KeyDef)? = nil
-    @State private var alternatesCommitHandled = false
-    @State private var alternateDragLocation: CGPoint? = nil
-    @State private var alternatesSelectedIndex: Int = 0
+    @State private var alternatesGestureStart: CGPoint? = nil
+    @State private var alternatesPick: AlternatesPick = .none
+    @State private var currentDragLocation: CGPoint? = nil
 
     @State private var keyPressInProgress = false
     @State private var longPressTimer: Timer?
@@ -62,6 +117,7 @@ struct ProKeyboardMouseView: View {
 
     @State private var isSplitLayout: Bool = false       // landscape full vs split
     @State private var isImeSurface: Bool = false         // portrait built-in vs IME
+    @State private var imeLastSent: String = ""           // last text diff-sent to HID in IME mode
 
     @State private var splitShortcutCurrentPage: Int = 0
     @State private var splitShortcutDragOffset: CGFloat = 0
@@ -163,7 +219,7 @@ struct ProKeyboardMouseView: View {
         if fixedRowsLocalFnLocked {
             let keyboardToggleBadge = orientationManager.isLandscape
                 ? (isSplitLayout ? "S" : "F")
-                : (isTextInputMode ? "A" : "B")
+                : (!isImeSurface ? "A" : "B")
             row1 = [
                 Self.keyEntry(keyboardManager, label: "SCR", icon: "", key: "Scroll Lock"),
                 Self.keyEntry(keyboardManager, label: "PRT", icon: "", key: "PrtSc"),
@@ -177,7 +233,9 @@ struct ProKeyboardMouseView: View {
                             isSplitLayout.toggle()
                             persistedLandscapeLayoutRawValue = isSplitLayout ? LandscapeLayout.split.rawValue : LandscapeLayout.full.rawValue
                         } else {
-                            isTextInputMode.toggle()
+                            isImeSurface.toggle()
+                            UserDefaults.standard.set(isImeSurface ? PortraitInput.ime.rawValue : PortraitInput.builtIn.rawValue,
+                                                      forKey: Self.portraitInputKey)
                         }
                     }
                 },
@@ -194,7 +252,7 @@ struct ProKeyboardMouseView: View {
         } else {
             let keyboardToggleBadge = orientationManager.isLandscape
                 ? (isSplitLayout ? "S" : "F")
-                : (isTextInputMode ? "A" : "B")
+                : (!isImeSurface ? "A" : "B")
             row1 = modifierEntries + [
                 Self.keyEntry(keyboardManager, label: "TAB", icon: "arrow.right.to.line.compact", key: "Tab"),
                 Self.keyEntry(keyboardManager, label: "UP", icon: "arrow.up", key: "Up"),
@@ -205,7 +263,9 @@ struct ProKeyboardMouseView: View {
                             isSplitLayout.toggle()
                             persistedLandscapeLayoutRawValue = isSplitLayout ? LandscapeLayout.split.rawValue : LandscapeLayout.full.rawValue
                         } else {
-                            isTextInputMode.toggle()
+                            isImeSurface.toggle()
+                            UserDefaults.standard.set(isImeSurface ? PortraitInput.ime.rawValue : PortraitInput.builtIn.rawValue,
+                                                      forKey: Self.portraitInputKey)
                         }
                     }
                 },
@@ -422,19 +482,8 @@ struct ProKeyboardMouseView: View {
                 }
                 // Alternates popup overlay
                 if let popup = alternatesPopup {
-                    KeyAlternatesPopupView(options: popup.options, anchorFrame: popup.anchor,
-                        dragLocation: alternateDragLocation,
-                        selectedIndex: $alternatesSelectedIndex,
-                        onCommit: { option in
-                            alternatesCommitHandled = true
-                            HapticFeedbackManager.shared.triggerButtonPress()
-                            if option.requiresShift {
-                                keyboardManager.handleKeyCombo(modifiers: ["Shift"], key: option.keyCode)
-                            } else { keyboardManager.handleKeyPress(option.keyCode) }
-                            dismissAlternatesPopup()
-                        },
-                        onCancel: { alternatesCommitHandled = false; dismissAlternatesPopup() })
-                    .transition(.scale.combined(with: .opacity))
+                    KeyAlternatesPopupView(options: popup.options, anchorFrame: popup.anchor, pick: alternatesPick)
+                        .transition(.scale.combined(with: .opacity))
                 }
             }
             .coordinateSpace(name: "proKMView")
@@ -503,14 +552,12 @@ struct ProKeyboardMouseView: View {
                         .frame(width: sideWidth)
                         .clipped()
                     }
-                    layoutToolbar
                 } else {
                     // Full mode: shortcut strip at top + keyboard fills remaining space
                     VStack(spacing: 0) {
                         landscapeShortcutPanel(width: geometry.size.width - barWidth)
                         landscapeKeyboardView
                             .layoutPriority(1)
-                        layoutToolbar
                     }
                 }
             }
@@ -529,8 +576,9 @@ struct ProKeyboardMouseView: View {
                     HStack(spacing: 0) {
                         ForEach(row.indices, id: \.self) { colIdx in
                             let kd = row[colIdx]
-                            // In split mode, scale each key's width to fill its half
-                            keyButton(for: kd, width: keyWidthSplit(for: kd, row: row, side: side))
+                            let width = keyWidthSplit(for: kd, row: row, side: side, rowIndex: rowIdx)
+                            keyButton(for: kd, width: width)
+                                .frame(width: innerGeometry.size.width * width)
                         }
                     }
                     .frame(maxHeight: innerGeometry.size.height / CGFloat(keys.count))
@@ -539,11 +587,40 @@ struct ProKeyboardMouseView: View {
         }
     }
 
-    private func keyWidthSplit(for kd: KeyboardManager.KeyDef, row: [KeyboardManager.KeyDef], side: SplitSide) -> CGFloat {
-        // In split mode, each half is 50% of the screen, so we scale widths relative to the half
-        let baseWidth = keyWidth(for: kd, row: row)
-        // Keys that spanned the full width now fill their half proportionally
-        return baseWidth
+    private func keyWidthSplit(for kd: KeyboardManager.KeyDef, row: [KeyboardManager.KeyDef], side: SplitSide, rowIndex: Int) -> CGFloat {
+        let weights = row.map { splitKeyWeight(for: $0, rowIndex: rowIndex) }
+        let totalWeight = weights.reduce(0, +)
+        guard totalWeight > 0 else { return 1.0 / CGFloat(row.count) }
+        return splitKeyWeight(for: kd, rowIndex: rowIndex) / totalWeight
+    }
+
+    private func splitKeyWeight(for kd: KeyboardManager.KeyDef, rowIndex: Int) -> CGFloat {
+        switch rowIndex {
+        case 0:
+            // Row1: Tab + q-p + Backspace are equal weight in Android
+            return 10
+        case 1:
+            // Row2: Fn 9.5, a 10.6, s-l 8.35, delete 11.55
+            switch kd.label {
+            case "Fn": return 9.5
+            case "a": return 10.6
+            case "s", "d", "f", "g", "h", "j", "k", "l": return 8.35
+            case "Delete", "FwdDel": return 11.55
+            default: return 10
+            }
+        case 2:
+            // Row3: Shift 16, z-m and slash 9, Enter 12
+            switch kd.label {
+            case "Shift": return 16
+            case "Enter": return 12
+            default: return 9
+            }
+        case 3:
+            // Bottom row: Space is wide, others are standard
+            return kd.label == "Space" ? 40 : 10
+        default:
+            return 10
+        }
     }
 
     private var landscapeHandleButton: some View {
@@ -595,14 +672,10 @@ struct ProKeyboardMouseView: View {
         VStack(spacing: 0) {
             ShortcutStripRowView(entries: shortcutPage.entries, background: Color.orange.opacity(0.18))
                 .frame(height: 40)
-            if !fixedPage.row1.isEmpty {
-                ShortcutStripRowView(entries: fixedPage.row1, background: Color(UIColor.tertiarySystemBackground))
-                    .frame(height: 40)
-            }
-            if !fixedPage.row2.isEmpty {
-                ShortcutStripRowView(entries: fixedPage.row2, background: Color(UIColor.tertiarySystemBackground))
-                    .frame(height: 40)
-            }
+            ShortcutStripRowView(entries: fixedPage.row1, background: Color(UIColor.tertiarySystemBackground))
+                .frame(height: 40)
+            ShortcutStripRowView(entries: fixedPage.row2, background: Color(UIColor.tertiarySystemBackground))
+                .frame(height: 40)
         }
     }
 
@@ -621,7 +694,8 @@ struct ProKeyboardMouseView: View {
                     }
                 }
                 .offset(x: -CGFloat(splitShortcutCurrentPage) * w + splitShortcutDragOffset)
-                .animation(.interactiveSpring(response: 0.3, dampingFraction: 0.8), value: splitShortcutCurrentPage)
+                .animation(splitShortcutIsDragging ? nil : .spring(response: 0.35, dampingFraction: 0.86, blendDuration: 0), value: splitShortcutCurrentPage)
+                .animation(splitShortcutIsDragging ? nil : .spring(response: 0.35, dampingFraction: 0.86, blendDuration: 0), value: splitShortcutDragOffset)
                 .frame(width: w, alignment: .leading)
                 .clipped()
                 .highPriorityGesture(
@@ -632,16 +706,14 @@ struct ProKeyboardMouseView: View {
                         }
                         .onEnded { v in
                             let threshold = w * 0.12
-                            withAnimation(.easeOut(duration: 0.2)) {
-                                if v.translation.width < -threshold,
-                                   splitShortcutCurrentPage < splitShortcutPageCount - 1 {
-                                    splitShortcutCurrentPage += 1
-                                } else if v.translation.width > threshold,
-                                          splitShortcutCurrentPage > 0 {
-                                    splitShortcutCurrentPage -= 1
-                                }
-                                splitShortcutDragOffset = 0
+                            if v.translation.width < -threshold,
+                               splitShortcutCurrentPage < splitShortcutPageCount - 1 {
+                                splitShortcutCurrentPage += 1
+                            } else if v.translation.width > threshold,
+                                      splitShortcutCurrentPage > 0 {
+                                splitShortcutCurrentPage -= 1
                             }
+                            splitShortcutDragOffset = 0
                             splitShortcutIsDragging = false
                         }
                 )
@@ -657,21 +729,28 @@ struct ProKeyboardMouseView: View {
             HStack(spacing: 0) {
                 ForEach(0..<pageCount, id: \.self) { idx in
                     let page = shortcutPages.indices.contains(idx) ? shortcutPages[idx] : ShortcutPage(title: "", entries: [])
+                    let maxSlots = side == .left ? 3 : 4
                     let entries = side == .left
-                        ? Array(page.entries.prefix(3))
-                        : Array(page.entries.dropFirst(3).prefix(4))
+                        ? Array(page.entries.prefix(maxSlots))
+                        : Array(page.entries.dropFirst(3).prefix(maxSlots))
                     HStack(spacing: 2) {
-                        ForEach(entries) { entry in
-                            ShortcutButton(entry: entry, background: Color(UIColor.tertiarySystemBackground))
+                        ForEach(0..<maxSlots, id: \.self) { slotIdx in
+                            if slotIdx < entries.count {
+                                ShortcutButton(entry: entries[slotIdx], background: Color(UIColor.tertiarySystemBackground))
+                            } else {
+                                ShortcutButton(entry: ShortcutEntry(label: "", icon: nil) {}, background: Color(UIColor.tertiarySystemBackground))
+                                    .disabled(true)
+                                    .opacity(0.3)
+                            }
                         }
-                        Spacer(minLength: 0)
                     }
                     .frame(width: geo.size.width)
                 }
             }
             .frame(width: geo.size.width, alignment: .leading)
             .offset(x: -CGFloat(currentPage) * geo.size.width + splitShortcutTopDragOffset)
-            .animation(.interactiveSpring(response: 0.3, dampingFraction: 0.8), value: currentPage)
+            .animation(splitShortcutTopIsDragging ? nil : .spring(response: 0.35, dampingFraction: 0.86, blendDuration: 0), value: currentPage)
+            .animation(splitShortcutTopIsDragging ? nil : .spring(response: 0.35, dampingFraction: 0.86, blendDuration: 0), value: splitShortcutTopDragOffset)
             .contentShape(Rectangle())
             .highPriorityGesture(
                 DragGesture(minimumDistance: 5, coordinateSpace: .local)
@@ -681,16 +760,14 @@ struct ProKeyboardMouseView: View {
                     }
                     .onEnded { v in
                         let threshold = geo.size.width * 0.12
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            if v.translation.width < -threshold,
-                               splitShortcutTopCurrentPage < pageCount - 1 {
-                                splitShortcutTopCurrentPage += 1
-                            } else if v.translation.width > threshold,
-                                      splitShortcutTopCurrentPage > 0 {
-                                splitShortcutTopCurrentPage -= 1
-                            }
-                            splitShortcutTopDragOffset = 0
+                        if v.translation.width < -threshold,
+                           splitShortcutTopCurrentPage < pageCount - 1 {
+                            splitShortcutTopCurrentPage += 1
+                        } else if v.translation.width > threshold,
+                                  splitShortcutTopCurrentPage > 0 {
+                            splitShortcutTopCurrentPage -= 1
                         }
+                        splitShortcutTopDragOffset = 0
                         splitShortcutTopIsDragging = false
                     }
             )
@@ -706,24 +783,35 @@ struct ProKeyboardMouseView: View {
             HStack(spacing: 0) {
                 ForEach(0..<pageCount, id: \.self) { idx in
                     let page = fixedRowsPages.indices.contains(idx) ? fixedRowsPages[idx] : FixedRowsPage(row1: [], row2: [])
+                    let maxSlots = side == .left ? 3 : 4
                     VStack(spacing: 2) {
                         HStack(spacing: 2) {
                             let row1Entries = side == .left
-                                ? Array(page.row1.prefix(3))
-                                : Array(page.row1.dropFirst(3).prefix(4))
-                            ForEach(row1Entries) { entry in
-                                ShortcutButton(entry: entry, background: Color(UIColor.tertiarySystemBackground))
+                                ? Array(page.row1.prefix(maxSlots))
+                                : Array(page.row1.dropFirst(3).prefix(maxSlots))
+                            ForEach(0..<maxSlots, id: \.self) { slotIdx in
+                                if slotIdx < row1Entries.count {
+                                    ShortcutButton(entry: row1Entries[slotIdx], background: Color(UIColor.tertiarySystemBackground))
+                                } else {
+                                    ShortcutButton(entry: ShortcutEntry(label: "", icon: nil) {}, background: Color(UIColor.tertiarySystemBackground))
+                                        .disabled(true)
+                                        .opacity(0.3)
+                                }
                             }
-                            Spacer(minLength: 0)
                         }
                         HStack(spacing: 2) {
                             let row2Entries = side == .left
-                                ? Array(page.row2.prefix(3))
-                                : Array(page.row2.dropFirst(3).prefix(4))
-                            ForEach(row2Entries) { entry in
-                                ShortcutButton(entry: entry, background: Color(UIColor.tertiarySystemBackground))
+                                ? Array(page.row2.prefix(maxSlots))
+                                : Array(page.row2.dropFirst(3).prefix(maxSlots))
+                            ForEach(0..<maxSlots, id: \.self) { slotIdx in
+                                if slotIdx < row2Entries.count {
+                                    ShortcutButton(entry: row2Entries[slotIdx], background: Color(UIColor.tertiarySystemBackground))
+                                } else {
+                                    ShortcutButton(entry: ShortcutEntry(label: "", icon: nil) {}, background: Color(UIColor.tertiarySystemBackground))
+                                        .disabled(true)
+                                        .opacity(0.3)
+                                }
                             }
-                            Spacer(minLength: 0)
                         }
                     }
                     .frame(width: geo.size.width)
@@ -731,7 +819,8 @@ struct ProKeyboardMouseView: View {
             }
             .frame(width: geo.size.width, alignment: .leading)
             .offset(x: -CGFloat(currentPage) * geo.size.width + splitShortcutBottomDragOffset)
-            .animation(.interactiveSpring(response: 0.3, dampingFraction: 0.8), value: currentPage)
+            .animation(splitShortcutBottomIsDragging ? nil : .spring(response: 0.35, dampingFraction: 0.86, blendDuration: 0), value: currentPage)
+            .animation(splitShortcutBottomIsDragging ? nil : .spring(response: 0.35, dampingFraction: 0.86, blendDuration: 0), value: splitShortcutBottomDragOffset)
             .contentShape(Rectangle())
             .highPriorityGesture(
                 DragGesture(minimumDistance: 5, coordinateSpace: .local)
@@ -741,16 +830,14 @@ struct ProKeyboardMouseView: View {
                     }
                     .onEnded { v in
                         let threshold = geo.size.width * 0.12
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            if v.translation.width < -threshold,
-                               splitShortcutBottomCurrentPage < pageCount - 1 {
-                                splitShortcutBottomCurrentPage += 1
-                            } else if v.translation.width > threshold,
-                                      splitShortcutBottomCurrentPage > 0 {
-                                splitShortcutBottomCurrentPage -= 1
-                            }
-                            splitShortcutBottomDragOffset = 0
+                        if v.translation.width < -threshold,
+                           splitShortcutBottomCurrentPage < pageCount - 1 {
+                            splitShortcutBottomCurrentPage += 1
+                        } else if v.translation.width > threshold,
+                                  splitShortcutBottomCurrentPage > 0 {
+                            splitShortcutBottomCurrentPage -= 1
                         }
+                        splitShortcutBottomDragOffset = 0
                         splitShortcutBottomIsDragging = false
                     }
             )
@@ -768,23 +855,15 @@ struct ProKeyboardMouseView: View {
                     HStack(spacing: 0) {
                         ForEach(row.indices, id: \.self) { colIdx in
                             let kd = row[colIdx]
-                            keyButton(for: kd, width: keyWidth(for: kd, row: row))
+                            let width = keyWidth(for: kd, row: row)
+                            keyButton(for: kd, width: width)
+                                .frame(width: innerGeometry.size.width * width)
                         }
                     }
                     .frame(maxHeight: innerGeometry.size.height / CGFloat(currentKeys.count))
                 }
             }
         }
-    }
-
-    // MARK: - Layout toggle toolbar
-
-    private var layoutToolbar: some View {
-        HStack {
-            Spacer()
-        }
-        .frame(height: 8)
-        .background(Color(UIColor.secondarySystemBackground))
     }
 
     // MARK: - Portrait layout
@@ -794,59 +873,75 @@ struct ProKeyboardMouseView: View {
         ZStack {
             VStack(spacing: 0) {
                 if displayMode != .keyboard {
-                    touchpadOverlay().frame(maxWidth: .infinity).frame(height: geometry.size.height * 0.50)
+                    touchpadOverlay().frame(maxWidth: .infinity).frame(height: geometry.size.height * 0.40)
                         .opacity(isTextInputMode && isTextInputExpanded ? 0 : 1)
                 }
                 if displayMode != .touchpad {
-                    if isImeSurface {
-                        // IME surface: show text input area instead of built-in keyboard
-                        VStack(spacing: 0) {
-                            imeSurfaceView.padding(.horizontal, 4)
-                        }
-                    } else {
-                        if isTextInputMode && !isTextInputExpanded { ScrollView { shortcutPanelContent } }
-                        else { VStack(spacing: 0) { shortcutPanelContent }.frame(maxWidth: .infinity) }
-                    }
+                    if isTextInputMode && !isTextInputExpanded { ScrollView { shortcutPanelContent } }
+                    else { VStack(spacing: 0) { shortcutPanelContent }.frame(maxWidth: .infinity) }
                 }
             }
             if isTextInputMode && isTextInputExpanded { expandedTextInputView(geometry) }
+            if isImeSurface { imeCaptureOverlay }
         }
     }
 
-    /// IME text input surface — replaces built-in keyboard in portrait mode.
-    private var imeSurfaceView: some View {
-        VStack(spacing: 8) {
-            ZStack(alignment: .topLeading) {
-                TextEditor(text: $textInputContent)
-                    .font(.system(size: 14))
-                    .padding(8)
-                    .background(Color(UIColor.systemBackground))
-                    .cornerRadius(8)
-                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(UIColor.separator), lineWidth: 1))
-                if textInputContent.isEmpty {
-                    Text("Type here — tap Send to send to the connected device")
-                        .font(.system(size: 14))
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 16)
-                        .allowsHitTesting(false)
-                }
+    /// Invisible 2pt-tall UITextField capture surface — portrait B (IME) mode.
+    /// Mirrors Android's km_pro_ime_host: transparent, no cursor, no suggestions.
+    /// Focus is managed inside ImeCaptureTextField.updateUIView via isImeSurface.
+    private var imeCaptureOverlay: some View {
+        ImeCaptureTextField(text: $textInputContent, isActive: isImeSurface)
+            .frame(width: 1, height: 2)
+            .onChange(of: textInputContent) { newValue in
+                applyImeDiff(newText: newValue)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .frame(maxHeight: .infinity)
-            .background(Color(UIColor.secondarySystemBackground))
-            .cornerRadius(12)
+            .onAppear {
+                textInputContent = ""
+                imeLastSent = ""
+            }
+    }
+
+    /// Compute the LCP diff between the last-sent text and new text, then send HID events.
+    /// Backspaces are sent for deleted characters; inserted characters are sent as keystrokes.
+    private func applyImeDiff(newText: String) {
+        let old = imeLastSent
+        guard old != newText else { return }
+        var lcp = 0
+        let oldChars = Array(old)
+        let newChars = Array(newText)
+        let minLen = min(oldChars.count, newChars.count)
+        while lcp < minLen && oldChars[lcp] == newChars[lcp] { lcp += 1 }
+        let deleteCount = oldChars.count - lcp
+        let insertStr = String(newChars.dropFirst(lcp))
+        imeLastSent = newText  // update immediately to prevent re-entrancy
+        DispatchQueue.global(qos: .userInteractive).async {
+            // 1. Send backspaces for deleted characters
+            for _ in 0..<deleteCount {
+                self.keyboardManager.sendKeyPressSynchronous("Backspace")
+            }
+            // 2. Send inserted characters using the same threading pattern as handleTextInput
+            for char in insertStr {
+                let scalar = char.unicodeScalars.first?.value ?? 0
+                if scalar > 0x7E {
+                    UnicodeManager.shared.sendChar(char, keyboardManager: self.keyboardManager)
+                    usleep(50_000)
+                    continue
+                }
+                DispatchQueue.main.sync {
+                    self.keyboardManager.sendASCIICharInline(char)
+                }
+                usleep(50_000)
+            }
         }
-        .padding(.top, 8)
     }
 
     private var shortcutPanelContent: some View {
         VStack(spacing: 0) {
             ShortcutStripPager(pages: shortcutPages).id(profileMgr.activeProfileId).padding(.horizontal, 4)
             FixedRowsPager(pages: fixedRowsPages, defaultPageIndex: 1).padding(.horizontal, 4).padding(.bottom, 2)
-            keyboardLayoutView.frame(height: 240).padding(.bottom, 10)
-            layoutToolbar
+            if !isImeSurface {
+                keyboardLayoutView.frame(height: 260).padding(.bottom, 10)
+            }
         }
     }
 
@@ -921,34 +1016,53 @@ struct ProKeyboardMouseView: View {
         .frame(maxWidth: .infinity)
     }
 
-    private func keyWidth(for kd: KeyboardManager.KeyDef, row: [KeyboardManager.KeyDef]) -> CGFloat {
+    private func keyWeight(for kd: KeyboardManager.KeyDef, row: [KeyboardManager.KeyDef]) -> CGFloat {
         // Portrait layout widths (Android keyboard_lower_portrait_no_gui.xml)
         if !orientationManager.isLandscape {
             switch kd.label {
-            case "Shift": return 0.16
-            case "Enter": return 0.12
-            case "Fn": return 0.095
-            case "Ctrl": return 0.10
-            case "Space": return 0.47
-            case "Alt": return 0.10
-            case "Win": return 0.19
-            case "Tab": return 0.10
-            case "Del": return 0.115
-            default: return 1.0 / CGFloat(row.count)
+            case "Shift": return 16
+            case "Enter": return 12
+            case "Fn": return 9.5
+            case "Ctrl": return 10
+            case "Space": return 47
+            case "Alt": return 10
+            case "Win": return 19
+            case "Tab": return 10
+            case "Del": return 11.5
+            default: return 100 / CGFloat(row.count)
             }
         }
-        // Landscape layout widths
-        switch kd.label {
-        case "Tab": return 0.10
-        case "Backspace": return 0.10
-        case "Fn": return 0.095
-        case "Delete", "FwdDel": return 0.115
-        case "Shift": return 0.16
-        case "Enter": return 0.12
-        case "Space": return 0.40
-        case "Ctrl", "Alt", "Win", "Cmd", "Option", "App": return 0.10
-        default: return 1.0 / CGFloat(row.count)
+
+        // Landscape layout weights from Android KM Pro landscape XML.
+        if row.contains(where: { $0.label == "Space" }) {
+            // Bottom row uses a wide space key.
+            return kd.label == "Space" ? 40 : 10
         }
+        if row.contains(where: { $0.label == "Fn" }) && row.contains(where: { $0.label == "Delete" || $0.label == "FwdDel" }) {
+            switch kd.label {
+            case "Fn": return 9.5
+            case "a": return 10.6
+            case "s", "d", "f", "g", "h", "j", "k", "l": return 8.35
+            case "Delete", "FwdDel": return 11.55
+            default: return 10
+            }
+        }
+        if row.contains(where: { $0.label == "Shift" }) && row.contains(where: { $0.label == "Enter" }) {
+            switch kd.label {
+            case "Shift": return 16
+            case "Enter": return 12
+            default: return 9
+            }
+        }
+        // Row1 / fallback: equal-width keys
+        return 10
+    }
+
+    private func keyWidth(for kd: KeyboardManager.KeyDef, row: [KeyboardManager.KeyDef]) -> CGFloat {
+        let weights = row.map { keyWeight(for: $0, row: row) }
+        let totalWeight = weights.reduce(0, +)
+        guard totalWeight > 0 else { return 1.0 / CGFloat(row.count) }
+        return keyWeight(for: kd, row: row) / totalWeight
     }
 
     /// Build a single key button with long-press alternates and repeat support.
@@ -970,7 +1084,7 @@ struct ProKeyboardMouseView: View {
                 }
             ) { _ in
                 keyContent(for: kd, displayText: displayText)
-                    .frame(maxWidth: .infinity, maxHeight: 48)
+                    .frame(maxWidth: .infinity, maxHeight: 56)
                     .background(keyBackground(for: kd, pressed: isPressed, active: isActive))
                     .cornerRadius(9).foregroundColor(isPressed || isActive ? .white : .primary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -983,7 +1097,7 @@ struct ProKeyboardMouseView: View {
             }
         } else {
             keyContent(for: kd, displayText: displayText)
-                .frame(maxWidth: .infinity, maxHeight: 48)
+                .frame(maxWidth: .infinity, maxHeight: 56)
                 .background(keyBackground(for: kd, pressed: isPressed, active: isActive))
                 .cornerRadius(9).foregroundColor(isPressed || isActive ? .white : .primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -1001,28 +1115,42 @@ struct ProKeyboardMouseView: View {
                                     }
                                 }
                             }
-                            // Forward drag location to popup if it is showing
-                            if alternatesPopup != nil {
-                                alternateDragLocation = value.location
+                            currentDragLocation = value.location
+                            // Update pickSlot when popup is showing
+                            if alternatesPopup != nil, let start = alternatesGestureStart {
+                                let dx = value.location.x - start.x
+                                let dy = value.location.y - start.y
+                                let slotMap = Dictionary(uniqueKeysWithValues: alternatesPopup!.options.map { ($0.slot, true) })
+                                var occ: [Bool] = Array(repeating: false, count: AlternatePopupGeometry.slotCount)
+                                for (slot, _) in slotMap { occ[slot] = true }
+                                let rawPick = AlternatePopupGeometry.pickSlot(
+                                    dx: dx, dy: dy,
+                                    rMinPx: 12, rCancelPx: 228, axisDeadzonePx: 18,
+                                    slotOccupied: occ)
+                                if rawPick == AlternatePopupGeometry.resultDefault {
+                                    alternatesPick = .defaultSlot
+                                } else if rawPick == AlternatePopupGeometry.resultCancel {
+                                    alternatesPick = .cancel
+                                } else {
+                                    alternatesPick = .slot(rawPick)
+                                }
                             }
                         }
                         .onEnded { value in
                             longPressTimer?.invalidate(); longPressTimer = nil
                             keyPressInProgress = false; currentlyPressedKey = nil
                             if let popup = alternatesPopup {
-                                // Commit the currently highlighted alternate option
-                                let sorted = popup.options.sorted { a, b in
-                                    let order = [AlternatePopupGeometry.slotCenter, AlternatePopupGeometry.slotLeft, AlternatePopupGeometry.slotRight,
-                                                 AlternatePopupGeometry.slotUp, AlternatePopupGeometry.slotDown,
-                                                 AlternatePopupGeometry.slotUpLeft, AlternatePopupGeometry.slotUpRight,
-                                                 AlternatePopupGeometry.slotDownLeft, AlternatePopupGeometry.slotDownRight]
-                                    let ai = order.firstIndex(of: a.slot) ?? 99
-                                    let bi = order.firstIndex(of: b.slot) ?? 99
-                                    return ai < bi
-                                }
-                                if alternatesSelectedIndex < sorted.count {
-                                    let option = sorted[alternatesSelectedIndex]
-                                    alternatesCommitHandled = true
+                                // Commit based on final pick
+                                if case .slot(let s) = alternatesPick,
+                                   let option = popup.options.first(where: { $0.slot == s }) {
+                                    HapticFeedbackManager.shared.triggerButtonPress()
+                                    if option.requiresShift {
+                                        keyboardManager.handleKeyCombo(modifiers: ["Shift"], key: option.keyCode)
+                                    } else {
+                                        keyboardManager.handleKeyPress(option.keyCode)
+                                    }
+                                } else if case .defaultSlot = alternatesPick,
+                                          let option = popup.options.first(where: { $0.slot == AlternatePopupGeometry.slotCenter }) {
                                     HapticFeedbackManager.shared.triggerButtonPress()
                                     if option.requiresShift {
                                         keyboardManager.handleKeyCombo(modifiers: ["Shift"], key: option.keyCode)
@@ -1030,6 +1158,7 @@ struct ProKeyboardMouseView: View {
                                         keyboardManager.handleKeyPress(option.keyCode)
                                     }
                                 }
+                                // cancel → send nothing
                                 dismissAlternatesPopup()
                             }
                             handleKeyRelease()
@@ -1044,7 +1173,6 @@ struct ProKeyboardMouseView: View {
     
     /// Unified handler for key press - handles both single tap and long press
     private func handleKeyPress(_ kd: KeyboardManager.KeyDef) {
-        if alternatesCommitHandled { alternatesCommitHandled = false; return }
         HapticFeedbackManager.shared.triggerButtonPress()
 
         switch kd.label {
@@ -1116,18 +1244,18 @@ struct ProKeyboardMouseView: View {
     private static let functionKeyBg = Color(UIColor.secondarySystemBackground)
     private static let regularKeyBg = Color(UIColor.systemBackground)
 
+    @ViewBuilder
     private func keyBackground(for kd: KeyboardManager.KeyDef, pressed: Bool, active: Bool) -> Color {
         if pressed || active { return .blue }
-        if isFunctionKey(kd) { return Self.functionKeyBg }
-        return Self.regularKeyBg
+        return Self.functionKeyBg
     }
-
-    @ViewBuilder
-    private func cornerHint(for kd: KeyboardManager.KeyDef) -> some View {
-        if !kd.cornerHint.isEmpty && !keyboardManager.isFnLocked && keyboardManager.isSymbolMode == false {
+    @ViewBuilder private func cornerHint(for kd: KeyboardManager.KeyDef) -> some View {
+        if kd.cornerHint.isEmpty {
+            EmptyView()
+        } else {
             Text(kd.cornerHint)
                 .font(.system(size: 9, weight: .bold))
-                .foregroundColor(.secondary.opacity(0.25))
+                .foregroundColor(.secondary.opacity(0.6))
                 .padding(.trailing, 6)
                 .padding(.top, 2)
                 .allowsHitTesting(false)
@@ -1165,6 +1293,11 @@ struct ProKeyboardMouseView: View {
         let options = Array(slotMap.values)
         guard options.count >= 2 else { return }
         alternatesPopup = (options, keyFrames[kd.label] ?? .zero, kd)
+        // Gesture start = finger position at popup appearance (matches Android)
+        if let current = currentDragLocation {
+            alternatesGestureStart = current
+        }
+        alternatesPick = .defaultSlot
     }
 
     /// Build the center (default) option for a key.
@@ -1201,8 +1334,8 @@ struct ProKeyboardMouseView: View {
 
     private func dismissAlternatesPopup() {
         alternatesPopup = nil
-        alternateDragLocation = nil
-        alternatesCommitHandled = false
+        alternatesGestureStart = nil
+        alternatesPick = .none
     }
     
     // MARK: - Text Input View

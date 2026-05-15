@@ -189,20 +189,20 @@ struct ContentView: View {
     private var topBar: some View {
         HStack {
             if !sidebarVisible {
-                HStack {
-                    Button(action: {
-                        withAnimation {
-                            sidebarVisible.toggle()
-                        }
-                    }) {
-                        Image(systemName: "ellipsis")
-                            .rotationEffect(.degrees(90))
-                            .font(.title2)
-                            .foregroundColor(.primary)
+                Button(action: {
+                    withAnimation {
+                        sidebarVisible.toggle()
                     }
-                    .buttonStyle(PlainButtonStyle())
-                    .padding(.leading, 8)
+                }) {
+                    Image(systemName: "ellipsis")
+                        .rotationEffect(.degrees(90))
+                        .font(.title2)
+                        .foregroundColor(.primary)
+                        .frame(width: 44, height: 44)
                 }
+                .buttonStyle(.plain)
+                .contentShape(Rectangle())
+                .padding(.leading, 12)
                 // Submode tabs in landscape for keyboard&mouse view
                 if orientationManager.isLandscape && viewManager.currentView == .keyboardMouseBasic {
                     BasicKeyboardMouseView(

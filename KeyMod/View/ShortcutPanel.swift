@@ -247,100 +247,12 @@ struct ShortcutStripRowView: View {
                 if colIndex < entries.count {
                     ShortcutButton(entry: entries[colIndex], background: background)
                 } else {
-                    Color.clear
+                    ShortcutButton(entry: ShortcutEntry(label: "", icon: nil) {}, background: background)
+                        .disabled(true)
+                        .opacity(0.3)
                 }
             }
         }
         .padding(.horizontal, 2)
-    }
-}
-
-// MARK: - Legacy components (kept for backward compatibility)
-
-/// Legacy swipeable panel (3-row per page). Superseded by ShortcutStripPager + ShortcutFixedRowsView.
-struct ShortcutPanelPager: View {
-    let pages: [ShortcutPage]
-    @State private var currentPageIndex: Int = 0
-
-    var body: some View {
-        if pages.isEmpty { return AnyView(EmptyView()) }
-        return AnyView(
-            VStack(spacing: 0) {
-                TabView(selection: $currentPageIndex) {
-                    ForEach(0..<pages.count, id: \.self) { index in
-                        ShortcutPageView(page: pages[index])
-                            .tag(index)
-                    }
-                }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                .frame(height: 135)
-                if pages.count > 1 {
-                    HStack(spacing: 4) {
-                        ForEach(0..<pages.count, id: \.self) { index in
-                            Circle()
-                                .fill(index == currentPageIndex ? Color.blue : Color.gray.opacity(0.3))
-                                .frame(width: 6, height: 6)
-                        }
-                    }
-                    .padding(.top, 2)
-                }
-            }
-        )
-    }
-}
-
-struct ShortcutPageView: View {
-    let page: ShortcutPage
-    var body: some View {
-        GeometryReader { _ in
-            VStack(spacing: 0) {
-                ForEach(0..<3, id: \.self) { rowIndex in
-                    HStack(spacing: 2) {
-                        ForEach(0..<7, id: \.self) { colIndex in
-                            let entryIndex = rowIndex * 7 + colIndex
-                            if entryIndex < page.entries.count {
-                                ShortcutButton(
-                                    entry: page.entries[entryIndex],
-                                    background: rowIndex == 0
-                                        ? Color.orange.opacity(0.25)
-                                        : Color(UIColor.tertiarySystemBackground)
-                                )
-                            } else {
-                                Color.clear
-                            }
-                        }
-                    }
-                }
-            }
-            .padding(2)
-        }
-    }
-}
-
-struct ShortcutPanel: View {
-    let pages: [ShortcutPage]
-    @State private var currentPageIndex: Int = 0
-    var body: some View {
-        if pages.isEmpty { return AnyView(EmptyView()) }
-        return AnyView(
-            GeometryReader { _ in
-                VStack(spacing: 0) {
-                    ForEach(0..<2, id: \.self) { rowIndex in
-                        HStack(spacing: 2) {
-                            ForEach(0..<7, id: \.self) { colIndex in
-                                let entryIndex = rowIndex * 7 + colIndex
-                                if entryIndex < pages[currentPageIndex].entries.count {
-                                    let entry = pages[currentPageIndex].entries[entryIndex]
-                                    ShortcutButton(entry: entry)
-                                } else {
-                                    Color.clear
-                                }
-                            }
-                        }
-                    }
-                }
-                .padding(2)
-            }
-        )
     }
 }

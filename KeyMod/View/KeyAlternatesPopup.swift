@@ -2,113 +2,149 @@
 //  KeyAlternatesPopup.swift
 //  KeyMod
 //
-//  System-keyboard-style horizontal alternates popup.
-//  Long-press a key → horizontal bubble strip appears above the key.
-//  Slide left/right to highlight a character; lift finger to commit.
+//  Long-press → 3×3 grid popup above the anchor key.
+//  Slide finger to pick a slot; lift to commit.
+//  Ported from Android CustomKeyboardView.showAlternatesPopup().
 //
 
 import SwiftUI
 
-/// A single alternate option.
+/// A single alternate option mapped to a 3×3 grid slot.
 struct AlternateOption: Identifiable {
     let id = UUID()
     let display: String
     let keyCode: String
     let requiresShift: Bool
-    let slot: Int // AlternatePopupGeometry slot index (kept for API compat)
+    let slot: Int // AlternatePopupGeometry slot index
+}
+
+/// PickSlot result that the popup renders.
+enum AlternatesPick: Equatable {
+    case none             // initial
+    case defaultSlot      // finger inside rMin or neutral cross → center
+    case slot(Int)        // specific grid slot
+    case cancel           // finger outside rCancel → no commit
+
+    var selectedSlot: Int? {
+        if case .slot(let s) = self { return s }
+        if case .defaultSlot = self { return AlternatePopupGeometry.slotCenter }
+        return nil
+    }
+
+    var isCancelled: Bool {
+        if case .cancel = self { return true }
+        return false
+    }
 }
 
 struct KeyAlternatesPopupView: View {
     let options: [AlternateOption]
     let anchorFrame: CGRect
-    /// Current drag location in the parent coordinate space (proKMView).
-    var dragLocation: CGPoint?
-    /// Binding to parent-owned selected index so parent can commit on drag end.
-    @Binding var selectedIndex: Int
-    let onCommit: (AlternateOption) -> Void
-    let onCancel: () -> Void
+    var pick: AlternatesPick
 
-    // Sorted display order: center slot first, then left, right, up, down, corners
-    private var sortedOptions: [AlternateOption] {
-        let order = [
-            AlternatePopupGeometry.slotCenter,
-            AlternatePopupGeometry.slotLeft,
-            AlternatePopupGeometry.slotRight,
-            AlternatePopupGeometry.slotUp,
-            AlternatePopupGeometry.slotDown,
-            AlternatePopupGeometry.slotUpLeft,
-            AlternatePopupGeometry.slotUpRight,
-            AlternatePopupGeometry.slotDownLeft,
-            AlternatePopupGeometry.slotDownRight,
-        ]
-        let slotMap = Dictionary(uniqueKeysWithValues: options.map { ($0.slot, $0) })
-        return order.compactMap { slotMap[$0] }
+    // Slot → option lookup
+    private var slotMap: [Int: AlternateOption] {
+        Dictionary(uniqueKeysWithValues: options.map { ($0.slot, $0) })
     }
 
-    @State private var stripOriginX: CGFloat = 0
+    // 3×3 grid layout: [row][col] = slot
+    private static let gridLayout = [
+        [AlternatePopupGeometry.slotUpLeft,   AlternatePopupGeometry.slotUp,   AlternatePopupGeometry.slotUpRight],
+        [AlternatePopupGeometry.slotLeft,     AlternatePopupGeometry.slotCenter, AlternatePopupGeometry.slotRight],
+        [AlternatePopupGeometry.slotDownLeft, AlternatePopupGeometry.slotDown, AlternatePopupGeometry.slotDownRight],
+    ]
 
-    private let cellWidth: CGFloat = 36
-    private let cellHeight: CGFloat = 44
-    private let cellSpacing: CGFloat = 2
-
-    var body: some View {
-        GeometryReader { geometry in
-            let sorted = sortedOptions
-            let popupWidth = CGFloat(sorted.count) * (cellWidth + cellSpacing) - cellSpacing + 16
-            let idealX = anchorFrame.midX - popupWidth / 2
-            let clampedX = min(max(idealX, 4), geometry.size.width - popupWidth - 4)
-            let popupY = anchorFrame.minY - cellHeight - 16
-
-            popupStrip(sorted: sorted)
-                .frame(width: popupWidth)
-                .position(x: clampedX + popupWidth / 2, y: popupY + cellHeight / 2)
-                .onAppear {
-                    selectedIndex = 0
-                    stripOriginX = clampedX + 8
+    // Only render rows/cols that have content (Android bounding-box shrink)
+    private var visibleBounds: (minRow: Int, maxRow: Int, minCol: Int, maxCol: Int, hasAny: Bool) {
+        var minR = 2, maxR = 0, minC = 2, maxC = 0
+        for r in 0..<3 {
+            for c in 0..<3 {
+                if slotMap[Self.gridLayout[r][c]] != nil {
+                    if r < minR { minR = r }
+                    if r > maxR { maxR = r }
+                    if c < minC { minC = c }
+                    if c > maxC { maxC = c }
                 }
-                .onChange(of: dragLocation) { loc in
-                    guard let loc = loc else { return }
-                    updateSelectionFromDrag(loc: loc, sorted: sorted, stripOriginX: clampedX + 8)
-                }
-        }
-    }
-
-    /// Map the drag X position (in proKMView coords) to a cell index.
-    private func updateSelectionFromDrag(loc: CGPoint, sorted: [AlternateOption], stripOriginX: CGFloat) {
-        let step = cellWidth + cellSpacing
-        let localX = loc.x - stripOriginX
-        let idx = Int(localX / step)
-        let clamped = max(0, min(sorted.count - 1, idx))
-        if clamped != selectedIndex { selectedIndex = clamped }
-    }
-
-    private func popupStrip(sorted: [AlternateOption]) -> some View {
-        HStack(spacing: cellSpacing) {
-            ForEach(Array(sorted.enumerated()), id: \.offset) { idx, opt in
-                let isSelected = idx == selectedIndex
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(isSelected ? Color.blue : Color(UIColor.secondarySystemBackground))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color(UIColor.separator).opacity(0.5), lineWidth: 0.5)
-                        )
-                    Text(opt.display)
-                        .font(.system(size: 18, weight: isSelected ? .semibold : .regular))
-                        .foregroundColor(isSelected ? .white : .primary)
-                        .minimumScaleFactor(0.6)
-                }
-                .frame(width: cellWidth, height: cellHeight)
-                .scaleEffect(isSelected ? 1.15 : 1.0)
-                .animation(.spring(response: 0.15, dampingFraction: 0.7), value: isSelected)
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(UIColor.systemBackground))
-                .shadow(color: Color.black.opacity(0.25), radius: 10, y: 4)
-        )
+        return (minR, maxR, minC, maxC, maxR >= minR)
+    }
+
+    private let cellMinSize: CGFloat = 32
+    private let cellPaddingH: CGFloat = 6
+    private let cellPaddingV: CGFloat = 4
+    private let cellMargin: CGFloat = 2
+    private let cellFontSize: CGFloat = 15
+
+    var body: some View {
+        GeometryReader { geo in
+            let bounds = visibleBounds
+            let selectedSlot = pick.selectedSlot
+            let isCancelled = pick.isCancelled
+
+            VStack(spacing: cellMargin) {
+                ForEach(bounds.minRow...bounds.maxRow, id: \.self) { row in
+                    HStack(spacing: cellMargin) {
+                        ForEach(bounds.minCol...bounds.maxCol, id: \.self) { col in
+                            let slot = Self.gridLayout[row][col]
+                            let opt = slotMap[slot]
+                            let isSelected = slot == selectedSlot && !isCancelled
+
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(isSelected ? Color.blue : Color(UIColor.secondarySystemBackground))
+                                if let opt = opt {
+                                    Text(opt.display)
+                                        .font(.system(size: cellFontSize, weight: isSelected ? .semibold : .regular))
+                                        .foregroundColor(isSelected ? .white : .primary)
+                                        .minimumScaleFactor(0.5)
+                                        .lineLimit(1)
+                                } else {
+                                    // Empty cell — dim spacer
+                                    Color.clear
+                                        .frame(minWidth: cellMinSize, minHeight: cellMinSize)
+                                        .opacity(0.3)
+                                }
+                            }
+                            .frame(minWidth: cellMinSize, minHeight: cellMinSize)
+                            .padding(.horizontal, cellPaddingH)
+                            .padding(.vertical, cellPaddingV)
+                        }
+                    }
+                }
+            }
+            .padding(8)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(UIColor.systemBackground))
+                    .shadow(color: Color.black.opacity(0.25), radius: 10, y: 4)
+            )
+            .overlay(
+                // Visual dim for cancel state
+                Group {
+                    if isCancelled {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.black.opacity(0.3))
+                    }
+                }
+            )
+            .position(x: popupPosition(in: geo), y: popupY(in: geo))
+        }
+        .animation(.easeOut(duration: 0.1), value: pick)
+    }
+
+    private func popupPosition(in geo: GeometryProxy) -> CGFloat {
+        let midX = anchorFrame.midX
+        return min(max(midX, 60), geo.size.width - 60)
+    }
+
+    private func popupY(in geo: GeometryProxy) -> CGFloat {
+        // Position above anchor key, with extra offset if bottom row has alternates
+        let hasBottomRow = slotMap[AlternatePopupGeometry.slotDownLeft] != nil
+            || slotMap[AlternatePopupGeometry.slotDown] != nil
+            || slotMap[AlternatePopupGeometry.slotDownRight] != nil
+        let extra = hasBottomRow ? 20.0 : 0.0
+        let popupHeight: CGFloat = CGFloat(visibleBounds.maxRow - visibleBounds.minRow + 1) * (cellMinSize + cellPaddingV * 2 + cellMargin) + 16
+        return anchorFrame.minY - popupHeight / 2 - 16 - extra
     }
 }
