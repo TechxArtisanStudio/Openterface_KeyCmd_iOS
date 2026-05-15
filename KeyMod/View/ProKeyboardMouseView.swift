@@ -368,7 +368,7 @@ struct ProKeyboardMouseView: View {
                 )
                 .frame(width: stripWidth)
             }
-            .background(mouseManager.isSelectMode ? Color.blue.opacity(0.3) : Color(UIColor.tertiarySystemBackground))
+            .background(mouseManager.isSelectMode ? Color.blue.opacity(0.3) : Color(UIColor.secondarySystemBackground))
         }
     }
 
@@ -475,18 +475,19 @@ struct ProKeyboardMouseView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            ZStack {
-                VStack(spacing: 0) {
-                    if orientationManager.isLandscape { landscapeContent(geometry) }
-                    else { portraitContent(geometry) }
-                }
-                // Alternates popup overlay
-                if let popup = alternatesPopup {
-                    KeyAlternatesPopupView(options: popup.options, anchorFrame: popup.anchor, pick: alternatesPick)
-                        .transition(.scale.combined(with: .opacity))
-                }
+            VStack(spacing: 0) {
+                if orientationManager.isLandscape { landscapeContent(geometry) }
+                else { portraitContent(geometry) }
             }
             .coordinateSpace(name: "proKMView")
+            .overlay {
+                // Alternates popup rendered as overlay — does not participate
+                // in the main layout so it cannot cause shifts.
+                if let popup = alternatesPopup {
+                    KeyAlternatesPopupView(options: popup.options, anchorFrame: popup.anchor, pick: alternatesPick)
+                        .allowsHitTesting(false)
+                }
+            }
             .sheet(isPresented: $showTouchpadHelp) {
                 touchpadHelpSheet
             }
@@ -514,7 +515,7 @@ struct ProKeyboardMouseView: View {
     private func landscapeContent(_ geometry: GeometryProxy) -> some View {
         let barWidth: CGFloat = 50
         HStack(spacing: 0) {
-            Color(UIColor.tertiarySystemBackground)
+            Color(UIColor.secondarySystemBackground)
                 .frame(width: barWidth)
             VStack(spacing: 0) {
                 if displayMode == .touchpad {
@@ -659,8 +660,8 @@ struct ProKeyboardMouseView: View {
 
     private var landscapeFullShortcutPanel: some View {
         VStack(spacing: 0) {
-            ShortcutStripPager(pages: shortcutPages).id(profileMgr.activeProfileId).padding(.horizontal, 4)
-            FixedRowsPager(pages: fixedRowsPages, defaultPageIndex: 1).padding(.horizontal, 4).padding(.bottom, 2)
+            ShortcutStripPager(pages: shortcutPages).id(profileMgr.activeProfileId)
+            FixedRowsPager(pages: fixedRowsPages, defaultPageIndex: 1)
         }
     }
 
@@ -672,9 +673,9 @@ struct ProKeyboardMouseView: View {
         VStack(spacing: 0) {
             ShortcutStripRowView(entries: shortcutPage.entries, background: Color.orange.opacity(0.18))
                 .frame(height: 40)
-            ShortcutStripRowView(entries: fixedPage.row1, background: Color(UIColor.tertiarySystemBackground))
+            ShortcutStripRowView(entries: fixedPage.row1, background: Color(UIColor.secondarySystemBackground))
                 .frame(height: 40)
-            ShortcutStripRowView(entries: fixedPage.row2, background: Color(UIColor.tertiarySystemBackground))
+            ShortcutStripRowView(entries: fixedPage.row2, background: Color(UIColor.secondarySystemBackground))
                 .frame(height: 40)
         }
     }
@@ -873,7 +874,9 @@ struct ProKeyboardMouseView: View {
         ZStack {
             VStack(spacing: 0) {
                 if displayMode != .keyboard {
-                    touchpadOverlay().frame(maxWidth: .infinity).frame(height: geometry.size.height * 0.40)
+                    touchpadOverlay()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: geometry.size.height * 0.42)
                         .opacity(isTextInputMode && isTextInputExpanded ? 0 : 1)
                 }
                 if displayMode != .touchpad {
@@ -938,17 +941,20 @@ struct ProKeyboardMouseView: View {
     private var shortcutPanelContent: some View {
         VStack(spacing: 0) {
             ShortcutStripPager(pages: shortcutPages).id(profileMgr.activeProfileId).padding(.horizontal, 4)
-            FixedRowsPager(pages: fixedRowsPages, defaultPageIndex: 1).padding(.horizontal, 4).padding(.bottom, 2)
+            FixedRowsPager(pages: fixedRowsPages, defaultPageIndex: 1).padding(.horizontal, 4)
             if !isImeSurface {
-                keyboardLayoutView.frame(height: 260).padding(.bottom, 10)
+                keyboardLayoutView
+                    .frame(height: 380)
+                    .padding(.top, -40)
+                    .padding(.bottom, 10)
             }
         }
     }
 
     private var landscapeShortcutPanel: some View {
         VStack(spacing: 0) {
-            ShortcutStripPager(pages: shortcutPages).id(profileMgr.activeProfileId).padding(.horizontal, 4)
-            FixedRowsPager(pages: fixedRowsPages, defaultPageIndex: 1).padding(.horizontal, 4).padding(.bottom, 2)
+            ShortcutStripPager(pages: shortcutPages).id(profileMgr.activeProfileId)
+            FixedRowsPager(pages: fixedRowsPages, defaultPageIndex: 1)
         }
     }
 
@@ -1014,6 +1020,7 @@ struct ProKeyboardMouseView: View {
             }
         }
         .frame(maxWidth: .infinity)
+        .background(Color(UIColor.secondarySystemBackground))
     }
 
     private func keyWeight(for kd: KeyboardManager.KeyDef, row: [KeyboardManager.KeyDef]) -> CGFloat {
@@ -1084,7 +1091,7 @@ struct ProKeyboardMouseView: View {
                 }
             ) { _ in
                 keyContent(for: kd, displayText: displayText)
-                    .frame(maxWidth: .infinity, maxHeight: 56)
+                    .frame(maxWidth: .infinity, maxHeight: orientationManager.isLandscape ? 56 : 72)
                     .background(keyBackground(for: kd, pressed: isPressed, active: isActive))
                     .cornerRadius(9).foregroundColor(isPressed || isActive ? .white : .primary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -1097,7 +1104,7 @@ struct ProKeyboardMouseView: View {
             }
         } else {
             keyContent(for: kd, displayText: displayText)
-                .frame(maxWidth: .infinity, maxHeight: 56)
+                .frame(maxWidth: .infinity, maxHeight: orientationManager.isLandscape ? 56 : 72)
                 .background(keyBackground(for: kd, pressed: isPressed, active: isActive))
                 .cornerRadius(9).foregroundColor(isPressed || isActive ? .white : .primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -1329,7 +1336,22 @@ struct ProKeyboardMouseView: View {
         if "0123456789".contains(c) || "-=[];',./`".contains(c) {
             return (char, char, false)
         }
-        return nil
+        // Additional symbols used by Android alternates
+        switch c {
+        case "\\": return ("\\", "]", true)     // HID bracket + Shift → \
+        case "|": return ("|", "]", true)        // HID bracket + Shift → |
+        case "+": return ("+", "=", true)        // HID equal + Shift → +
+        case "#": return ("#", "3", true)        // HID 3 + Shift → #
+        case "$": return ("$", "4", true)        // HID 4 + Shift → $
+        case "%": return ("%", "5", true)        // HID 5 + Shift → %
+        case "^": return ("^", "6", true)        // HID 6 + Shift → ^
+        case "&": return ("&", "7", true)        // HID 7 + Shift → &
+        case "*": return ("*", "8", true)        // HID 8 + Shift → *
+        case "€": return ("€", "4", true)        // HID 4 + Shift → €
+        case "¥": return ("¥", "[", false)       // HID bracket → ¥
+        case "£": return ("£", "'", false)       // HID quote → £
+        default: return nil
+        }
     }
 
     private func dismissAlternatesPopup() {
