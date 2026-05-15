@@ -136,16 +136,6 @@ struct ShortcutStripPager: View {
                     )
                 }
                 .frame(height: 40)
-
-                // Page indicator dots (same style as fixed rows pager)
-                HStack(spacing: 4) {
-                    ForEach(0..<pages.count, id: \.self) { idx in
-                        Circle()
-                            .fill(idx == currentPage ? Color.blue : Color.gray.opacity(0.3))
-                            .frame(width: 5, height: 5)
-                    }
-                }
-                .frame(height: 9)
             }
         )
     }
@@ -222,16 +212,6 @@ struct FixedRowsPager: View {
                         currentPage = min(defaultPageIndex, pages.count - 1)
                     }
                 }
-
-                // Page indicator dots
-                HStack(spacing: 4) {
-                    ForEach(0..<pages.count, id: \.self) { idx in
-                        Circle()
-                            .fill(idx == activePage ? Color.blue : Color.gray.opacity(0.3))
-                            .frame(width: 5, height: 5)
-                    }
-                }
-                .frame(height: 9)
             }
         )
     }

@@ -189,7 +189,7 @@ struct ContentView: View {
     private var topBar: some View {
         HStack {
             if !sidebarVisible {
-                HStack(spacing: 8) {
+                HStack {
                     Button(action: {
                         withAnimation {
                             sidebarVisible.toggle()
@@ -201,14 +201,7 @@ struct ContentView: View {
                             .foregroundColor(.primary)
                     }
                     .buttonStyle(PlainButtonStyle())
-                    Text("KeyMod")
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                        .onTapGesture {
-                            withAnimation {
-                                sidebarVisible.toggle()
-                            }
-                        }
+                    .padding(.leading, 8)
                 }
                 // Submode tabs in landscape for keyboard&mouse view
                 if orientationManager.isLandscape && viewManager.currentView == .keyboardMouseBasic {

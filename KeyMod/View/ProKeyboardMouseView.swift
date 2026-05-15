@@ -28,7 +28,6 @@ struct ProKeyboardMouseView: View {
 
     @State private var keyRepeatController = KeyRepeatController()
 
-    @State private var shortcutPage = 0
     @State private var fixedRowsLocalFnLocked = false
 
     @ObservedObject private var aiSettings = AISettings.shared
@@ -42,6 +41,38 @@ struct ProKeyboardMouseView: View {
     @State private var savedTextInputContent = ""
     @State private var isTextInputExpanded = false
     @State private var showTouchpadHelp = false
+
+    // MARK: - Landscape full/split layout & portrait BI/IME persistence
+
+    private enum LandscapeLayout: String { case full = "full", split = "split" }
+    private enum PortraitInput: String { case builtIn = "built_in", ime = "ime" }
+
+    private static let landscapeLayoutKey = "km_pro_landscape_layout"
+    @AppStorage("km_pro_landscape_layout") private var persistedLandscapeLayoutRawValue: String = LandscapeLayout.full.rawValue
+    private static let portraitInputKey = "km_pro_portrait_input_surface"
+
+    private var persistedLandscapeLayout: LandscapeLayout {
+        LandscapeLayout(rawValue: persistedLandscapeLayoutRawValue) ?? .full
+    }
+
+    private var persistedPortraitInput: PortraitInput {
+        let raw = UserDefaults.standard.string(forKey: Self.portraitInputKey) ?? PortraitInput.builtIn.rawValue
+        return PortraitInput(rawValue: raw) ?? .builtIn
+    }
+
+    @State private var isSplitLayout: Bool = false       // landscape full vs split
+    @State private var isImeSurface: Bool = false         // portrait built-in vs IME
+
+    @State private var splitShortcutCurrentPage: Int = 0
+    @State private var splitShortcutDragOffset: CGFloat = 0
+    @State private var splitShortcutIsDragging: Bool = false
+
+    @State private var splitShortcutTopCurrentPage: Int = 1
+    @State private var splitShortcutTopDragOffset: CGFloat = 0
+    @State private var splitShortcutTopIsDragging: Bool = false
+    @State private var splitShortcutBottomCurrentPage: Int = 1
+    @State private var splitShortcutBottomDragOffset: CGFloat = 0
+    @State private var splitShortcutBottomIsDragging: Bool = false
 
 
     // MARK: - Android-parity shortcut strip data
@@ -130,6 +161,9 @@ struct ProKeyboardMouseView: View {
         let row2: [ShortcutEntry]
 
         if fixedRowsLocalFnLocked {
+            let keyboardToggleBadge = orientationManager.isLandscape
+                ? (isSplitLayout ? "S" : "F")
+                : (isTextInputMode ? "A" : "B")
             row1 = [
                 Self.keyEntry(keyboardManager, label: "SCR", icon: "", key: "Scroll Lock"),
                 Self.keyEntry(keyboardManager, label: "PRT", icon: "", key: "PrtSc"),
@@ -137,8 +171,16 @@ struct ProKeyboardMouseView: View {
                 Self.keyEntry(keyboardManager, label: "PAUSE", icon: "", key: "Pause"),
                 Self.keyEntry(keyboardManager, label: "HOME", icon: "", key: "Home"),
                 Self.keyEntry(keyboardManager, label: "PGUP", icon: "", key: "PgUp"),
-                ShortcutEntry(label: "", icon: "keyboard", badge: isTextInputMode ? "A" : "B")
-                    { withAnimation { isTextInputMode.toggle() } },
+                ShortcutEntry(label: "", icon: "keyboard", badge: keyboardToggleBadge) {
+                    withAnimation {
+                        if orientationManager.isLandscape {
+                            isSplitLayout.toggle()
+                            persistedLandscapeLayoutRawValue = isSplitLayout ? LandscapeLayout.split.rawValue : LandscapeLayout.full.rawValue
+                        } else {
+                            isTextInputMode.toggle()
+                        }
+                    }
+                },
             ]
             row2 = [
                 Self.keyEntry(keyboardManager, label: "SPACE", icon: "", key: "Space"),
@@ -150,12 +192,23 @@ struct ProKeyboardMouseView: View {
                 fixedRowsToggleEntry,
             ]
         } else {
+            let keyboardToggleBadge = orientationManager.isLandscape
+                ? (isSplitLayout ? "S" : "F")
+                : (isTextInputMode ? "A" : "B")
             row1 = modifierEntries + [
                 Self.keyEntry(keyboardManager, label: "TAB", icon: "arrow.right.to.line.compact", key: "Tab"),
                 Self.keyEntry(keyboardManager, label: "UP", icon: "arrow.up", key: "Up"),
                 Self.keyEntry(keyboardManager, label: "ENTER", icon: "return", key: "Enter"),
-                ShortcutEntry(label: "", icon: "keyboard", badge: isTextInputMode ? "A" : "B")
-                    { withAnimation { isTextInputMode.toggle() } },
+                ShortcutEntry(label: "", icon: "keyboard", badge: keyboardToggleBadge) {
+                    withAnimation {
+                        if orientationManager.isLandscape {
+                            isSplitLayout.toggle()
+                            persistedLandscapeLayoutRawValue = isSplitLayout ? LandscapeLayout.split.rawValue : LandscapeLayout.full.rawValue
+                        } else {
+                            isTextInputMode.toggle()
+                        }
+                    }
+                },
             ]
             row2 = [
                 Self.keyEntry(keyboardManager, label: "ESC", icon: "escape", key: "Escape"),
@@ -205,32 +258,6 @@ struct ProKeyboardMouseView: View {
             row1: profileRow(start: 0, capacity: 7),
             row2: profileRow(start: 7, capacity: 6) + [fixedRowsToggleEntry]
         )
-    }
-
-    /// Profile switcher dropdown — shows current profile name, tap to pick another.
-    @ViewBuilder
-    private var profileSwitcher: some View {
-        Menu {
-            ForEach(profileMgr.profilesForPicking, id: \.id) { profile in
-                Button(action: {
-                    withAnimation(.easeInOut(duration: 0.2)) { profileMgr.activeProfileId = profile.id; shortcutPage = 0 }
-                }) {
-                    HStack {
-                        if profile.id == profileMgr.activeProfileId { Image(systemName: "checkmark") }
-                        Text(profile.name)
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "rectangle.on.rectangle").font(.system(size: 11))
-                Text(profileMgr.activeProfile?.name ?? "Profile")
-                    .font(.system(size: 11, weight: .semibold)).lineLimit(1)
-                Image(systemName: "chevron.down").font(.system(size: 8))
-            }
-            .foregroundColor(.secondary).padding(.horizontal, 10).padding(.vertical, 5)
-            .background(Color(UIColor.secondarySystemBackground)).cornerRadius(8)
-        }
     }
 
     // MARK: - Shortcut helpers
@@ -418,6 +445,8 @@ struct ProKeyboardMouseView: View {
             .animation(.easeOut(duration: 0.3), value: keyboardHeight)
             .animation(.easeOut(duration: 0.3), value: isTextInputMode)
             .onAppear {
+                isSplitLayout = persistedLandscapeLayout == .split
+                isImeSurface = persistedPortraitInput == .ime
                 NotificationCenter.default.addObserver(forName: UIResponder.keyboardWillShowNotification, object: nil, queue: .main) { n in
                     if let kf = n.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect { keyboardHeight = kf.height }
                 }
@@ -434,38 +463,300 @@ struct ProKeyboardMouseView: View {
 
     @ViewBuilder
     private func landscapeContent(_ geometry: GeometryProxy) -> some View {
-        if displayMode == .touchpad {
-            ZStack {
-                touchpadOverlay().frame(maxWidth: .infinity, maxHeight: .infinity)
-                landscapeHandleButton
-            }
-        } else {
-            HStack(spacing: 0) {
-                if displayMode != .keyboard { touchpadOverlay().frame(maxWidth: geometry.size.width * 0.3) }
-                if displayMode != .touchpad {
+        let barWidth: CGFloat = 50
+        HStack(spacing: 0) {
+            Color(UIColor.tertiarySystemBackground)
+                .frame(width: barWidth)
+            VStack(spacing: 0) {
+                if displayMode == .touchpad {
+                    VStack(spacing: 0) {
+                        landscapeShortcutPanel(width: geometry.size.width - barWidth)
+                        ZStack {
+                            touchpadOverlay().frame(maxWidth: .infinity, maxHeight: .infinity)
+                            landscapeHandleButton
+                        }
+                    }
+                } else if isSplitLayout {
+                    let contentWidth = geometry.size.width - barWidth
+                    let touchpadWidth = contentWidth * 0.33
+                    let sideWidth = max(0, (contentWidth - touchpadWidth) / 2)
                     HStack(spacing: 0) {
-                        if displayMode == .keyboard && isTopOnLeft { Color.black.frame(width: 60) }
                         VStack(spacing: 0) {
-                            if displayMode == .keyboard { landscapeKeyboardView }
-                            else { keyboardLayoutView }
-                        }.frame(maxWidth: .infinity, maxHeight: .infinity)
-                        if displayMode == .keyboard && isTopOnRight { Color.black.frame(width: 60) }
-                    }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                            splitTopSidePanel(pageIndex: splitShortcutTopCurrentPage, side: .left, width: sideWidth)
+                                .frame(height: 44)
+                            splitBottomSidePanel(pageIndex: splitShortcutBottomCurrentPage, side: .left, width: sideWidth)
+                                .frame(height: 88)
+                            splitKeyboardColumn(side: .left)
+                        }
+                        .frame(width: sideWidth)
+                        .clipped()
+
+                        touchpadOverlay().frame(width: touchpadWidth)
+
+                        VStack(spacing: 0) {
+                            splitTopSidePanel(pageIndex: splitShortcutTopCurrentPage, side: .right, width: sideWidth)
+                                .frame(height: 44)
+                            splitBottomSidePanel(pageIndex: splitShortcutBottomCurrentPage, side: .right, width: sideWidth)
+                                .frame(height: 88)
+                            splitKeyboardColumn(side: .right)
+                        }
+                        .frame(width: sideWidth)
+                        .clipped()
+                    }
+                    layoutToolbar
+                } else {
+                    // Full mode: shortcut strip at top + keyboard fills remaining space
+                    VStack(spacing: 0) {
+                        landscapeShortcutPanel(width: geometry.size.width - barWidth)
+                        landscapeKeyboardView
+                            .layoutPriority(1)
+                        layoutToolbar
+                    }
                 }
             }
         }
     }
 
+    enum SplitSide { case left, right }
+
+    @ViewBuilder
+    private func splitKeyboardColumn(side: SplitSide) -> some View {
+        let keys = side == .left ? splitLeftKeys : splitRightKeys
+        GeometryReader { innerGeometry in
+            VStack(spacing: 0) {
+                ForEach(keys.indices, id: \.self) { rowIdx in
+                    let row = keys[rowIdx]
+                    HStack(spacing: 0) {
+                        ForEach(row.indices, id: \.self) { colIdx in
+                            let kd = row[colIdx]
+                            // In split mode, scale each key's width to fill its half
+                            keyButton(for: kd, width: keyWidthSplit(for: kd, row: row, side: side))
+                        }
+                    }
+                    .frame(maxHeight: innerGeometry.size.height / CGFloat(keys.count))
+                }
+            }
+        }
+    }
+
+    private func keyWidthSplit(for kd: KeyboardManager.KeyDef, row: [KeyboardManager.KeyDef], side: SplitSide) -> CGFloat {
+        // In split mode, each half is 50% of the screen, so we scale widths relative to the half
+        let baseWidth = keyWidth(for: kd, row: row)
+        // Keys that spanned the full width now fill their half proportionally
+        return baseWidth
+    }
+
     private var landscapeHandleButton: some View {
         VStack {
-            Button(action: { displayMode.toggle() }) {
-                RoundedRectangle(cornerRadius: 8).fill(Color(UIColor.secondarySystemBackground))
-                    .frame(width: 48, height: 24)
-                    .overlay(Rectangle().fill(Color.gray.opacity(0.6)).frame(width: 36, height: 3).cornerRadius(1.5))
-                    .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 1)
+            Button(action: {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isSplitLayout.toggle()
+                    UserDefaults.standard.set(isSplitLayout ? LandscapeLayout.split.rawValue : LandscapeLayout.full.rawValue,
+                                              forKey: Self.landscapeLayoutKey)
+                }
+            }) {
+                VStack(spacing: 4) {
+                    RoundedRectangle(cornerRadius: 8).fill(Color(UIColor.secondarySystemBackground))
+                        .frame(width: 48, height: 24)
+                        .overlay(Image(systemName: isSplitLayout ? "rectangle.split.3x1" : "rectangle")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.secondary))
+                        .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 1)
+                    Text(isSplitLayout ? "Split" : "Full")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
             }.buttonStyle(PlainButtonStyle())
             Spacer()
         }.padding(.top, 8).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private func landscapeShortcutPanel(width: CGFloat) -> AnyView {
+        if isSplitLayout {
+            return AnyView(landscapeSplitShortcutPanel(totalWidth: width)
+                .id(profileMgr.activeProfileId))
+        } else {
+            return AnyView(landscapeFullShortcutPanel)
+        }
+    }
+
+    private var landscapeFullShortcutPanel: some View {
+        VStack(spacing: 0) {
+            ShortcutStripPager(pages: shortcutPages).id(profileMgr.activeProfileId).padding(.horizontal, 4)
+            FixedRowsPager(pages: fixedRowsPages, defaultPageIndex: 1).padding(.horizontal, 4).padding(.bottom, 2)
+        }
+    }
+
+    private var splitShortcutPageCount: Int {
+        max(shortcutPages.count, fixedRowsPages.count)
+    }
+
+    private func splitShortcutPageView(shortcutPage: ShortcutPage, fixedPage: FixedRowsPage, totalWidth: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            ShortcutStripRowView(entries: shortcutPage.entries, background: Color.orange.opacity(0.18))
+                .frame(height: 40)
+            if !fixedPage.row1.isEmpty {
+                ShortcutStripRowView(entries: fixedPage.row1, background: Color(UIColor.tertiarySystemBackground))
+                    .frame(height: 40)
+            }
+            if !fixedPage.row2.isEmpty {
+                ShortcutStripRowView(entries: fixedPage.row2, background: Color(UIColor.tertiarySystemBackground))
+                    .frame(height: 40)
+            }
+        }
+    }
+
+    private func landscapeSplitShortcutPanel(totalWidth: CGFloat) -> AnyView {
+        guard splitShortcutPageCount > 0 else { return AnyView(EmptyView()) }
+        return AnyView(
+            GeometryReader { geo in
+                let w = geo.size.width
+                HStack(spacing: 0) {
+                    ForEach(0..<splitShortcutPageCount, id: \.self) { idx in
+                        let shortcutPage = shortcutPages.isEmpty ? ShortcutPage(title: "", entries: []) : shortcutPages[min(idx, shortcutPages.count - 1)]
+                        let fixedPage = idx < fixedRowsPages.count ? fixedRowsPages[idx] : FixedRowsPage(row1: [], row2: [])
+                        splitShortcutPageView(shortcutPage: shortcutPage, fixedPage: fixedPage, totalWidth: totalWidth)
+                            .frame(width: w)
+                            .allowsHitTesting(!splitShortcutIsDragging)
+                    }
+                }
+                .offset(x: -CGFloat(splitShortcutCurrentPage) * w + splitShortcutDragOffset)
+                .animation(.interactiveSpring(response: 0.3, dampingFraction: 0.8), value: splitShortcutCurrentPage)
+                .frame(width: w, alignment: .leading)
+                .clipped()
+                .highPriorityGesture(
+                    DragGesture(minimumDistance: 5, coordinateSpace: .local)
+                        .onChanged { v in
+                            splitShortcutIsDragging = true
+                            splitShortcutDragOffset = v.translation.width
+                        }
+                        .onEnded { v in
+                            let threshold = w * 0.12
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                if v.translation.width < -threshold,
+                                   splitShortcutCurrentPage < splitShortcutPageCount - 1 {
+                                    splitShortcutCurrentPage += 1
+                                } else if v.translation.width > threshold,
+                                          splitShortcutCurrentPage > 0 {
+                                    splitShortcutCurrentPage -= 1
+                                }
+                                splitShortcutDragOffset = 0
+                            }
+                            splitShortcutIsDragging = false
+                        }
+                )
+            }
+            .frame(height: 120)
+        )
+    }
+
+    private func splitTopSidePanel(pageIndex: Int, side: SplitSide, width: CGFloat) -> some View {
+        GeometryReader { geo in
+            let pageCount = max(shortcutPages.count, 1)
+            let currentPage = min(pageIndex, pageCount - 1)
+            HStack(spacing: 0) {
+                ForEach(0..<pageCount, id: \.self) { idx in
+                    let page = shortcutPages.indices.contains(idx) ? shortcutPages[idx] : ShortcutPage(title: "", entries: [])
+                    let entries = side == .left
+                        ? Array(page.entries.prefix(3))
+                        : Array(page.entries.dropFirst(3).prefix(4))
+                    HStack(spacing: 2) {
+                        ForEach(entries) { entry in
+                            ShortcutButton(entry: entry, background: Color(UIColor.tertiarySystemBackground))
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .frame(width: geo.size.width)
+                }
+            }
+            .frame(width: geo.size.width, alignment: .leading)
+            .offset(x: -CGFloat(currentPage) * geo.size.width + splitShortcutTopDragOffset)
+            .animation(.interactiveSpring(response: 0.3, dampingFraction: 0.8), value: currentPage)
+            .contentShape(Rectangle())
+            .highPriorityGesture(
+                DragGesture(minimumDistance: 5, coordinateSpace: .local)
+                    .onChanged { v in
+                        splitShortcutTopIsDragging = true
+                        splitShortcutTopDragOffset = v.translation.width
+                    }
+                    .onEnded { v in
+                        let threshold = geo.size.width * 0.12
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            if v.translation.width < -threshold,
+                               splitShortcutTopCurrentPage < pageCount - 1 {
+                                splitShortcutTopCurrentPage += 1
+                            } else if v.translation.width > threshold,
+                                      splitShortcutTopCurrentPage > 0 {
+                                splitShortcutTopCurrentPage -= 1
+                            }
+                            splitShortcutTopDragOffset = 0
+                        }
+                        splitShortcutTopIsDragging = false
+                    }
+            )
+            .clipped()
+        }
+        .frame(width: width)
+    }
+
+    private func splitBottomSidePanel(pageIndex: Int, side: SplitSide, width: CGFloat) -> some View {
+        GeometryReader { geo in
+            let pageCount = max(fixedRowsPages.count, 1)
+            let currentPage = min(pageIndex, pageCount - 1)
+            HStack(spacing: 0) {
+                ForEach(0..<pageCount, id: \.self) { idx in
+                    let page = fixedRowsPages.indices.contains(idx) ? fixedRowsPages[idx] : FixedRowsPage(row1: [], row2: [])
+                    VStack(spacing: 2) {
+                        HStack(spacing: 2) {
+                            let row1Entries = side == .left
+                                ? Array(page.row1.prefix(3))
+                                : Array(page.row1.dropFirst(3).prefix(4))
+                            ForEach(row1Entries) { entry in
+                                ShortcutButton(entry: entry, background: Color(UIColor.tertiarySystemBackground))
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        HStack(spacing: 2) {
+                            let row2Entries = side == .left
+                                ? Array(page.row2.prefix(3))
+                                : Array(page.row2.dropFirst(3).prefix(4))
+                            ForEach(row2Entries) { entry in
+                                ShortcutButton(entry: entry, background: Color(UIColor.tertiarySystemBackground))
+                            }
+                            Spacer(minLength: 0)
+                        }
+                    }
+                    .frame(width: geo.size.width)
+                }
+            }
+            .frame(width: geo.size.width, alignment: .leading)
+            .offset(x: -CGFloat(currentPage) * geo.size.width + splitShortcutBottomDragOffset)
+            .animation(.interactiveSpring(response: 0.3, dampingFraction: 0.8), value: currentPage)
+            .contentShape(Rectangle())
+            .highPriorityGesture(
+                DragGesture(minimumDistance: 5, coordinateSpace: .local)
+                    .onChanged { v in
+                        splitShortcutBottomIsDragging = true
+                        splitShortcutBottomDragOffset = v.translation.width
+                    }
+                    .onEnded { v in
+                        let threshold = geo.size.width * 0.12
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            if v.translation.width < -threshold,
+                               splitShortcutBottomCurrentPage < pageCount - 1 {
+                                splitShortcutBottomCurrentPage += 1
+                            } else if v.translation.width > threshold,
+                                      splitShortcutBottomCurrentPage > 0 {
+                                splitShortcutBottomCurrentPage -= 1
+                            }
+                            splitShortcutBottomDragOffset = 0
+                        }
+                        splitShortcutBottomIsDragging = false
+                    }
+            )
+            .clipped()
+        }
+        .frame(width: width)
     }
 
     @ViewBuilder
@@ -486,6 +777,16 @@ struct ProKeyboardMouseView: View {
         }
     }
 
+    // MARK: - Layout toggle toolbar
+
+    private var layoutToolbar: some View {
+        HStack {
+            Spacer()
+        }
+        .frame(height: 8)
+        .background(Color(UIColor.secondarySystemBackground))
+    }
+
     // MARK: - Portrait layout
 
     @ViewBuilder
@@ -497,29 +798,68 @@ struct ProKeyboardMouseView: View {
                         .opacity(isTextInputMode && isTextInputExpanded ? 0 : 1)
                 }
                 if displayMode != .touchpad {
-                    if isTextInputMode && !isTextInputExpanded { ScrollView { shortcutPanelContent } }
-                    else { VStack(spacing: 0) { shortcutPanelContent }.frame(maxWidth: .infinity) }
+                    if isImeSurface {
+                        // IME surface: show text input area instead of built-in keyboard
+                        VStack(spacing: 0) {
+                            imeSurfaceView.padding(.horizontal, 4)
+                        }
+                    } else {
+                        if isTextInputMode && !isTextInputExpanded { ScrollView { shortcutPanelContent } }
+                        else { VStack(spacing: 0) { shortcutPanelContent }.frame(maxWidth: .infinity) }
+                    }
                 }
             }
             if isTextInputMode && isTextInputExpanded { expandedTextInputView(geometry) }
         }
     }
 
+    /// IME text input surface — replaces built-in keyboard in portrait mode.
+    private var imeSurfaceView: some View {
+        VStack(spacing: 8) {
+            ZStack(alignment: .topLeading) {
+                TextEditor(text: $textInputContent)
+                    .font(.system(size: 14))
+                    .padding(8)
+                    .background(Color(UIColor.systemBackground))
+                    .cornerRadius(8)
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(UIColor.separator), lineWidth: 1))
+                if textInputContent.isEmpty {
+                    Text("Type here — tap Send to send to the connected device")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 16)
+                        .allowsHitTesting(false)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .frame(maxHeight: .infinity)
+            .background(Color(UIColor.secondarySystemBackground))
+            .cornerRadius(12)
+        }
+        .padding(.top, 8)
+    }
+
     private var shortcutPanelContent: some View {
         VStack(spacing: 0) {
-            HStack { profileSwitcher; Spacer() }.padding(.horizontal, 8).padding(.bottom, 2)
             ShortcutStripPager(pages: shortcutPages).id(profileMgr.activeProfileId).padding(.horizontal, 4)
             FixedRowsPager(pages: fixedRowsPages, defaultPageIndex: 1).padding(.horizontal, 4).padding(.bottom, 2)
             keyboardLayoutView.frame(height: 240).padding(.bottom, 10)
-            if isTextInputMode && !isTextInputExpanded { textInputView.frame(height: 140).padding(.bottom, 10) }
-            bottomToolbar.padding(.horizontal, 4).padding(.bottom, 4)
+            layoutToolbar
+        }
+    }
+
+    private var landscapeShortcutPanel: some View {
+        VStack(spacing: 0) {
+            ShortcutStripPager(pages: shortcutPages).id(profileMgr.activeProfileId).padding(.horizontal, 4)
+            FixedRowsPager(pages: fixedRowsPages, defaultPageIndex: 1).padding(.horizontal, 4).padding(.bottom, 2)
         }
     }
 
     private func expandedTextInputView(_ geometry: GeometryProxy) -> some View {
         VStack(spacing: 8) {
             textInputView.frame(maxHeight: geometry.size.height * 0.50)
-            bottomToolbar.padding(.horizontal, 4)
         }.padding(.top, 90).padding(.bottom, 30).padding(.horizontal, 8)
             .background(Color(UIColor.systemBackground)).zIndex(10)
     }
@@ -535,11 +875,36 @@ struct ProKeyboardMouseView: View {
     }
 
     var currentKeys: [[KeyboardManager.KeyDef]] {
-        orientationManager.isLandscape
-            ? keyboardManager.landscapeKeys(for: aiSettings.targetOS)
-            : keyboardManager.portraitLetterKeys
+        if orientationManager.isLandscape {
+            return isSplitLayout ? splitLeftKeys : keyboardManager.landscapeKeys(for: aiSettings.targetOS)
+        }
+        return keyboardManager.portraitLetterKeys
     }
 
+    /// Split the landscape keyboard at the midpoint of each row.
+    /// Android splits at (row.size + 1) / 2 and rescales widths to 50%.
+    private func splitRow(_ row: [KeyboardManager.KeyDef]) -> ([KeyboardManager.KeyDef], [KeyboardManager.KeyDef]) {
+        if row.count == 7, row[3].label == "Space" {
+            return (Array(row.prefix(3)), Array(row.suffix(4)))
+        }
+        let leftCount = (row.count + 1) / 2
+        return (Array(row.prefix(leftCount)), Array(row.suffix(row.count - leftCount)))
+    }
+
+    private var splitLeftKeys: [[KeyboardManager.KeyDef]] {
+        keyboardManager.landscapeKeys(for: aiSettings.targetOS).map { row in
+            splitRow(row).0
+        }
+    }
+    private var splitRightKeys: [[KeyboardManager.KeyDef]] {
+        keyboardManager.landscapeKeys(for: aiSettings.targetOS).map { row in
+            splitRow(row).1
+        }
+    }
+
+    /// Toggle layout mode — matches Android onSecondaryLayoutToggleRequested().
+    /// Portrait: switches between built-in HID keyboard and system IME.
+    /// Landscape: switches between full and split keyboard layout.
     @ViewBuilder
     private var keyboardLayoutView: some View {
         VStack(spacing: 0) {
@@ -594,63 +959,87 @@ struct ProKeyboardMouseView: View {
         let isPressed = isModifier && keyboardManager.activeModifiers.contains(kd.label)
         let isActive = (kd.label == "Caps" && keyboardManager.capsLockActive) || (kd.label == "Fn" && keyboardManager.isFnLocked)
 
-        keyContent(for: kd, displayText: displayText)
-            .frame(maxWidth: .infinity, maxHeight: 48)
-            .background(keyBackground(for: kd, pressed: isPressed, active: isActive))
-            .cornerRadius(9).foregroundColor(isPressed || isActive ? .white : .primary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .overlay(cornerHint(for: kd), alignment: .topTrailing)
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0, coordinateSpace: .named("proKMView"))
-                    .onChanged { value in
-                        if !keyPressInProgress {
-                            keyPressInProgress = true; currentlyPressedKey = kd.label
-                            handleKeyPress(kd)
-                            if keyboardManager.shouldShowAlternates(for: kd.label) {
-                                longPressTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { _ in
-                                    showAlternatesPopup(for: kd)
+        if isModifier {
+            KeyPressButton(
+                onPress: {
+                    HapticFeedbackManager.shared.triggerButtonPress()
+                    keyboardManager.handleKeyDown(kd.label)
+                },
+                onRelease: {
+                    keyboardManager.handleKeyUp(kd.label)
+                }
+            ) { _ in
+                keyContent(for: kd, displayText: displayText)
+                    .frame(maxWidth: .infinity, maxHeight: 48)
+                    .background(keyBackground(for: kd, pressed: isPressed, active: isActive))
+                    .cornerRadius(9).foregroundColor(isPressed || isActive ? .white : .primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .overlay(cornerHint(for: kd), alignment: .topTrailing)
+                    .contentShape(Rectangle())
+                    .background(GeometryReader { geo -> Color in
+                        DispatchQueue.main.async { self.keyFrames[kd.label] = geo.frame(in: .named("proKMView")) }
+                        return Color.clear
+                    })
+            }
+        } else {
+            keyContent(for: kd, displayText: displayText)
+                .frame(maxWidth: .infinity, maxHeight: 48)
+                .background(keyBackground(for: kd, pressed: isPressed, active: isActive))
+                .cornerRadius(9).foregroundColor(isPressed || isActive ? .white : .primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .overlay(cornerHint(for: kd), alignment: .topTrailing)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0, coordinateSpace: .named("proKMView"))
+                        .onChanged { value in
+                            if !keyPressInProgress {
+                                keyPressInProgress = true; currentlyPressedKey = kd.label
+                                handleKeyPress(kd)
+                                if keyboardManager.shouldShowAlternates(for: kd.label) {
+                                    longPressTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { _ in
+                                        showAlternatesPopup(for: kd)
+                                    }
                                 }
                             }
-                        }
-                        // Forward drag location to popup if it is showing
-                        if alternatesPopup != nil {
-                            alternateDragLocation = value.location
-                        }
-                    }
-                    .onEnded { value in
-                        longPressTimer?.invalidate(); longPressTimer = nil
-                        keyPressInProgress = false; currentlyPressedKey = nil
-                        if let popup = alternatesPopup {
-                            // Commit the currently highlighted alternate option
-                            let sorted = popup.options.sorted { a, b in
-                                let order = [AlternatePopupGeometry.slotCenter, AlternatePopupGeometry.slotLeft, AlternatePopupGeometry.slotRight,
-                                             AlternatePopupGeometry.slotUp, AlternatePopupGeometry.slotDown,
-                                             AlternatePopupGeometry.slotUpLeft, AlternatePopupGeometry.slotUpRight,
-                                             AlternatePopupGeometry.slotDownLeft, AlternatePopupGeometry.slotDownRight]
-                                let ai = order.firstIndex(of: a.slot) ?? 99
-                                let bi = order.firstIndex(of: b.slot) ?? 99
-                                return ai < bi
+                            // Forward drag location to popup if it is showing
+                            if alternatesPopup != nil {
+                                alternateDragLocation = value.location
                             }
-                            if alternatesSelectedIndex < sorted.count {
-                                let option = sorted[alternatesSelectedIndex]
-                                alternatesCommitHandled = true
-                                HapticFeedbackManager.shared.triggerButtonPress()
-                                if option.requiresShift {
-                                    keyboardManager.handleKeyCombo(modifiers: ["Shift"], key: option.keyCode)
-                                } else {
-                                    keyboardManager.handleKeyPress(option.keyCode)
+                        }
+                        .onEnded { value in
+                            longPressTimer?.invalidate(); longPressTimer = nil
+                            keyPressInProgress = false; currentlyPressedKey = nil
+                            if let popup = alternatesPopup {
+                                // Commit the currently highlighted alternate option
+                                let sorted = popup.options.sorted { a, b in
+                                    let order = [AlternatePopupGeometry.slotCenter, AlternatePopupGeometry.slotLeft, AlternatePopupGeometry.slotRight,
+                                                 AlternatePopupGeometry.slotUp, AlternatePopupGeometry.slotDown,
+                                                 AlternatePopupGeometry.slotUpLeft, AlternatePopupGeometry.slotUpRight,
+                                                 AlternatePopupGeometry.slotDownLeft, AlternatePopupGeometry.slotDownRight]
+                                    let ai = order.firstIndex(of: a.slot) ?? 99
+                                    let bi = order.firstIndex(of: b.slot) ?? 99
+                                    return ai < bi
                                 }
+                                if alternatesSelectedIndex < sorted.count {
+                                    let option = sorted[alternatesSelectedIndex]
+                                    alternatesCommitHandled = true
+                                    HapticFeedbackManager.shared.triggerButtonPress()
+                                    if option.requiresShift {
+                                        keyboardManager.handleKeyCombo(modifiers: ["Shift"], key: option.keyCode)
+                                    } else {
+                                        keyboardManager.handleKeyPress(option.keyCode)
+                                    }
+                                }
+                                dismissAlternatesPopup()
                             }
-                            dismissAlternatesPopup()
+                            handleKeyRelease()
                         }
-                        handleKeyRelease()
-                    }
-            )
-            .background(GeometryReader { geo -> Color in
-                DispatchQueue.main.async { self.keyFrames[kd.label] = geo.frame(in: .named("proKMView")) }
-                return Color.clear
-            })
+                )
+                .background(GeometryReader { geo -> Color in
+                    DispatchQueue.main.async { self.keyFrames[kd.label] = geo.frame(in: .named("proKMView")) }
+                    return Color.clear
+                })
+        }
     }
     
     /// Unified handler for key press - handles both single tap and long press
@@ -843,38 +1232,6 @@ struct ProKeyboardMouseView: View {
                 .font(.system(size: 14)).foregroundColor(.blue).padding(8)
                 .background(Color(UIColor.secondarySystemBackground)).cornerRadius(6)
         }.padding(8)
-    }
-
-    /// Bottom toolbar with mode switch, restore, and clear buttons
-    private var bottomToolbar: some View {
-        HStack(spacing: 4) {
-            if isTextInputMode {
-                toolbarButton("Restore", "arrow.uturn.backward", .orange, disabled: savedTextInputContent.isEmpty) {
-                    textInputContent = savedTextInputContent
-                }
-                toolbarButton("Clear", "trash", .red, disabled: textInputContent.isEmpty) {
-                    savedTextInputContent = textInputContent; textInputContent = ""
-                }
-                Spacer()
-                Button(action: { sendTextToDevice() }) {
-                    HStack(spacing: 2) {
-                        Image(systemName: "paperplane.fill").font(.system(size: 12))
-                        Text("Send").font(.system(size: 11, weight: .medium))
-                    }.foregroundColor(.white).padding(.horizontal, 8).padding(.vertical, 6)
-                        .background(textInputContent.isEmpty ? Color.gray : Color.blue).cornerRadius(6)
-                }.disabled(textInputContent.isEmpty)
-            }
-        }
-    }
-
-    private func toolbarButton(_ title: String, _ icon: String, _ color: Color, disabled: Bool = false, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 2) {
-                Image(systemName: icon).font(.system(size: 12))
-                Text(title).font(.system(size: 11, weight: .medium))
-            }.foregroundColor(color).padding(.horizontal, 8).padding(.vertical, 6)
-                .background(Color(UIColor.secondarySystemBackground)).cornerRadius(6)
-        }.disabled(disabled)
     }
 
     /// Send text content to the connected device
