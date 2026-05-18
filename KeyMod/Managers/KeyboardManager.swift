@@ -16,6 +16,9 @@ class KeyboardManager: ObservableObject {
     @Published var isGameMode: Bool = false // Track current mode
     @Published var isFnLocked: Bool = false // Fn lock for F1-F12 mapping
     @Published var isSymbolMode: Bool = false // Symbol mode keyboard layout
+    @Published var isSending: Bool = false    // True while handleTextInput is in-flight
+    private var sendCancelFlag = false
+    private let sendLock = NSLock()
     let compositeKeyManager: CompositeKeyManager
     private let hapticManager = HapticFeedbackManager.shared
     private let logger = LogManager.shared
@@ -639,9 +642,18 @@ class KeyboardManager: ObservableObject {
     func handleTextInput(_ text: String) {
         logger.log("Starting text input: \(text)", category: "Keyboard")
         logger.logCheckpoint("Text input started", category: "Keyboard")
-        
+        sendLock.lock()
+        sendCancelFlag = false
+        sendLock.unlock()
+        isSending = true
+
         DispatchQueue.global(qos: .userInitiated).async {
             for char in text {
+                self.sendLock.lock()
+                let cancelled = self.sendCancelFlag
+                self.sendLock.unlock()
+                if cancelled { break }
+
                 let scalar = char.unicodeScalars.first?.value ?? 0
                 // Non-ASCII Unicode — delegate to UnicodeManager (already on bg thread)
                 if scalar > 0x7E {
@@ -649,33 +661,34 @@ class KeyboardManager: ObservableObject {
                     usleep(self.keyDelayUs)
                     continue
                 }
-                // Press and release key synchronously
-                DispatchQueue.main.sync {
-                    if char.isLetter {
-                        let key = String(char).uppercased()
-                        if char.isUppercase {
-                            self.sendKeyPressAndRelease(modifiers: ["Shift"], key: key)
-                        } else {
-                            self.sendKeyPressAndRelease(key: key)
-                        }
-                    } else if char == " " {
-                        self.sendKeyPressAndRelease(key: "Space")
-                    } else if char == "\n" || char == "\r" {
-                        self.sendKeyPressAndRelease(key: "Enter")
-                    } else if char == "\t" {
-                        self.sendKeyPressAndRelease(key: "Tab")
+                // ASCII characters — send directly from background thread.
+                // sendKeyPressAndRelease is thread-safe (builds HID packets, no UI access).
+                // Using main.sync here would deadlock when the main thread is blocked
+                // (gesture gate timeout, haptic engine, etc.).
+                if char.isLetter {
+                    let key = String(char).uppercased()
+                    if char.isUppercase {
+                        self.sendKeyPressAndRelease(modifiers: ["Shift"], key: key)
                     } else {
-                        let (code, needsShift) = Keymod.hidCode(for: char)
-                        if code >= 0 {
-                            if needsShift {
-                                self.sendKeyPressAndRelease(modifiers: ["Shift"], key: String(char), rawHidCode: UInt8(code))
-                            } else {
-                                self.sendKeyPressAndRelease(key: String(char), rawHidCode: UInt8(code))
-                            }
+                        self.sendKeyPressAndRelease(key: key)
+                    }
+                } else if char == " " {
+                    self.sendKeyPressAndRelease(key: "Space")
+                } else if char == "\n" || char == "\r" {
+                    self.sendKeyPressAndRelease(key: "Enter")
+                } else if char == "\t" {
+                    self.sendKeyPressAndRelease(key: "Tab")
+                } else {
+                    let (code, needsShift) = Keymod.hidCode(for: char)
+                    if code >= 0 {
+                        if needsShift {
+                            self.sendKeyPressAndRelease(modifiers: ["Shift"], key: String(char), rawHidCode: UInt8(code))
                         } else {
-                            // Fallback for unmappable chars
-                            self.sendKeyPressAndRelease(key: String(char).uppercased())
+                            self.sendKeyPressAndRelease(key: String(char), rawHidCode: UInt8(code))
                         }
+                    } else {
+                        // Fallback for unmappable chars
+                        self.sendKeyPressAndRelease(key: String(char).uppercased())
                     }
                 }
                 // Wait between characters for proper timing
@@ -683,9 +696,20 @@ class KeyboardManager: ObservableObject {
             }
             
             DispatchQueue.main.async {
+                self.sendLock.lock()
+                self.sendCancelFlag = false
+                self.sendLock.unlock()
+                self.isSending = false
                 self.logger.logCheckpoint("Text input completed", category: "Keyboard")
             }
         }
+    }
+
+    /// Cancel an in-flight text send operation.
+    func cancelSend() {
+        sendLock.lock()
+        sendCancelFlag = true
+        sendLock.unlock()
     }
     
     /// Send a complete key press and release cycle synchronously.

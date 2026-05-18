@@ -91,8 +91,7 @@ struct ShortcutStripPager: View {
     @State private var isDragging: Bool = false
 
     var body: some View {
-        if pages.isEmpty { return AnyView(EmptyView()) }
-        return AnyView(
+        if !pages.isEmpty {
             VStack(spacing: 0) {
                 GeometryReader { geo in
                     let w = geo.size.width
@@ -132,7 +131,7 @@ struct ShortcutStripPager: View {
                 }
                 .frame(height: 40)
             }
-        )
+        }
     }
 }
 
@@ -155,8 +154,7 @@ struct FixedRowsPager: View {
     }
 
     var body: some View {
-        if pages.isEmpty { return AnyView(EmptyView()) }
-        return AnyView(
+        if !pages.isEmpty {
             VStack(spacing: 0) {
                 GeometryReader { geo in
                     let w = geo.size.width
@@ -204,7 +202,7 @@ struct FixedRowsPager: View {
                     }
                 }
             }
-        )
+        }
     }
 }
 

@@ -227,7 +227,7 @@ struct ProKeyboardMouseView: View {
         let isWindows = aiSettings.targetOS == .windows
         let modCfg: [(String, String, String)] = isMacOS
             ? [("Ctrl","","control"),("Alt","","option"),("Cmd","","command")]
-            : isWindows ? [("Ctrl","CTRL",""),("Alt","ALT",""),("Cmd","","logo.windows")]
+            : isWindows ? [("Ctrl","CTRL",""),("Alt","ALT",""),("Cmd","WIN","")]
                         : [("Ctrl","CTRL",""),("Alt","ALT",""),("Cmd","SUP","")]
         let modEntries = modCfg.map { cfg in ShortcutEntry(label: cfg.1, icon: cfg.2.isEmpty ? nil : cfg.2, isActive: keyboardManager.activeModifiers.contains(cfg.0)) { km.handleModifierToggle(cfg.0) } }
         let p1Locked = FixedRowsPage(
@@ -371,13 +371,15 @@ struct ProKeyboardMouseView: View {
     @ViewBuilder
     private func landscapeContent(_ geometry: GeometryProxy) -> some View {
         ZStack {
-            submodeView(active: .compose) {
+            if proSubmode == .compose {
                 ComposeTextView(keyboardManager: keyboardManager)
                     .background(Color(UIColor.secondarySystemBackground))
+                    .transaction { $0.animation = nil }
             }
-            submodeView(active: .numpad) {
+            if proSubmode == .numpad {
                 NumPadView(keyboardManager: keyboardManager, orientationManager: orientationManager)
                     .background(Color(UIColor.secondarySystemBackground))
+                    .transaction { $0.animation = nil }
             }
             submodeView(active: .keyboard) {
                 let barWidth: CGFloat = 50
@@ -540,13 +542,15 @@ struct ProKeyboardMouseView: View {
     @ViewBuilder
     private func portraitContent(_ g: GeometryProxy) -> some View {
         ZStack {
-            submodeView(active: .compose) {
+            if proSubmode == .compose {
                 ComposeTextView(keyboardManager: keyboardManager)
                     .background(Color(UIColor.secondarySystemBackground))
+                    .transaction { $0.animation = nil }
             }
-            submodeView(active: .numpad) {
+            if proSubmode == .numpad {
                 NumPadView(keyboardManager: keyboardManager, orientationManager: orientationManager)
                     .background(Color(UIColor.secondarySystemBackground))
+                    .transaction { $0.animation = nil }
             }
             submodeView(active: .keyboard) {
                 VStack(spacing: 0) {
@@ -557,7 +561,7 @@ struct ProKeyboardMouseView: View {
                     }
                 }.background(Color(UIColor.secondarySystemBackground))
                 if isTextInputMode && isTextInputExpanded { expandedTextInputView(g) }
-                if isImeSurface { imeCaptureOverlay }
+                if isImeSurface && proSubmode == .keyboard { imeCaptureOverlay }
             }
         }
     }

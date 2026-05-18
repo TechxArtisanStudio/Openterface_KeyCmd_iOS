@@ -239,28 +239,30 @@ struct ContentView: View {
 
     @ViewBuilder private var proSubmodeSelector: some View {
         let current = ProKeyboardMouseView.ProSubmode(rawValue: proSubmodeRaw) ?? .keyboard
-        Menu {
-            Button { proSubmodeRaw = ProKeyboardMouseView.ProSubmode.keyboard.rawValue } label: {
-                Label("Keyboard", systemImage: "keyboard")
-                if current == .keyboard { Image(systemName: "checkmark") }
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 0) {
+                Button { proSubmodeRaw = ProKeyboardMouseView.ProSubmode.keyboard.rawValue } label: {
+                    Image(systemName: "keyboard")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(current == .keyboard ? .purple : .secondary)
+                        .frame(width: 34, height: 34)
+                }
+                Button { proSubmodeRaw = ProKeyboardMouseView.ProSubmode.compose.rawValue } label: {
+                    Image(systemName: "pencil.and.outline")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(current == .compose ? .purple : .secondary)
+                        .frame(width: 34, height: 34)
+                }
+                Button { proSubmodeRaw = ProKeyboardMouseView.ProSubmode.numpad.rawValue } label: {
+                    Image(systemName: "0.square")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(current == .numpad ? .purple : .secondary)
+                        .frame(width: 34, height: 34)
+                }
             }
-            Button { proSubmodeRaw = ProKeyboardMouseView.ProSubmode.compose.rawValue } label: {
-                Label("Compose", systemImage: "pencil.and.outline")
-                if current == .compose { Image(systemName: "checkmark") }
-            }
-            Button { proSubmodeRaw = ProKeyboardMouseView.ProSubmode.numpad.rawValue } label: {
-                Label("Numpad", systemImage: "0.square")
-                if current == .numpad { Image(systemName: "checkmark") }
-            }
-        } label: {
-            Image(systemName: current.icon)
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(.purple)
         }
-        .contentShape(Rectangle())
-        .frame(width: 44, height: 44)
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
+        .frame(width: 68)
+        .clipped()
     }
 
     private var topBarButtons: some View {

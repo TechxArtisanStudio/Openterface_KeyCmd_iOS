@@ -1,9 +1,44 @@
 import SwiftUI
 
-struct SavedTextItem: Identifiable, Codable, Hashable {
+struct SavedTextItem: Identifiable, Hashable {
     let id: UUID
     let text: String
     let createdAt: Date
+    var title: String    // First 10 chars of text by default
+    var pinned: Bool
+
+    init(id: UUID = UUID(), text: String, createdAt: Date = Date(), title: String? = nil, pinned: Bool = false) {
+        self.id = id
+        self.text = text
+        self.createdAt = createdAt
+        self.title = title ?? String(text.prefix(10))
+        self.pinned = pinned
+    }
+}
+
+// MARK: - Codable for SavedTextItem (with migration for old items)
+extension SavedTextItem: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case id, text, createdAt, title, pinned
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try c.decode(UUID.self, forKey: .id)
+        self.text = try c.decode(String.self, forKey: .text)
+        self.createdAt = try c.decode(Date.self, forKey: .createdAt)
+        self.title = (try? c.decodeIfPresent(String.self, forKey: .title)) ?? String(text.prefix(10))
+        self.pinned = (try? c.decodeIfPresent(Bool.self, forKey: .pinned)) ?? false
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(text, forKey: .text)
+        try c.encode(createdAt, forKey: .createdAt)
+        try c.encode(title, forKey: .title)
+        try c.encode(pinned, forKey: .pinned)
+    }
 }
 
 private class SavedTextStore: ObservableObject {
@@ -11,6 +46,8 @@ private class SavedTextStore: ObservableObject {
     private let key = "compose_saved_texts"
 
     @Published var items: [SavedTextItem] = []
+    /// Remembers the original index for unpin restore. Only one index per item.
+    private var unpinIndex: [UUID: Int] = [:]
 
     init() { load() }
 
@@ -23,19 +60,207 @@ private class SavedTextStore: ObservableObject {
 
     func save(_ text: String) {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        let item = SavedTextItem(id: UUID(), text: text, createdAt: Date())
+        let item = SavedTextItem(text: text)
         items.insert(item, at: 0)
         persist()
     }
 
     func delete(at offsets: IndexSet) {
         items.remove(atOffsets: offsets)
+        // Also clean unpinIndex entries
+        unpinIndex = unpinIndex.filter { item in items.contains(where: { $0.id == item.key }) }
         persist()
+    }
+
+    func pinToTop(_ id: UUID) {
+        guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
+        let item = items.remove(at: idx)
+        if item.pinned {
+            // Unpin: restore to remembered index
+            let restoreIdx = unpinIndex[id] ?? items.count
+            let restored = SavedTextItem(id: item.id, text: item.text, createdAt: item.createdAt, title: item.title, pinned: false)
+            items.insert(restored, at: min(restoreIdx, items.count))
+        } else {
+            // Pin: remember current index, then move to top
+            unpinIndex[item.id] = idx
+            items.insert(SavedTextItem(id: item.id, text: item.text, createdAt: item.createdAt, title: item.title, pinned: true), at: 0)
+            reorderPinned()
+        }
+        persist()
+    }
+
+    func rename(_ id: UUID, newTitle: String) {
+        guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
+        items[idx] = SavedTextItem(id: items[idx].id, text: items[idx].text, createdAt: items[idx].createdAt, title: newTitle, pinned: items[idx].pinned)
+        persist()
+    }
+
+    /// Reorder pinned items at the top, then by createdAt desc.
+    private func reorderPinned() {
+        // Only reorder pinned section; unpin keeps its position.
+        var pinned: [SavedTextItem] = []
+        var unpinned: [SavedTextItem] = []
+        for item in items {
+            if item.pinned { pinned.append(item) } else { unpinned.append(item) }
+        }
+        pinned.sort { $0.createdAt > $1.createdAt }
+        items = pinned + unpinned
     }
 
     private func persist() {
         if let data = try? JSONEncoder().encode(items) {
             UserDefaults.standard.set(data, forKey: key)
+        }
+    }
+}
+
+// MARK: - PlainTextEditor
+/// UIViewRepresentable wrapper that prevents the 3-5 s "System gesture gate
+/// timed out" freeze. Root cause: `becomeFirstResponder()` on a standard
+/// UITextView makes SYNCHRONOUS XPC calls to the iOS keyboard prediction
+/// service; on this device the service returns "Operation not authorized"
+/// and iOS waits 3 s for a timeout — blocking the main thread inside the
+/// gesture pipeline.
+///
+/// Fix strategy: assign a zero-size custom `inputView` so that
+/// `becomeFirstResponder()` completes immediately (no keyboard XPC init).
+/// Then swap back to the real keyboard from `textViewDidBeginEditing`,
+/// which fires AFTER the gesture pipeline has already returned — the XPC
+/// init still takes ~3 s but it now happens outside touch processing so
+/// the UI remains responsive (no gesture-gate timeout).
+private struct PlainTextEditor: UIViewRepresentable {
+    @Binding var text: String
+    var isDisabled: Bool = false
+    var highlightNonAscii: Bool = false
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeUIView(context: Context) -> UITextView {
+        let tv = UITextView()
+        tv.delegate = context.coordinator
+        tv.font = .systemFont(ofSize: 14)
+        tv.backgroundColor = .clear
+        // Disable every prediction / autocorrect subsystem.
+        tv.autocorrectionType = .no
+        tv.autocapitalizationType = .none
+        tv.spellCheckingType = .no
+        tv.smartDashesType = .no
+        tv.smartQuotesType = .no
+        tv.smartInsertDeleteType = .no
+        // Disables iOS 17+ inline type-ahead prediction XPC calls.
+        if #available(iOS 17.0, *) { tv.inlinePredictionType = .no }
+        // Suppress autofill lookups (contacts, passwords, etc.).
+        tv.textContentType = UITextContentType(rawValue: "")
+        // Remove QuickType / assistant bar buttons.
+        tv.inputAssistantItem.leadingBarButtonGroups = []
+        tv.inputAssistantItem.trailingBarButtonGroups = []
+        // KEY: custom zero-height inputView makes becomeFirstResponder()
+        // return immediately without initialising the keyboard XPC stack.
+        // The real keyboard is swapped in from textViewDidBeginEditing.
+        tv.inputView = UIView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
+        return tv
+    }
+
+    func updateUIView(_ tv: UITextView, context: Context) {
+        context.coordinator.parent = self
+        if tv.text != text {
+            tv.text = text
+            // Re-apply highlights after text change
+            if highlightNonAscii { context.coordinator.applyNonAsciiHighlight(to: tv) }
+        }
+        tv.isEditable = !isDisabled
+        tv.isSelectable = true
+        if highlightNonAscii {
+            context.coordinator.applyNonAsciiHighlight(to: tv)
+        } else if context.coordinator.hasHighlights {
+            context.coordinator.clearHighlights(tv: tv, preserveText: tv.text)
+        }
+    }
+
+    class Coordinator: NSObject, UITextViewDelegate {
+        var parent: PlainTextEditor
+        /// Guard so the inputView swap happens only once per focus session.
+        private var keyboardSwapped = false
+        var hasHighlights = false
+        private var savedSelectedRange: NSRange = NSRange(location: NSNotFound, length: 0)
+
+        init(_ parent: PlainTextEditor) { self.parent = parent }
+
+        func textViewDidBeginEditing(_ textView: UITextView) {
+            // textViewDidBeginEditing is called SYNCHRONOUSLY inside
+            // becomeFirstResponder(), which runs inside the gesture pipeline.
+            // We MUST defer with async so that reloadInputViews() (which
+            // triggers real-keyboard XPC init and may block ~1-3 s) runs on
+            // the NEXT run-loop cycle — after the gesture pipeline has already
+            // returned — so "System gesture gate timed out" never fires.
+            if !keyboardSwapped {
+                keyboardSwapped = true
+                DispatchQueue.main.async { [weak textView] in
+                    guard let textView = textView else { return }
+                    textView.inputView = nil      // restore system keyboard
+                    textView.reloadInputViews()   // triggers keyboard XPC init
+                }
+            }
+        }
+
+        func textViewDidEndEditing(_ textView: UITextView) {
+            // Reset so next focus session re-arms the swap.
+            keyboardSwapped = false
+            // Restore the fast inputView for the next tap.
+            textView.inputView = UIView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
+        }
+
+        func textViewDidChange(_ textView: UITextView) {
+            // User typed — clear highlights immediately
+            if hasHighlights {
+                hasHighlights = false
+                clearHighlights(tv: textView, preserveText: textView.text)
+            }
+            parent.text = textView.text
+        }
+
+        func textViewDidChangeSelection(_ textView: UITextView) {
+            savedSelectedRange = textView.selectedRange
+        }
+
+        func applyNonAsciiHighlight(to tv: UITextView) {
+            let plain = tv.text as NSString
+            guard plain.length > 0 else { return }
+            let mutable = NSMutableAttributedString(string: tv.text, attributes: [
+                .font: tv.font ?? .systemFont(ofSize: 14),
+                .foregroundColor: UIColor.label
+            ])
+            // First pass: find non-ASCII scalars
+            var found = false
+            var ranges: [NSRange] = []
+            plain.enumerateSubstrings(in: NSRange(location: 0, length: plain.length), options: .byComposedCharacterSequences) { substr, range, _, _ in
+                let s = substr ?? ""
+                if s.unicodeScalars.contains(where: { $0.value > 127 }) {
+                    ranges.append(range)
+                    found = true
+                }
+            }
+            guard found else { return }
+
+            // Apply yellow background to non-ASCII ranges
+            for range in ranges {
+                mutable.addAttribute(.backgroundColor, value: UIColor.systemYellow.withAlphaComponent(0.35), range: range)
+            }
+
+            let cursor = savedSelectedRange.location != NSNotFound ? savedSelectedRange : NSRange(location: plain.length, length: 0)
+            tv.attributedText = mutable
+            tv.selectedRange = cursor
+            hasHighlights = true
+        }
+
+        func clearHighlights(tv: UITextView, preserveText: String) {
+            let cursor = tv.selectedRange
+            tv.attributedText = NSAttributedString(string: preserveText, attributes: [
+                .font: tv.font ?? .systemFont(ofSize: 14),
+                .foregroundColor: UIColor.label
+            ])
+            tv.selectedRange = cursor
+            hasHighlights = false
         }
     }
 }
@@ -50,12 +275,25 @@ struct ComposeTextView: View {
 
     @State private var text: String = ""
     @State private var sending = false
-    @State private var showLibrary = false
     @State private var undoSnapshot: String = ""
     @State private var undoClearEligible = false
     @State private var fixedRowsLocalFnLocked = false
 
     @State private var keyboardHeight: CGFloat = 0
+    @State private var warningInfo: ComposeSendGate.WarningInfo?
+    @State private var showWarningSheet = false
+    @State private var showAsciiPreview = false
+    @State private var pendingSendText: String = ""
+    @State private var highlightNonAscii = false
+    @State private var sendCancelledToast = false
+    @State private var unicodeMode = false
+    @State private var showUnicodeConfirm = false
+    @State private var renameTarget: SavedTextItem?
+    @State private var renameText: String = ""
+    @State private var selectedItem: SavedTextItem?
+    @State private var showLibraryPreview = false
+    @State private var libraryPreviewText = ""
+    @State private var showLibrarySheet = false
 
     // MARK: - Shortcut data (mirrors ProKeyboardMouseView)
 
@@ -113,7 +351,7 @@ struct ComposeTextView: View {
         let isWindows = aiSettings.targetOS == .windows
         let modCfg: [(String, String, String)] = isMacOS
             ? [("Ctrl", "", "control"), ("Alt", "", "option"), ("Cmd", "", "command")]
-            : isWindows ? [("Ctrl", "CTRL", ""), ("Alt", "ALT", ""), ("Cmd", "", "logo.windows")]
+            : isWindows ? [("Ctrl", "CTRL", ""), ("Alt", "ALT", ""), ("Cmd", "WIN", "")]
                         : [("Ctrl", "CTRL", ""), ("Alt", "ALT", ""), ("Cmd", "SUP", "")]
         let modEntries = modCfg.map { cfg in ShortcutEntry(label: cfg.1, icon: cfg.2.isEmpty ? nil : cfg.2, isActive: keyboardManager.activeModifiers.contains(cfg.0)) { km.handleModifierToggle(cfg.0) } }
         let p1 = FixedRowsPage(
@@ -151,79 +389,91 @@ struct ComposeTextView: View {
     // MARK: - Body
 
     var body: some View {
-        VStack(spacing: 0) {
-            ZStack(alignment: .topLeading) {
-                if text.isEmpty {
-                    Text("Type here and tap Send to deliver to the connected device")
-                        .font(.system(size: 14))
-                        .foregroundColor(.secondary)
-                        .padding(18)
-                        .allowsHitTesting(false)
-                }
-                TextEditor(text: $text)
-                    .font(.system(size: 14))
-                    .padding(8)
-                    .background(Color(UIColor.systemBackground))
-                    .cornerRadius(8)
-                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(UIColor.separator), lineWidth: 1))
-                    .disabled(sending)
-                    .frame(minHeight: 220)
-                    .onChange(of: text) { newValue in
-                        if !newValue.isEmpty && undoClearEligible {
-                            undoClearEligible = false
-                            undoSnapshot = ""
+        ZStack {
+            // Main content
+            NavigationView {
+                VStack(spacing: 0) {
+                    ZStack(alignment: .topLeading) {
+                        if text.isEmpty {
+                            Text("Type here and tap Send to deliver to the connected device")
+                                .font(.system(size: 14))
+                                .foregroundColor(.secondary)
+                                .padding(18)
+                                .allowsHitTesting(false)
+                        }
+                        PlainTextEditor(text: $text, isDisabled: sending, highlightNonAscii: highlightNonAscii)
+                            .padding(8)
+                            .background(Color(UIColor.systemBackground))
+                            .cornerRadius(8)
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(UIColor.separator), lineWidth: 1))
+                            .frame(minHeight: 220)
+                            .onChange(of: text) { newValue in
+                                if !newValue.isEmpty && undoClearEligible {
+                                    undoClearEligible = false
+                                    undoSnapshot = ""
+                                }
+                            }
+                    }
+                    .padding(12)
+
+                    // Action buttons bar
+                    HStack(spacing: 8) {
+                        actionBtn(icon: "xmark", color: !text.isEmpty ? .red : .secondary, enabled: !text.isEmpty) {
+                            undoSnapshot = ""; undoClearEligible = false; text = ""
+                        }
+                        actionBtn(icon: "arrow.uturn.backward", color: undoClearEligible && !undoSnapshot.isEmpty ? .orange : .secondary, enabled: undoClearEligible && !undoSnapshot.isEmpty) {
+                            text = undoSnapshot; undoSnapshot = ""; undoClearEligible = false
+                        }
+                        actionBtn(icon: "externaldrive.fill.badge.plus", color: .secondary) {
+                            store.save(text)
+                        }
+                        actionBtn(icon: "bookmark.fill", color: .secondary) {
+                            showLibrarySheet = true
+                        }
+                        Spacer()
+                        let btnDisabled = !canSend
+                        Button(action: { onSendTapped() }) {
+                            Image(systemName: sending || keyboardManager.isSending ? "stop.fill" : "paperplane.fill")
+                                .font(.system(size: 16))
+                                .foregroundColor(btnDisabled ? .secondary : .blue)
+                                .padding(.vertical, 8).padding(.horizontal, 16)
+                                .background(Color(UIColor.tertiarySystemBackground)).cornerRadius(8)
+                        }
+                        .disabled(btnDisabled)
+                        .onReceive(keyboardManager.$isSending) { newVal in
+                            if !newVal && sending { sending = false; text = "" }
                         }
                     }
-            }
-            .padding(12)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color(UIColor.secondarySystemBackground))
 
-            // Action buttons bar
-            HStack(spacing: 8) {
-                actionBtn(icon: "eraser", color: undoClearEligible ? .orange : .secondary) {
-                    if undoClearEligible && !undoSnapshot.isEmpty {
-                        text = undoSnapshot; undoSnapshot = ""; undoClearEligible = false
-                    } else if !text.isEmpty {
-                        undoSnapshot = text; undoClearEligible = true; text = ""
+                    // Shortcut panel
+                    VStack(spacing: 0) {
+                        ShortcutStripPager(pages: shortcutPages).id(profileMgr.activeProfileId).padding(.horizontal, 4)
+                        FixedRowsPager(pages: fixedRowsPages, defaultPageIndex: 1).padding(.horizontal, 4)
                     }
+                    .background(Color(UIColor.secondarySystemBackground))
+                    .padding(.bottom, 10)
                 }
-                actionBtn(icon: "externaldrive.fill.badge.plus", color: .secondary) {
-                    store.save(text)
-                }
-                actionBtn(icon: "bookmark.fill", color: .secondary) {
-                    showLibrary = true
-                }
-                Spacer()
-                Button(action: {
-                    guard !sending, !text.isEmpty else { return }
-                    sending = true
-                    HapticFeedbackManager.shared.triggerButtonPress()
-                    keyboardManager.handleTextInput(text)
-                    DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.5) {
-                        DispatchQueue.main.async { sending = false; text = "" }
-                    }
-                }) {
-                    Image(systemName: sending ? "stop.fill" : "paperplane.fill")
-                        .font(.system(size: 16))
-                        .foregroundColor(text.isEmpty ? .secondary : .blue)
-                        .padding(.vertical, 8).padding(.horizontal, 16)
-                        .background(Color(UIColor.tertiarySystemBackground)).cornerRadius(8)
-                }
-                .disabled(text.isEmpty || sending)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Color(UIColor.secondarySystemBackground))
-
-            // Shortcut panel
-            VStack(spacing: 0) {
-                ShortcutStripPager(pages: shortcutPages).id(profileMgr.activeProfileId).padding(.horizontal, 4)
-                FixedRowsPager(pages: fixedRowsPages, defaultPageIndex: 1).padding(.horizontal, 4)
+            .sheet(isPresented: $showWarningSheet) {
+                sendWarningAlert
             }
-            .background(Color(UIColor.secondarySystemBackground))
-            .padding(.bottom, 10)
-        }
-        .sheet(isPresented: $showLibrary) {
-            savedTextLibrary
+            .sheet(isPresented: $showAsciiPreview) {
+                asciiPreviewSheet
+            }
+            .alert("Confirm Unicode Send", isPresented: $showUnicodeConfirm) {
+                Button("Cancel", role: .cancel) {}
+                Button("Send Anyway", role: .destructive) {
+                    executeSend()
+                }
+            } message: {
+                Text(unicodeConfirmMessage)
+            }
+            .sheet(isPresented: $showLibrarySheet) {
+                savedTextLibrarySheet
+            }
         }
         .onAppear {
             NotificationCenter.default.addObserver(forName: UIResponder.keyboardWillShowNotification, object: nil, queue: .main) { n in
@@ -240,36 +490,282 @@ struct ComposeTextView: View {
             }
         }
         .onDisappear {
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardWillShowNotification, object: nil)
             NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardWillHideNotification, object: nil)
         }
         .padding(.bottom, keyboardHeight > 0 ? keyboardHeight : 0)
     }
 
-    private var savedTextLibrary: some View {
-        NavigationView {
-            List {
-                ForEach(store.items) { item in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(item.text).font(.body).lineLimit(3)
-                        Text(item.createdAt, style: .date).font(.caption2).foregroundColor(.secondary)
-                    }
-                    .onTapGesture {
-                        text = item.text; showLibrary = false
-                    }
-                }
-                .onDelete { store.delete(at: $0) }
+    // MARK: - Send gate
+
+    private var isConnected: Bool { !keyboardManager.bleManager.connectedDevices.isEmpty }
+    private var canSend: Bool {
+        if sending || keyboardManager.isSending { return false }
+        return isConnected && !text.isEmpty
+    }
+
+    /// Warning message shown in Unicode send confirmation.
+    private var unicodeConfirmMessage: String {
+        let hint: String
+        switch aiSettings.targetOS {
+        case .macOS:
+            hint = "The target Mac must have the \"Unicode Hex Input\" input source enabled (System Settings → Keyboard → Input Sources → + → English → Unicode Hex Input). Holding Option key during send to type hex digits."
+        case .windows:
+            hint = "The target Windows PC must support Alt + Numpad + hex digit Unicode entry. Ensure the numeric keypad is available."
+        case .linux:
+            hint = "The target Linux host must support Ctrl+Shift+U followed by hex digits for Unicode entry. Ensure the focused application accepts this shortcut."
+        }
+        return "If the target device does not have the correct Unicode input method active, the keystrokes may be interpreted as regular shortcuts, causing unexpected behavior (e.g., opening apps, closing windows).\n\n\(hint)"
+    }
+
+    private func onSendTapped() {
+        if sending || keyboardManager.isSending {
+            keyboardManager.cancelSend()
+            return
+        }
+
+        let assessment = ComposeSendGate.assess(isConnected: isConnected, text: text)
+
+        switch assessment.hardBlock {
+        case .noConnection:
+            HapticFeedbackManager.shared.triggerButtonPress()
+            return
+        case .emptyText:
+            return
+        case nil:
+            break
+        }
+
+        if let warning = assessment.warningInfo {
+            warningInfo = warning
+            pendingSendText = text
+            unicodeMode = false
+            showWarningSheet = true
+            return
+        }
+
+        executeSend()
+    }
+
+    private func executeSend() {
+        HapticFeedbackManager.shared.triggerButtonPress()
+        sending = true
+        let sendText = pendingSendText.isEmpty ? text : pendingSendText
+        keyboardManager.handleTextInput(sendText)
+        pendingSendText = ""
+    }
+
+    /// Send only ASCII characters, dropping non-ASCII (used by "Send Anyway" in warning dialog).
+    private func executeSendAsciiOnly() {
+        HapticFeedbackManager.shared.triggerButtonPress()
+        sending = true
+        let fullText = pendingSendText.isEmpty ? text : pendingSendText
+        let asciiText = fullText.unicodeScalars.filter { $0.value <= 127 }.map { String($0) }.joined()
+        keyboardManager.handleTextInput(asciiText)
+        pendingSendText = ""
+    }
+
+    // MARK: - Alerts
+
+    private var sendWarningAlert: some View {
+        Group {
+            if let info = warningInfo {
+                ComposeSendWarningAlert(
+                    text: pendingSendText,
+                    warningInfo: info,
+                    unicodeMode: $unicodeMode,
+                    onSendAnyway: { showWarningSheet = false; executeSendAsciiOnly() },
+                    onSendUnicode: { showWarningSheet = false; showUnicodeConfirm = true },
+                    onCheck: { showWarningSheet = false; highlightNonAscii = true },
+                    onPreview: { showWarningSheet = false; showAsciiPreview = true }
+                )
             }
-            .navigationTitle("Saved Texts")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Button("Done") { showLibrary = false } } }
         }
     }
 
-    private func actionBtn(icon: String, color: Color, action: @escaping () -> Void) -> some View {
+    private var asciiPreviewSheet: some View {
+        let preview = ComposeSendGate.asciiPreview(of: pendingSendText)
+        return AnyView(
+            NavigationView {
+                ScrollView {
+                    Text(preview.isEmpty ? "(All characters are non-ASCII)" : preview)
+                        .font(.system(.body, design: .monospaced))
+                        .textSelection(.enabled)
+                        .padding()
+                }
+                .navigationTitle("ASCII Preview")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Button("Close") { showAsciiPreview = false } } }
+            }
+        )
+    }
+
+    // MARK: - Saved Texts Library Sheet
+
+    private var savedTextLibrarySheet: some View {
+        NavigationView {
+            List {
+                ForEach(itemsSorted()) { item in
+                    SavedTextRow(item: item, isSelected: selectedItem?.id == item.id) { item in
+                        withAnimation { selectedItem = item }
+                    } onDelete: { id in
+                        if selectedItem?.id == id { selectedItem = nil }
+                        if let idx = store.items.firstIndex(where: { $0.id == id }) {
+                            store.delete(at: IndexSet([idx]))
+                        }
+                    } onRename: { item in
+                        renameTarget = item
+                        renameText = item.title
+                    } onPin: { store.pinToTop($0) }
+                }
+            }
+            .listStyle(.plain)
+            .navigationTitle("Saved Texts")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Close") { showLibrarySheet = false }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if let item = selectedItem {
+                        HStack(spacing: 12) {
+                            Button {
+                                libraryPreviewText = item.text
+                                showLibraryPreview = true
+                            } label: {
+                                Image(systemName: "eye")
+                            }
+                            Button { loadItem(item) } label: {
+                                Image(systemName: "square.and.arrow.down")
+                            }
+                            Button { sendItem(item) } label: {
+                                Image(systemName: "paperplane")
+                            }
+                        }
+                    }
+                }
+            }
+            .onAppear { selectedItem = nil }
+            .sheet(isPresented: $showLibraryPreview) {
+                let preview = ComposeSendGate.asciiPreview(of: libraryPreviewText)
+                NavigationView {
+                    ScrollView {
+                        Text(preview.isEmpty ? "(All characters are non-ASCII)" : preview)
+                            .font(.system(.body, design: .monospaced))
+                            .textSelection(.enabled)
+                            .padding()
+                    }
+                    .navigationTitle("ASCII Preview")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Button("Close") { showLibraryPreview = false } } }
+                }
+            }
+            .alert("Rename", isPresented: .constant(renameTarget != nil)) {
+                TextField("Title", text: $renameText)
+                Button("Cancel", role: .cancel) { renameTarget = nil }
+                Button("Save") {
+                    if let target = renameTarget, !renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        store.rename(target.id, newTitle: renameText)
+                    }
+                    renameTarget = nil
+                }
+            }
+        }
+    }
+
+    private func previewItem(_ item: SavedTextItem) {
+        pendingSendText = item.text
+        showAsciiPreview = true
+    }
+
+    private func loadItem(_ item: SavedTextItem) {
+        text = item.text
+        showLibrarySheet = false
+    }
+
+    private func sendItem(_ item: SavedTextItem) {
+        showLibrarySheet = false
+        let assessment = ComposeSendGate.assess(
+            isConnected: isConnected,
+            text: item.text
+        )
+        if assessment.hardBlock != nil { return }
+        if let warning = assessment.warningInfo {
+            warningInfo = warning
+            pendingSendText = item.text
+            unicodeMode = false
+            showWarningSheet = true
+        } else {
+            pendingSendText = item.text
+            executeSend()
+        }
+    }
+
+    private func itemsSorted() -> [SavedTextItem] {
+        var items = store.items
+        items.sort { a, b in
+            if a.pinned != b.pinned { return a.pinned }
+            return a.createdAt > b.createdAt
+        }
+        return items
+    }
+
+    private func actionBtn(icon: String, color: Color, enabled: Bool = true, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: icon).font(.system(size: 18)).foregroundColor(color)
+            Image(systemName: icon).font(.system(size: 18)).foregroundColor(enabled ? color : Color.secondary.opacity(0.3))
                 .padding(10).background(Color(UIColor.tertiarySystemBackground)).cornerRadius(8)
         }
+        .disabled(!enabled)
+    }
+}
+
+// MARK: - SavedTextRow
+
+/// Extracted row view so SwiftUI caches each cell and avoids first-swipe stutter.
+struct SavedTextRow: View {
+    let item: SavedTextItem
+    let isSelected: Bool
+    let onSelect: (SavedTextItem) -> Void
+    let onDelete: (UUID) -> Void
+    let onRename: (SavedTextItem) -> Void
+    let onPin: (UUID) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                if item.pinned {
+                    Image(systemName: "pin.fill").font(.caption2).foregroundColor(.orange)
+                }
+                Text(item.title).font(.system(size: 15, weight: .semibold))
+                Spacer()
+                Text(item.createdAt, style: .date).font(.caption2).foregroundColor(.secondary)
+            }
+            Text(bodyPreview).font(.system(size: 13)).foregroundColor(.secondary).lineLimit(1)
+        }
+        .contentShape(Rectangle())
+        .background(isSelected ? Color.blue.opacity(0.12) : Color.clear)
+        .onTapGesture { onSelect(item) }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) { onDelete(item.id) } label: {
+                Label("Delete", systemImage: "trash")
+            }
+            Button { onRename(item) } label: {
+                Label("Rename", systemImage: "pencil")
+            }
+            .tint(.blue)
+            Button { onPin(item.id) } label: {
+                Label(item.pinned ? "Unpin" : "Pin", systemImage: item.pinned ? "pin.slash" : "pin")
+            }
+            .tint(.orange)
+        }
+    }
+
+    private var bodyPreview: String {
+        let titlePrefix = String(item.text.prefix(item.title.count))
+        if item.title == titlePrefix {
+            return String(item.text.dropFirst(min(item.title.count, item.text.count)))
+        }
+        return item.text
     }
 }
