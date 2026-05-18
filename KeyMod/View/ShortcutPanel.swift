@@ -8,7 +8,6 @@
 //               Page 0: F-keys (F7–F12/= | F1–F6/FN)
 //               Page 1: Modifiers + Navigation (default)
 //               Page 2: Punctuation symbols
-//               Page 3: Profile quick-switch
 //  Total ≈ 150px, matching Android's three-row shortcut strip.
 //
 
@@ -98,14 +97,12 @@ struct ShortcutStripPager: View {
                 GeometryReader { geo in
                     let w = geo.size.width
                     HStack(spacing: 0) {
-                        ForEach(0..<pages.count, id: \.self) { idx in
+                        ForEach(pages.indices, id: \.self) { idx in
                             ShortcutStripRowView(
                                 entries: pages[idx].entries,
                                 background: Color.orange.opacity(0.18)
                             )
-                            .padding(.horizontal, 0)
                             .frame(width: w)
-                            .allowsHitTesting(!isDragging)
                         }
                     }
                     .offset(x: -CGFloat(currentPage) * w + dragOffset)
@@ -114,9 +111,8 @@ struct ShortcutStripPager: View {
                     .frame(width: w, alignment: .leading)
                     .clipped()
                     .highPriorityGesture(
-                        DragGesture(minimumDistance: 5, coordinateSpace: .local)
+                        DragGesture(minimumDistance: 10, coordinateSpace: .local)
                             .onChanged { v in
-                                isDragging = true
                                 dragOffset = v.translation.width
                             }
                             .onEnded { v in
@@ -131,7 +127,6 @@ struct ShortcutStripPager: View {
                                     }
                                     dragOffset = 0
                                 }
-                                isDragging = false
                             }
                     )
                 }
@@ -152,7 +147,6 @@ struct FixedRowsPager: View {
 
     @State private var currentPage: Int = -1
     @State private var dragOffset: CGFloat = 0
-    @State private var isDragging: Bool = false
 
     private let rowBackground = Color(UIColor.tertiarySystemBackground)
 
@@ -176,7 +170,6 @@ struct FixedRowsPager: View {
                             }
                             .padding(.horizontal, 0)
                             .frame(width: w)
-                            .allowsHitTesting(!isDragging)
                         }
                     }
                     .offset(x: -CGFloat(activePage) * w + dragOffset)
@@ -185,9 +178,8 @@ struct FixedRowsPager: View {
                     .frame(width: w, alignment: .leading)
                     .clipped()
                     .highPriorityGesture(
-                        DragGesture(minimumDistance: 5, coordinateSpace: .local)
+                        DragGesture(minimumDistance: 10, coordinateSpace: .local)
                             .onChanged { v in
-                                isDragging = true
                                 dragOffset = v.translation.width
                             }
                             .onEnded { v in
@@ -202,7 +194,6 @@ struct FixedRowsPager: View {
                                     }
                                     dragOffset = 0
                                 }
-                                isDragging = false
                             }
                     )
                 }

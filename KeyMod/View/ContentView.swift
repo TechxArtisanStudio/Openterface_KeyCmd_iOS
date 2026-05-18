@@ -26,6 +26,7 @@ struct ContentView: View {
     @State private var selectedGamepadLayout: GamepadLayout = .xbox
     @State private var isGamepadEditMode = false
     @State private var basicSubmode: BasicKeyboardMouseView.Submode = .keyboard
+    @AppStorage("km_pro_submode") private var proSubmodeRaw: Int = 0
     
     init(launchPanelManager: LaunchPanelManager) {
         self.launchPanelManager = launchPanelManager
@@ -203,7 +204,6 @@ struct ContentView: View {
                 .buttonStyle(.plain)
                 .contentShape(Rectangle())
                 .padding(.leading, 12)
-                // Submode tabs in landscape for keyboard&mouse view
                 if orientationManager.isLandscape && viewManager.currentView == .keyboardMouseBasic {
                     BasicKeyboardMouseView(
                         mouseManager: mouseManager,
@@ -211,6 +211,9 @@ struct ContentView: View {
                         orientationManager: orientationManager,
                         selectedSubmode: $basicSubmode
                     ).landscapeTabBar
+                }
+                if viewManager.currentView == .keyboardMousePro {
+                    proSubmodeSelector
                 }
             }
             Spacer()
@@ -233,7 +236,33 @@ struct ContentView: View {
             print("🔝 TopBar rendered with height: 50")
         }
     }
-    
+
+    @ViewBuilder private var proSubmodeSelector: some View {
+        let current = ProKeyboardMouseView.ProSubmode(rawValue: proSubmodeRaw) ?? .keyboard
+        Menu {
+            Button { proSubmodeRaw = ProKeyboardMouseView.ProSubmode.keyboard.rawValue } label: {
+                Label("Keyboard", systemImage: "keyboard")
+                if current == .keyboard { Image(systemName: "checkmark") }
+            }
+            Button { proSubmodeRaw = ProKeyboardMouseView.ProSubmode.compose.rawValue } label: {
+                Label("Compose", systemImage: "pencil.and.outline")
+                if current == .compose { Image(systemName: "checkmark") }
+            }
+            Button { proSubmodeRaw = ProKeyboardMouseView.ProSubmode.numpad.rawValue } label: {
+                Label("Numpad", systemImage: "0.square")
+                if current == .numpad { Image(systemName: "checkmark") }
+            }
+        } label: {
+            Image(systemName: current.icon)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(.purple)
+        }
+        .contentShape(Rectangle())
+        .frame(width: 44, height: 44)
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+    }
+
     private var topBarButtons: some View {
         HStack(spacing: 10) {
             targetOSButton
@@ -477,7 +506,11 @@ struct ContentView: View {
                     mouseManager: mouseManager,
                     keyboardManager: keyboardManager,
                     compositeKeyManager: keyboardManager.compositeKeyManager,
-                    orientationManager: orientationManager
+                    orientationManager: orientationManager,
+                    proSubmode: Binding(
+                        get: { ProKeyboardMouseView.ProSubmode(rawValue: proSubmodeRaw) ?? .keyboard },
+                        set: { proSubmodeRaw = $0.rawValue }
+                    )
                 )
                 .id(viewManager.currentView)
             case .gamepad:
@@ -506,6 +539,8 @@ struct ContentView: View {
         .onAppear {
             print("🎮 MainContent view type: \(viewManager.currentView.rawValue)")
             print("   Frame: maxWidth=.infinity, maxHeight=.infinity")
+        }
+        .onTapGesture {
         }
         .onChange(of: viewManager.currentView) { newView in
             print("🔄 View switched to: \(newView.rawValue)")
