@@ -114,6 +114,48 @@ private class SavedTextStore: ObservableObject {
     }
 }
 
+// MARK: - DeferredTextView
+/// Custom UITextView that prevents the ~3 s keyboard prediction XPC from
+/// blocking the gesture pipeline.
+///
+/// Root cause: the first time any UITextView in the app receives
+/// `reloadInputViews()` after switching from a dummy `inputView` to the
+/// real system keyboard (nil inputView), UIKit makes a synchronous XPC call
+/// to the keyboard prediction daemon. On iPad this call fails with "Operation
+/// not authorized" but only after ~3 s of retry — all on the main thread.
+///
+/// Fix: swizzle `reloadInputViews()` so it runs on the next run loop cycle
+/// instead of synchronously. The gesture pipeline has already returned by
+/// then, so the 3 s delay does not block touch handling.
+class DeferredTextView: UITextView {
+    static let swizzleToken: () = {
+        let originalSel = #selector(UIView.reloadInputViews)
+        let swizzledSel = #selector(DeferredTextView.swizzled_reloadInputViews)
+        guard let originalMethod = class_getInstanceMethod(DeferredTextView.self, originalSel),
+              let swizzledMethod = class_getInstanceMethod(DeferredTextView.self, swizzledSel)
+        else { return }
+        method_exchangeImplementations(originalMethod, swizzledMethod)
+    }()
+
+    @objc private func swizzled_reloadInputViews() {
+        // Intercept every reloadInputViews() call and defer it to the next
+        // run loop so the gesture pipeline is not blocked by the XPC delay.
+        DispatchQueue.main.async { [weak self] in
+            self?.swizzled_reloadInputViews()  // calls original impl
+        }
+    }
+
+    override init(frame: CGRect, textContainer: NSTextContainer?) {
+        _ = DeferredTextView.swizzleToken
+        super.init(frame: frame, textContainer: textContainer)
+    }
+
+    required init?(coder: NSCoder) {
+        _ = DeferredTextView.swizzleToken
+        super.init(coder: coder)
+    }
+}
+
 // MARK: - PlainTextEditor
 /// UIViewRepresentable wrapper that prevents the 3-5 s "System gesture gate
 /// timed out" freeze. Root cause: `becomeFirstResponder()` on a standard
@@ -122,12 +164,10 @@ private class SavedTextStore: ObservableObject {
 /// and iOS waits 3 s for a timeout — blocking the main thread inside the
 /// gesture pipeline.
 ///
-/// Fix strategy: assign a zero-size custom `inputView` so that
-/// `becomeFirstResponder()` completes immediately (no keyboard XPC init).
-/// Then swap back to the real keyboard from `textViewDidBeginEditing`,
-/// which fires AFTER the gesture pipeline has already returned — the XPC
-/// init still takes ~3 s but it now happens outside touch processing so
-/// the UI remains responsive (no gesture-gate timeout).
+/// Fix strategy: use a dummy zero-height inputView so that
+/// becomeFirstResponder() completes immediately (no keyboard XPC init).
+/// Then swap to the real keyboard from textViewDidBeginEditing on the next
+/// run loop — the XPC still takes ~3 s but runs outside the gesture pipeline.
 private struct PlainTextEditor: UIViewRepresentable {
     @Binding var text: String
     var isDisabled: Bool = false
@@ -135,8 +175,10 @@ private struct PlainTextEditor: UIViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
-    func makeUIView(context: Context) -> UITextView {
-        let tv = UITextView()
+    func makeUIView(context: Context) -> DeferredTextView {
+        // Ensure swizzle is active before creating any text view.
+        _ = DeferredTextView.swizzleToken
+        let tv = DeferredTextView(frame: .zero, textContainer: nil)
         tv.delegate = context.coordinator
         tv.font = .systemFont(ofSize: 14)
         tv.backgroundColor = .clear
@@ -154,14 +196,10 @@ private struct PlainTextEditor: UIViewRepresentable {
         // Remove QuickType / assistant bar buttons.
         tv.inputAssistantItem.leadingBarButtonGroups = []
         tv.inputAssistantItem.trailingBarButtonGroups = []
-        // KEY: custom zero-height inputView makes becomeFirstResponder()
-        // return immediately without initialising the keyboard XPC stack.
-        // The real keyboard is swapped in from textViewDidBeginEditing.
-        tv.inputView = UIView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
         return tv
     }
 
-    func updateUIView(_ tv: UITextView, context: Context) {
+    func updateUIView(_ tv: DeferredTextView, context: Context) {
         context.coordinator.parent = self
         if tv.text != text {
             tv.text = text
@@ -179,35 +217,26 @@ private struct PlainTextEditor: UIViewRepresentable {
 
     class Coordinator: NSObject, UITextViewDelegate {
         var parent: PlainTextEditor
-        /// Guard so the inputView swap happens only once per focus session.
-        private var keyboardSwapped = false
         var hasHighlights = false
         private var savedSelectedRange: NSRange = NSRange(location: NSNotFound, length: 0)
 
         init(_ parent: PlainTextEditor) { self.parent = parent }
 
         func textViewDidBeginEditing(_ textView: UITextView) {
-            // textViewDidBeginEditing is called SYNCHRONOUSLY inside
-            // becomeFirstResponder(), which runs inside the gesture pipeline.
-            // We MUST defer with async so that reloadInputViews() (which
-            // triggers real-keyboard XPC init and may block ~1-3 s) runs on
-            // the NEXT run-loop cycle — after the gesture pipeline has already
-            // returned — so "System gesture gate timed out" never fires.
-            if !keyboardSwapped {
-                keyboardSwapped = true
-                DispatchQueue.main.async { [weak textView] in
-                    guard let textView = textView else { return }
-                    textView.inputView = nil      // restore system keyboard
-                    textView.reloadInputViews()   // triggers keyboard XPC init
-                }
+            // Swap from dummy inputView to real keyboard.
+            // reloadInputViews() is swizzled to run on the next run loop,
+            // so the XPC delay doesn't block the gesture pipeline.
+            if textView.inputView != nil {
+                textView.inputView = nil
+                textView.reloadInputViews()
             }
         }
 
         func textViewDidEndEditing(_ textView: UITextView) {
-            // Reset so next focus session re-arms the swap.
-            keyboardSwapped = false
-            // Restore the fast inputView for the next tap.
-            textView.inputView = UIView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
+            // Restore dummy inputView for next fast focus.
+            if textView.inputView == nil {
+                textView.inputView = UIView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
+            }
         }
 
         func textViewDidChange(_ textView: UITextView) {
@@ -271,13 +300,14 @@ struct ComposeTextView: View {
     @ObservedObject private var aiSettings = AISettings.shared
     @ObservedObject private var profileMgr = ShortcutProfileManager.shared
 
-    private let store = SavedTextStore.shared
+    @ObservedObject private var store: SavedTextStore = SavedTextStore.shared
 
     @State private var text: String = ""
     @State private var sending = false
     @State private var undoSnapshot: String = ""
     @State private var undoClearEligible = false
     @State private var fixedRowsLocalFnLocked = false
+    @State private var cachedText: String = UserDefaults.standard.string(forKey: "compose_cached_text") ?? ""
 
     @State private var keyboardHeight: CGFloat = 0
     @State private var warningInfo: ComposeSendGate.WarningInfo?
@@ -412,6 +442,12 @@ struct ComposeTextView: View {
                                     undoClearEligible = false
                                     undoSnapshot = ""
                                 }
+                                // Cache text for recovery when navigating away
+                                UserDefaults.standard.set(newValue, forKey: "compose_cached_text")
+                                // Reset highlight when user enters new text
+                                if highlightNonAscii {
+                                    highlightNonAscii = false
+                                }
                             }
                     }
                     .padding(12)
@@ -420,6 +456,7 @@ struct ComposeTextView: View {
                     HStack(spacing: 8) {
                         actionBtn(icon: "xmark", color: !text.isEmpty ? .red : .secondary, enabled: !text.isEmpty) {
                             undoSnapshot = ""; undoClearEligible = false; text = ""
+                            UserDefaults.standard.removeObject(forKey: "compose_cached_text")
                         }
                         actionBtn(icon: "arrow.uturn.backward", color: undoClearEligible && !undoSnapshot.isEmpty ? .orange : .secondary, enabled: undoClearEligible && !undoSnapshot.isEmpty) {
                             text = undoSnapshot; undoSnapshot = ""; undoClearEligible = false
@@ -441,7 +478,11 @@ struct ComposeTextView: View {
                         }
                         .disabled(btnDisabled)
                         .onReceive(keyboardManager.$isSending) { newVal in
-                            if !newVal && sending { sending = false; text = "" }
+                            if !newVal && sending {
+                                sending = false
+                                text = ""
+                                UserDefaults.standard.removeObject(forKey: "compose_cached_text")
+                            }
                         }
                     }
                     .padding(.horizontal, 12)
@@ -476,6 +517,10 @@ struct ComposeTextView: View {
             }
         }
         .onAppear {
+            // Restore cached text if the editor is empty
+            if text.isEmpty && !cachedText.isEmpty {
+                text = cachedText
+            }
             NotificationCenter.default.addObserver(forName: UIResponder.keyboardWillShowNotification, object: nil, queue: .main) { n in
                 if let kf = n.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
                     withAnimation(.easeOut(duration: 0.3)) {
@@ -490,6 +535,10 @@ struct ComposeTextView: View {
             }
         }
         .onDisappear {
+            // Ensure text is cached before leaving
+            if !text.isEmpty {
+                UserDefaults.standard.set(text, forKey: "compose_cached_text")
+            }
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardWillShowNotification, object: nil)
             NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardWillHideNotification, object: nil)
@@ -598,6 +647,7 @@ struct ComposeTextView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Button("Close") { showAsciiPreview = false } } }
             }
+            .id(pendingSendText)
         )
     }
 
@@ -617,7 +667,11 @@ struct ComposeTextView: View {
                     } onRename: { item in
                         renameTarget = item
                         renameText = item.title
-                    } onPin: { store.pinToTop($0) }
+                    } onPin: { id in
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            store.pinToTop(id)
+                        }
+                    }
                 }
             }
             .listStyle(.plain)
@@ -660,6 +714,7 @@ struct ComposeTextView: View {
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Button("Close") { showLibraryPreview = false } } }
                 }
+                .id(libraryPreviewText)
             }
             .alert("Rename", isPresented: .constant(renameTarget != nil)) {
                 TextField("Title", text: $renameText)
@@ -681,6 +736,7 @@ struct ComposeTextView: View {
 
     private func loadItem(_ item: SavedTextItem) {
         text = item.text
+        UserDefaults.standard.set(item.text, forKey: "compose_cached_text")
         showLibrarySheet = false
     }
 
