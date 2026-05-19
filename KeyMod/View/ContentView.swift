@@ -23,6 +23,7 @@ struct ContentView: View {
     @State private var sidebarVisible = false
     @State private var showSettings = false
     @State private var showSetupSheet = false
+    @State private var showProSetupSheet = false
     @State private var selectedGamepadLayout: GamepadLayout = .xbox
     @State private var isGamepadEditMode = false
     @State private var basicSubmode: BasicKeyboardMouseView.Submode = .keyboard
@@ -277,6 +278,10 @@ struct ContentView: View {
             if viewManager.currentView == .keyboardMouseBasic {
                 kmBasicSetupButton
             }
+            // Show KM Pro setup button between targetOS and BLE
+            if viewManager.currentView == .keyboardMousePro {
+                kmProSetupButton
+            }
             bleButton
         }
         .onAppear {
@@ -308,6 +313,37 @@ struct ContentView: View {
                     }
                 }
                 .frame(minWidth: 320, idealWidth: 380, minHeight: 450)
+            }
+            Text("Setup")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+    }
+
+    private var kmProSetupButton: some View {
+        VStack(spacing: 2) {
+            Button(action: { showProSetupSheet = true }) {
+                Image(systemName: "gearshape")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 20, height: 20)
+                    .foregroundColor(.gray)
+            }
+            .frame(width: 34, height: 34)
+            .popover(isPresented: $showProSetupSheet, arrowEdge: .top) {
+                NavigationView {
+                    Form {
+                        KmProSettingsView()
+                    }
+                    .navigationTitle("Pro Setup")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("Done") { showProSetupSheet = false }
+                        }
+                    }
+                }
+                .frame(minWidth: 320, idealWidth: 380, minHeight: 500)
             }
             Text("Setup")
                 .font(.caption2)

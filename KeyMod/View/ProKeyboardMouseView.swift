@@ -90,8 +90,14 @@ struct ProKeyboardMouseView: View {
     @State private var keyPressInProgress = false
     @State private var longPressTimer: Timer?
     @State private var currentlyPressedKey: String?
+    /// True when the alternates popup became visible during the current finger-down.
+    /// Used to suppress the original key on release and only send the selected alternate.
+    @State private var alternatesShownThisPress = false
 
-    @State private var keyRepeatController = KeyRepeatController()
+    // MARK: - Pro key repeat (deferred — never holds key-down to avoid host OS auto-repeat)
+    @State private var proRepeatKey: String? = nil
+    @State private var proRepeatStarter: Timer? = nil
+    @State private var proRepeatTimer: Timer? = nil
 
     @State private var fixedRowsLocalFnLocked = false
 
@@ -682,15 +688,25 @@ struct ProKeyboardMouseView: View {
             .frame(maxWidth: .infinity, alignment: .leading).overlay(cornerHint(for: kd), alignment: .topTrailing)
             .contentShape(Rectangle()).background(bg)
         if isModifier {
-            return AnyView(KeyPressButton(
-                onPress: { HapticFeedbackManager.shared.triggerButtonPress(); keyboardManager.handleKeyDown(kd.label) },
-                onRelease: { keyboardManager.handleKeyUp(kd.label) }
-            ) { _ in content })
+            return AnyView(ProModifierKey(kd: kd, keyboardManager: keyboardManager, displayText: displayText, content: AnyView(content), height: h))
         } else {
+            let ek = keyboardManager.resolveFnKey(kd.keyCode) ?? kd.keyCode
+            let isRepeatable = KeyRepeatController.repeatableKeys.contains(kd.label)
             return AnyView(content
                 .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .named("proKMView"))
                     .onChanged { v in
-                        if !keyPressInProgress { keyPressInProgress = true; currentlyPressedKey = kd.label; handleKeyPress(kd) }
+                        if !keyPressInProgress {
+                            keyPressInProgress = true
+                            currentlyPressedKey = kd.label
+                            HapticFeedbackManager.shared.triggerButtonPress()
+                            if isRepeatable {
+                                // Start deferred repeat — waits 400ms then sends key-down/up pairs.
+                                // Does NOT send key-down immediately, so host OS won't auto-repeat.
+                                proRepeatStart(for: ek)
+                            }
+                            // For non-repeatable keys: do NOT send key-down yet.
+                            // The key will be sent on finger lift in onEnded.
+                        }
                         currentDragLocation = v.location
                         if alternatesPopup != nil, let start = alternatesGestureStart {
                             let dx = v.location.x - start.x, dy = v.location.y - start.y
@@ -700,13 +716,45 @@ struct ProKeyboardMouseView: View {
                             alternatesPick = raw == AlternatePopupGeometry.resultDefault ? .defaultSlot : raw == AlternatePopupGeometry.resultCancel ? .cancel : .slot(raw)
                         }
                         if keyboardManager.shouldShowAlternates(for: kd.label), longPressTimer == nil {
-                            longPressTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { _ in showAlternatesPopup(for: kd) }
+                            longPressTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { _ in
+                                DispatchQueue.main.async {
+                                    // For repeatable keys: stop the deferred repeat cycle
+                                    if isRepeatable {
+                                        proRepeatStop()
+                                    }
+                                    self.showAlternatesPopup(for: kd)
+                                }
+                            }
                         }
                     }
                     .onEnded { _ in
-                        longPressTimer?.invalidate(); longPressTimer = nil; keyPressInProgress = false; currentlyPressedKey = nil
-                        if let popup = alternatesPopup { commitAlternate(from: popup); dismissAlternatesPopup() }
-                        handleKeyRelease()
+                        longPressTimer?.invalidate(); longPressTimer = nil
+                        keyPressInProgress = false
+                        currentlyPressedKey = nil
+
+                        if alternatesShownThisPress {
+                            // Popup was shown — commit the selected alternate character
+                            if let popup = alternatesPopup {
+                                // Stop any remaining repeat, then commit alternate
+                                proRepeatStop()
+                                commitAlternate(from: popup)
+                            } else {
+                                dismissAlternatesPopup()
+                            }
+                        } else {
+                            // Short tap — popup never appeared
+                            dismissAlternatesPopup()
+                            if isRepeatable {
+                                // Stop repeat and send one final key tap.
+                                // If repeat had already started, this stops it cleanly.
+                                // If finger lifted before repeat delay, sends one tap.
+                                proRepeatStopAndFinalize(for: ek)
+                            } else {
+                                // Non-repeatable key: send full press+release cycle on finger lift
+                                handleKeyDownFor(kd)
+                                handleKeyUpFor(kd)
+                            }
+                        }
                     }
                 ))
         }
@@ -717,10 +765,19 @@ struct ProKeyboardMouseView: View {
         if case .slot(let s) = alternatesPick { option = popup.options.first(where: { $0.slot == s }) }
         else if case .defaultSlot = alternatesPick { option = popup.options.first(where: { $0.slot == AlternatePopupGeometry.slotCenter }) }
         else { option = nil }
+
+        // Safety net: release original key (already released when popup appeared, but handles edge cases)
+        handleKeyUpFor(popup.keyDef)
+        dismissAlternatesPopup()
+
         guard let opt = option else { return }
         HapticFeedbackManager.shared.triggerButtonPress()
-        if opt.requiresShift { keyboardManager.handleKeyCombo(modifiers: ["Shift"], key: opt.keyCode) }
-        else { keyboardManager.handleKeyPress(opt.keyCode) }
+        // Send the alternate with a full press+release cycle
+        if opt.requiresShift {
+            keyboardManager.handleKeyCombo(modifiers: ["Shift"], key: opt.keyCode)
+        } else {
+            keyboardManager.handleKeyPress(opt.keyCode)
+        }
     }
 
     @ViewBuilder
@@ -760,18 +817,81 @@ struct ProKeyboardMouseView: View {
         return Text(t).font(.system(size: aiSettings.targetOS == .linux ? 11 : 12))
     }
 
-    private func handleKeyPress(_ kd: KeyboardManager.KeyDef) {
-        HapticFeedbackManager.shared.triggerButtonPress()
+    // MARK: - Pro Key Repeat (deferred — never holds key-down)
+
+    /// Start deferred key repeat. Waits 400ms, then sends key-down/up pairs every 80ms.
+    /// The key is NOT sent on initial touch, so the host OS won't start its own auto-repeat.
+    private func proRepeatStart(for key: String) {
+        proRepeatStop()
+        proRepeatKey = key
+        proRepeatStarter = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { [self] _ in
+            guard let k = proRepeatKey else { return }
+            proRepeatStarter = nil
+            // First key tap
+            keyboardManager.handleKeyPress(k)
+            // Start bouncing every 80ms
+            proRepeatTimer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { [self] _ in
+                guard let k = proRepeatKey else { return }
+                keyboardManager.handleKeyPress(k)
+            }
+        }
+    }
+
+    /// Stop deferred repeat. Does NOT send any key — caller decides what to commit.
+    /// Returns true if a repeat was active.
+    @discardableResult
+    private func proRepeatStop() -> Bool {
+        let wasActive = proRepeatKey != nil
+        proRepeatStarter?.invalidate(); proRepeatStarter = nil
+        proRepeatTimer?.invalidate(); proRepeatTimer = nil
+        proRepeatKey = nil
+        return wasActive
+    }
+
+    /// Stop repeat and send one final key tap.
+    /// If the repeat had already started (starter timer fired), just stops — keys already sent.
+    /// If finger lifted before the 400ms delay, sends a single key tap.
+    private func proRepeatStopAndFinalize(for key: String) {
+        if proRepeatStop() {
+            // Repeat was active — already sent key taps. Nothing more to do.
+        } else {
+            // Finger lifted before repeat delay — send one key tap
+            keyboardManager.handleKeyPress(key)
+        }
+    }
+
+    /// Send key-down for a non-modifier key. For repeatable keys (arrows, backspace),
+    /// starts a proper key-repeat cycle (up-down bounce). For non-repeatable keys,
+    /// just sends a key-down.
+    private func handleKeyDownFor(_ kd: KeyboardManager.KeyDef) {
         switch kd.label {
         case "Fn": keyboardManager.isFnLocked.toggle()
         case "ABC", "12/34": keyboardManager.isSymbolMode.toggle()
         case "!?#": keyboardManager.isSymbolMode = true
-        case "Ctrl","Alt","Cmd","Win","Shift": keyboardManager.handleSpecialKey(kd.label)
         default:
             let ek = keyboardManager.resolveFnKey(kd.keyCode) ?? kd.keyCode
-            keyboardManager.handleSpecialKey(ek)
-            if KeyRepeatController.repeatableKeys.contains(ek) { keyRepeatController.startRepeating { keyboardManager.handleSpecialKey(ek) } }
-            else { keyRepeatController.stopRepeating() }
+            if KeyRepeatController.repeatableKeys.contains(ek) {
+                // Proper key repeat: sends key-down, then up-down bounces after initial delay
+                keyboardManager.startKeyRepeat(ek)
+            } else {
+                keyboardManager.handleKeyDown(ek)
+            }
+        }
+    }
+
+    /// Send key-up for a non-modifier key. For repeatable keys, stops the
+    /// key-repeat cycle (which internally sends a final key-up).
+    private func handleKeyUpFor(_ kd: KeyboardManager.KeyDef) {
+        switch kd.label {
+        case "Fn", "ABC", "12/34", "!?#":
+            break // Toggle-only keys — no key-up needed
+        default:
+            let ek = keyboardManager.resolveFnKey(kd.keyCode) ?? kd.keyCode
+            if KeyRepeatController.repeatableKeys.contains(ek) {
+                keyboardManager.stopKeyRepeat()
+            } else {
+                keyboardManager.handleKeyUp(ek)
+            }
         }
     }
 
@@ -785,12 +905,10 @@ struct ProKeyboardMouseView: View {
                 .padding(.trailing, 6).padding(.top, 2).allowsHitTesting(false) }
     }
 
-    // MARK: - Key Action Handler
-    private func handleKeyRelease() { keyRepeatController.stopRepeating() }
-
     // MARK: - Alternates Popup
 
     private func showAlternatesPopup(for kd: KeyboardManager.KeyDef) {
+        alternatesShownThisPress = true
         guard keyboardManager.shouldShowAlternates(for: kd.label) else { return }
         var slotMap: [Int: AlternateOption] = [:], seen: Set<String> = []
         func addOpt(_ slot: Int, _ alt: String) {
@@ -863,5 +981,23 @@ struct ProKeyboardMouseView: View {
                 .background(Color(UIColor.secondarySystemBackground)).cornerRadius(6)
         }.padding(8)
     }
+}
 
+/// Modifier key wrapper for Pro mode — uses ModifierKeyButton with lock/sticky support,
+/// matching BasicKeyboardMouseView's modifier behavior.
+private struct ProModifierKey: View {
+    let kd: KeyboardManager.KeyDef
+    let keyboardManager: KeyboardManager
+    let displayText: String
+    let content: AnyView
+    let height: CGFloat
+
+    var body: some View {
+        ModifierKeyButton(key: kd.label, keyboardManager: keyboardManager, keyPreview: displayText) { physical, locked in
+            content
+                .background(locked ? Color.blue : (physical ? Color.blue.opacity(0.7) : Color(UIColor.secondarySystemBackground)))
+                .foregroundColor(locked || physical ? .white : .primary)
+        }
+        .frame(height: height)
+    }
 }
