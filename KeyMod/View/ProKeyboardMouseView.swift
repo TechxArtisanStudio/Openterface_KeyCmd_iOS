@@ -215,11 +215,13 @@ struct ProKeyboardMouseView: View {
         let kbdTog = keyboardToggleEntry
 
         // Page 0 — F-keys / number-symbol
+        let p0Fkeys = [("F1","1"),("F2","2"),("F3","3"),("F4","4"),("F5","5"),("F6","6")]
+            .map { Self.keyEntry(km, label: $0.0, icon: "", badge: $0.1) }
+        let p0FnKeys = [("F7","7"),("F8","8"),("F9","9"),("F10","0"),("F11","+"),("F12","-")]
+            .map { Self.keyEntry(km, label: $0.0, icon: "", badge: $0.1) }
         let p0 = FixedRowsPage(
-            row1: lock ? ["7","8","9","0","+","-","*"].map { te($0) }
-                       : ["F7","F8","F9","F10","F11","F12"].map { ke($0) } + [te("#")],
-            row2: lock ? ["1","2","3","4","5","6"].map { te($0) } + [tog]
-                       : ["F1","F2","F3","F4","F5","F6"].map { ke($0) } + [tog]
+            row1: lock ? ["7","8","9","0","+","-","*"].map { te($0) } : p0FnKeys + [Self.textEntry(km, label: "#", badge: "*")],
+            row2: lock ? ["1","2","3","4","5","6"].map { te($0) } + [tog] : p0Fkeys + [tog]
         )
 
         // Page 1 — Modifiers + Navigation
@@ -240,9 +242,17 @@ struct ProKeyboardMouseView: View {
         )
 
         // Page 2 — Punctuation
+        let p2Row1: [(String, String)] = [
+            ("(","`"),(")","~"),("[","'"),("]","\""),(":",":"),("#","#"),("@","@"),
+        ]
+        let p2Row2: [(String, String)] = [
+            ("/","<"),("\\",">"),("|","*"),("?","&"),("-","/"),("_","."),
+        ]
         let p2 = FixedRowsPage(
-            row1: (lock ? ["`","~","'","\"","%","^","|"] : ["(",")","[","]",":","#","@"]).map { te($0) },
-            row2: (lock ? ["<",">","*","&",",","."] : ["/","\\","|","?","-","_"]).map { te($0) } + [tog]
+            row1: lock ? ["`","~","'","\"","%","^","|"].map { te($0) }
+                       : p2Row1.map { Self.textEntry(km, label: $0.0, badge: $0.1) },
+            row2: lock ? ["<",">","*","&",",","."].map { te($0) } + [tog]
+                       : p2Row2.map { Self.textEntry(km, label: $0.0, badge: $0.1) } + [tog]
         )
 
         return [p0, lock ? p1Locked : p1Unlocked, p2]
@@ -254,12 +264,16 @@ struct ProKeyboardMouseView: View {
         let k = key ?? label
         return ShortcutEntry(label: label, icon: icon, isActive: km.activeModifiers.contains(k)) { km.handleModifierToggle(k) }
     }
-    private static func keyEntry(_ km: KeyboardManager, label: String, icon: String, key: String? = nil) -> ShortcutEntry {
+    private static func keyEntry(_ km: KeyboardManager, label: String, icon: String, key: String? = nil, badge: String? = nil) -> ShortcutEntry {
         let k = key ?? label
-        return ShortcutEntry(label: label, icon: icon.isEmpty ? nil : icon) { km.handleKeyPress(k) }
+        var entry = ShortcutEntry(label: label, icon: icon.isEmpty ? nil : icon) { km.handleKeyPress(k) }
+        entry.badge = badge
+        return entry
     }
-    private static func textEntry(_ km: KeyboardManager, label: String) -> ShortcutEntry {
-        return ShortcutEntry(label: label, icon: nil) { km.handleTextInput(label) }
+    private static func textEntry(_ km: KeyboardManager, label: String, badge: String? = nil) -> ShortcutEntry {
+        var entry = ShortcutEntry(label: label, icon: nil) { km.handleTextInput(label) }
+        entry.badge = badge
+        return entry
     }
 
     // MARK: - Touchpad helper
@@ -494,11 +508,11 @@ struct ProKeyboardMouseView: View {
     private func sideEntries(from entries: [ShortcutEntry], side: SplitSide) -> [ShortcutEntry] {
         side == .left ? Array(entries.prefix(3)) : Array(entries.dropFirst(3).prefix(4))
     }
-    private func shortcutSlotRow(entries: [ShortcutEntry], maxSlots: Int) -> some View {
+    private func shortcutSlotRow(entries: [ShortcutEntry], maxSlots: Int, background: Color = Color(UIColor.tertiarySystemBackground)) -> some View {
         HStack(spacing: 2) {
             ForEach(0..<maxSlots, id: \.self) { i in
-                if i < entries.count { ShortcutButton(entry: entries[i], background: Color(UIColor.tertiarySystemBackground)) }
-                else { ShortcutButton(entry: ShortcutEntry(label: "", icon: nil) {}, background: Color(UIColor.tertiarySystemBackground)).disabled(true).opacity(0.3) }
+                if i < entries.count { ShortcutButton(entry: entries[i], background: background) }
+                else { ShortcutButton(entry: ShortcutEntry(label: "", icon: nil) {}, background: background).disabled(true).opacity(0.3) }
             }
         }
     }
@@ -507,7 +521,7 @@ struct ProKeyboardMouseView: View {
         let ms = side == .left ? 3 : 4
         return SplitPagingView(pageCount: shortcutPages.count, currentPage: pageIndex, isDragging: splitShortcutTopIsDragging, dragOffset: splitShortcutTopDragOffset, onPageChanged: { splitShortcutTopCurrentPage = $0 }, onDraggingChanged: { splitShortcutTopIsDragging = $0 }, onDragOffsetChanged: { splitShortcutTopDragOffset = $0 }) { idx in
             let page = shortcutPages.indices.contains(idx) ? shortcutPages[idx] : ShortcutPage(title: "", entries: [])
-            shortcutSlotRow(entries: sideEntries(from: page.entries, side: side), maxSlots: ms)
+            shortcutSlotRow(entries: sideEntries(from: page.entries, side: side), maxSlots: ms, background: Color.orange.opacity(0.18))
         }.frame(width: width)
     }
     private func splitBottomSidePanel(pageIndex: Int, side: SplitSide, width: CGFloat) -> some View {

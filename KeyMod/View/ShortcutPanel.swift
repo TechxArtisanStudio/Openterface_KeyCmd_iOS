@@ -46,7 +46,7 @@ struct ShortcutButton: View {
 
     var body: some View {
         Button(action: entry.action) {
-            ZStack(alignment: .bottomTrailing) {
+            ZStack(alignment: .topTrailing) {
                 VStack(spacing: 1) {
                     if let icon = entry.icon {
                         Image(systemName: icon)
@@ -65,13 +65,10 @@ struct ShortcutButton: View {
 
                 if let badge = entry.badge {
                     Text(badge)
-                        .font(.system(size: 7, weight: .bold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 2)
-                        .padding(.vertical, 1)
-                        .background(Color.orange)
-                        .cornerRadius(2)
-                        .offset(x: 2, y: 2)
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.secondary)
+                        .padding(1)
+                        .offset(x: 2, y: -1)
                 }
             }
         }

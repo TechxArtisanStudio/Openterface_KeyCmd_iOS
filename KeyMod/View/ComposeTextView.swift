@@ -371,11 +371,15 @@ struct ComposeTextView: View {
         let tog = fixedRowsToggleEntry
 
         // Page 0 — F-keys / number-symbol
+        let p0Fkeys: [ShortcutEntry] = [
+            ("F1","1"),("F2","2"),("F3","3"),("F4","4"),("F5","5"),("F6","6"),
+        ].map { Self.keyEntry(km, label: $0.0, icon: "", badge: $0.1) }
+        let p0FnKeys: [ShortcutEntry] = [
+            ("F7","7"),("F8","8"),("F9","9"),("F10","0"),("F11","+"),("F12","-"),
+        ].map { Self.keyEntry(km, label: $0.0, icon: "", badge: $0.1) }
         let p0 = FixedRowsPage(
-            row1: lock ? ["7","8","9","0","+","-","*"].map { te($0) }
-                       : ["F7","F8","F9","F10","F11","F12"].map { ke($0) } + [te("#")],
-            row2: lock ? ["1","2","3","4","5","6"].map { te($0) } + [tog]
-                       : ["F1","F2","F3","F4","F5","F6"].map { ke($0) } + [tog]
+            row1: lock ? ["7","8","9","0","+","-","*"].map { te($0) } : p0FnKeys + [te("#")],
+            row2: lock ? ["1","2","3","4","5","6"].map { te($0) } + [tog] : p0Fkeys + [tog]
         )
 
         // Page 1 — Modifiers + Navigation
@@ -397,9 +401,19 @@ struct ComposeTextView: View {
         )
 
         // Page 2 — Punctuation
+        // unlock row1: ( ) [ ] : # @  → badge shows lock mode: ` ~ ' " % ^ |
+        // unlock row2: / \ | ? - _     → badge shows lock mode: < > * & , .
+        let p2Row1: [(String, String)] = [
+            ("(","`"),(")","~"),("[","'"),("]","\""),(":",":"),("#","#"),("@","@"),
+        ]
+        let p2Row2: [(String, String)] = [
+            ("/","<"),("\\",">"),("|","*"),("?","&"),("-","/"),("_","."),
+        ]
         let p2 = FixedRowsPage(
-            row1: (lock ? ["`","~","'","\"","%","^","|"] : ["(",")","[","]",":","#","@"]).map { te($0) },
-            row2: (lock ? ["<",">","*","&",",","."] : ["/","\\","|","?","-","_"]).map { te($0) } + [tog]
+            row1: lock ? ["`","~","'","\"","%","^","|"].map { te($0) }
+                       : p2Row1.map { Self.textEntryWithBadge(km, label: $0.0, badge: $0.1) },
+            row2: lock ? ["<",">","*","&",",","."].map { te($0) } + [tog]
+                       : p2Row2.map { Self.textEntryWithBadge(km, label: $0.0, badge: $0.1) } + [tog]
         )
 
         return [p0, lock ? p1Locked : p1Unlocked, p2]
@@ -415,12 +429,19 @@ struct ComposeTextView: View {
         let k = key ?? label
         return ShortcutEntry(label: label, icon: icon, isActive: km.activeModifiers.contains(k)) { km.handleModifierToggle(k) }
     }
-    private static func keyEntry(_ km: KeyboardManager, label: String, icon: String, key: String? = nil) -> ShortcutEntry {
+    private static func keyEntry(_ km: KeyboardManager, label: String, icon: String, key: String? = nil, badge: String? = nil) -> ShortcutEntry {
         let k = key ?? label
-        return ShortcutEntry(label: label, icon: icon.isEmpty ? nil : icon) { km.handleKeyPress(k) }
+        var entry = ShortcutEntry(label: label, icon: icon.isEmpty ? nil : icon) { km.handleKeyPress(k) }
+        entry.badge = badge
+        return entry
     }
     private static func textEntry(_ km: KeyboardManager, label: String) -> ShortcutEntry {
         ShortcutEntry(label: label, icon: nil) { km.handleTextInput(label) }
+    }
+    private static func textEntryWithBadge(_ km: KeyboardManager, label: String, badge: String?) -> ShortcutEntry {
+        var entry = Self.textEntry(km, label: label)
+        entry.badge = badge
+        return entry
     }
 
     // MARK: - Body
