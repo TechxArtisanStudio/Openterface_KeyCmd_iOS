@@ -325,7 +325,7 @@ struct ComposeTextView: View {
     @State private var libraryPreviewText = ""
     @State private var showLibrarySheet = false
 
-    // MARK: - Shortcut data (mirrors ProKeyboardMouseView)
+    // MARK: - Shortcut strip data
 
     private var shortcutPages: [ShortcutPage] {
         let pm = aiSettings.targetOS == .macOS ? "Cmd" : "Ctrl"
@@ -336,6 +336,8 @@ struct ComposeTextView: View {
         let name = profileMgr.activeProfile?.name ?? ""
         return chunks.enumerated().map { (i, c) in ShortcutPage(title: c.count > 1 ? "\(name) \(i + 1)/\(c.count)" : name, entries: c) }
     }
+
+    // MARK: - Fixed rows pages
 
     private func profileEntries() -> [ShortcutEntry] {
         guard let active = profileMgr.activeProfile else { return [] }
@@ -384,9 +386,14 @@ struct ComposeTextView: View {
             : isWindows ? [("Ctrl", "CTRL", ""), ("Alt", "ALT", ""), ("Cmd", "WIN", "")]
                         : [("Ctrl", "CTRL", ""), ("Alt", "ALT", ""), ("Cmd", "SUP", "")]
         let modEntries = modCfg.map { cfg in ShortcutEntry(label: cfg.1, icon: cfg.2.isEmpty ? nil : cfg.2, isActive: keyboardManager.activeModifiers.contains(cfg.0)) { km.handleModifierToggle(cfg.0) } }
-        let p1 = FixedRowsPage(
-            row1: modEntries + [keKey("TAB", "Tab"), keKey("UP", "Up"), keKey("ENTER", "Enter")],
-            row2: [keKey("ESC", "Escape"), Self.modifierEntry(km, label: "SHIFT", icon: "shift", key: "Shift"), keKey("DEL", "Delete"), keKey("LEFT", "Left"), keKey("DOWN", "Down"), keKey("RIGHT", "Right")]
+        let imeIndicator = ShortcutEntry(label: "IME", icon: nil, isActive: true) {}
+        let p1Locked = FixedRowsPage(
+            row1: [keKey("SCR","Scroll Lock"),keKey("PRT","PrtSc"),keKey("CAPS","Caps"),keKey("PAUSE","Pause"),keKey("HOME","Home"),keKey("PGUP","PgUp"),imeIndicator],
+            row2: [keKey("SPACE","Space"),keKey("BKSP","Backspace"),keKey("DEL","Delete"),keKey("INS","Insert"),keKey("END","End"),keKey("PGDN","PgDn"),tog]
+        )
+        let p1Unlocked = FixedRowsPage(
+            row1: modEntries + [keKey("TAB","Tab"),keKey("UP","Up"),keKey("ENTER","Enter"),imeIndicator],
+            row2: [keKey("ESC","Escape"),Self.modifierEntry(km,label:"SHIFT",icon:"shift",key:"Shift"),keKey("DEL","Delete"),keKey("LEFT","Left"),keKey("DOWN","Down"),keKey("RIGHT","Right"),tog]
         )
 
         // Page 2 — Punctuation
@@ -395,7 +402,7 @@ struct ComposeTextView: View {
             row2: (lock ? ["<",">","*","&",",","."] : ["/","\\","|","?","-","_"]).map { te($0) } + [tog]
         )
 
-        return [p0, p1, p2]
+        return [p0, lock ? p1Locked : p1Unlocked, p2]
     }
 
     private var fixedRowsToggleEntry: ShortcutEntry {
