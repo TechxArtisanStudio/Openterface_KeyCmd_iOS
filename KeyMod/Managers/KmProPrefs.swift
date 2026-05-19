@@ -85,6 +85,17 @@ class KmProPrefs: ObservableObject {
         }
     }
 
+    /// True when the mode includes the L/M/R mouse button strip (modes 1 and 2).
+    var showsMouseKeyStrip: Bool {
+        touchpadMode == .padAndMouseKeys || touchpadMode == .hybrid
+    }
+
+    /// True when pad tap/click/drag gestures should be enabled (modes 0 and 2).
+    /// Mode 1 (Pad + mouse keys) disables pad click gestures — clicks come from the strip.
+    var padClickDragGesturesEnabled: Bool {
+        touchpadMode != .padAndMouseKeys
+    }
+
     @Published var touchpadMode: TouchpadMode {
         didSet {
             UserDefaults.standard.set(touchpadMode.rawValue, forKey: Self.kTouchpadMode)

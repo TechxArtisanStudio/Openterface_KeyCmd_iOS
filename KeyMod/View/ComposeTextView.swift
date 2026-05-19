@@ -299,7 +299,7 @@ struct ComposeTextView: View {
 
     @ObservedObject private var aiSettings = AISettings.shared
     @ObservedObject private var profileMgr = ShortcutProfileManager.shared
-
+    @ObservedObject private var prefs = KmProPrefs.shared
     @ObservedObject private var store: SavedTextStore = SavedTextStore.shared
 
     @State private var text: String = ""
@@ -453,7 +453,7 @@ struct ComposeTextView: View {
                 VStack(spacing: 0) {
                     ZStack(alignment: .topLeading) {
                         if text.isEmpty {
-                            Text("Type here and tap Send to deliver to the connected device")
+                            Text("Type or paste your text here, edit as needed then tap Send.")
                                 .font(.system(size: 14))
                                 .foregroundColor(.secondary)
                                 .padding(18)
@@ -471,7 +471,9 @@ struct ComposeTextView: View {
                                     undoSnapshot = ""
                                 }
                                 // Cache text for recovery when navigating away
-                                UserDefaults.standard.set(newValue, forKey: "compose_cached_text")
+                                if prefs.composeDraftRetentionEnabled {
+                                    UserDefaults.standard.set(newValue, forKey: "compose_cached_text")
+                                }
                                 // Reset highlight when user enters new text
                                 if highlightNonAscii {
                                     highlightNonAscii = false
@@ -484,7 +486,9 @@ struct ComposeTextView: View {
                     HStack(spacing: 8) {
                         actionBtn(icon: "xmark", color: !text.isEmpty ? .red : .secondary, enabled: !text.isEmpty) {
                             undoSnapshot = ""; undoClearEligible = false; text = ""
-                            UserDefaults.standard.removeObject(forKey: "compose_cached_text")
+                            if prefs.composeDraftRetentionEnabled {
+                                UserDefaults.standard.removeObject(forKey: "compose_cached_text")
+                            }
                         }
                         actionBtn(icon: "arrow.uturn.backward", color: undoClearEligible && !undoSnapshot.isEmpty ? .orange : .secondary, enabled: undoClearEligible && !undoSnapshot.isEmpty) {
                             text = undoSnapshot; undoSnapshot = ""; undoClearEligible = false
@@ -509,7 +513,9 @@ struct ComposeTextView: View {
                             if !newVal && sending {
                                 sending = false
                                 text = ""
-                                UserDefaults.standard.removeObject(forKey: "compose_cached_text")
+                                if prefs.composeDraftRetentionEnabled {
+                                    UserDefaults.standard.removeObject(forKey: "compose_cached_text")
+                                }
                             }
                         }
                     }
@@ -545,8 +551,8 @@ struct ComposeTextView: View {
             }
         }
         .onAppear {
-            // Restore cached text if the editor is empty
-            if text.isEmpty && !cachedText.isEmpty {
+            // Restore cached text if the editor is empty (only when draft retention is enabled)
+            if prefs.composeDraftRetentionEnabled && text.isEmpty && !cachedText.isEmpty {
                 text = cachedText
             }
             NotificationCenter.default.addObserver(forName: UIResponder.keyboardWillShowNotification, object: nil, queue: .main) { n in
@@ -563,8 +569,8 @@ struct ComposeTextView: View {
             }
         }
         .onDisappear {
-            // Ensure text is cached before leaving
-            if !text.isEmpty {
+            // Ensure text is cached before leaving (only when draft retention is enabled)
+            if prefs.composeDraftRetentionEnabled && !text.isEmpty {
                 UserDefaults.standard.set(text, forKey: "compose_cached_text")
             }
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
@@ -764,7 +770,9 @@ struct ComposeTextView: View {
 
     private func loadItem(_ item: SavedTextItem) {
         text = item.text
-        UserDefaults.standard.set(item.text, forKey: "compose_cached_text")
+        if prefs.composeDraftRetentionEnabled {
+            UserDefaults.standard.set(item.text, forKey: "compose_cached_text")
+        }
         showLibrarySheet = false
     }
 

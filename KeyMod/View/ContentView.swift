@@ -333,7 +333,7 @@ struct ContentView: View {
             .popover(isPresented: $showProSetupSheet, arrowEdge: .top) {
                 NavigationView {
                     Form {
-                        KmProSettingsView()
+                        KmProSettingsView(keyboardManager: keyboardManager)
                     }
                     .navigationTitle("Pro Setup")
                     .navigationBarTitleDisplayMode(.inline)

@@ -11,6 +11,8 @@ import SwiftUI
 struct KmProSettingsView: View {
     @ObservedObject private var prefs = KmProPrefs.shared
     @ObservedObject private var basicPrefs = KmBasicKeyboardPrefs.shared
+    @ObservedObject private var profileMgr = ShortcutProfileManager.shared
+    @ObservedObject var keyboardManager: KeyboardManager
 
     var body: some View {
         // MARK: - Display section
@@ -107,6 +109,54 @@ struct KmProSettingsView: View {
                 Text("Sends a real modifier-down to the connected device when long-pressing.")
                     .font(.caption)
                     .foregroundColor(.secondary)
+            }
+        }
+
+        // MARK: - Shortcut Hub profile section
+        Section(header: Text("Shortcut Hub Profile")) {
+            Text("Choose which profile's shortcuts appear on the keyboard strip.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            profilePicker
+        }
+    }
+
+    // MARK: - Profile Picker
+
+    @State private var showProfilePickerSheet = false
+
+    @ViewBuilder
+    private var profilePicker: some View {
+        if let active = profileMgr.activeProfile {
+            Button(action: { showProfilePickerSheet = true }) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(active.name)
+                            .foregroundColor(.primary)
+                        Spacer()
+                        Text("Tap to change")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Text("\(active.categories.count) categories, \(active.categories.reduce(0) { $0 + $1.shortcuts.count }) shortcuts")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.vertical, 4)
+            }
+            .buttonStyle(PlainButtonStyle())
+            .confirmationDialog("Select Profile", isPresented: $showProfilePickerSheet) {
+                ForEach(profileMgr.profilesForPicking, id: \.id) { profile in
+                    Button(profile.name) {
+                        profileMgr.activeProfileId = profile.id
+                    }
+                }
+            } message: {
+                Text("Choose which profile's shortcuts appear on the keyboard strip.")
             }
         }
     }
@@ -231,7 +281,7 @@ struct KmProSettingsView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
             Form {
-                KmProSettingsView()
+                KmProSettingsView(keyboardManager: KeyboardManager(bleManager: BLEManager()))
             }
         }
     }

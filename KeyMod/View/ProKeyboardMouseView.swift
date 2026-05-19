@@ -73,12 +73,24 @@ private struct SplitPagingView<PageContent: View>: View {
     }
 }
 
+/// Button style that flashes blue on press, matching keyboard key tap feedback.
+private struct ProMouseButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .background(configuration.isPressed ? Color.blue.opacity(0.5) : Color(UIColor.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 8))
+            .foregroundColor(configuration.isPressed ? .white : .primary)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
 struct ProKeyboardMouseView: View {
     @ObservedObject var mouseManager: MouseManager
     @ObservedObject var keyboardManager: KeyboardManager
     @ObservedObject var compositeKeyManager: CompositeKeyManager
     @ObservedObject var orientationManager: OrientationManager
     @Binding var proSubmode: ProSubmode
+    @ObservedObject private var prefs = KmProPrefs.shared
 
     @StateObject private var pointerTipState = PointerTipState()
 
@@ -98,6 +110,9 @@ struct ProKeyboardMouseView: View {
     @State private var proRepeatKey: String? = nil
     @State private var proRepeatStarter: Timer? = nil
     @State private var proRepeatTimer: Timer? = nil
+    /// True only after the 400ms starter timer fires and the first key tap is sent.
+    /// Used to distinguish "repeat actually ran" from "repeat was merely scheduled".
+    @State private var proRepeatDidFire = false
 
     @State private var fixedRowsLocalFnLocked = false
 
@@ -287,18 +302,51 @@ struct ProKeyboardMouseView: View {
     private func touchpadOverlay(showLabel: Bool = true) -> some View {
         GeometryReader { geo in
             let stripWidth = max(28, geo.size.width * 0.30)
-            HStack(spacing: 0) {
-                ZStack(alignment: .topTrailing) {
-                    TouchpadView(mouseManager: mouseManager, pointerTipState: pointerTipState)
-                    Button(action: { showTouchpadHelp = true }) {
-                        Image(systemName: "questionmark.circle.fill").font(.system(size: 18, weight: .semibold)).foregroundColor(.secondary)
-                            .padding(8).background(Color(UIColor.secondarySystemBackground).opacity(0.9)).clipShape(Circle())
-                    }.padding(8)
-                    if showLabel { touchpadLabel.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center).allowsHitTesting(false) }
-                }.frame(width: max(0, geo.size.width - stripWidth))
-                BasicTouchpadScrollStripView(mouseManager: mouseManager, labelFontSize: orientationManager.isLandscape ? 10 : 7).frame(width: stripWidth)
+            let showMouseButtons = prefs.showsMouseKeyStrip
+            let padGesturesEnabled = prefs.padClickDragGesturesEnabled
+            VStack(spacing: 0) {
+                HStack(spacing: 0) {
+                    ZStack(alignment: .topTrailing) {
+                        TouchpadView(mouseManager: mouseManager, pointerTipState: pointerTipState, padClickDragGesturesEnabled: padGesturesEnabled)
+                        Button(action: { showTouchpadHelp = true }) {
+                            Image(systemName: "questionmark.circle.fill").font(.system(size: 18, weight: .semibold)).foregroundColor(.secondary)
+                                .padding(8).background(Color(UIColor.secondarySystemBackground).opacity(0.9)).clipShape(Circle())
+                        }.padding(8)
+                        if showLabel { touchpadLabel.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center).allowsHitTesting(false) }
+                    }.frame(width: max(0, geo.size.width - stripWidth))
+                    BasicTouchpadScrollStripView(mouseManager: mouseManager, labelFontSize: orientationManager.isLandscape ? 10 : 7).frame(width: stripWidth)
+                }
+                if showMouseButtons {
+                    proTouchpadMouseButtons
+                }
             }.background(mouseManager.isSelectMode ? Color.blue.opacity(0.3) : Color(UIColor.secondarySystemBackground))
         }
+    }
+
+    /// L/M/R mouse button strip below the touchpad (matching Android include_pro_touchpad_mouse_keys).
+    /// Layout: Left 2/5, Middle 1/5, Right 2/5.
+    private var proTouchpadMouseButtons: some View {
+        HStack(spacing: 8) {
+            proMouseButton(label: "L", action: { mouseManager.handleClick() })
+            proMouseButton(label: "M", action: { mouseManager.handleMiddleClick() })
+                .frame(maxWidth: .infinity, minHeight: 36)
+            proMouseButton(label: "R", action: { mouseManager.handleRightClick() })
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Color(UIColor.secondarySystemBackground))
+    }
+
+    private func proMouseButton(label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(.primary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 36)
+                .background(Color(UIColor.tertiarySystemBackground))
+        }
+        .buttonStyle(ProMouseButtonStyle())
     }
 
     private var touchpadLabel: some View {
@@ -731,6 +779,7 @@ struct ProKeyboardMouseView: View {
                         longPressTimer?.invalidate(); longPressTimer = nil
                         keyPressInProgress = false
                         currentlyPressedKey = nil
+                        defer { alternatesShownThisPress = false }
 
                         if alternatesShownThisPress {
                             // Popup was shown — commit the selected alternate character
@@ -739,6 +788,9 @@ struct ProKeyboardMouseView: View {
                                 proRepeatStop()
                                 commitAlternate(from: popup)
                             } else {
+                                // Popup was already dismissed (e.g. swipe-cancel);
+                                // still need to stop any pending proRepeat timers.
+                                proRepeatStop()
                                 dismissAlternatesPopup()
                             }
                         } else {
@@ -824,9 +876,11 @@ struct ProKeyboardMouseView: View {
     private func proRepeatStart(for key: String) {
         proRepeatStop()
         proRepeatKey = key
+        proRepeatDidFire = false
         proRepeatStarter = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { [self] _ in
             guard let k = proRepeatKey else { return }
             proRepeatStarter = nil
+            proRepeatDidFire = true  // mark that at least one key tap has been sent
             // First key tap
             keyboardManager.handleKeyPress(k)
             // Start bouncing every 80ms
@@ -838,22 +892,23 @@ struct ProKeyboardMouseView: View {
     }
 
     /// Stop deferred repeat. Does NOT send any key — caller decides what to commit.
-    /// Returns true if a repeat was active.
+    /// Returns true only if the repeat actually fired (i.e. ≥1 key tap was sent).
     @discardableResult
     private func proRepeatStop() -> Bool {
-        let wasActive = proRepeatKey != nil
+        let didFire = proRepeatDidFire
         proRepeatStarter?.invalidate(); proRepeatStarter = nil
         proRepeatTimer?.invalidate(); proRepeatTimer = nil
         proRepeatKey = nil
-        return wasActive
+        proRepeatDidFire = false
+        return didFire
     }
 
     /// Stop repeat and send one final key tap.
-    /// If the repeat had already started (starter timer fired), just stops — keys already sent.
+    /// If the repeat already fired (starter timer ran), just stops — keys already sent.
     /// If finger lifted before the 400ms delay, sends a single key tap.
     private func proRepeatStopAndFinalize(for key: String) {
         if proRepeatStop() {
-            // Repeat was active — already sent key taps. Nothing more to do.
+            // Repeat fired — already sent key taps. Nothing more to do.
         } else {
             // Finger lifted before repeat delay — send one key tap
             keyboardManager.handleKeyPress(key)
