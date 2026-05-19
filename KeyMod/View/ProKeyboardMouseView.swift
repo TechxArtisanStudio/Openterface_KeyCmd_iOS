@@ -363,10 +363,20 @@ struct ProKeyboardMouseView: View {
                         if let kf = n.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect { keyboardHeight = kf.height }
                     }
                     NotificationCenter.default.addObserver(forName: UIResponder.keyboardWillHideNotification, object: nil, queue: .main) { _ in keyboardHeight = 0 }
+                    // Compose and Numpad are portrait-only — force rotation on appear
+                    if proSubmode != .keyboard {
+                        orientationManager.lockToPortrait()
+                    }
                 }
                 .onDisappear {
                     NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardWillShowNotification, object: nil)
                     NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardWillHideNotification, object: nil)
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
+                    // Compose and Numpad are portrait-only — re-force if device rotated
+                    if proSubmode != .keyboard {
+                        orientationManager.lockToPortrait()
+                    }
                 }
         }
     }

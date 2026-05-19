@@ -662,19 +662,45 @@ struct ContentView: View {
                     }
                 }
                 // Initial setup if app launches directly into Gamepad view
+                // Initial orientation based on view and submode
                 if viewManager.currentView == .gamepad {
                     // Just lock to landscape, don't force rotation on startup
                     orientationManager.lockToLandscape()
                     // Set initial game mode if starting with gamepad view
                     keyboardManager.switchToGameMode()
                 } else {
-                    orientationManager.unlockOrientation()
+                    let submode = ProKeyboardMouseView.ProSubmode(rawValue: proSubmodeRaw) ?? .keyboard
+                    switch submode {
+                    case .compose, .numpad:
+                        orientationManager.lockToPortrait()
+                    case .keyboard:
+                        orientationManager.unlockOrientation()
+                    }
                     // Set initial normal mode for other views
                     keyboardManager.switchToNormalMode()
                 }
             }
+            .onChange(of: proSubmodeRaw) { newValue in
+                let submode = ProKeyboardMouseView.ProSubmode(rawValue: newValue) ?? .keyboard
+                switch submode {
+                case .compose, .numpad:
+                    // Compose and Numpad are portrait-only — force rotation
+                    orientationManager.lockToPortrait()
+                case .keyboard:
+                    // Restore the physical orientation that was saved before forcing portrait
+                    orientationManager.restoreOrientation()
+                }
+            }
             .onChange(of: orientationManager.isLandscape) { isLandscape in
-                // No longer force orientation repeatedly to avoid flashing
+                // If in compose/numpad and device rotated to landscape, force back to portrait
+                if isLandscape {
+                    let submode = ProKeyboardMouseView.ProSubmode(rawValue: proSubmodeRaw) ?? .keyboard
+                    if submode == .compose || submode == .numpad {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            orientationManager.lockToPortrait()
+                        }
+                    }
+                }
             }
         }
     }

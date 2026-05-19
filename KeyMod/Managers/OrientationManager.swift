@@ -11,7 +11,10 @@ import UIKit
 class OrientationManager: ObservableObject {
     @Published var isLandscape: Bool = true
     @Published var preferredOrientation: UIInterfaceOrientationMask = .landscape
-    
+
+    // Store the physical orientation before forcing portrait, so we can restore it
+    @Published var savedDeviceOrientation: UIDeviceOrientation?
+
     // Alternative approach: Show user instruction when programmatic change fails
     @Published var showOrientationInstruction = false
     @Published var instructionText = ""
@@ -39,7 +42,7 @@ class OrientationManager: ObservableObject {
         }
     }
     
-    private func updateOrientation() {
+    func updateOrientation() {
         let orientation = UIDevice.current.orientation
         switch orientation {
         case .landscapeLeft, .landscapeRight:
@@ -169,12 +172,57 @@ class OrientationManager: ObservableObject {
     func lockToLandscape() {
         Self.setOrientationLock(.landscape)
     }
-    
+
+    func lockToPortrait() {
+        // Save current physical orientation so we can restore it later
+        savedDeviceOrientation = UIDevice.current.orientation
+        Self.setOrientationLock(.portrait)
+        // Force the rotation to portrait
+        UIDevice.current.setValue(UIInterfaceOrientation.portrait.rawValue, forKey: "orientation")
+        UIViewController.attemptRotationToDeviceOrientation()
+        if #available(iOS 16.0, *) {
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait)) { error in
+                    print("Portrait geometry update rejected: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    func restoreOrientation() {
+        guard let saved = savedDeviceOrientation else {
+            Self.setOrientationLock(.all)
+            return
+        }
+        // Determine the target interface orientation
+        let target: UIInterfaceOrientation
+        if saved.isLandscape {
+            target = .landscapeLeft
+        } else {
+            target = .portrait
+        }
+        Self.setOrientationLock(.all)
+        UIDevice.current.setValue(target.rawValue, forKey: "orientation")
+        UIViewController.attemptRotationToDeviceOrientation()
+        if #available(iOS 16.0, *) {
+            let mask: UIInterfaceOrientationMask = saved.isLandscape ? .landscape : .portrait
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: mask)) { error in
+                    print("Restore geometry update rejected: \(error.localizedDescription)")
+                }
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            self.updateOrientation()
+            self.forceUIRefresh()
+        }
+    }
+
     func unlockOrientation() {
         Self.setOrientationLock(.all)
     }
     
-    private static func setOrientationLock(_ mask: UIInterfaceOrientationMask) {
+    static func setOrientationLock(_ mask: UIInterfaceOrientationMask) {
         AppDelegate.orientationLock = mask
     }
 }
