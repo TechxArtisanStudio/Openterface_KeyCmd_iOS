@@ -73,13 +73,15 @@ private struct SplitPagingView<PageContent: View>: View {
     }
 }
 
-/// Button style that flashes blue on press, matching keyboard key tap feedback.
+/// Button style that flashes blue on press and stays blue when held.
 private struct ProMouseButtonStyle: ButtonStyle {
+    var held: Bool = false
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
+        let active = configuration.isPressed || held
+        return configuration.label
             .clipShape(RoundedRectangle(cornerRadius: 8))
-            .background(configuration.isPressed ? Color.blue.opacity(0.5) : Color(UIColor.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 8))
-            .foregroundColor(configuration.isPressed ? .white : .primary)
+            .background(active ? Color.blue.opacity(held ? 0.7 : 0.5) : Color(UIColor.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 8))
+            .foregroundColor(active ? .white : .primary)
             .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }
@@ -126,6 +128,21 @@ struct ProKeyboardMouseView: View {
     @State private var textInputContent = ""
     @State private var isTextInputExpanded = false
     @State private var showTouchpadHelp = false
+    @State private var pointerMoving = false
+
+    // MARK: - Mouse button state
+    private var isLHeld: Bool { (mouseManager.heldButtons & 0x01) != 0 || mouseManager.isSelectMode || (mouseManager.clickFlash & 0x01) != 0 }
+    private var isMHeld: Bool { (mouseManager.heldButtons & 0x04) != 0 || (mouseManager.clickFlash & 0x04) != 0 }
+    private var isRHeld: Bool { (mouseManager.heldButtons & 0x02) != 0 || (mouseManager.clickFlash & 0x02) != 0 }
+    private var touchpadStatusText: String {
+        var parts: [String] = []
+        if mouseManager.isSelectMode { parts.append("drag") }
+        if (mouseManager.heldButtons & 0x01) != 0 { parts.append("L held") }
+        if (mouseManager.heldButtons & 0x04) != 0 { parts.append("M held") }
+        if (mouseManager.heldButtons & 0x02) != 0 { parts.append("R held") }
+        let buttons = parts.isEmpty ? "buttons up" : parts.joined(separator: " + ")
+        return "\(buttons) · \(pointerMoving ? "moving" : "idle")"
+    }
 
     // MARK: - Landscape full/split layout & portrait BI/IME persistence
 
@@ -307,12 +324,22 @@ struct ProKeyboardMouseView: View {
             VStack(spacing: 0) {
                 HStack(spacing: 0) {
                     ZStack(alignment: .topTrailing) {
-                        TouchpadView(mouseManager: mouseManager, pointerTipState: pointerTipState, padClickDragGesturesEnabled: padGesturesEnabled)
+                        TouchpadView(mouseManager: mouseManager, pointerTipState: pointerTipState, padClickDragGesturesEnabled: padGesturesEnabled, onPointerMoving: { moving in pointerMoving = moving })
                         Button(action: { showTouchpadHelp = true }) {
                             Image(systemName: "questionmark.circle.fill").font(.system(size: 18, weight: .semibold)).foregroundColor(.secondary)
                                 .padding(8).background(Color(UIColor.secondarySystemBackground).opacity(0.9)).clipShape(Circle())
                         }.padding(8)
                         if showLabel { touchpadLabel.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center).allowsHitTesting(false) }
+                        Text(touchpadStatusText)
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color(UIColor.secondarySystemBackground).opacity(0.85))
+                            .cornerRadius(5)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                            .padding(4)
+                            .allowsHitTesting(false)
                     }.frame(width: max(0, geo.size.width - stripWidth))
                     BasicTouchpadScrollStripView(mouseManager: mouseManager, labelFontSize: orientationManager.isLandscape ? 10 : 7).frame(width: stripWidth)
                 }
@@ -327,26 +354,24 @@ struct ProKeyboardMouseView: View {
     /// Layout: Left 2/5, Middle 1/5, Right 2/5.
     private var proTouchpadMouseButtons: some View {
         HStack(spacing: 8) {
-            proMouseButton(label: "L", action: { mouseManager.handleClick() })
-            proMouseButton(label: "M", action: { mouseManager.handleMiddleClick() })
+            proMouseButton(label: "L", held: isLHeld, action: { mouseManager.handleClick() })
+            proMouseButton(label: "M", held: isMHeld, action: { mouseManager.handleMiddleClick() })
                 .frame(maxWidth: .infinity, minHeight: 36)
-            proMouseButton(label: "R", action: { mouseManager.handleRightClick() })
+            proMouseButton(label: "R", held: isRHeld, action: { mouseManager.handleRightClick() })
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background(Color(UIColor.secondarySystemBackground))
     }
 
-    private func proMouseButton(label: String, action: @escaping () -> Void) -> some View {
+    private func proMouseButton(label: String, held: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(label)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.primary)
                 .frame(maxWidth: .infinity)
                 .frame(height: 36)
-                .background(Color(UIColor.tertiarySystemBackground))
         }
-        .buttonStyle(ProMouseButtonStyle())
+        .buttonStyle(ProMouseButtonStyle(held: held))
     }
 
     private var touchpadLabel: some View {
@@ -455,7 +480,7 @@ struct ProKeyboardMouseView: View {
                     .transaction { $0.animation = nil }
             }
             if proSubmode == .numpad {
-                NumPadView(keyboardManager: keyboardManager, orientationManager: orientationManager)
+                ProNumPadView(keyboardManager: keyboardManager, mouseManager: mouseManager)
                     .background(Color(UIColor.secondarySystemBackground))
                     .transaction { $0.animation = nil }
             }
@@ -626,7 +651,7 @@ struct ProKeyboardMouseView: View {
                     .transaction { $0.animation = nil }
             }
             if proSubmode == .numpad {
-                NumPadView(keyboardManager: keyboardManager, orientationManager: orientationManager)
+                ProNumPadView(keyboardManager: keyboardManager, mouseManager: mouseManager)
                     .background(Color(UIColor.secondarySystemBackground))
                     .transaction { $0.animation = nil }
             }

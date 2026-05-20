@@ -572,6 +572,13 @@ struct ContentView: View {
             case .voiceInput:
                 VoiceInputView(keyboardManager: keyboardManager)
                     .id(viewManager.currentView)
+            case .presentation:
+                PresentationView(
+                    keyboardManager: keyboardManager,
+                    mouseManager: mouseManager,
+                    orientationManager: orientationManager
+                )
+                .id(viewManager.currentView)
             }
         }
         .onAppear {
@@ -693,6 +700,8 @@ struct ContentView: View {
                         if !orientationManager.isLandscape {
                             orientationManager.toggleOrientationWithInstruction()
                         }
+                    } else if viewType == .presentation {
+                        orientationManager.lockToPortrait()
                     } else {
                         orientationManager.unlockOrientation()
                     }

@@ -7,6 +7,8 @@ class MouseManager: ObservableObject {
     @Published var isSelectMode: Bool = false
     /// Bitmask of buttons currently held via the L/M/R press buttons (0x01=L, 0x02=R, 0x04=M).
     @Published var heldButtons: UInt8 = 0
+    /// Bitmask briefly set during a momentary click so UI can flash the button (0x01=L, 0x02=R, 0x04=M).
+    @Published var clickFlash: UInt8 = 0
     @ObservedObject private var touchpadSettings = TouchpadSettings.shared
     private let hapticManager = HapticFeedbackManager.shared
 
@@ -42,6 +44,7 @@ class MouseManager: ObservableObject {
     func handleDoubleClick() {
         print("Performing double click action")
         hapticManager.triggerMediumFeedback()
+        flashButton(0x01)
 
         let press = Keymod.buildMouseRel(buttons: 0x01, dx: 0, dy: 0, wheel: 0)
         bleManager.sendTouchData(data: press)
@@ -65,6 +68,7 @@ class MouseManager: ObservableObject {
     func handleClick() {
         print("Performing click action")
         hapticManager.triggerButtonPress()
+        flashButton(0x01)
 
         let press = Keymod.buildMouseRel(buttons: 0x01, dx: 0, dy: 0, wheel: 0)
         bleManager.sendTouchData(data: press)
@@ -78,6 +82,7 @@ class MouseManager: ObservableObject {
     func handleRightClick() {
         print("Performing right click action")
         hapticManager.triggerButtonPress()
+        flashButton(0x02)
 
         let press = Keymod.buildMouseRel(buttons: 0x02, dx: 0, dy: 0, wheel: 0)
         bleManager.sendTouchData(data: press)
@@ -92,6 +97,7 @@ class MouseManager: ObservableObject {
     func handleMiddleClick() {
         print("Performing middle click action")
         hapticManager.triggerButtonPress()
+        flashButton(0x04)
 
         let press = Keymod.buildMouseRel(buttons: 0x04, dx: 0, dy: 0, wheel: 0)
         bleManager.sendTouchData(data: press)
@@ -127,6 +133,16 @@ class MouseManager: ObservableObject {
     }
 
     // MARK: - Scroll
+
+    /// Briefly set clickFlash bits for the given button mask, then clear after 120 ms.
+    private func flashButton(_ mask: UInt8) {
+        DispatchQueue.main.async {
+            self.clickFlash |= mask
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                self.clickFlash &= ~mask
+            }
+        }
+    }
 
     /// Send scroll with pre-computed integer deltas.
     /// TouchpadView handles fractional accumulation and sensitivity.
