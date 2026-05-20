@@ -885,7 +885,7 @@ struct BasicKeyboardMouseView: View {
     // MARK: - Numpad Submode
 
     private var numpadSubmode: some View {
-        NumPadView(keyboardManager: keyboardManager, orientationManager: orientationManager)
+        BasicNumPadView(keyboardManager: keyboardManager, orientationManager: orientationManager)
     }
 
 }
