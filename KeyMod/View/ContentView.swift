@@ -48,9 +48,10 @@ struct ContentView: View {
             sidebarHeader
             modifiersDisplay
             sidebarNavigation
-            Spacer()
-            // sidebarModeSelectionButton - Hidden as requested
             sidebarSettingsButton
+            sidebarWelcomeGuideButton
+            sidebarVersionDisplay
+            Spacer()
         }
         .frame(width: 180)
         .background(Color(UIColor.secondarySystemBackground))
@@ -499,9 +500,45 @@ struct ContentView: View {
             .cornerRadius(8)
         }
         .buttonStyle(PlainButtonStyle())
-        .padding(.bottom, 30)
     }
-    
+
+    private var sidebarWelcomeGuideButton: some View {
+        Button(action: {
+            withAnimation {
+                sidebarVisible = false
+            }
+            launchPanelManager.showLaunchPanelAgain()
+        }) {
+            HStack {
+                Image(systemName: "book.fill")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 20, height: 20)
+                    .foregroundColor(.blue)
+                Text("Welcome & Guide")
+                    .font(.body)
+                    .foregroundColor(.primary)
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .background(Color.clear)
+            .cornerRadius(8)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+
+    private var sidebarVersionDisplay: some View {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+        return Text("v\(version) (\(build))")
+            .font(.caption2)
+            .foregroundColor(.secondary)
+            .frame(maxWidth: .infinity)
+            .multilineTextAlignment(.center)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
+    }
+
     private var sidebarModeSelectionButton: some View {
         Button(action: {
             viewManager.switchToMode(viewManager.currentMode == .basic ? .pro : .basic)
