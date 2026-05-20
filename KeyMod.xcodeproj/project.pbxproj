@@ -332,6 +332,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = NSBluetoothAlwaysUsageDescription;
+				INFOPLIST_KEY_NSMotionUsageDescription = "Uses device motion sensors to control the mouse cursor via gyroscope.";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
@@ -390,6 +391,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = NSBluetoothAlwaysUsageDescription;
+				INFOPLIST_KEY_NSMotionUsageDescription = "Uses device motion sensors to control the mouse cursor via gyroscope.";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;

@@ -12,6 +12,7 @@ enum GamepadLayout: String, CaseIterable {
     case xbox = "Xbox Layout"
     case playStation = "PlayStation Layout"
     case nes = "NES Layout"
+    case simple = "Simple Layout"
     
     /// Returns the action button configuration for this layout
     var actionButtons: [ActionButtonConfig] {
@@ -35,6 +36,11 @@ enum GamepadLayout: String, CaseIterable {
                 ActionButtonConfig(label: "B", color: .red, position: .left),
                 ActionButtonConfig(label: "A", color: .orange, position: .right)
             ]
+        case .simple:
+            return [
+                ActionButtonConfig(label: "A", color: .green, position: .bottom),
+                ActionButtonConfig(label: "B", color: .red, position: .right)
+            ]
         }
     }
     
@@ -47,6 +53,8 @@ enum GamepadLayout: String, CaseIterable {
             return ["L1", "R1", "L2", "R2"]
         case .nes:
             return [] // NES has no shoulder buttons
+        case .simple:
+            return ["L", "R"]
         }
     }
     
@@ -59,6 +67,8 @@ enum GamepadLayout: String, CaseIterable {
             return ["Options", "Share"]
         case .nes:
             return ["Start", "Select"]
+        case .simple:
+            return ["Start"]
         }
     }
 }

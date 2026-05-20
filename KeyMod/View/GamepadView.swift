@@ -12,6 +12,8 @@ struct GamepadView: View {
     @ObservedObject var keyboardManager: KeyboardManager
     @ObservedObject var mouseManager: MouseManager
     @StateObject private var configManager = GamepadConfigManager()
+    @StateObject private var turboEngine: TurboEngine
+    @StateObject private var gestureLockTracker = GestureLockTracker()
     @State private var leftStickPosition: CGPoint = .zero
     @State private var rightStickPosition: CGPoint = .zero
     @State private var leftStickKeys: Set<String> = []
@@ -23,6 +25,15 @@ struct GamepadView: View {
     @State private var isKeyMappingMode = false
     let selectedLayout: GamepadLayout
     let isEditMode: Bool
+
+    init(orientationManager: OrientationManager, keyboardManager: KeyboardManager, mouseManager: MouseManager, selectedLayout: GamepadLayout, isEditMode: Bool) {
+        self.orientationManager = orientationManager
+        self.keyboardManager = keyboardManager
+        self.mouseManager = mouseManager
+        self.selectedLayout = selectedLayout
+        self.isEditMode = isEditMode
+        _turboEngine = StateObject(wrappedValue: TurboEngine(keyboardManager: keyboardManager))
+    }
     
     var body: some View {
         GeometryReader { geometry in
@@ -30,6 +41,9 @@ struct GamepadView: View {
                 if selectedLayout == .nes {
                     // Special NES controller layout with classic appearance
                     nesControllerLayout(geometry: geometry)
+                } else if selectedLayout == .simple {
+                    // Simple layout: large D-pad left, large buttons right
+                    simpleGamepadLayout(geometry: geometry)
                 } else if orientationManager.isLandscape {
                     // Landscape gamepad layout
                     landscapeGamepadLayout(geometry: geometry)
@@ -45,6 +59,8 @@ struct GamepadView: View {
             keyboardManager.releaseAllKeys()
             // Reset mouse manager state
             mouseManager.handleDragEnded()
+            // Stop turbo engine
+            turboEngine.stop()
         }
         .sheet(isPresented: $showConfigPopup) {
             ButtonConfigPopup(
@@ -54,130 +70,6 @@ struct GamepadView: View {
                 isPresented: $showConfigPopup
             )
         }
-        .overlay(
-            // Edit mode controls and indicators
-            editModeOverlay
-        )
-        .onChange(of: isEditMode) { newValue in
-            if newValue {
-                // When entering edit mode, automatically enable position edit mode
-                isPositionEditMode = true
-                isKeyMappingMode = false
-            } else {
-                // When exiting edit mode, automatically reset individual edit modes
-                isPositionEditMode = false
-                isKeyMappingMode = false
-            }
-        }
-    }
-    
-    // MARK: - Edit Mode Overlay
-    @ViewBuilder
-    private var editModeOverlay: some View {
-        VStack {
-            if isEditMode {
-                HStack {
-                    // Vertical mode selection buttons as icons
-                    VStack(spacing: 8) {
-                        // Position Edit button
-                        Button(action: {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                isPositionEditMode.toggle()
-                                if isPositionEditMode {
-                                    isKeyMappingMode = false
-                                }
-                            }
-                        }) {
-                            Image(systemName: isPositionEditMode ? "arrow.up.and.down.and.arrow.left.and.right" : "move.3d")
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(.white)
-                                .frame(width: 32, height: 32)
-                                .background(isPositionEditMode ? Color.orange.opacity(0.8) : Color.blue.opacity(0.7))
-                                .cornerRadius(8)
-                                .scaleEffect(isPositionEditMode ? 1.1 : 1.0)
-                        }
-                        
-                        // Key Mapping button
-                        Button(action: {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                isKeyMappingMode.toggle()
-                                if isKeyMappingMode {
-                                    isPositionEditMode = false
-                                }
-                            }
-                        }) {
-                            Image(systemName: isKeyMappingMode ? "keyboard.fill" : "keyboard")
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(.white)
-                                .frame(width: 32, height: 32)
-                                .background(isKeyMappingMode ? Color.green.opacity(0.8) : Color.purple.opacity(0.7))
-                                .cornerRadius(8)
-                                .scaleEffect(isKeyMappingMode ? 1.1 : 1.0)
-                        }
-                    }
-                    .padding(.leading, 8)
-                    
-                    Spacer()
-                    
-                    // Instructions and additional controls on the right
-                    VStack(alignment: .trailing, spacing: 4) {
-                        if isPositionEditMode {
-                            HStack {
-                                Text("Drag components to reposition")
-                                    .font(.caption2)
-                                    .foregroundColor(.white)
-                                    .padding(4)
-                                    .background(Color.orange.opacity(0.5))
-                                    .cornerRadius(6)
-                                
-                                Button(action: {
-                                    resetComponentPositions()
-                                }) {
-                                    Image(systemName: "arrow.counterclockwise")
-                                        .font(.system(size: 14, weight: .medium))
-                                        .foregroundColor(.white)
-                                        .frame(width: 28, height: 28)
-                                        .background(isResetting ? Color.green.opacity(0.7) : Color.red.opacity(0.7))
-                                        .cornerRadius(6)
-                                        .scaleEffect(isResetting ? 1.1 : 1.0)
-                                        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isResetting)
-                                }
-                            }
-                            
-                        } else if isKeyMappingMode {
-                            Text("Tap components to configure")
-                                .font(.caption2)
-                                .foregroundColor(.white)
-                                .padding(4)
-                                .background(Color.green.opacity(0.5))
-                                .cornerRadius(6)
-                        } else {
-                            Text("Select edit mode")
-                                .font(.caption2)
-                                .foregroundColor(.white)
-                                .padding(4)
-                                .background(Color.gray.opacity(0.5))
-                                .cornerRadius(6)
-                        }
-                    }
-                    .padding(.trailing, 4)
-                }
-            } else if !isPositionEditMode && !isKeyMappingMode && configManager.hasCustomPositions(layout: selectedLayout) {
-                // Show indicator that layout has custom positions (only when not in any edit mode)
-                HStack {
-                    Text("Custom Layout")
-                        .font(.caption2)
-                        .foregroundColor(.white)        
-                        .padding(4)
-                        .background(Color.blue.opacity(0.7))
-                        .cornerRadius(4)
-                    
-                    Spacer()
-                }
-            }
-            Spacer()
-        }
-        .padding(.top, 8)
     }
 }
 
@@ -1205,6 +1097,75 @@ extension GamepadView {
         }
         .padding()
     }
+
+    // MARK: - Simple Layout
+    @ViewBuilder
+    func simpleGamepadLayout(geometry: GeometryProxy) -> some View {
+        // Simple layout: large D-pad on left, large action buttons on right
+        HStack(spacing: orientationManager.isLandscape ? 60 : 40) {
+            // Left side: large D-pad
+            VStack {
+                Spacer()
+
+                DraggableComponent(
+                    componentName: "DPad",
+                    layout: selectedLayout,
+                    configManager: configManager,
+                    isPositionEditMode: isPositionEditMode,
+                    isKeyMappingMode: isKeyMappingMode,
+                    geometry: geometry,
+                    onLongPress: { showButtonConfig("DPad") }
+                ) {
+                    DPadView(
+                        onDirection: handleDPadPress,
+                        onDirectionUp: handleDPadRelease,
+                        onLongPress: { direction in
+                            showButtonConfig(direction)
+                        },
+                        isEditMode: isEditMode,
+                        isKeyMappingMode: isKeyMappingMode
+                    )
+                    .frame(width: orientationManager.isLandscape ? 180 : 150,
+                           height: orientationManager.isLandscape ? 180 : 150)
+                }
+
+                Spacer()
+            }
+            .frame(maxWidth: .infinity)
+
+            // Right side: large action buttons
+            VStack {
+                Spacer()
+
+                DraggableComponent(
+                    componentName: "ActionButtons",
+                    layout: selectedLayout,
+                    configManager: configManager,
+                    isPositionEditMode: isPositionEditMode,
+                    isKeyMappingMode: isKeyMappingMode,
+                    geometry: geometry,
+                    onLongPress: { showButtonConfig("ActionButtons") }
+                ) {
+                    ActionButtonsView(
+                        buttonConfigs: selectedLayout.actionButtons,
+                        onAction: handleActionButtonPress,
+                        onActionUp: handleActionButtonRelease,
+                        onLongPress: { buttonName in
+                            showButtonConfig(buttonName)
+                        },
+                        isEditMode: isEditMode,
+                        isKeyMappingMode: isKeyMappingMode
+                    )
+                    .frame(width: orientationManager.isLandscape ? 180 : 150,
+                           height: orientationManager.isLandscape ? 180 : 150)
+                }
+
+                Spacer()
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .padding()
+    }
 }
 
 // MARK: - Event Handlers Extension
@@ -1224,6 +1185,7 @@ extension GamepadView {
             showButtonConfig(button)
             return
         }
+        gestureLockTracker.recordStart()
         print("Gamepad button pressed down: \(button)")
         let action = configManager.getEffectiveKey(layout: selectedLayout, button: button)
         print("🔍 Button \(button) mapped to action: '\(action)'")
@@ -1231,19 +1193,35 @@ extension GamepadView {
             if isMouseAction(action) {
                 print("🖱️ Executing mouse action: \(action)")
                 handleMouseAction(action)
+            } else if configManager.isTurboEnabled(layout: selectedLayout, button: button) {
+                let turboCfg = configManager.getTurboConfig(layout: selectedLayout, button: button)
+                turboEngine.start(key: action, config: TurboConfig(enabled: true, intervalMs: turboCfg.intervalMs, initialDelayMs: turboCfg.initialDelayMs))
+            } else if configManager.hasGestureLock(layout: selectedLayout, button: button) {
+                keyboardManager.handleKeyDown(action)
             } else {
                 print("⌨️ Executing keyboard action: \(action)")
                 keyboardManager.handleKeyDown(action)
             }
         }
     }
-    
+
     func handleButtonRelease(_ button: String) {
         print("Gamepad button released: \(button)")
         let action = configManager.getEffectiveKey(layout: selectedLayout, button: button)
-        if !action.isEmpty && !isMouseAction(action) {
-            // Only handle key release for keyboard actions, not mouse actions
-            keyboardManager.handleKeyUp(action)
+        if !action.isEmpty {
+            let gestureAction = resolveGestureLockAction(button: button)
+            switch gestureAction {
+            case PresetConstants.gestureLockActionHoldLock:
+                keyboardManager.handleKeyUp(action)
+            case PresetConstants.gestureLockActionTurbo, PresetConstants.gestureLockActionKeyTurbo:
+                turboEngine.stop()
+            case PresetConstants.gestureLockActionKeyHold:
+                keyboardManager.handleKeyUp(action)
+            default:
+                if !isMouseAction(action) && !turboEngine.isActive {
+                    keyboardManager.handleKeyUp(action)
+                }
+            }
         }
     }
     
@@ -1252,6 +1230,7 @@ extension GamepadView {
             showButtonConfig(button)
             return
         }
+        gestureLockTracker.recordStart()
         print("🔴 === ACTION BUTTON PRESS DEBUG ===")
         print("🔴 Button name received: '\(button)'")
         print("🔴 Selected layout: \(selectedLayout.rawValue)")
@@ -1263,21 +1242,35 @@ extension GamepadView {
             if isMouseAction(action) {
                 print("🖱️ Executing mouse action: \(action)")
                 handleMouseAction(action)
+            } else if configManager.isTurboEnabled(layout: selectedLayout, button: button) {
+                let turboCfg = configManager.getTurboConfig(layout: selectedLayout, button: button)
+                turboEngine.start(key: action, config: TurboConfig(enabled: true, intervalMs: turboCfg.intervalMs, initialDelayMs: turboCfg.initialDelayMs))
+            } else if configManager.hasGestureLock(layout: selectedLayout, button: button) {
+                keyboardManager.handleKeyDown(action)
             } else {
                 print("⌨️ Executing keyboard action: \(action)")
                 keyboardManager.handleKeyDown(action)
             }
         }
     }
-    
+
     func handleActionButtonRelease(_ button: String) {
         print("Action button released: \(button)")
         let action = configManager.getEffectiveKey(layout: selectedLayout, button: button)
-        print("🔍 Action Button \(button) release mapped to action: '\(action)'")
-        if !action.isEmpty && !isMouseAction(action) {
-            // Only handle key release for keyboard actions, not mouse actions
-            print("⌨️ Releasing keyboard action: \(action)")
-            keyboardManager.handleKeyUp(action)
+        if !action.isEmpty {
+            let gestureAction = resolveGestureLockAction(button: button)
+            switch gestureAction {
+            case PresetConstants.gestureLockActionHoldLock:
+                keyboardManager.handleKeyUp(action)
+            case PresetConstants.gestureLockActionTurbo, PresetConstants.gestureLockActionKeyTurbo:
+                turboEngine.stop()
+            case PresetConstants.gestureLockActionKeyHold:
+                keyboardManager.handleKeyUp(action)
+            default:
+                if !isMouseAction(action) && !turboEngine.isActive {
+                    keyboardManager.handleKeyUp(action)
+                }
+            }
         }
     }
     
@@ -1480,6 +1473,44 @@ extension GamepadView {
             print("Unknown mouse action: \(action)")
         }
     }
+
+    /// Resolve the gesture lock action for a button based on the tracker state.
+    /// Returns the appropriate gesture lock action string, or "none" if no gesture detected.
+    func resolveGestureLockAction(button: String) -> String {
+        guard configManager.hasGestureLock(layout: selectedLayout, button: button) else {
+            return PresetConstants.gestureLockActionNone
+        }
+
+        let gestureConfig = configManager.getGestureLockConfig(layout: selectedLayout, button: button)
+        // Build a synthetic module with gesture lock config for the analyzer
+        let module = GamepadModule(
+            id: button,
+            type: .button,
+            anchorX: 0,
+            anchorY: 0,
+            scale: 1.0,
+            zIndex: 0,
+            keyboardHoldLock: gestureConfig.holdLock || gestureConfig.turbo,
+            gestureLock: nil
+        )
+
+        // Use the tracker's current state
+        if gestureConfig.turbo {
+            // For turbo mode, classify the current swipe
+            let result = GestureLockAnalyzer.classifyDiagonalSlot(
+                dx: gestureLockTracker.highlightedQuadrant != nil ? 15 : 0,
+                dy: gestureLockTracker.highlightedQuadrant != nil ? -15 : 0,
+                density: UIScreen.main.scale,
+                rMinDp: PresetConstants.diagonalRMinDp,
+                rCancelDp: PresetConstants.diagonalRCancelDp
+            )
+            if let slotKey = result, slotKey != gestureLockResultCancel {
+                return GestureLockAnalyzer.resolvedActionForSlot(module: module, slotKey: slotKey)
+            }
+        }
+
+        return gestureConfig.holdLock ? PresetConstants.gestureLockActionHoldLock : PresetConstants.gestureLockActionNone
+    }
 }
 
 // MARK: - Helper Extensions
@@ -1497,6 +1528,8 @@ extension GamepadView {
             return 80 // Wider buttons for Xbox and PlayStation layouts
         case .nes:
             return 50 // Standard width for NES layout
+        case .simple:
+            return 60 // Medium width for Simple layout
         }
     }
     

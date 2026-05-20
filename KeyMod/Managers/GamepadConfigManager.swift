@@ -8,6 +8,21 @@
 import Foundation
 import Combine
 
+// MARK: - Gesture Lock Config
+
+struct GestureLockButtonConfig: Codable, Equatable {
+    var holdLock: Bool = false
+    var turbo: Bool = false
+}
+
+// MARK: - Turbo Config (stored per button)
+
+struct ButtonTurboConfig: Codable, Equatable {
+    var enabled: Bool = false
+    var intervalMs: Int = 80
+    var initialDelayMs: Int = 400
+}
+
 /// Represents a component position in the gamepad layout
 struct ComponentPosition: Codable, Equatable {
     var x: CGFloat
@@ -35,14 +50,20 @@ struct LayoutPositions: Codable, Equatable {
 class GamepadConfigManager: ObservableObject {
     @Published var customMappings: [String: [String: String]] = [:]
     @Published var layoutPositions: [String: LayoutPositions] = [:]
-    
+    @Published var gestureLockConfigs: [String: [String: GestureLockButtonConfig]] = [:]
+    @Published var turboConfigs: [String: [String: ButtonTurboConfig]] = [:]
+
     private let userDefaults = UserDefaults.standard
     private let configKey = "GamepadCustomMappings"
     private let positionsKey = "GamepadLayoutPositions"
+    private let gestureLockKey = "GamepadGestureLockConfigs"
+    private let turboKey = "GamepadTurboConfigs"
     
     init() {
         loadMappings()
         loadPositions()
+        loadGestureLockConfigs()
+        loadTurboConfigs()
     }
     
     // MARK: - Position Management
@@ -281,6 +302,15 @@ class GamepadConfigManager: ObservableObject {
             case "B": return "Backspace"
             default: return ""
             }
+        case .simple:
+            switch button {
+            case "L": return "Tab"
+            case "R": return "Enter"
+            case "Start": return "Space"
+            case "A": return "Space"
+            case "B": return "Backspace"
+            default: return ""
+            }
         }
     }
     
@@ -311,6 +341,69 @@ class GamepadConfigManager: ObservableObject {
         if let data = userDefaults.data(forKey: positionsKey),
            let positions = try? JSONDecoder().decode([String: LayoutPositions].self, from: data) {
             layoutPositions = positions
+        }
+    }
+
+    // MARK: - Gesture Lock Config
+
+    func getGestureLockConfig(layout: GamepadLayout, button: String) -> GestureLockButtonConfig {
+        return gestureLockConfigs[layout.rawValue]?[button] ?? GestureLockButtonConfig()
+    }
+
+    func setGestureLockConfig(layout: GamepadLayout, button: String, config: GestureLockButtonConfig) {
+        if gestureLockConfigs[layout.rawValue] == nil {
+            gestureLockConfigs[layout.rawValue] = [:]
+        }
+        gestureLockConfigs[layout.rawValue]?[button] = config
+        saveGestureLockConfigs()
+    }
+
+    func hasGestureLock(layout: GamepadLayout, button: String) -> Bool {
+        let config = getGestureLockConfig(layout: layout, button: button)
+        return config.holdLock || config.turbo
+    }
+
+    private func loadGestureLockConfigs() {
+        if let data = userDefaults.data(forKey: gestureLockKey),
+           let configs = try? JSONDecoder().decode([String: [String: GestureLockButtonConfig]].self, from: data) {
+            gestureLockConfigs = configs
+        }
+    }
+
+    private func saveGestureLockConfigs() {
+        if let data = try? JSONEncoder().encode(gestureLockConfigs) {
+            userDefaults.set(data, forKey: gestureLockKey)
+        }
+    }
+
+    // MARK: - Turbo Config
+
+    func getTurboConfig(layout: GamepadLayout, button: String) -> ButtonTurboConfig {
+        return turboConfigs[layout.rawValue]?[button] ?? ButtonTurboConfig()
+    }
+
+    func setTurboConfig(layout: GamepadLayout, button: String, config: ButtonTurboConfig) {
+        if turboConfigs[layout.rawValue] == nil {
+            turboConfigs[layout.rawValue] = [:]
+        }
+        turboConfigs[layout.rawValue]?[button] = config
+        saveTurboConfigs()
+    }
+
+    func isTurboEnabled(layout: GamepadLayout, button: String) -> Bool {
+        return getTurboConfig(layout: layout, button: button).enabled
+    }
+
+    private func loadTurboConfigs() {
+        if let data = userDefaults.data(forKey: turboKey),
+           let configs = try? JSONDecoder().decode([String: [String: ButtonTurboConfig]].self, from: data) {
+            turboConfigs = configs
+        }
+    }
+
+    private func saveTurboConfigs() {
+        if let data = try? JSONEncoder().encode(turboConfigs) {
+            userDefaults.set(data, forKey: turboKey)
         }
     }
     

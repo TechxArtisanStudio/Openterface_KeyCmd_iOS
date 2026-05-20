@@ -206,30 +206,34 @@ struct ContentView: View {
     private var topBar: some View {
         HStack {
             if !sidebarVisible {
-                Button(action: {
-                    withAnimation {
-                        sidebarVisible.toggle()
+                if viewManager.currentView == .gamepad {
+                    gamepadTopBarButtons
+                } else {
+                    Button(action: {
+                        withAnimation {
+                            sidebarVisible.toggle()
+                        }
+                    }) {
+                        Image(systemName: "ellipsis")
+                            .rotationEffect(.degrees(90))
+                            .font(.title2)
+                            .foregroundColor(.primary)
+                            .frame(width: 44, height: 44)
                     }
-                }) {
-                    Image(systemName: "ellipsis")
-                        .rotationEffect(.degrees(90))
-                        .font(.title2)
-                        .foregroundColor(.primary)
-                        .frame(width: 44, height: 44)
-                }
-                .buttonStyle(.plain)
-                .contentShape(Rectangle())
-                .padding(.leading, 12)
-                if orientationManager.isLandscape && viewManager.currentView == .keyboardMouseBasic {
-                    BasicKeyboardMouseView(
-                        mouseManager: mouseManager,
-                        keyboardManager: keyboardManager,
-                        orientationManager: orientationManager,
-                        selectedSubmode: $basicSubmode
-                    ).landscapeTabBar
-                }
-                if viewManager.currentView == .keyboardMousePro {
-                    proSubmodeSelector
+                    .buttonStyle(.plain)
+                    .contentShape(Rectangle())
+                    .padding(.leading, 12)
+                    if orientationManager.isLandscape && viewManager.currentView == .keyboardMouseBasic {
+                        BasicKeyboardMouseView(
+                            mouseManager: mouseManager,
+                            keyboardManager: keyboardManager,
+                            orientationManager: orientationManager,
+                            selectedSubmode: $basicSubmode
+                        ).landscapeTabBar
+                    }
+                    if viewManager.currentView == .keyboardMousePro {
+                        proSubmodeSelector
+                    }
                 }
             }
             Spacer()
@@ -283,16 +287,52 @@ struct ContentView: View {
 
     private var topBarButtons: some View {
         HStack(spacing: 10) {
-            targetOSButton
-            // Show KM Basic setup button between targetOS and BLE
-            if viewManager.currentView == .keyboardMouseBasic {
-                kmBasicSetupButton
+            if viewManager.currentView == .gamepad {
+                // Gamepad right-side controls
+                // Dynamic/Fixed toggle
+                Button {
+                    withAnimation {
+                        useDynamicLayout.toggle()
+                    }
+                } label: {
+                    Image(systemName: useDynamicLayout ? "square.grid.3x3.fill" : "square.on.square")
+                        .font(.system(size: 16))
+                        .foregroundColor(useDynamicLayout ? .blue : .secondary)
+                        .frame(width: 36, height: 36)
+                }
+                .buttonStyle(.plain)
+
+                // Gyro mouse toggle
+                Button {
+                    withAnimation {
+                        gyroMouseEnabled.toggle()
+                        if gyroMouseEnabled {
+                            gyroMouseManager.enable()
+                        } else {
+                            gyroMouseManager.disable()
+                        }
+                    }
+                } label: {
+                    Image(systemName: gyroMouseManager.isEnabled ? "motion.sensor.fill" : "motion.sensor")
+                        .font(.system(size: 16))
+                        .foregroundColor(gyroMouseManager.isEnabled ? .cyan : .secondary)
+                        .frame(width: 36, height: 36)
+                }
+                .buttonStyle(.plain)
+
+                bleButton
+            } else {
+                targetOSButton
+                // Show KM Basic setup button between targetOS and BLE
+                if viewManager.currentView == .keyboardMouseBasic {
+                    kmBasicSetupButton
+                }
+                // Show KM Pro setup button between targetOS and BLE
+                if viewManager.currentView == .keyboardMousePro {
+                    kmProSetupButton
+                }
+                bleButton
             }
-            // Show KM Pro setup button between targetOS and BLE
-            if viewManager.currentView == .keyboardMousePro {
-                kmProSetupButton
-            }
-            bleButton
         }
         .onAppear {
             print("🎯 TopBarButtons appeared - Current view: \(viewManager.currentView.rawValue)")
@@ -359,6 +399,68 @@ struct ContentView: View {
                 .font(.caption2)
                 .foregroundColor(.secondary)
         }
+    }
+
+    // MARK: - Gamepad Top Bar Buttons (left side, replaces hamburger menu)
+
+    @ViewBuilder
+    private var gamepadTopBarButtons: some View {
+        // 1. Menu button (opens sidebar)
+        Button {
+            withAnimation {
+                sidebarVisible = true
+            }
+        } label: {
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(.primary)
+                .frame(width: 36, height: 36)
+        }
+        .buttonStyle(.plain)
+
+        // 2. Edit mode toggle
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isGamepadEditMode.toggle()
+            }
+        } label: {
+            Image(systemName: isGamepadEditMode ? "checkmark.circle.fill" : "square.and.pencil")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(isGamepadEditMode ? .blue : .secondary)
+                .frame(width: 36, height: 36)
+        }
+        .buttonStyle(.plain)
+
+        // 3. Presets cycle button
+        Button {
+            cycleToNextPreset()
+        } label: {
+            Image(systemName: "arrow.left.arrow.right")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(.secondary)
+                .frame(width: 36, height: 36)
+        }
+        .buttonStyle(.plain)
+
+        // 4. Active preset chip
+        Button {
+            showPresetPicker = true
+        } label: {
+            HStack(spacing: 3) {
+                Text(currentPresetDisplayName)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .medium))
+            }
+            .foregroundColor(.primary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color(UIColor.tertiarySystemBackground).opacity(0.85))
+            .cornerRadius(12)
+        }
+        .buttonStyle(.plain)
     }
 
     private var targetOSButton: some View {
@@ -536,10 +638,6 @@ struct ContentView: View {
                 .id(viewManager.currentView)
             case .gamepad:
                 VStack(spacing: 0) {
-                    // Gamepad toolbar
-                    gamepadToolbar
-                        .padding(4)
-
                     if useDynamicLayout, let doc = presetRepository.activePresetDocument {
                         GamepadDynamicCanvas(
                             document: .constant(doc),
@@ -559,9 +657,16 @@ struct ContentView: View {
                             isEditMode: isGamepadEditMode
                         )
                     }
+
+                    // Toggle row (edit mode only, centered in remaining space)
+                    if isGamepadEditMode {
+                        Spacer()
+                        toggleRow
+                        Spacer()
+                    }
                 }
                 .id(viewManager.currentView)
-                .sheet(isPresented: $showPresetPicker) {
+                .fullScreenCover(isPresented: $showPresetPicker) {
                     PresetPickerView(
                         repository: presetRepository,
                         isPresented: $showPresetPicker
@@ -781,104 +886,83 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Gamepad Toolbar
+    // MARK: - Toggle Row (edit-mode-only secondary toolbar, matches Android toggle_row)
 
     @ViewBuilder
-    private var gamepadToolbar: some View {
-        HStack(spacing: 0) {
-            // Left side: Edit mode toggle + Preset chip + Layout picker button
-            // Edit mode toggle
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isGamepadEditMode.toggle()
-                }
-            } label: {
-                Image(systemName: isGamepadEditMode ? "checkmark.circle.fill" : "square.and.pencil")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(isGamepadEditMode ? .green : .secondary)
-                    .frame(width: 36, height: 36)
-                    .background(isGamepadEditMode ? Color.green.opacity(0.15) : Color.clear)
-                    .cornerRadius(8)
-            }
-            .buttonStyle(.plain)
-            .padding(.leading, 4)
-
-            // Active preset chip — tap to open preset picker
-            Button {
-                showPresetPicker = true
-            } label: {
-                HStack(spacing: 4) {
-                    Text(currentPresetDisplayName)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .lineLimit(1)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10))
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(Color.blue.opacity(0.12))
-                .cornerRadius(12)
-            }
-            .buttonStyle(.plain)
-            .padding(.leading, 4)
-
-            // Fixed layout picker (only when in fixed layout mode)
-            if !useDynamicLayout {
-                Picker("", selection: $selectedGamepadLayout) {
-                    ForEach(GamepadLayout.allCases, id: \.self) { layout in
-                        Text(layoutDisplayName(for: layout)).tag(layout)
+    private var toggleRow: some View {
+        HStack(spacing: 16) {
+                // Background picker
+                Button {
+                    showBackgroundPicker = true
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: "photo.on.rectangle")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(.primary)
+                            .frame(width: 36, height: 36)
+                            .background(Color(UIColor.tertiarySystemBackground).opacity(0.9))
+                            .cornerRadius(10)
+                        Text("Background")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
                     }
                 }
-                .pickerStyle(SegmentedPickerStyle())
-                .frame(width: 120)
-                .padding(.leading, 4)
-            }
+                .buttonStyle(.plain)
 
-            Spacer()
-
-            // Right side: Dynamic/Fixed toggle + Background picker + Gyro toggle
-            Button {
-                withAnimation {
-                    useDynamicLayout.toggle()
-                }
-            } label: {
-                Image(systemName: useDynamicLayout ? "square.grid.3x3.fill" : "square.on.square")
-                    .font(.system(size: 16))
-                    .foregroundColor(useDynamicLayout ? .blue : .secondary)
-                    .frame(width: 36, height: 36)
-            }
-            .buttonStyle(.plain)
-
-            Button {
-                showBackgroundPicker = true
-            } label: {
-                Image(systemName: "photo")
-                    .font(.system(size: 16))
-                    .foregroundColor(.secondary)
-                    .frame(width: 36, height: 36)
-            }
-            .buttonStyle(.plain)
-
-            // Gyro mouse toggle
-            Button {
-                withAnimation {
-                    gyroMouseEnabled.toggle()
-                    if gyroMouseEnabled {
-                        gyroMouseManager.enable()
-                    } else {
-                        gyroMouseManager.disable()
+                // Add module
+                Button {
+                    // TODO: Open add module dialog (touchpad, scroll strip, dpad, button)
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: "plus.circle")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(.primary)
+                            .frame(width: 36, height: 36)
+                            .background(Color(UIColor.tertiarySystemBackground).opacity(0.9))
+                            .cornerRadius(10)
+                        Text("Add")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
                     }
                 }
-            } label: {
-                Image(systemName: gyroMouseManager.isEnabled ? "motion.sensor.fill" : "motion.sensor")
-                    .font(.system(size: 16))
-                    .foregroundColor(gyroMouseManager.isEnabled ? .cyan : .secondary)
-                    .frame(width: 36, height: 36)
-            }
-            .buttonStyle(.plain)
-            .padding(.trailing, 4)
+                .buttonStyle(.plain)
+
+                // Mapping hints toggle
+                Button {
+                    // TODO: Toggle key mapping hints visibility
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: "eye")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(.secondary)
+                            .frame(width: 36, height: 36)
+                            .background(Color(UIColor.tertiarySystemBackground).opacity(0.9))
+                            .cornerRadius(10)
+                        Text("Hints")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
         }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 8)
+        .background(
+            Color(UIColor.systemBackground).opacity(0.85)
+                .background(.ultraThinMaterial)
+                .cornerRadius(16)
+        )
+    }
+
+    // MARK: - Preset Cycling
+
+    private func cycleToNextPreset() {
+        let presets = presetRepository.presets
+        guard !presets.isEmpty else { return }
+        let activeId = presetRepository.activePresetId
+        let idx = presets.firstIndex { $0.id == activeId } ?? 0
+        let nextIdx = (idx + 1) % presets.count
+        presetRepository.activatePreset(id: presets[nextIdx].id)
     }
 
     private var currentPresetDisplayName: String {
