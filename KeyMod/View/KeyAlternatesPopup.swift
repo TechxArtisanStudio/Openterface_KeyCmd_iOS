@@ -14,6 +14,9 @@ struct AlternateOption: Identifiable {
     let display: String
     let keyCode: String
     let requiresShift: Bool
+    /// Bitmask of extra modifiers: 0x04 = Alt, 0x08 = Win, 0x10 = Ctrl, 0x20 = ShiftR, etc.
+    /// 0x01 = Ctrl, 0x02 = Shift, 0x04 = Alt, 0x08 = Win
+    let modifierMask: UInt8
     let slot: Int // AlternatePopupGeometry slot index
 }
 

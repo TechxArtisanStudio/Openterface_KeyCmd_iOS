@@ -702,18 +702,15 @@ struct ContentView: View {
                         }
                     } else if viewType == .presentation {
                         orientationManager.lockToPortrait()
-                    } else {
-                        orientationManager.unlockOrientation()
                     }
+                    // .keyboardMouseBasic manages its own orientation per submode
                 }
                 // Initial setup if app launches directly into Gamepad view
                 // Initial orientation based on view and submode
                 if viewManager.currentView == .gamepad {
-                    // Just lock to landscape, don't force rotation on startup
                     orientationManager.lockToLandscape()
-                    // Set initial game mode if starting with gamepad view
                     keyboardManager.switchToGameMode()
-                } else {
+                } else if viewManager.currentView == .keyboardMousePro {
                     let submode = ProKeyboardMouseView.ProSubmode(rawValue: proSubmodeRaw) ?? .keyboard
                     switch submode {
                     case .compose, .numpad:

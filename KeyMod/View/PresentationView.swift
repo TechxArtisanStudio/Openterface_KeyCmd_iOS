@@ -146,12 +146,44 @@ struct PresentationView: View {
     private var timerFraction: CGFloat {
         guard timerDurationSecs > 0 else { return 0 }
         switch timerMode {
-        case .countdown: return CGFloat(timerElapsed) / CGFloat(timerDurationSecs)
-        case .countup:   return CGFloat(timerElapsed) / CGFloat(max(timerDurationSecs, 1))
+        case .countdown:
+            // Fill from trailing edge: fraction represents remaining time
+            let remaining = timerDurationSecs - timerElapsed
+            return CGFloat(max(0, remaining)) / CGFloat(timerDurationSecs)
+        case .countup:
+            // Fill from leading edge: fraction represents elapsed time
+            return min(CGFloat(timerElapsed) / CGFloat(max(timerDurationSecs, 1)), 1.0)
         }
     }
 
     private var targetOS: TargetOS { AISettings.shared.targetOS }
+
+    /// Formats seconds as "M:SS".
+    private func formatDuration(_ seconds: Int) -> String {
+        let mins = abs(seconds) / 60
+        let secs = abs(seconds) % 60
+        return String(format: "%d:%02d", mins, secs)
+    }
+
+    /// Status text shown next to "TIMER" header, e.g. "remaining of 25:00".
+    private var timerStatusText: String {
+        let modeText = timerMode == .countdown ? "remaining" : "elapsed"
+        return "\(modeText) of \(formatDuration(timerDurationSecs))"
+    }
+
+    /// Progress fill grows from leading edge for countup, trailing edge for countdown.
+    private var timerFillFromLeading: Bool { timerMode == .countup }
+
+    /// Shortcut hint shown below the Play button, matching each tool.
+    private var playShortcutHint: String {
+        switch selectedTool {
+        case .keynote:      return "⌥⌘P / ESC"
+        case .powerPoint:   return "⇧⌘↵ / ESC"
+        case .googleSlides: return "⌘↵ / ESC"
+        case .word:         return "F5 / ESC"
+        case .adobeReader:  return "⌘L / ESC"
+        }
+    }
 
     // MARK: - Body
 
@@ -166,20 +198,26 @@ struct PresentationView: View {
                 timerCard
                     .padding(.horizontal, 16)
                     .padding(.top, 12)
+                    .padding(.bottom, 12)
 
-                Spacer(minLength: 12)
-
-                slideNavButtons
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 10)
-
-                actionRow
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 10)
-
-                utilRow
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 16)
+                // Button rows fill remaining space with Android 2:1:1 weight proportions
+                GeometryReader { geo in
+                    let spacing: CGFloat = 8
+                    let hPad: CGFloat = 16
+                    let vPad: CGFloat = 16
+                    let total = geo.size.height - spacing * 2 - vPad
+                    let unit = max(total / 4, 44)
+                    VStack(spacing: spacing) {
+                        slideNavButtons
+                            .frame(height: unit * 2)
+                        actionRow
+                            .frame(height: unit)
+                        utilRow
+                            .frame(height: unit)
+                    }
+                    .padding(.horizontal, hPad)
+                    .padding(.bottom, vPad)
+                }
             }
         }
         .gesture(swipeGesture)
@@ -226,21 +264,12 @@ struct PresentationView: View {
 
     private func toolCell(tool: PresentationTool) -> some View {
         let selected = tool.rawValue == toolIndex
-        return VStack(spacing: 4) {
-            Image(systemName: tool.iconName)
-                .font(.system(size: 22, weight: selected ? .bold : .regular))
-                .foregroundColor(selected ? .white : .secondary)
-                .frame(width: 44, height: 44)
-                .background(selected ? Color.blue : Color(UIColor.secondarySystemBackground))
-                .clipShape(Circle())
-            Text(tool.displayName)
-                .font(.system(size: 11, weight: selected ? .semibold : .regular))
-                .foregroundColor(selected ? .blue : .secondary)
-                .lineLimit(2)
-                .multilineTextAlignment(.center)
-                .frame(width: 60)
-        }
-        .animation(.easeInOut(duration: 0.15), value: selected)
+        return Text(tool.displayName)
+            .font(.system(size: selected ? 20 : 16, weight: selected ? .bold : .regular))
+            .foregroundColor(selected ? .primary : .secondary)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .animation(.easeInOut(duration: 0.15), value: selected)
     }
 
     // MARK: - Timer Card
@@ -253,25 +282,50 @@ struct PresentationView: View {
         let mins = absSeconds / 60
         let secs = absSeconds % 60
         let label = overtime ? String(format: "+%d:%02d", mins, secs) : String(format: "%d:%02d", mins, secs)
+        let fromLeading = timerFillFromLeading
+        let progressColor: Color = running ? .blue : .gray
+        let progressOpacity: Double = running ? 0.18 : 0.10
 
         return GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                // Progress fill
-                Rectangle()
-                    .fill((running ? Color.blue : Color.gray).opacity(running ? 0.18 : 0.10))
-                    .frame(width: geo.size.width * fraction)
-                    .animation(.linear(duration: 1.0), value: fraction)
+            ZStack {
+                // Progress fill — direction depends on timer mode
+                if fromLeading {
+                    HStack(spacing: 0) {
+                        Rectangle()
+                            .fill(progressColor.opacity(progressOpacity))
+                            .frame(width: geo.size.width * fraction)
+                            .animation(.linear(duration: 1.0), value: fraction)
+                        Spacer(minLength: 0)
+                    }
+                } else {
+                    HStack(spacing: 0) {
+                        Spacer(minLength: 0)
+                        Rectangle()
+                            .fill(progressColor.opacity(progressOpacity))
+                            .frame(width: geo.size.width * fraction)
+                            .animation(.linear(duration: 1.0), value: fraction)
+                    }
+                }
 
                 // Text content
                 VStack(spacing: 4) {
+                    HStack {
+                        Text("TIMER")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.secondary)
+                            .kerning(1.0)
+                        Spacer()
+                        Text(timerStatusText)
+                            .font(.system(size: 13))
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
                     Text(label)
                         .font(.system(size: 42, weight: .bold, design: .monospaced))
                         .foregroundColor(overtime ? .red : .primary)
-                    Text(timerMode == .countdown ? "Countdown" : "Count Up")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(16)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             }
             .frame(height: 90)
             .background(Color(UIColor.secondarySystemBackground))
@@ -306,10 +360,13 @@ struct PresentationView: View {
     }
 
     private func handleTimerDoubleTap() {
+        let wasRunning = timerRunning
         haptic.triggerMediumFeedback()
         stopTimer()
         timerElapsed = 0
-        startTimer()
+        if wasRunning {
+            startTimer()
+        }
     }
 
     private func startTimer() {
@@ -337,50 +394,67 @@ struct PresentationView: View {
     // MARK: - Slide Navigation Buttons
 
     private var slideNavButtons: some View {
-        HStack(spacing: 8) {
-            // PREVIOUS – 1/3 width
-            Button {
-                haptic.triggerButtonPress()
-                keyboardManager.handleKeyPress("Left")
-            } label: {
-                Text("◀  PREV")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity, minHeight: 52)
-                    .background(Color.gray.opacity(0.7))
-                    .cornerRadius(10)
-            }
-            .simultaneousGesture(
-                LongPressGesture(minimumDuration: 0.5).onEnded { _ in
-                    haptic.triggerMediumFeedback()
-                    keyboardManager.handleKeyPress("Home")
+        GeometryReader { geo in
+            let prevW = (geo.size.width - 8) / 3
+            let nextW = (geo.size.width - 8) * 2 / 3
+            HStack(spacing: 8) {
+                // PREVIOUS – 1/3 width
+                VStack(spacing: 3) {
+                    Button {
+                        haptic.triggerButtonPress()
+                        keyboardManager.handleKeyPress("Left")
+                    } label: {
+                        Text("◀  PREVIOUS")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(Color.gray.opacity(0.7))
+                            .cornerRadius(10)
+                    }
+                    .simultaneousGesture(
+                        LongPressGesture(minimumDuration: 0.5).onEnded { _ in
+                            haptic.triggerMediumFeedback()
+                            keyboardManager.handleKeyPress("Home")
+                        }
+                    )
+                    .frame(maxHeight: .infinity)
+                    Text("← Left arrow\nLong = First slide")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-            )
-            .frame(maxWidth: .infinity)
+                .frame(width: prevW, height: geo.size.height)
 
-            // NEXT – 2/3 width
-            Button {
-                haptic.triggerButtonPress()
-                keyboardManager.handleKeyPress("Right")
-            } label: {
-                Text("NEXT  ▶")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity, minHeight: 52)
-                    .background(Color.blue)
-                    .cornerRadius(10)
-            }
-            .simultaneousGesture(
-                LongPressGesture(minimumDuration: 0.5).onEnded { _ in
-                    haptic.triggerMediumFeedback()
-                    keyboardManager.handleKeyPress("End")
+                // NEXT – 2/3 width
+                VStack(spacing: 3) {
+                    Button {
+                        haptic.triggerButtonPress()
+                        keyboardManager.handleKeyPress("Right")
+                    } label: {
+                        Text("NEXT  ▶")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(Color.blue)
+                            .cornerRadius(10)
+                    }
+                    .simultaneousGesture(
+                        LongPressGesture(minimumDuration: 0.5).onEnded { _ in
+                            haptic.triggerMediumFeedback()
+                            keyboardManager.handleKeyPress("End")
+                        }
+                    )
+                    .frame(maxHeight: .infinity)
+                    Text("→ Right arrow\nLong = Last slide")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-            )
-            .frame(maxWidth: .infinity)
-            .frame(maxWidth: .infinity) // second modifier makes it 2x weight in HStack
+                .frame(width: nextW, height: geo.size.height)
+            }
         }
-        // Override weights: PREV=1, NEXT=2
-        .fixedSize(horizontal: false, vertical: true)
     }
 
     // MARK: - Action Row (Play / Black Screen)
@@ -388,39 +462,58 @@ struct PresentationView: View {
     private var actionRow: some View {
         HStack(spacing: 8) {
             // Play / Stop
-            Button {
-                haptic.triggerButtonPress()
-                togglePlay()
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: playActive ? "stop.fill" : "play.fill")
-                    Text(playActive ? "Stop" : "Play")
-                        .font(.system(size: 15, weight: .semibold))
+            VStack(spacing: 3) {
+                Button {
+                    haptic.triggerButtonPress()
+                    togglePlay()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: playActive ? "stop.fill" : "play.fill")
+                        Text(playActive ? "STOP" : "PRESENT")
+                            .font(.system(size: 15, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(playActive ? Color.red : Color.green)
+                    .cornerRadius(10)
                 }
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity, minHeight: 52)
-                .background(playActive ? Color.red : Color.green)
-                .cornerRadius(10)
+                .frame(maxHeight: .infinity)
+                Text(playShortcutHint)
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: .infinity)
 
             // Hide / Show Screen (Black Screen)
-            Button {
-                guard playActive else { return }
-                haptic.triggerButtonPress()
-                showScreen.toggle()
-                keyboardManager.handleKeyPress("b")
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: showScreen ? "eye.slash" : "eye")
-                    Text(showScreen ? "Hide" : "Show")
-                        .font(.system(size: 15, weight: .semibold))
+            VStack(spacing: 3) {
+                Button {
+                    guard playActive else { return }
+                    haptic.triggerButtonPress()
+                    showScreen.toggle()
+                    keyboardManager.handleKeyPress("b")
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: showScreen ? "eye.slash" : "eye")
+                        Text(showScreen ? "HIDE\nSCREEN" : "SHOW\nSCREEN")
+                            .font(.system(size: 15, weight: .semibold))
+                            .multilineTextAlignment(.center)
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(playActive ? Color.indigo : Color.gray.opacity(0.5))
+                    .cornerRadius(10)
                 }
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity, minHeight: 52)
-                .background(playActive ? Color.indigo : Color.gray.opacity(0.5))
-                .cornerRadius(10)
+                .disabled(!playActive)
+                .frame(maxHeight: .infinity)
+                Text("B")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .disabled(!playActive)
+            .frame(maxWidth: .infinity)
         }
     }
 
@@ -428,37 +521,68 @@ struct PresentationView: View {
 
     private var utilRow: some View {
         HStack(spacing: 8) {
-            // App Switcher
-            Button {
-                haptic.triggerButtonPress()
-                handleAppSwitcherTap()
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "square.on.square")
-                    Text(switcherState == .closed ? "Switcher" : "Release")
-                        .font(.system(size: 15, weight: .semibold))
-                }
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity, minHeight: 52)
-                .background(switcherState == .open ? Color.green : Color.orange)
-                .cornerRadius(10)
+            // App Switcher — single tap = open/cycle; double tap = confirm & close
+            VStack(spacing: 3) {
+                Color.clear
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(switcherState == .open ? Color.green : Color.orange)
+                    .cornerRadius(10)
+                    .overlay(
+                        HStack(spacing: 6) {
+                            Image(systemName: "square.on.square")
+                            Text(switcherState == .open ? "RELEASE" : "SWITCH APP")
+                                .font(.system(size: 15, weight: .semibold))
+                        }
+                        .foregroundColor(.white)
+                    )
+                    .gesture(
+                        TapGesture(count: 2).onEnded {
+                            haptic.triggerMediumFeedback()
+                            if switcherState == .open {
+                                closeAppSwitcher()
+                            }
+                        }
+                    )
+                    .simultaneousGesture(
+                        TapGesture(count: 1).onEnded {
+                            haptic.triggerButtonPress()
+                            handleAppSwitcherTap()
+                        }
+                    )
+                Text("⌘Tab · tap / cycle · double = confirm")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: .infinity)
 
             // Pointer / Touchpad
-            Button {
-                haptic.triggerButtonPress()
-                showTouchpad = true
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "cursorarrow.motionlines")
-                    Text("Pointer")
-                        .font(.system(size: 15, weight: .semibold))
+            VStack(spacing: 3) {
+                Button {
+                    haptic.triggerButtonPress()
+                    showTouchpad = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "cursorarrow.motionlines")
+                        Text("TOUCHPAD")
+                            .font(.system(size: 15, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.teal)
+                    .cornerRadius(10)
                 }
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity, minHeight: 52)
-                .background(Color.teal)
-                .cornerRadius(10)
+                .frame(maxHeight: .infinity)
+                Text("Mouse move / click / right-click")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: .infinity)
         }
     }
 
@@ -489,13 +613,12 @@ struct PresentationView: View {
             showScreen = true
             keyboardManager.handleKeyPress("Escape")
         } else {
-            // Start presentation
-            guard let modifiers = selectedTool.playModifiers,
-                  let key = selectedTool.playKey else {
-                return // tool has no play shortcut
-            }
+            // Start presentation — always mark active; send key only if tool has a shortcut
             playActive = true
-            keyboardManager.handleKeyCombo(modifiers: modifiers, key: key)
+            if let modifiers = selectedTool.playModifiers,
+               let key = selectedTool.playKey {
+                keyboardManager.handleKeyCombo(modifiers: modifiers, key: key)
+            }
         }
     }
 

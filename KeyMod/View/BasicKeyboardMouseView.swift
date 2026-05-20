@@ -97,6 +97,14 @@ struct BasicKeyboardMouseView: View {
             .onDisappear {
                 unlockOrientation()
             }
+            // Snap back to landscape if user physically tilts device while on keyboard tab
+            .onChange(of: orientationManager.isLandscape) { isLandscape in
+                if !isLandscape && selectedSubmode == .keyboard {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        lockToLandscape()
+                    }
+                }
+            }
         }
     }
 
@@ -202,26 +210,14 @@ struct BasicKeyboardMouseView: View {
     private func lockToLandscape() {
         // 1. Tell AppDelegate to deny portrait from now on
         AppDelegate.orientationLock = .landscape
-        // 2. Programmatically rotate the scene
-        //    IMPORTANT: do NOT call setNeedsUpdateOfSupportedInterfaceOrientations() after this.
-        //    UIHostingController.supportedInterfaceOrientations returns .all (it is not overridden),
-        //    so that call makes the system re-evaluate against the physical device orientation (portrait)
-        //    and snap back. AppDelegate.orientationLock is sufficient to hold the lock.
+        // 2. Force rotation to landscape unconditionally — same pattern as OrientationManager.lockToPortrait()
+        //    (requestGeometryUpdate only calls its closure on error, so we cannot rely on it to force rotation)
+        UIDevice.current.setValue(UIInterfaceOrientation.landscapeLeft.rawValue, forKey: "orientation")
+        UIViewController.attemptRotationToDeviceOrientation()
         if #available(iOS 16.0, *) {
             if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-                scene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscape)) { _ in
-                    // requestGeometryUpdate may be refused by UIHostingController's default
-                    // supportedInterfaceOrientations; fall back to the legacy API.
-                    DispatchQueue.main.async {
-                        UIDevice.current.setValue(UIInterfaceOrientation.landscapeLeft.rawValue,
-                                                  forKey: "orientation")
-                        UIViewController.attemptRotationToDeviceOrientation()
-                    }
-                }
+                scene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscape)) { _ in }
             }
-        } else {
-            UIDevice.current.setValue(UIInterfaceOrientation.landscapeLeft.rawValue, forKey: "orientation")
-            UIViewController.attemptRotationToDeviceOrientation()
         }
     }
 

@@ -843,17 +843,24 @@ struct ProKeyboardMouseView: View {
         else if case .defaultSlot = alternatesPick { option = popup.options.first(where: { $0.slot == AlternatePopupGeometry.slotCenter }) }
         else { option = nil }
 
-        // Safety net: release original key (already released when popup appeared, but handles edge cases)
         handleKeyUpFor(popup.keyDef)
         dismissAlternatesPopup()
 
         guard let opt = option else { return }
         HapticFeedbackManager.shared.triggerButtonPress()
-        // Send the alternate with a full press+release cycle
-        if opt.requiresShift {
-            keyboardManager.handleKeyCombo(modifiers: ["Shift"], key: opt.keyCode)
-        } else {
+
+        // Build modifier list from requiresShift + modifierMask (matching Android sendAlternateOption)
+        var mods: [String] = []
+        if opt.requiresShift { mods.append("Shift") }
+        if (opt.modifierMask & 0x01) != 0 { mods.append("Ctrl") }
+        if (opt.modifierMask & 0x02) != 0 { mods.append("Shift") }
+        if (opt.modifierMask & 0x04) != 0 { mods.append("Alt") }
+        if (opt.modifierMask & 0x08) != 0 { mods.append("Win") }
+
+        if mods.isEmpty {
             keyboardManager.handleKeyPress(opt.keyCode)
+        } else {
+            keyboardManager.handleKeyCombo(modifiers: mods, key: opt.keyCode)
         }
     }
 
@@ -993,7 +1000,7 @@ struct ProKeyboardMouseView: View {
         var slotMap: [Int: AlternateOption] = [:], seen: Set<String> = []
         func addOpt(_ slot: Int, _ alt: String) {
             guard let m = mapAsciiAlternate(alt), !seen.contains(m.display) else { return }
-            slotMap[slot] = AlternateOption(display: m.display, keyCode: m.keyCode, requiresShift: m.requiresShift, slot: slot)
+            slotMap[slot] = AlternateOption(display: m.display, keyCode: m.keyCode, requiresShift: m.requiresShift, modifierMask: m.modifierMask, slot: slot)
             seen.insert(m.display)
         }
         if let c = centerAlternateOption(for: kd), !seen.contains(c.display) { slotMap[AlternatePopupGeometry.slotCenter] = c; seen.insert(c.display) }
@@ -1007,10 +1014,10 @@ struct ProKeyboardMouseView: View {
     private func centerAlternateOption(for kd: KeyboardManager.KeyDef) -> AlternateOption? {
         let sc = AlternatePopupGeometry.slotCenter
         if kd.label.count == 1, let c = kd.label.first, c.isLetter {
-            return AlternateOption(display: kd.label.uppercased(), keyCode: kd.label, requiresShift: true, slot: sc)
+            return AlternateOption(display: kd.label.uppercased(), keyCode: kd.label, requiresShift: true, modifierMask: 0, slot: sc)
         }
         guard let m = mapAsciiAlternate(kd.label) else { return nil }
-        return AlternateOption(display: m.display, keyCode: m.keyCode, requiresShift: m.requiresShift, slot: sc)
+        return AlternateOption(display: m.display, keyCode: m.keyCode, requiresShift: m.requiresShift, modifierMask: m.modifierMask, slot: sc)
     }
 
     private static let shiftKeyMap: [String: (base: String, display: String)] = [
@@ -1021,20 +1028,22 @@ struct ProKeyboardMouseView: View {
         "\"": ("'", "\""), "~": ("`", "~"),
     ]
 
-    private static let extraSymbolMap: [Character: (String, String, Bool)] = [
-        "\\": ("]", "]", true), "|": ("]", "]", true), "+": ("=", "+", true),
-        "#": ("3", "#", true), "$": ("4", "$", true), "%": ("5", "%", true),
-        "^": ("6", "^", true), "&": ("7", "&", true), "*": ("8", "*", true),
-        "€": ("4", "€", true), "¥": ("[", "¥", false), "£": ("'", "£", false),
+    // Modifier masks matching Android: 0x04 = Alt, 0x02 = Shift
+    // Currency symbols: ¥=Alt+'7', £=Alt+'3', €=Alt+Shift+'4'
+    private static let extraSymbolMap: [Character: (String, String, Bool, UInt8)] = [
+        "\\": ("]", "]", true, 0), "|": ("]", "]", true, 0), "+": ("=", "+", true, 0),
+        "#": ("3", "#", true, 0), "$": ("4", "$", true, 0), "%": ("5", "%", true, 0),
+        "^": ("6", "^", true, 0), "&": ("7", "&", true, 0), "*": ("8", "*", true, 0),
+        "€": ("4", "€", true, 0x04), "¥": ("7", "¥", false, 0x04), "£": ("3", "£", false, 0x04),
     ]
 
-    private func mapAsciiAlternate(_ char: String) -> (display: String, keyCode: String, requiresShift: Bool)? {
+    private func mapAsciiAlternate(_ char: String) -> (display: String, keyCode: String, requiresShift: Bool, modifierMask: UInt8)? {
         guard char.count == 1 else { return nil }
         let c = char.first!
-        if c.isLetter { return c.isLowercase ? (char, char, false) : (char, char.lowercased(), true) }
-        if let e = Self.shiftKeyMap[char] { return (e.display, e.base, true) }
-        if "0123456789".contains(c) || "-=[];',./`".contains(c) { return (char, char, false) }
-        if let e = Self.extraSymbolMap[c] { return (e.0, e.1, e.2) }
+        if c.isLetter { return (char, char, false, 0) }
+        if let e = Self.shiftKeyMap[char] { return (e.display, e.base, true, 0) }
+        if "0123456789".contains(c) || "-=[];',./`".contains(c) { return (char, char, false, 0) }
+        if let e = Self.extraSymbolMap[c] { return (e.0, e.1, e.2, e.3) }
         return nil
     }
 
