@@ -100,6 +100,7 @@ struct BasicKeyboardMouseView: View {
             // Snap back to landscape if user physically tilts device while on keyboard tab
             .onChange(of: orientationManager.isLandscape) { isLandscape in
                 if !isLandscape && selectedSubmode == .keyboard {
+                    guard !OrientationManager.launchPanelVisible else { return }
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                         lockToLandscape()
                     }
@@ -208,6 +209,7 @@ struct BasicKeyboardMouseView: View {
     }
 
     private func lockToLandscape() {
+        guard !OrientationManager.launchPanelVisible else { return }
         // 1. Tell AppDelegate to deny portrait from now on
         AppDelegate.orientationLock = .landscape
         // 2. Force rotation to landscape unconditionally — same pattern as OrientationManager.lockToPortrait()

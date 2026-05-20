@@ -89,6 +89,35 @@ struct KeyModApp: App {
             }
             .ignoresSafeArea()
             .tint(themeManager.accentColor)
+            .onAppear {
+                if launchPanelManager.showLaunchPanel {
+                    applyLaunchPanelOrientation(show: true)
+                }
+            }
+            .onChange(of: launchPanelManager.showLaunchPanel) { isShowing in
+                applyLaunchPanelOrientation(show: isShowing)
+            }
+        }
+    }
+
+    private func applyLaunchPanelOrientation(show: Bool) {
+        OrientationManager.launchPanelVisible = show
+        if show {
+            AppDelegate.orientationLock = .portrait
+            // Short delay so the window scene is fully initialised before
+            // requesting a geometry update (needed on cold launch).
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                UIDevice.current.setValue(UIInterfaceOrientation.portrait.rawValue, forKey: "orientation")
+                UIViewController.attemptRotationToDeviceOrientation()
+                if #available(iOS 16.0, *) {
+                    if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                        scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait)) { _ in }
+                    }
+                }
+            }
+        } else {
+            AppDelegate.orientationLock = .all
+            UIViewController.attemptRotationToDeviceOrientation()
         }
     }
 }

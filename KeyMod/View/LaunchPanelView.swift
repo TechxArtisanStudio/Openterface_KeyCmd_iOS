@@ -18,6 +18,7 @@ struct LaunchPanelView: View {
             Color(UIColor.systemBackground)
                 .ignoresSafeArea()
             
+            ScrollView {
             VStack(spacing: 30) {
                 // Header
                 VStack(spacing: 12) {
@@ -96,8 +97,6 @@ struct LaunchPanelView: View {
                 }
                 .padding(.horizontal, 16)
                 
-                Spacer()
-                
                 // Remember Choice Toggle
                 HStack(spacing: 12) {
                     Image(systemName: rememberChoice ? "checkmark.square.fill" : "square")
@@ -157,7 +156,8 @@ struct LaunchPanelView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 30)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } // ScrollView
+            .frame(maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea()

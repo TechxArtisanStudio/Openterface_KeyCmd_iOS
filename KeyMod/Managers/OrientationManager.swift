@@ -221,7 +221,11 @@ class OrientationManager: ObservableObject {
     func unlockOrientation() {
         Self.setOrientationLock(.all)
     }
-    
+
+    /// Set to true while the launch panel is visible to prevent any view
+    /// from overriding the portrait lock we apply for that screen.
+    static var launchPanelVisible = false
+
     static func setOrientationLock(_ mask: UIInterfaceOrientationMask) {
         AppDelegate.orientationLock = mask
     }
