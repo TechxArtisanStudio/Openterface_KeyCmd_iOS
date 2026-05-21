@@ -2,108 +2,357 @@
 //  GamepadButton.swift
 //  KeyMod
 //
-//  Multi-touch buttons using a single UIView per button — each button tracks
-//  its own touches via UITouch.hashValue (pointerID), so multiple fingers can
-//  press multiple buttons simultaneously across the canvas.
+//  Multi-touch buttons with retro metallic styling matching Android.
+//  Each button tracks its own touches via UITouch.hashValue (pointerID),
+//  supporting multi-finger presses across the canvas.
 //
-//  Unlike SwiftUI's simultaneousGesture which competes across sibling views,
-//  UIKit's touchesBegan/Moved/Ended/Cancelled natively supports per-touch
-//  tracking within a single responder.
-//
-//  Corner radius uses `cornerRadiusNorm` (0.0–1.0) matching Android:
-//  actual cornerRadius = min(width, height) / 2 * cornerRadiusNorm.
-//  When cornerRadiusNorm = 1.0, the button is a perfect circle.
+//  Face styles: A/B/X/Y get distinct pastel colors (matching Android);
+//  generic labels get muted cool tones. Custom module accent blends in.
+//  Visual layers: drop shadow → gradient body → rim stroke → gloss highlight.
 //
 
 import SwiftUI
 import UIKit
 
-// MARK: - UIKit Simple Button View (press/release only)
+// MARK: - Face Style Colors (matches Android GamepadView.FaceStyle)
 
-class MultiTouchButtonView: UIView {
+struct FaceStyle {
+    let body: UIColor
+    let rim: UIColor
+    let label: UIColor
+    let highlight: UIColor   // pressed accent ring
+
+    static func forLabel(_ label: String) -> FaceStyle {
+        let t = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = t.lowercased()
+
+        switch lower {
+        case "a": return Self.aStyle
+        case "b": return Self.bStyle
+        case "x": return Self.xStyle
+        case "y": return Self.yStyle
+        case "k", "kb", "kill": return FaceStyle(
+            body: UIColor(red: 0.42, green: 0.50, blue: 0.58, alpha: 1),
+            rim: UIColor(red: 0.25, green: 0.31, blue: 0.38, alpha: 1),
+            label: .white,
+            highlight: UIColor(red: 0.20, green: 0.60, blue: 0.80, alpha: 1))
+        case "s", "start", "select": return FaceStyle(
+            body: UIColor(red: 0.42, green: 0.50, blue: 0.58, alpha: 1),
+            rim: UIColor(red: 0.25, green: 0.31, blue: 0.38, alpha: 1),
+            label: .white,
+            highlight: UIColor(red: 0.30, green: 0.60, blue: 0.40, alpha: 1))
+        case "h", "hs": return FaceStyle(
+            body: UIColor(red: 0.52, green: 0.48, blue: 0.55, alpha: 1),
+            rim: UIColor(red: 0.32, green: 0.29, blue: 0.35, alpha: 1),
+            label: .white,
+            highlight: UIColor(red: 0.60, green: 0.30, blue: 0.60, alpha: 1))
+        case "p": return FaceStyle(
+            body: UIColor(red: 0.50, green: 0.47, blue: 0.53, alpha: 1),
+            rim: UIColor(red: 0.30, green: 0.27, blue: 0.33, alpha: 1),
+            label: .white,
+            highlight: UIColor(red: 0.70, green: 0.30, blue: 0.30, alpha: 1))
+        case "d": return FaceStyle(
+            body: UIColor(red: 0.45, green: 0.55, blue: 0.65, alpha: 1),
+            rim: UIColor(red: 0.27, green: 0.34, blue: 0.41, alpha: 1),
+            label: .white,
+            highlight: UIColor(red: 0.25, green: 0.55, blue: 0.85, alpha: 1))
+        case "rc", "rec", "record": return FaceStyle(
+            body: UIColor(red: 0.58, green: 0.45, blue: 0.45, alpha: 1),
+            rim: UIColor(red: 0.36, green: 0.27, blue: 0.27, alpha: 1),
+            label: .white,
+            highlight: UIColor(red: 0.85, green: 0.25, blue: 0.25, alpha: 1))
+        default:
+            // Hash-based cycle through muted cool tones (matches Android FACE_EXTRA_CYCLE)
+            let h = abs(t.hashValue) % 4
+            let extras: [FaceStyle] = [
+                FaceStyle(
+                    body: UIColor(red: 0.36, green: 0.42, blue: 0.47, alpha: 1),
+                    rim: UIColor(red: 0.23, green: 0.27, blue: 0.31, alpha: 1),
+                    label: .white,
+                    highlight: .systemTeal),
+                FaceStyle(
+                    body: UIColor(red: 0.42, green: 0.36, blue: 0.43, alpha: 1),
+                    rim: UIColor(red: 0.27, green: 0.24, blue: 0.29, alpha: 1),
+                    label: .white,
+                    highlight: .systemPurple),
+                FaceStyle(
+                    body: UIColor(red: 0.36, green: 0.41, blue: 0.40, alpha: 1),
+                    rim: UIColor(red: 0.23, green: 0.27, blue: 0.26, alpha: 1),
+                    label: .white,
+                    highlight: .systemGreen),
+                FaceStyle(
+                    body: UIColor(red: 0.41, green: 0.38, blue: 0.46, alpha: 1),
+                    rim: UIColor(red: 0.27, green: 0.24, blue: 0.30, alpha: 1),
+                    label: .white,
+                    highlight: .systemIndigo),
+            ]
+            return extras[h]
+        }
+    }
+
+    // Xbox face buttons
+    private static let aStyle = FaceStyle(
+        body: UIColor(red: 0.65, green: 0.89, blue: 0.71, alpha: 1),
+        rim: UIColor(red: 0.37, green: 0.71, blue: 0.48, alpha: 1),
+        label: UIColor(red: 0.12, green: 0.30, blue: 0.17, alpha: 1),
+        highlight: UIColor(red: 0.20, green: 0.70, blue: 0.35, alpha: 1))
+    private static let bStyle = FaceStyle(
+        body: UIColor(red: 0.97, green: 0.70, blue: 0.71, alpha: 1),
+        rim: UIColor(red: 0.85, green: 0.44, blue: 0.47, alpha: 1),
+        label: UIColor(red: 0.35, green: 0.11, blue: 0.13, alpha: 1),
+        highlight: UIColor(red: 0.90, green: 0.30, blue: 0.30, alpha: 1))
+    private static let xStyle = FaceStyle(
+        body: UIColor(red: 0.66, green: 0.80, blue: 0.92, alpha: 1),
+        rim: UIColor(red: 0.31, green: 0.53, blue: 0.78, alpha: 1),
+        label: UIColor(red: 0.08, green: 0.18, blue: 0.31, alpha: 1),
+        highlight: UIColor(red: 0.25, green: 0.55, blue: 0.90, alpha: 1))
+    private static let yStyle = FaceStyle(
+        body: UIColor(red: 0.97, green: 0.91, blue: 0.62, alpha: 1),
+        rim: UIColor(red: 0.79, green: 0.65, blue: 0.25, alpha: 1),
+        label: UIColor(red: 0.30, green: 0.23, blue: 0.02, alpha: 1),
+        highlight: UIColor(red: 0.95, green: 0.75, blue: 0.15, alpha: 1))
+}
+
+// MARK: - Shared button appearance renderer
+
+private class ButtonAppearance {
+    let shadowLayer: CALayer
+    let bodyGradient: CAGradientLayer
+    let glossLayer: CAGradientLayer
+    let rimLayer: CAShapeLayer
+    let accentRingLayer: CAShapeLayer
+    let labelLayer: UILabel
+
+    let cornerRadiusNorm: Double
+    private var currentStyle: FaceStyle?
+    private var isPressedState = false
+    private var customAccent: UIColor?
+
+    init(cornerRadiusNorm: Double = 1.0, label: String, customAccent: UIColor? = nil) {
+        self.cornerRadiusNorm = cornerRadiusNorm
+        self.customAccent = customAccent
+
+        // Shadow layer
+        shadowLayer = CALayer()
+        shadowLayer.shadowOpacity = 0.25
+        shadowLayer.shadowOffset = CGSize(width: 0, height: 2)
+        shadowLayer.shadowRadius = 4
+
+        // Body gradient
+        bodyGradient = CAGradientLayer()
+        bodyGradient.startPoint = CGPoint(x: 0.5, y: 0)
+        bodyGradient.endPoint = CGPoint(x: 0.5, y: 1)
+
+        // Gloss (top-left specular highlight)
+        glossLayer = CAGradientLayer()
+        glossLayer.type = .radial
+        glossLayer.startPoint = CGPoint(x: 0.3, y: 0.3)
+        glossLayer.endPoint = CGPoint(x: 0.5, y: 0.5)
+
+        // Rim stroke
+        rimLayer = CAShapeLayer()
+        rimLayer.fillColor = nil
+        rimLayer.lineWidth = 1.5
+
+        // Accent ring (visible when pressed)
+        accentRingLayer = CAShapeLayer()
+        accentRingLayer.fillColor = nil
+        accentRingLayer.lineWidth = 2.5
+        accentRingLayer.opacity = 0
+
+        // Label
+        labelLayer = UILabel()
+        labelLayer.textAlignment = .center
+        labelLayer.isUserInteractionEnabled = false
+
+        currentStyle = FaceStyle.forLabel(label)
+        if let accent = customAccent {
+            currentStyle = blendStyleWithAccent(currentStyle!, accent: accent)
+        }
+    }
+
+    func addToLayer(_ parent: CALayer, labelSuperview: UIView) {
+        parent.insertSublayer(shadowLayer, at: 0)
+        parent.insertSublayer(bodyGradient, at: 1)
+        parent.insertSublayer(rimLayer, at: 2)
+        parent.insertSublayer(glossLayer, at: 3)
+        parent.insertSublayer(accentRingLayer, at: 4)
+        labelSuperview.addSubview(labelLayer)
+    }
+
+    func layout(in bounds: CGRect) {
+        let radius = min(bounds.width, bounds.height) / 2 * CGFloat(cornerRadiusNorm)
+        let path = UIBezierPath(roundedRect: bounds, cornerRadius: radius).cgPath
+
+        // Shadow
+        shadowLayer.frame = bounds
+        shadowLayer.shadowPath = path
+        shadowLayer.cornerRadius = radius
+
+        // Body gradient
+        bodyGradient.frame = bounds
+        bodyGradient.cornerRadius = radius
+
+        // Gloss
+        glossLayer.frame = bounds
+        glossLayer.cornerRadius = radius
+
+        // Rim
+        rimLayer.frame = bounds
+        rimLayer.path = path
+        rimLayer.cornerRadius = radius
+
+        // Accent ring (slightly larger)
+        let insetBounds = bounds.insetBy(dx: -1.5, dy: -1.5)
+        let ringRadius = min(insetBounds.width, insetBounds.height) / 2 * CGFloat(cornerRadiusNorm)
+        let ringPath = UIBezierPath(roundedRect: insetBounds, cornerRadius: max(ringRadius, radius)).cgPath
+        accentRingLayer.frame = insetBounds
+        accentRingLayer.path = ringPath
+        accentRingLayer.cornerRadius = max(ringRadius, radius)
+
+        // Label
+        labelLayer.frame = bounds
+        labelLayer.font = UIFont.systemFont(ofSize: min(bounds.width, bounds.height) * 0.35, weight: .bold)
+    }
+
+    func updateAppearance(pressed: Bool, style: FaceStyle? = nil, customAccent: UIColor? = nil) {
+        var activeStyle = style ?? self.currentStyle ?? FaceStyle.forLabel(labelLayer.text ?? "")
+        if let accent = customAccent ?? self.customAccent {
+            activeStyle = blendStyleWithAccent(activeStyle, accent: accent)
+        }
+
+        let darker = darken(activeStyle.body, factor: pressed ? 0.88 : 1.0)
+        let darkerRim = darken(activeStyle.rim, factor: pressed ? 0.92 : 1.0)
+
+        bodyGradient.colors = [
+            lighten(darker, amount: 0.06).cgColor,
+            darkerRim.cgColor
+        ]
+
+        rimLayer.strokeColor = UIColor.black.withAlphaComponent(pressed ? 0.25 : 0.18).cgColor
+
+        glossLayer.colors = [
+            UIColor.white.withAlphaComponent(0.15).cgColor,
+            UIColor.white.withAlphaComponent(0.0).cgColor
+        ]
+
+        // Accent ring on press
+        let ringColor = activeStyle.highlight.withAlphaComponent(0.7)
+        accentRingLayer.strokeColor = ringColor.cgColor
+        accentRingLayer.opacity = pressed ? 0.85 : 0
+
+        labelLayer.textColor = activeStyle.label
+    }
+
+    private func blendStyleWithAccent(_ style: FaceStyle, accent: UIColor) -> FaceStyle {
+        let blendedBody = blend(style.body, with: accent, fraction: 0.45)
+        let blendedRim = blend(style.rim, with: accent, fraction: 0.5)
+        return FaceStyle(
+            body: blendedBody,
+            rim: blendedRim,
+            label: isLightColor(blendedBody) ? UIColor(red: 0.10, green: 0.11, blue: 0.13, alpha: 1) : .white,
+            highlight: accent)
+    }
+
+    // MARK: - Color helpers
+
+    private func darken(_ color: UIColor, factor: CGFloat) -> UIColor {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        color.getRed(&r, green: &g, blue: &b, alpha: &a)
+        return UIColor(red: r * factor, green: g * factor, blue: b * factor, alpha: a)
+    }
+
+    private func lighten(_ color: UIColor, amount: CGFloat) -> UIColor {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        color.getRed(&r, green: &g, blue: &b, alpha: &a)
+        return UIColor(
+            red: min(1, r + amount),
+            green: min(1, g + amount),
+            blue: min(1, b + amount),
+            alpha: a)
+    }
+
+    private func blend(_ c1: UIColor, with c2: UIColor, fraction: CGFloat) -> UIColor {
+        var r1: CGFloat = 0, g1: CGFloat = 0, b1: CGFloat = 0, a1: CGFloat = 0
+        c1.getRed(&r1, green: &g1, blue: &b1, alpha: &a1)
+        var r2: CGFloat = 0, g2: CGFloat = 0, b2: CGFloat = 0, a2: CGFloat = 0
+        c2.getRed(&r2, green: &g2, blue: &b2, alpha: &a2)
+        return UIColor(
+            red: r1 * (1 - fraction) + r2 * fraction,
+            green: g1 * (1 - fraction) + g2 * fraction,
+            blue: b1 * (1 - fraction) + b2 * fraction,
+            alpha: (a1 + a2) / 2)
+    }
+
+    private func isLightColor(_ color: UIColor) -> Bool {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0
+        color.getRed(&r, green: &g, blue: &b, alpha: nil)
+        return r * 0.299 + g * 0.587 + b * 0.114 > 0.6
+    }
+}
+
+// MARK: - Base shared button view
+
+class GamepadButtonViewBase: UIView {
+    private var appearance: ButtonAppearance!
+    private var customAccent: UIColor?
 
     var onPress: (() -> Void)?
     var onRelease: (() -> Void)?
+    var onDrag: ((CGSize) -> Void)?
 
-    private var activePointerIds: Set<Int> = []
-
-    // Visual styling — cornerRadiusNorm is 0.0–1.0, actual radius computed in layoutSubviews
-    let cornerRadiusNorm: Double
     var isPressed: Bool = false {
-        didSet { updateAppearance() }
+        didSet { appearance.updateAppearance(pressed: isPressed, customAccent: customAccent) }
     }
-    let label: String
-    let normalColor: UIColor
-    let pressedColor: UIColor
-    let borderColor: UIColor
 
-    private var labelLayer: UILabel?
-    private var backgroundLayer: CALayer?
-    private var borderLayer: CALayer?
+    var cornerRadiusNorm: Double {
+        appearance.cornerRadiusNorm
+    }
 
-    init(
-        cornerRadiusNorm: Double = 1.0,
-        label: String,
-        normalColor: UIColor = .systemBlue,
-        pressedColor: UIColor = .systemGray,
-        borderColor: UIColor = .clear
-    ) {
-        self.cornerRadiusNorm = cornerRadiusNorm
-        self.label = label
-        self.normalColor = normalColor
-        self.pressedColor = pressedColor
-        self.borderColor = borderColor
+    var label: String {
+        get { appearance.labelLayer.text ?? "" }
+        set {
+            appearance.labelLayer.text = newValue
+            appearance.updateAppearance(pressed: isPressed, customAccent: customAccent)
+        }
+    }
+
+    init(cornerRadiusNorm: Double, label: String, customAccent: UIColor? = nil) {
+        self.customAccent = customAccent
         super.init(frame: .zero)
         isUserInteractionEnabled = true
         isMultipleTouchEnabled = true
         backgroundColor = .clear
-        buildAppearance()
+
+        appearance = ButtonAppearance(cornerRadiusNorm: cornerRadiusNorm, label: label, customAccent: customAccent)
+        appearance.addToLayer(layer, labelSuperview: self)
+        appearance.labelLayer.text = label
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    private func buildAppearance() {
-        let bg = CALayer()
-        bg.masksToBounds = true
-        layer.insertSublayer(bg, at: 0)
-        backgroundLayer = bg
-
-        if borderColor != .clear {
-            let border = CALayer()
-            border.borderWidth = 2
-            layer.insertSublayer(border, at: 1)
-            borderLayer = border
-        }
-
-        let lbl = UILabel()
-        lbl.textAlignment = .center
-        lbl.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
-        lbl.textColor = .white
-        lbl.isUserInteractionEnabled = false
-        addSubview(lbl)
-        labelLayer = lbl
-
-        updateAppearance()
-    }
-
     override func layoutSubviews() {
         super.layoutSubviews()
-        let radius = min(bounds.width, bounds.height) / 2 * CGFloat(cornerRadiusNorm)
-        backgroundLayer?.frame = bounds
-        backgroundLayer?.cornerRadius = radius
-        labelLayer?.frame = bounds
-        if let border = borderLayer {
-            border.frame = bounds
-            border.cornerRadius = radius
-            border.borderColor = borderColor.cgColor
-        }
+        appearance.layout(in: bounds)
+        appearance.updateAppearance(pressed: isPressed, customAccent: customAccent)
     }
 
-    private func updateAppearance() {
-        backgroundLayer?.backgroundColor = isPressed ? pressedColor.cgColor : normalColor.cgColor
+    func setCustomAccent(_ accent: UIColor?) {
+        customAccent = accent
+        appearance.updateAppearance(pressed: isPressed, customAccent: accent)
+    }
+}
+
+// MARK: - Simple Button (press/release only)
+
+class MultiTouchButtonView: GamepadButtonViewBase {
+    private var activePointerIds: Set<Int> = []
+
+    override init(cornerRadiusNorm: Double, label: String, customAccent: UIColor? = nil) {
+        super.init(cornerRadiusNorm: cornerRadiusNorm, label: label, customAccent: customAccent)
     }
 
-    // MARK: - Touch handling
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         super.touchesBegan(touches, with: event)
@@ -160,94 +409,17 @@ class MultiTouchButtonView: UIView {
     }
 }
 
-// MARK: - UIKit Drag-Tracking Button View (for gesture lock modules)
+// MARK: - Drag-Tracking Button (for gesture lock modules)
 
-class DragTrackingButtonView: UIView {
-
-    var onPress: (() -> Void)?
-    var onDrag: ((CGSize) -> Void)?
-    var onRelease: (() -> Void)?
-
+class DragTrackingButtonView: GamepadButtonViewBase {
     private var activePointerIds: Set<Int> = []
     private var initialTouchLocation: CGPoint?
 
-    // Visual styling — cornerRadiusNorm is 0.0–1.0, actual radius computed in layoutSubviews
-    let cornerRadiusNorm: Double
-    var isPressed: Bool = false {
-        didSet { updateAppearance() }
-    }
-    let label: String
-    let normalColor: UIColor
-    let pressedColor: UIColor
-    let borderColor: UIColor
-
-    private var labelLayer: UILabel?
-    private var backgroundLayer: CALayer?
-    private var borderLayer: CALayer?
-
-    init(
-        cornerRadiusNorm: Double = 1.0,
-        label: String,
-        normalColor: UIColor = .systemBlue,
-        pressedColor: UIColor = .systemGray,
-        borderColor: UIColor = .clear
-    ) {
-        self.cornerRadiusNorm = cornerRadiusNorm
-        self.label = label
-        self.normalColor = normalColor
-        self.pressedColor = pressedColor
-        self.borderColor = borderColor
-        super.init(frame: .zero)
-        isUserInteractionEnabled = true
-        isMultipleTouchEnabled = true
-        backgroundColor = .clear
-        buildAppearance()
+    override init(cornerRadiusNorm: Double, label: String, customAccent: UIColor? = nil) {
+        super.init(cornerRadiusNorm: cornerRadiusNorm, label: label, customAccent: customAccent)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
-    private func buildAppearance() {
-        let bg = CALayer()
-        bg.masksToBounds = true
-        layer.insertSublayer(bg, at: 0)
-        backgroundLayer = bg
-
-        if borderColor != .clear {
-            let border = CALayer()
-            border.borderWidth = 2
-            layer.insertSublayer(border, at: 1)
-            borderLayer = border
-        }
-
-        let lbl = UILabel()
-        lbl.textAlignment = .center
-        lbl.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
-        lbl.textColor = .white
-        lbl.isUserInteractionEnabled = false
-        addSubview(lbl)
-        labelLayer = lbl
-
-        updateAppearance()
-    }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        let radius = min(bounds.width, bounds.height) / 2 * CGFloat(cornerRadiusNorm)
-        backgroundLayer?.frame = bounds
-        backgroundLayer?.cornerRadius = radius
-        labelLayer?.frame = bounds
-        if let border = borderLayer {
-            border.frame = bounds
-            border.cornerRadius = radius
-            border.borderColor = borderColor.cgColor
-        }
-    }
-
-    private func updateAppearance() {
-        backgroundLayer?.backgroundColor = isPressed ? pressedColor.cgColor : normalColor.cgColor
-    }
-
-    // MARK: - Touch handling
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         super.touchesBegan(touches, with: event)
@@ -362,9 +534,7 @@ struct MultiTouchButton: UIViewRepresentable {
         let view = MultiTouchButtonView(
             cornerRadiusNorm: cornerRadiusNorm,
             label: label,
-            normalColor: normalColor,
-            pressedColor: pressedColor,
-            borderColor: borderColor
+            customAccent: normalColor != .systemBlue ? normalColor : nil
         )
         view.onPress = { self.onPress?() }
         view.onRelease = { self.onRelease?() }
@@ -372,7 +542,7 @@ struct MultiTouchButton: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: MultiTouchButtonView, context: Context) {
-        // Appearance updates handled via @Binding in coordinator if needed
+        // Appearance updates handled internally
     }
 }
 
@@ -409,12 +579,12 @@ struct MultiTouchDragButton: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> DragTrackingButtonView {
+        // Pass accent color as custom accent so face styles blend with module accent
+        let accent = normalColor != .systemBlue ? normalColor : nil
         let view = DragTrackingButtonView(
             cornerRadiusNorm: cornerRadiusNorm,
             label: label,
-            normalColor: normalColor,
-            pressedColor: pressedColor,
-            borderColor: borderColor
+            customAccent: accent
         )
         view.onPress = { self.onPress?() }
         view.onDrag = { translation in self.onDrag?(translation) }
@@ -423,7 +593,7 @@ struct MultiTouchDragButton: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: DragTrackingButtonView, context: Context) {
-        // Appearance updates handled via @Binding in coordinator if needed
+        // Appearance updates handled internally
     }
 }
 
@@ -452,11 +622,11 @@ struct GamepadButton: View {
     }
 
     var body: some View {
-        MultiTouchButton(
+        MultiTouchDragButton(
             label: label,
             normalColor: .systemBlue,
             pressedColor: .systemGray,
-            cornerRadiusNorm: 0.23,  // 8 / 35 ≈ 0.23 for non-round buttons
+            cornerRadiusNorm: 0.23,
             borderColor: isEditMode ? .orange : .clear,
             onPress: {
                 if !isKeyMappingMode && !isPressed {

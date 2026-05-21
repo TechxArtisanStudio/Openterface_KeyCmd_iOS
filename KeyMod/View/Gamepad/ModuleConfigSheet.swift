@@ -492,6 +492,7 @@ struct ModuleConfigSheet: View {
                         )
                         .onTapGesture {
                             accentColorHex = String(format: "#%08X", argb)
+                            applyAccentColorLive(argb: argb)
                         }
                 }
             }
@@ -499,7 +500,17 @@ struct ModuleConfigSheet: View {
             TextField("#AABBCCDD", text: $accentColorHex)
                 .font(.system(.caption, design: .monospaced))
                 .textFieldStyle(RoundedBorderTextFieldStyle())
+                .onChange(of: accentColorHex) { hex in
+                    if let argb = Int(hex: hex) {
+                        applyAccentColorLive(argb: argb)
+                    }
+                }
         }
+    }
+
+    private func applyAccentColorLive(argb: Int) {
+        guard let index = document.modules.firstIndex(where: { $0.id == module.id }) else { return }
+        document.modules[index].moduleAccentArgb = argb
     }
 
     private static let commonColors: [Int] = [
@@ -642,67 +653,95 @@ struct ModuleConfigSheet: View {
     private func applyChanges() {
         guard let index = document.modules.firstIndex(where: { $0.id == module.id }) else { return }
 
-        // Update module type based on selected mode (for dpad/stick unified type)
-        switch selectedMode {
-        case .stickMouse:
-            document.modules[index].type = .analogStick
-            document.modules[index].stickMouseSensitivity = stickMouseSensitivity
-        case .stickKeys:
-            document.modules[index].type = .analogStick
-            // Clear mouse sensitivity for direction-key mode
-            document.modules[index].stickMouseSensitivity = nil
-        case .dpadCross:
-            document.modules[index].type = .dpad
-            document.modules[index].dpadVariant = "cross"
-        case .dpadSplit:
-            document.modules[index].type = .dpad
-            document.modules[index].dpadVariant = "split"
-        }
-
+        // Common fields for all module types
         document.modules[index].displayLabel = displayLabel.isEmpty ? nil : displayLabel
-        document.modules[index].derivedKey = derivedKey.isEmpty ? nil : derivedKey
-        document.modules[index].hidKey = hidKey == 0 ? nil : hidKey
-        document.modules[index].dpadVariant = dpadVariant
-        document.modules[index].stickUpKey = stickUpKey
-        document.modules[index].stickLeftKey = stickLeftKey
-        document.modules[index].stickDownKey = stickDownKey
-        document.modules[index].stickRightKey = stickRightKey
-        document.modules[index].stickCenterKey = stickCenterKey.isEmpty ? nil : stickCenterKey
-        document.modules[index].stickMouseSensitivity = stickMouseSensitivity
-        document.modules[index].scrollStripSensitivity = scrollStripSensitivity
-        document.modules[index].scrollStripInvertY = scrollStripInvertY
-        document.modules[index].turboEnabled = turboEnabled
-        document.modules[index].turboIntervalMs = turboIntervalMs
-        document.modules[index].turboInitialDelayMs = turboInitialDelayMs
-        document.modules[index].buttonCornerRadiusNorm = buttonCornerRadius
-        document.modules[index].buttonWidthRatio = buttonWidthRatio
-        document.modules[index].buttonHeightRatio = buttonHeightRatio
-        document.modules[index].buttonRotationDeg = buttonRotationDeg
-        document.modules[index].mappedKeyLabelVisible = mappedKeyLabelVisible
         document.modules[index].scale = moduleScale
-        document.modules[index].widthNorm = widthNorm
-        document.modules[index].heightNorm = heightNorm
-        document.modules[index].dpadCrossArmDecoration = crossArmDecoration
-        document.modules[index].dpadSplitGapRatio = dpadSplitGapRatio
-        document.modules[index].dpadSplitOuterReachRatio = dpadSplitOuterReachRatio
-
-        // Gesture lock
-        if gestureLockEnabled {
-            document.modules[index].gestureLock = GestureLockConfig(
-                upLeft: GestureLockSlotDetail(action: gestureLockUpLeft),
-                upRight: GestureLockSlotDetail(action: gestureLockUpRight),
-                downLeft: GestureLockSlotDetail(action: gestureLockDownLeft),
-                downRight: GestureLockSlotDetail(action: gestureLockDownRight)
-            )
-            document.modules[index].keyboardHoldLock = true
-        } else {
-            document.modules[index].gestureLock = nil
-            document.modules[index].keyboardHoldLock = nil
-        }
 
         // Accent color
         if let argb = Int(hex: accentColorHex) {
             document.modules[index].moduleAccentArgb = argb
+        }
+
+        // Per-type fields — only modify fields relevant to each module type.
+        // Do NOT apply selectedMode to non-stick/dpad modules, or it corrupts the type.
+        switch module.type {
+        case .analogStick, .dpad:
+            switch selectedMode {
+            case .stickMouse:
+                document.modules[index].type = .analogStick
+                document.modules[index].stickMouseSensitivity = stickMouseSensitivity
+                document.modules[index].dpadVariant = "cross"
+            case .stickKeys:
+                document.modules[index].type = .analogStick
+                document.modules[index].stickMouseSensitivity = nil
+                document.modules[index].dpadVariant = "cross"
+            case .dpadCross:
+                document.modules[index].type = .dpad
+                document.modules[index].dpadVariant = "cross"
+                document.modules[index].stickMouseSensitivity = nil
+            case .dpadSplit:
+                document.modules[index].type = .dpad
+                document.modules[index].dpadVariant = "split"
+                document.modules[index].stickMouseSensitivity = nil
+            }
+            document.modules[index].stickUpKey = stickUpKey
+            document.modules[index].stickLeftKey = stickLeftKey
+            document.modules[index].stickDownKey = stickDownKey
+            document.modules[index].stickRightKey = stickRightKey
+            document.modules[index].stickCenterKey = stickCenterKey.isEmpty ? nil : stickCenterKey
+            document.modules[index].dpadCrossArmDecoration = crossArmDecoration
+            document.modules[index].dpadSplitGapRatio = dpadSplitGapRatio
+            document.modules[index].dpadSplitOuterReachRatio = dpadSplitOuterReachRatio
+
+        case .button, .shoulder, .trigger:
+            document.modules[index].derivedKey = derivedKey.isEmpty ? nil : derivedKey
+            document.modules[index].hidKey = hidKey == 0 ? nil : hidKey
+            document.modules[index].mappedKeyLabelVisible = mappedKeyLabelVisible
+            document.modules[index].turboEnabled = turboEnabled
+            document.modules[index].turboIntervalMs = turboIntervalMs
+            document.modules[index].turboInitialDelayMs = turboInitialDelayMs
+            if module.type == .button {
+                document.modules[index].buttonCornerRadiusNorm = buttonCornerRadius
+                document.modules[index].buttonWidthRatio = buttonWidthRatio
+                document.modules[index].buttonHeightRatio = buttonHeightRatio
+                document.modules[index].buttonRotationDeg = buttonRotationDeg
+            }
+            if gestureLockEnabled {
+                document.modules[index].gestureLock = GestureLockConfig(
+                    upLeft: GestureLockSlotDetail(action: gestureLockUpLeft),
+                    upRight: GestureLockSlotDetail(action: gestureLockUpRight),
+                    downLeft: GestureLockSlotDetail(action: gestureLockDownLeft),
+                    downRight: GestureLockSlotDetail(action: gestureLockDownRight)
+                )
+                document.modules[index].keyboardHoldLock = true
+            } else {
+                document.modules[index].gestureLock = nil
+                document.modules[index].keyboardHoldLock = nil
+            }
+
+        case .touchpad:
+            document.modules[index].widthNorm = widthNorm
+            document.modules[index].heightNorm = heightNorm
+
+        case .scrollStrip:
+            document.modules[index].widthNorm = widthNorm
+            document.modules[index].heightNorm = heightNorm
+            document.modules[index].scrollStripSensitivity = scrollStripSensitivity
+            document.modules[index].scrollStripInvertY = scrollStripInvertY
+
+        case .mouseButton:
+            if gestureLockEnabled {
+                document.modules[index].gestureLock = GestureLockConfig(
+                    upLeft: GestureLockSlotDetail(action: gestureLockUpLeft),
+                    upRight: GestureLockSlotDetail(action: gestureLockUpRight),
+                    downLeft: GestureLockSlotDetail(action: gestureLockDownLeft),
+                    downRight: GestureLockSlotDetail(action: gestureLockDownRight)
+                )
+                document.modules[index].keyboardHoldLock = true
+            } else {
+                document.modules[index].gestureLock = nil
+                document.modules[index].keyboardHoldLock = nil
+            }
         }
     }
 

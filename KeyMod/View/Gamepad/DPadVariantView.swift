@@ -5,11 +5,13 @@
 //  D-pad with 6 visual variants: cross, disc, split, floating, clicky, pivot.
 //  All variants produce identical directional key events.
 //
-//  Touch model: entire DPad is a single UIView that tracks all touches via
-//  UITouch.hashValue and determines direction zones based on touch location.
-//  This matches Android's per-pointerID zone detection — multiple fingers can
-//  press different directions simultaneously, and dragging between zones releases
-//  the old direction and presses the new one.
+//  Touch model: each finger can activate one or two directions.
+//  A touch in the overlap region between two adjacent directions (e.g. the
+//  diagonal between Up and Right) activates BOTH simultaneously.
+//  This allows a single finger to press WA/AS/SD/DW-style combos.
+//
+//  Matching Android's multi-touch pointer model: pointerId → Set<direction>.
+//  dpadPressedSet aggregates all held directions across all fingers.
 //
 
 import SwiftUI
@@ -34,15 +36,6 @@ class DPadButtonState: ObservableObject {
     }
 }
 
-// MARK: - Direction zone detection
-
-struct DPadTouchZone {
-    let direction: String
-    let frame: CGRect
-
-    func contains(_ point: CGPoint) -> Bool { frame.contains(point) }
-}
-
 // MARK: - UIKit DPad View
 
 class DPadUIView: UIView {
@@ -50,11 +43,12 @@ class DPadUIView: UIView {
     var onDirectionPress: ((String) -> Void)?
     var onDirectionRelease: ((String) -> Void)?
 
-    // Track active touches: UITouch.hashValue → direction
-    private var activeTouches: [Int: String] = [:]
+    // Track active touches: pointerId → Set of directions.
+    // A single finger near the diagonal overlap activates two directions.
+    private var activeTouches: [Int: Set<String>] = [:]
 
-    // Direction zones (set during layout)
-    private var zones: [DPadTouchZone] = []
+    // Direction labels (WASD or custom key names)
+    private var directionLabels: [String: String] = [:]
 
     // Visual appearance
     let variant: DPadVariant
@@ -68,9 +62,10 @@ class DPadUIView: UIView {
     // Direction label layers
     private var labelLayers: [UILabel] = []
 
-    init(variant: DPadVariant, baseRadius: CGFloat) {
+    init(variant: DPadVariant, baseRadius: CGFloat, directionLabels: [String: String] = [:]) {
         self.variant = variant
         self.baseRadius = baseRadius
+        self.directionLabels = directionLabels
         self.accentColor = UIColor(red: 0.15, green: 0.15, blue: 0.18, alpha: 1.0)
         super.init(frame: .zero)
         isUserInteractionEnabled = true
@@ -80,129 +75,72 @@ class DPadUIView: UIView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    // MARK: - Zone layout
+    // MARK: - Label layout
 
-    private func buildZones() {
-        zones = []
-        let btnSize = zoneButtonSize()
+    private var labelFrames: [String: CGRect] = [:]
 
-        switch variant {
-        case .cross, .floating, .clicky, .pivot:
-            // Cross layout: 4 directional buttons
-            let upFrame = CGRect(
-                x: (bounds.width - btnSize.width) / 2,
-                y: 0,
-                width: btnSize.width,
-                height: btnSize.height
-            )
-            let downFrame = CGRect(
-                x: (bounds.width - btnSize.width) / 2,
-                y: bounds.height - btnSize.height,
-                width: btnSize.width,
-                height: btnSize.height
-            )
-            let leftFrame = CGRect(
-                x: 0,
-                y: (bounds.height - btnSize.height) / 2,
-                width: btnSize.width,
-                height: btnSize.height
-            )
-            let rightFrame = CGRect(
-                x: bounds.width - btnSize.width,
-                y: (bounds.height - btnSize.height) / 2,
-                width: btnSize.width,
-                height: btnSize.height
-            )
-            zones = [
-                DPadTouchZone(direction: "Up", frame: upFrame),
-                DPadTouchZone(direction: "Down", frame: downFrame),
-                DPadTouchZone(direction: "Left", frame: leftFrame),
-                DPadTouchZone(direction: "Right", frame: rightFrame)
-            ]
-
-        case .disc:
-            // Disc layout: larger buttons
-            let discBtnSize = baseRadius * 0.67
-            let discBtnRect = CGRect(x: 0, y: 0, width: discBtnSize, height: discBtnSize)
-            let upFrame = CGRect(
-                x: (bounds.width - discBtnSize) / 2,
-                y: 0,
-                width: discBtnSize,
-                height: discBtnSize
-            )
-            let downFrame = CGRect(
-                x: (bounds.width - discBtnSize) / 2,
-                y: bounds.height - discBtnSize,
-                width: discBtnSize,
-                height: discBtnSize
-            )
-            let leftFrame = CGRect(
-                x: 0,
-                y: (bounds.height - discBtnSize) / 2,
-                width: discBtnSize,
-                height: discBtnSize
-            )
-            let rightFrame = CGRect(
-                x: bounds.width - discBtnSize,
-                y: (bounds.height - discBtnSize) / 2,
-                width: discBtnSize,
-                height: discBtnSize
-            )
-            zones = [
-                DPadTouchZone(direction: "Up", frame: upFrame),
-                DPadTouchZone(direction: "Down", frame: downFrame),
-                DPadTouchZone(direction: "Left", frame: leftFrame),
-                DPadTouchZone(direction: "Right", frame: rightFrame)
-            ]
-
-        case .split:
-            let gap = baseRadius * 0.08
-            let upW = baseRadius * 0.8
-            let upH = baseRadius * 0.67
-            let sideW = baseRadius * 0.67
-            let sideH = baseRadius * 0.8
-            zones = [
-                DPadTouchZone(direction: "Up", frame: CGRect(
-                    x: (bounds.width - upW) / 2, y: 0, width: upW, height: upH)),
-                DPadTouchZone(direction: "Down", frame: CGRect(
-                    x: (bounds.width - upW) / 2, y: bounds.height - upH, width: upW, height: upH)),
-                DPadTouchZone(direction: "Left", frame: CGRect(
-                    x: 0, y: (bounds.height - sideH) / 2, width: sideW, height: sideH)),
-                DPadTouchZone(direction: "Right", frame: CGRect(
-                    x: bounds.width - sideW, y: (bounds.height - sideH) / 2, width: sideW, height: sideH))
-            ]
-        }
+    private func buildLabelFrames() {
+        let half = baseRadius
+        let cx = bounds.midX, cy = bounds.midY
+        let labelSize = baseRadius * 0.65
+        labelFrames = [
+            "Up":    CGRect(x: cx - labelSize / 2, y: cy - half * 0.55 - labelSize / 2, width: labelSize, height: labelSize),
+            "Down":  CGRect(x: cx - labelSize / 2, y: cy + half * 0.55 - labelSize / 2, width: labelSize, height: labelSize),
+            "Left":  CGRect(x: cx - half * 0.55 - labelSize / 2, y: cy - labelSize / 2, width: labelSize, height: labelSize),
+            "Right": CGRect(x: cx + half * 0.55 - labelSize / 2, y: cy - labelSize / 2, width: labelSize, height: labelSize)
+        ]
     }
 
-    private func zoneButtonSize() -> CGSize {
-        switch variant {
-        case .cross:
-            let btnSize = baseRadius * 0.5
-            return CGSize(width: btnSize, height: btnSize)
-        case .disc:
-            let btnSize = baseRadius * 0.67
-            return CGSize(width: btnSize, height: btnSize)
-        case .split:
-            let upW = baseRadius * 0.8
-            let upH = baseRadius * 0.67
-            return CGSize(width: upW, height: upH)
-        case .floating:
-            let btnSize = baseRadius * 0.5
-            return CGSize(width: btnSize, height: btnSize)
-        case .clicky:
-            let btnSize = baseRadius * 0.5
-            return CGSize(width: btnSize, height: btnSize)
-        case .pivot:
-            let btnSize = baseRadius * 0.5
-            return CGSize(width: btnSize, height: btnSize)
+    /// Returns ALL directions activated by a touch at the given point.
+    /// Uses angle-based detection (not rectangular overlap) so diagonal zones
+    /// between adjacent directions are wide and easy to hit.
+    /// Each direction has a ±70° range from its cardinal axis — this means
+    /// the 45° diagonal between any two directions activates BOTH.
+    /// Center dead zone (8% of radius) prevents accidental center activation.
+    private func directionsForPoint(_ point: CGPoint) -> Set<String> {
+        let cx = bounds.midX
+        let cy = bounds.midY
+        let dx = point.x - cx
+        let dy = point.y - cy
+        let dist = sqrt(dx * dx + dy * dy)
+
+        // Dead zone at center
+        if dist < baseRadius * 0.08 {
+            return []
         }
+
+        // Too far outside the DPad
+        if dist > baseRadius * 1.5 {
+            return []
+        }
+
+        var result: Set<String> = []
+
+        // Angle threshold: ±70° from each cardinal direction
+        // At 45° diagonal, distance from both adjacent cardinals = 45° < 70°,
+        // so both directions activate.
+        let thresholdDeg: Double = 70.0
+
+        // Angles: 0° = Up (-Y), measured clockwise in screen coords
+        var angle = atan2(dx, -dy) * 180.0 / .pi
+        if angle < 0 { angle += 360 }
+
+        // Up = 0°
+        if angularDistance(angle, from: 0) <= thresholdDeg { result.insert("Up") }
+        // Right = 90°
+        if angularDistance(angle, from: 90) <= thresholdDeg { result.insert("Right") }
+        // Down = 180°
+        if angularDistance(angle, from: 180) <= thresholdDeg { result.insert("Down") }
+        // Left = 270°
+        if angularDistance(angle, from: 270) <= thresholdDeg { result.insert("Left") }
+
+        return result
     }
 
-    private func zoneForPoint(_ point: CGPoint) -> String? {
-        for zone in zones where zone.contains(point) {
-            return zone.direction
-        }
-        return nil
+    private func angularDistance(_ a: Double, from target: Double) -> Double {
+        var diff = abs(a - target)
+        if diff > 180 { diff = 360 - diff }
+        return diff
     }
 
     // MARK: - Touch handling
@@ -212,9 +150,10 @@ class DPadUIView: UIView {
         for touch in touches {
             let pointerId = touch.hashValue
             let location = touch.location(in: self)
-            if let direction = zoneForPoint(location) {
-                activeTouches[pointerId] = direction
-                onDirectionPress?(direction)
+            let directions = directionsForPoint(location)
+            activeTouches[pointerId] = directions
+            for dir in directions {
+                onDirectionPress?(dir)
             }
         }
     }
@@ -224,21 +163,19 @@ class DPadUIView: UIView {
         for touch in touches {
             let pointerId = touch.hashValue
             let location = touch.location(in: self)
-            let newDirection = zoneForPoint(location)
-            let oldDirection = activeTouches[pointerId]
+            let newDirections = directionsForPoint(location)
+            let oldDirections = activeTouches[pointerId] ?? []
 
-            if newDirection != oldDirection {
-                // Release old direction
-                if let old = oldDirection {
-                    activeTouches[pointerId] = nil
-                    onDirectionRelease?(old)
-                }
-                // Press new direction
-                if let new = newDirection {
-                    activeTouches[pointerId] = new
-                    onDirectionPress?(new)
-                }
+            // Release directions no longer in zone
+            for dir in oldDirections where !newDirections.contains(dir) {
+                onDirectionRelease?(dir)
             }
+            // Press new directions now in zone
+            for dir in newDirections where !oldDirections.contains(dir) {
+                onDirectionPress?(dir)
+            }
+
+            activeTouches[pointerId] = newDirections
         }
     }
 
@@ -246,8 +183,10 @@ class DPadUIView: UIView {
         super.touchesEnded(touches, with: event)
         for touch in touches {
             let pointerId = touch.hashValue
-            if let direction = activeTouches.removeValue(forKey: pointerId) {
-                onDirectionRelease?(direction)
+            if let directions = activeTouches.removeValue(forKey: pointerId) {
+                for dir in directions {
+                    onDirectionRelease?(dir)
+                }
             }
         }
     }
@@ -256,8 +195,10 @@ class DPadUIView: UIView {
         super.touchesCancelled(touches, with: event)
         for touch in touches {
             let pointerId = touch.hashValue
-            if let direction = activeTouches.removeValue(forKey: pointerId) {
-                onDirectionRelease?(direction)
+            if let directions = activeTouches.removeValue(forKey: pointerId) {
+                for dir in directions {
+                    onDirectionRelease?(dir)
+                }
             }
         }
     }
@@ -266,13 +207,12 @@ class DPadUIView: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        buildZones()
+        buildLabelFrames()
         buildBackground()
         buildLabels()
     }
 
     private func buildBackground() {
-        // Remove old layers
         backgroundLayer?.removeFromSuperlayer()
         shapeLayers.forEach { $0.removeFromSuperlayer() }
         backgroundLayer = nil
@@ -283,7 +223,6 @@ class DPadUIView: UIView {
 
         switch variant {
         case .cross:
-            // Vertical bar
             let vBar = CAShapeLayer()
             vBar.path = UIBezierPath(
                 roundedRect: CGRect(x: (bounds.width - barHalf * 2) / 2, y: 0,
@@ -294,7 +233,6 @@ class DPadUIView: UIView {
             layer.addSublayer(vBar)
             shapeLayers.append(vBar)
 
-            // Horizontal bar
             let hBar = CAShapeLayer()
             hBar.path = UIBezierPath(
                 roundedRect: CGRect(x: 0, y: (bounds.height - barHalf * 2) / 2,
@@ -305,7 +243,6 @@ class DPadUIView: UIView {
             layer.addSublayer(hBar)
             shapeLayers.append(hBar)
 
-            // Hub
             let hubSize = min(barHalf * 0.95, baseRadius * 0.22)
             let hub = CAShapeLayer()
             hub.path = UIBezierPath(
@@ -331,7 +268,6 @@ class DPadUIView: UIView {
             backgroundLayer = discLayer
             shapeLayers.append(discLayer)
 
-            // Border
             let borderLayer = CAShapeLayer()
             borderLayer.path = UIBezierPath(ovalIn: bounds.insetBy(dx: 1, dy: 1)).cgPath
             borderLayer.strokeColor = UIColor.gray.withAlphaComponent(0.4).cgColor
@@ -341,11 +277,9 @@ class DPadUIView: UIView {
             shapeLayers.append(borderLayer)
 
         case .split:
-            // No background for split variant
             break
 
         case .floating:
-            // Same as cross
             let vBar = CAShapeLayer()
             vBar.path = UIBezierPath(
                 roundedRect: CGRect(x: (bounds.width - barHalf * 2) / 2, y: 0,
@@ -366,19 +300,17 @@ class DPadUIView: UIView {
             layer.addSublayer(hBar)
             shapeLayers.append(hBar)
 
-            let hubSize = min(barHalf * 0.95, baseRadius * 0.22)
             let hub = CAShapeLayer()
+            let hs = min(barHalf * 0.95, baseRadius * 0.22)
             hub.path = UIBezierPath(
-                ovalIn: CGRect(x: (bounds.width - hubSize) / 2,
-                               y: (bounds.height - hubSize) / 2,
-                               width: hubSize, height: hubSize)
+                ovalIn: CGRect(x: (bounds.width - hs) / 2, y: (bounds.height - hs) / 2,
+                               width: hs, height: hs)
             ).cgPath
             hub.fillColor = UIColor(red: 0.18, green: 0.18, blue: 0.21, alpha: 1.0).cgColor
             layer.addSublayer(hub)
             shapeLayers.append(hub)
 
         case .clicky:
-            // Same as cross with thicker rim
             let vBar = CAShapeLayer()
             vBar.path = UIBezierPath(
                 roundedRect: CGRect(x: (bounds.width - barHalf * 2) / 2, y: 0,
@@ -399,31 +331,25 @@ class DPadUIView: UIView {
             layer.addSublayer(hBar)
             shapeLayers.append(hBar)
 
-            let hubSize = min(barHalf * 0.95, baseRadius * 0.22)
             let hub = CAShapeLayer()
+            let hs = min(barHalf * 0.95, baseRadius * 0.22)
             hub.path = UIBezierPath(
-                ovalIn: CGRect(x: (bounds.width - hubSize) / 2,
-                               y: (bounds.height - hubSize) / 2,
-                               width: hubSize, height: hubSize)
+                ovalIn: CGRect(x: (bounds.width - hs) / 2, y: (bounds.height - hs) / 2,
+                               width: hs, height: hs)
             ).cgPath
             hub.fillColor = UIColor(red: 0.18, green: 0.18, blue: 0.21, alpha: 1.0).cgColor
             layer.addSublayer(hub)
             shapeLayers.append(hub)
 
-            // Rim
-            let rimLayer = CAShapeLayer()
-            rimLayer.path = UIBezierPath(
-                roundedRect: bounds.insetBy(dx: 1.5, dy: 1.5),
-                cornerRadius: 12
-            ).cgPath
-            rimLayer.strokeColor = UIColor.gray.withAlphaComponent(0.6).cgColor
-            rimLayer.fillColor = nil
-            rimLayer.lineWidth = 3
-            layer.addSublayer(rimLayer)
-            shapeLayers.append(rimLayer)
+            let rim = CAShapeLayer()
+            rim.path = UIBezierPath(roundedRect: bounds.insetBy(dx: 1.5, dy: 1.5), cornerRadius: 12).cgPath
+            rim.strokeColor = UIColor.gray.withAlphaComponent(0.6).cgColor
+            rim.fillColor = nil
+            rim.lineWidth = 3
+            layer.addSublayer(rim)
+            shapeLayers.append(rim)
 
         case .pivot:
-            // Capsule bars
             let vCapsule = CAShapeLayer()
             vCapsule.path = UIBezierPath(
                 roundedRect: CGRect(x: (bounds.width - barHalf * 2) / 2, y: 0,
@@ -444,24 +370,20 @@ class DPadUIView: UIView {
             layer.addSublayer(hCapsule)
             shapeLayers.append(hCapsule)
 
-            // Hub
-            let hubSize = min(barHalf * 0.95, baseRadius * 0.22)
             let hub = CAShapeLayer()
+            let hs = min(barHalf * 0.95, baseRadius * 0.22)
             hub.path = UIBezierPath(
-                ovalIn: CGRect(x: (bounds.width - hubSize) / 2,
-                               y: (bounds.height - hubSize) / 2,
-                               width: hubSize, height: hubSize)
+                ovalIn: CGRect(x: (bounds.width - hs) / 2, y: (bounds.height - hs) / 2,
+                               width: hs, height: hs)
             ).cgPath
             hub.fillColor = UIColor(red: 0.15, green: 0.15, blue: 0.18, alpha: 1.0).cgColor
             layer.addSublayer(hub)
             shapeLayers.append(hub)
 
-            // Hub border
             let hubBorder = CAShapeLayer()
             hubBorder.path = UIBezierPath(
-                ovalIn: CGRect(x: (bounds.width - hubSize) / 2,
-                               y: (bounds.height - hubSize) / 2,
-                               width: hubSize, height: hubSize).insetBy(dx: -1, dy: -1)
+                ovalIn: CGRect(x: (bounds.width - hs) / 2, y: (bounds.height - hs) / 2,
+                               width: hs, height: hs).insetBy(dx: -1, dy: -1)
             ).cgPath
             hubBorder.strokeColor = UIColor.gray.withAlphaComponent(0.5).cgColor
             hubBorder.fillColor = nil
@@ -475,36 +397,32 @@ class DPadUIView: UIView {
         labelLayers.forEach { $0.removeFromSuperview() }
         labelLayers = []
 
-        let iconNames = ["Up": "arrowtriangle.up.fill", "Down": "arrowtriangle.down.fill",
-                         "Left": "arrowtriangle.left.fill", "Right": "arrowtriangle.right.fill"]
+        let defaultIcons = ["Up": "▲", "Down": "▼", "Left": "◀", "Right": "▶"]
+        let directions = ["Up", "Down", "Left", "Right"]
 
-        for zone in zones {
+        for direction in directions {
+            guard let frame = labelFrames[direction] else { continue }
             let label = UILabel()
-            label.text = iconNames[zone.direction]
-            label.font = UIFont.systemFont(ofSize: 16, weight: .bold)
+            let labelText = directionLabels[direction] ?? defaultIcons[direction] ?? ""
+            label.text = labelText
+            label.accessibilityLabel = direction
+            label.font = directionLabels[direction] != nil
+                ? UIFont.systemFont(ofSize: 20, weight: .bold)
+                : UIFont.systemFont(ofSize: 18, weight: .bold)
             label.textAlignment = .center
             label.textColor = UIColor.gray.withAlphaComponent(0.7)
-            label.frame = zone.frame
+            label.frame = frame
             label.isUserInteractionEnabled = false
             addSubview(label)
             labelLayers.append(label)
         }
     }
 
-    // MARK: - Visual feedback for pressed directions
-
     func setPressedDirections(_ directions: Set<String>) {
-        for (index, label) in labelLayers.enumerated() {
-            if index < zones.count {
-                let zone = zones[index]
-                let isPressed = directions.contains(zone.direction)
-                label.textColor = isPressed ? .white : UIColor.gray.withAlphaComponent(0.7)
-                label.backgroundColor = isPressed
-                    ? UIColor.blue.withAlphaComponent(0.5)
-                    : UIColor.black.withAlphaComponent(0.3)
-                label.layer.cornerRadius = 6
-                label.clipsToBounds = true
-            }
+        for label in labelLayers {
+            let dir = label.accessibilityLabel ?? ""
+            let isPressed = directions.contains(dir)
+            label.textColor = isPressed ? .white : UIColor.gray.withAlphaComponent(0.7)
         }
     }
 }
@@ -514,12 +432,17 @@ class DPadUIView: UIView {
 struct DPadViewRepresentable: UIViewRepresentable {
     let variant: DPadVariant
     let baseRadius: CGFloat
+    let directionLabels: [String: String]
     @ObservedObject var buttonState: DPadButtonState
     var onDirection: ((String) -> Void)?
     var onDirectionUp: ((String) -> Void)?
 
     func makeUIView(context: Context) -> DPadUIView {
-        let view = DPadUIView(variant: variant, baseRadius: baseRadius)
+        let view = DPadUIView(
+            variant: variant,
+            baseRadius: baseRadius,
+            directionLabels: directionLabels
+        )
         view.onDirectionPress = { [weak buttonState] dir in
             buttonState?.press(dir)
             onDirection?(dir)
@@ -541,6 +464,7 @@ struct DPadViewRepresentable: UIViewRepresentable {
 struct DPadVariantView: View {
     var variant: DPadVariant = .cross
     let baseRadius: CGFloat
+    var directionLabels: [String: String] = [:]
     var onDirection: ((String) -> Void)?
     var onDirectionUp: ((String) -> Void)?
     var onLongPress: ((String) -> Void)?
@@ -554,6 +478,7 @@ struct DPadVariantView: View {
             DPadViewRepresentable(
                 variant: variant,
                 baseRadius: baseRadius,
+                directionLabels: directionLabels,
                 buttonState: buttonState,
                 onDirection: onDirection,
                 onDirectionUp: onDirectionUp
@@ -566,10 +491,3 @@ struct DPadVariantView: View {
         )
     }
 }
-
-// MARK: - Legacy SwiftUI components (kept for reference, not used)
-
-// These are the old SwiftUI-based direction buttons that used
-// simultaneousGesture. They are kept here in case they are needed
-// for other purposes, but the DPadVariantView now uses the UIKit-based
-// DPadUIView for proper multi-touch support.

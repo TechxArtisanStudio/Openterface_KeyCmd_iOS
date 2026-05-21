@@ -17,6 +17,7 @@ struct GamepadModuleView: View {
     let isEditMode: Bool
     let isPositionEditMode: Bool
     let isKeyMappingMode: Bool
+    var showSettingsButton: Bool = true
     let layoutScale: CGFloat
     let canvasSize: CGSize
 
@@ -73,7 +74,7 @@ struct GamepadModuleView: View {
             }
         }
         .overlay(alignment: .topTrailing) {
-            if isEditMode {
+            if isEditMode && showSettingsButton {
                 settingsButton
             }
         }
@@ -134,9 +135,16 @@ struct GamepadModuleView: View {
     private var moduleDpadView: some View {
         let variant = DPadVariant(rawValue: module.dpadVariant ?? "cross") ?? .cross
         let baseRadius = 180.0 * layoutScale * CGFloat(module.scale)
+        let labels: [String: String] = [
+            "Up":    module.stickUpKey    ?? "▲",
+            "Down":  module.stickDownKey  ?? "▼",
+            "Left":  module.stickLeftKey  ?? "◀",
+            "Right": module.stickRightKey ?? "▶"
+        ]
         DPadVariantView(
             variant: variant,
             baseRadius: baseRadius,
+            directionLabels: labels,
             onDirection: { dir in onModulePress(module.id, dir) },
             onDirectionUp: { dir in onModuleRelease(module.id, dir) },
             onLongPress: { dir in onModuleConfig(module.id) },
