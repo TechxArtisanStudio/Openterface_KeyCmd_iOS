@@ -336,7 +336,7 @@ private struct DraggingOverlay<Content: View>: View {
     @GestureState private var dragOffset: CGSize = .zero
 
     var body: some View {
-        let dragGesture = DragGesture(minimumDistance: 0)
+        let dragGesture = DragGesture(minimumDistance: 4)
             .updating($dragOffset) { value, state, _ in
                 state = value.translation
             }
@@ -355,6 +355,6 @@ private struct DraggingOverlay<Content: View>: View {
                 x: baseX + dragOffset.width,
                 y: baseY + dragOffset.height
             )
-            .highPriorityGesture(dragGesture)
+            .gesture(dragGesture)
     }
 }

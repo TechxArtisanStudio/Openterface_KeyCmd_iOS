@@ -329,6 +329,23 @@ class GamepadButtonViewBase: UIView {
         appearance.labelLayer.text = label
     }
 
+    // Settings button exclusion zone: top-right corner, ~28pt square
+    static let settingsButtonExclusionSize: CGFloat = 28
+
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        let inset = Self.settingsButtonExclusionSize
+        let settingsRect = CGRect(
+            x: bounds.width - inset,
+            y: 0,
+            width: inset,
+            height: inset
+        )
+        if settingsRect.contains(point) {
+            return nil  // let SwiftUI handle it
+        }
+        return super.hitTest(point, with: event)
+    }
+
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     override func layoutSubviews() {

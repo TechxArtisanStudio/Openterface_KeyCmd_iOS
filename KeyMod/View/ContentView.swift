@@ -447,6 +447,44 @@ struct ContentView: View {
             .cornerRadius(12)
         }
         .buttonStyle(.plain)
+
+        // Edit mode buttons (shown only in edit mode)
+        if isGamepadEditMode {
+            Divider().frame(height: 24)
+
+            // Background picker
+            Button {
+                showBackgroundPicker = true
+            } label: {
+                Image(systemName: "photo.on.rectangle")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.primary)
+                    .frame(width: 36, height: 36)
+            }
+            .buttonStyle(.plain)
+
+            // Add module
+            Button {
+                showAddModulePicker = true
+            } label: {
+                Image(systemName: "plus.circle")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.primary)
+                    .frame(width: 36, height: 36)
+            }
+            .buttonStyle(.plain)
+
+            // Mapping hints toggle
+            Button {
+                // TODO: Toggle key mapping hints visibility
+            } label: {
+                Image(systemName: "eye")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.secondary)
+                    .frame(width: 36, height: 36)
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     private var targetOSButton: some View {
@@ -623,7 +661,7 @@ struct ContentView: View {
                 )
                 .id(viewManager.currentView)
             case .gamepad:
-                VStack(spacing: 0) {
+                Group {
                     if let _ = presetRepository.activeDocument {
                         let docBinding = Binding(
                             get: { self.presetRepository.activeDocument ?? GamepadPresetDocument() },
@@ -648,13 +686,6 @@ struct ContentView: View {
                         }
                     } else {
                         Text("No preset available")
-                    }
-
-                    // Toggle row (edit mode only, centered in remaining space)
-                    if isGamepadEditMode {
-                        Spacer()
-                        toggleRow
-                        Spacer()
                     }
                 }
                 .id(viewManager.currentView)
@@ -894,74 +925,6 @@ struct ContentView: View {
                 }
             }
         }
-    }
-
-    // MARK: - Toggle Row (edit-mode-only secondary toolbar, matches Android toggle_row)
-
-    @ViewBuilder
-    private var toggleRow: some View {
-        HStack(spacing: 16) {
-                // Background picker
-                Button {
-                    showBackgroundPicker = true
-                } label: {
-                    VStack(spacing: 4) {
-                        Image(systemName: "photo.on.rectangle")
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(.primary)
-                            .frame(width: 36, height: 36)
-                            .background(Color(UIColor.tertiarySystemBackground).opacity(0.9))
-                            .cornerRadius(10)
-                        Text("Background")
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .buttonStyle(.plain)
-
-                // Add module
-                Button {
-                    showAddModulePicker = true
-                } label: {
-                    VStack(spacing: 4) {
-                        Image(systemName: "plus.circle")
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(.primary)
-                            .frame(width: 36, height: 36)
-                            .background(Color(UIColor.tertiarySystemBackground).opacity(0.9))
-                            .cornerRadius(10)
-                        Text("Add")
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .buttonStyle(.plain)
-
-                // Mapping hints toggle
-                Button {
-                    // TODO: Toggle key mapping hints visibility
-                } label: {
-                    VStack(spacing: 4) {
-                        Image(systemName: "eye")
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(.secondary)
-                            .frame(width: 36, height: 36)
-                            .background(Color(UIColor.tertiarySystemBackground).opacity(0.9))
-                            .cornerRadius(10)
-                        Text("Hints")
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 8)
-        .background(
-            Color(UIColor.systemBackground).opacity(0.85)
-                .background(.ultraThinMaterial)
-                .cornerRadius(16)
-        )
     }
 
     // MARK: - Preset Cycling
