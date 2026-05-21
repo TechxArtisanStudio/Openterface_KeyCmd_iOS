@@ -31,6 +31,24 @@ enum DPadVariant: String, Codable, CaseIterable {
     case pivot
 }
 
+// MARK: - Stick / D-Pad Mode (unified module type)
+
+enum StickMode: String, Codable, CaseIterable {
+    case stickMouse = "stick_mouse"      // Relative pointer (mouse)
+    case stickKeys = "stick_keys"        // Direction keys (virtual stick)
+    case dpadCross = "dpad_cross"        // D-pad (cross, digital)
+    case dpadSplit = "dpad_split"        // D-pad (split segments)
+
+    var displayLabel: String {
+        switch self {
+        case .stickMouse: return "Relative pointer (mouse)"
+        case .stickKeys: return "Direction keys (virtual stick)"
+        case .dpadCross: return "D-pad (cross, digital)"
+        case .dpadSplit: return "D-pad (split segments)"
+        }
+    }
+}
+
 // MARK: - D-Pad Cross-Arm Decoration
 
 enum DPadCrossDecoration: String, Codable, CaseIterable {

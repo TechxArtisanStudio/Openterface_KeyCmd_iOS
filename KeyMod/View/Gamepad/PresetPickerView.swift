@@ -34,6 +34,7 @@ struct PresetPickerView: View {
                                 isReorderMode: isReorderMode,
                                 onTap: {
                                     repository.activatePreset(id: preset.id)
+                                    isPresented = false
                                 },
                                 onMore: {
                                     selectedPresetForMenu = preset

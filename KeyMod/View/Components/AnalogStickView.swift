@@ -14,8 +14,9 @@ struct AnalogStickView: View {
     var onTap: (() -> Void)? = nil
     let stickName: String
     let isEditMode: Bool
+    let baseRadius: CGFloat
     @StateObject private var hapticManager = HapticFeedbackManager.shared
-    
+
     var body: some View {
         ZStack {
             Circle()
@@ -28,33 +29,32 @@ struct AnalogStickView: View {
                     Circle()
                         .stroke(isEditMode ? Color.orange : Color.clear, lineWidth: 3)
                 )
+                .frame(width: baseRadius * 2, height: baseRadius * 2)
             Circle()
                 .fill(Color.blue)
-                .frame(width: 30, height: 30)
+                .frame(width: baseRadius * 1.08, height: baseRadius * 1.08)
                 .offset(dragOffset)
                 .gesture(
                     DragGesture()
                         .onChanged { value in
                             if !isEditMode {
-                                // Trigger haptic feedback only on first touch
                                 if !hasDragStarted {
                                     hasDragStarted = true
                                     hapticManager.triggerButtonPress()
                                 }
-                                
-                                let radius: CGFloat = 45
+
                                 let distance = sqrt(value.translation.width * value.translation.width + value.translation.height * value.translation.height)
-                                if distance <= radius {
+                                if distance <= baseRadius {
                                     dragOffset = value.translation
                                 } else {
                                     let angle = atan2(value.translation.height, value.translation.width)
                                     dragOffset = CGSize(
-                                        width: cos(angle) * radius,
-                                        height: sin(angle) * radius
+                                        width: cos(angle) * baseRadius,
+                                        height: sin(angle) * baseRadius
                                     )
                                 }
-                                let normalizedX = dragOffset.width / radius
-                                let normalizedY = dragOffset.height / radius
+                                let normalizedX = dragOffset.width / baseRadius
+                                let normalizedY = dragOffset.height / baseRadius
                                 position = CGPoint(x: normalizedX, y: normalizedY)
                             }
                         }

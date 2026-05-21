@@ -3,7 +3,8 @@
 //  KeyMod
 //
 //  Touchpad module for dynamic gamepad layouts.
-//  Reuses the existing TouchpadView for touch input, with L/M/R click buttons.
+//  Single touch surface with gradient background — matches Android's drawTouchpadModule.
+//  L/M/R buttons are separate MOUSE_BUTTON modules in the preset, NOT embedded here.
 //
 
 import SwiftUI
@@ -11,86 +12,73 @@ import SwiftUI
 struct TouchpadModuleView: View {
     @ObservedObject var mouseManager: MouseManager
     let isEditMode: Bool
+    let onDelta: (CGFloat, CGFloat) -> Void
+    let onDragEnd: () -> Void
+
+    @State private var lastTouchLocation: CGPoint?
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Touchpad surface
-            ZStack {
-                // Touchpad background
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.gray.opacity(0.1))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                    )
+        ZStack {
+            // Gradient background matching Android surface colors
+            LinearGradient(
+                colors: [
+                    Color(red: 0.93, green: 0.94, blue: 0.96),
+                    Color(red: 0.85, green: 0.86, blue: 0.89)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
 
-                // Touch area indicator
-                Circle()
-                    .fill(Color.blue.opacity(0.2))
-                    .frame(width: 40, height: 40)
-                    .overlay(
-                        Circle()
-                            .stroke(Color.blue.opacity(0.4), lineWidth: 1)
-                    )
+            // Subtle dot grid pattern (Android's gloss dots)
+            DotGridPattern()
 
-                // Instruction text
-                Text("Slide to move cursor")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                    .padding(4)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: 100)
+            // Label
+            Text("Touchpad")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(Color(red: 0.36, green: 0.38, blue: 0.41))
 
-            // L/M/R click buttons
-            HStack(spacing: 1) {
-                TouchpadClickButton(label: "L", onClick: { mouseManager.handleClick() })
-                    .frame(maxWidth: .infinity)
-
-                TouchpadClickButton(label: "M", onClick: { mouseManager.handleMiddleClick() })
-                    .frame(maxWidth: .infinity)
-
-                TouchpadClickButton(label: "R", onClick: { mouseManager.handleRightClick() })
-                    .frame(maxWidth: .infinity)
-            }
-            .frame(height: 28)
+            // Border
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color(red: 0.65, green: 0.68, blue: 0.72), lineWidth: 1)
         }
+        .cornerRadius(10)
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { value in
+                    if let last = lastTouchLocation {
+                        let dx = value.location.x - last.x
+                        let dy = value.location.y - last.y
+                        onDelta(dx, dy)
+                    }
+                    lastTouchLocation = value.location
+                }
+                .onEnded { _ in
+                    lastTouchLocation = nil
+                    onDragEnd()
+                }
+        )
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: 10)
                 .stroke(isEditMode ? Color.orange : Color.clear, lineWidth: 2)
         )
     }
 }
 
-// MARK: - Touchpad Click Button
+// MARK: - Dot Grid Pattern
 
-struct TouchpadClickButton: View {
-    let label: String
-    let onClick: () -> Void
-    @State private var isPressed = false
-    @StateObject private var hapticManager = HapticFeedbackManager.shared
-
+struct DotGridPattern: View {
     var body: some View {
-        Button(action: {}) {
-            Text(label)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(isPressed ? .white : .secondary)
-                .frame(maxWidth: .infinity)
-                .frame(maxHeight: .infinity)
-                .background(isPressed ? Color.blue : Color.gray.opacity(0.15))
+        Canvas { context, size in
+            let spacing: CGFloat = 16
+            var x: CGFloat = spacing
+            while x < size.width - 8 {
+                var y: CGFloat = spacing
+                while y < size.height - 8 {
+                    context.fill(Circle().path(in: CGRect(x: x, y: y, width: 1.3, height: 1.3)), with: .color(Color.black.opacity(0.08)))
+                    y += spacing
+                }
+                x += spacing
+            }
         }
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in
-                    if !isPressed {
-                        isPressed = true
-                        hapticManager.triggerButtonPress()
-                        onClick()
-                    }
-                }
-                .onEnded { _ in
-                    isPressed = false
-                }
-        )
     }
 }

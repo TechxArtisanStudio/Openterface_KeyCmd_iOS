@@ -24,11 +24,10 @@ struct ContentView: View {
     @State private var showSettings = false
     @State private var showSetupSheet = false
     @State private var showProSetupSheet = false
-    @State private var selectedGamepadLayout: GamepadLayout = .xbox
     @State private var isGamepadEditMode = false
     @State private var showPresetPicker = false
     @State private var showBackgroundPicker = false
-    @State private var useDynamicLayout = false
+    @State private var showAddModulePicker = false
     @StateObject private var presetRepository = GamepadPresetRepository()
     @StateObject private var backgroundManager = GamepadBackgroundManager()
     @StateObject private var gyroMouseManager: GyroMouseManager
@@ -289,19 +288,6 @@ struct ContentView: View {
         HStack(spacing: 10) {
             if viewManager.currentView == .gamepad {
                 // Gamepad right-side controls
-                // Dynamic/Fixed toggle
-                Button {
-                    withAnimation {
-                        useDynamicLayout.toggle()
-                    }
-                } label: {
-                    Image(systemName: useDynamicLayout ? "square.grid.3x3.fill" : "square.on.square")
-                        .font(.system(size: 16))
-                        .foregroundColor(useDynamicLayout ? .blue : .secondary)
-                        .frame(width: 36, height: 36)
-                }
-                .buttonStyle(.plain)
-
                 // Gyro mouse toggle
                 Button {
                     withAnimation {
@@ -638,24 +624,24 @@ struct ContentView: View {
                 .id(viewManager.currentView)
             case .gamepad:
                 VStack(spacing: 0) {
-                    if useDynamicLayout, let doc = presetRepository.activePresetDocument {
+                    if let _ = presetRepository.activeDocument {
+                        let docBinding = Binding(
+                            get: { self.presetRepository.activeDocument ?? GamepadPresetDocument() },
+                            set: { self.presetRepository.updateDocument($0) }
+                        )
                         GamepadDynamicCanvas(
-                            document: .constant(doc),
+                            document: docBinding,
                             keyboardManager: keyboardManager,
                             mouseManager: mouseManager,
                             backgroundManager: backgroundManager,
                             isEditMode: isGamepadEditMode,
                             isPositionEditMode: false,
-                            isKeyMappingMode: false
+                            isKeyMappingMode: false,
+                            onSaveDocument: { self.presetRepository.saveActiveDocument() }
                         )
+                        .id("dynamic_\(presetRepository.activePresetId ?? "none")")
                     } else {
-                        GamepadView(
-                            orientationManager: orientationManager,
-                            keyboardManager: keyboardManager,
-                            mouseManager: mouseManager,
-                            selectedLayout: selectedGamepadLayout,
-                            isEditMode: isGamepadEditMode
-                        )
+                        Text("No preset available")
                     }
 
                     // Toggle row (edit mode only, centered in remaining space)
@@ -666,6 +652,9 @@ struct ContentView: View {
                     }
                 }
                 .id(viewManager.currentView)
+                .onChange(of: presetRepository.activePresetId) { newId in
+                    print("🔄 Active preset changed to: \(newId ?? "none")")
+                }
                 .fullScreenCover(isPresented: $showPresetPicker) {
                     PresetPickerView(
                         repository: presetRepository,
@@ -679,6 +668,14 @@ struct ContentView: View {
                             isPresented: $showBackgroundPicker
                         )
                     }
+                }
+                .sheet(isPresented: $showAddModulePicker) {
+                    AddModulePicker(
+                        isPresented: $showAddModulePicker,
+                        onAdd: { moduleType in
+                            addModule(ofType: moduleType)
+                        }
+                    )
                 }
             case .numpad:
                 NumPadView(keyboardManager: keyboardManager, orientationManager: orientationManager)
@@ -911,7 +908,7 @@ struct ContentView: View {
 
                 // Add module
                 Button {
-                    // TODO: Open add module dialog (touchpad, scroll strip, dpad, button)
+                    showAddModulePicker = true
                 } label: {
                     VStack(spacing: 4) {
                         Image(systemName: "plus.circle")
@@ -966,25 +963,73 @@ struct ContentView: View {
     }
 
     private var currentPresetDisplayName: String {
-        if let doc = presetRepository.activePresetDocument {
+        if let doc = presetRepository.activeDocument {
             return doc.meta.displayName
         }
-        return useDynamicLayout ? "No Preset" : layoutDisplayName(for: selectedGamepadLayout)
+        return "No Preset"
     }
 
-    // MARK: - Helper Functions
-    
-    private func layoutDisplayName(for layout: GamepadLayout) -> String {
-        switch layout {
-        case .xbox:
-            return "Xbox"
-        case .playStation:
-            return "PS"
-        case .nes:
-            return "NES"
-        case .simple:
-            return "Simple"
+    // MARK: - Add Module
+
+    private func addModule(ofType type: AddModuleType) {
+        guard var doc = presetRepository.activeDocument else { return }
+        var newModule: GamepadModule
+
+        switch type {
+        case .dpadStick:
+            // Android: stick_left, type=DPAD, variant=cross, WASD keys (HID: W=26, A=4, S=22, D=7)
+            let id = "stick_left"
+            newModule = GamepadModule(
+                id: id, type: .dpad,
+                anchorX: 0.20, anchorY: 0.50,
+                dpadVariant: "cross",
+                stickUpKey: "W", stickLeftKey: "A", stickDownKey: "S", stickRightKey: "D"
+            )
+            // Derive key from default Up key
+            newModule.derivedKey = "W"
+
+        case .button:
+            // Android: button_N, hidKey=40 (Enter), displayLabel="Btn"
+            let existingButtons = doc.modules.filter { $0.type == .button }
+            let nextNum = existingButtons.count + 1
+            newModule = GamepadModule(
+                id: "button_\(nextNum)", type: .button,
+                anchorX: 0.50, anchorY: 0.55,
+                hidKey: 40, derivedKey: "Enter", displayLabel: "Btn"
+            )
+            // Match scale of existing buttons if any
+            if let firstButton = doc.modules.first(where: { $0.type == .button }) {
+                newModule.scale = firstButton.scale
+            }
+
+        case .touchpad:
+            // Android: touchpad_N, widthNorm=0.28, heightNorm=0.28
+            let existing = doc.modules.filter { $0.type == .touchpad }
+            let num = existing.count + 1
+            newModule = GamepadModule(
+                id: "touchpad_\(num)", type: .touchpad,
+                anchorX: 0.50, anchorY: 0.35,
+                widthNorm: 0.28, heightNorm: 0.28
+            )
+
+        case .scrollStrip:
+            // Android: scroll_strip_N, widthNorm=0.10, heightNorm=0.36, displayLabel="Wheel"
+            let existing = doc.modules.filter { $0.type == .scrollStrip }
+            let num = existing.count + 1
+            let baseX = 0.06 + Double(num - 1) * 0.10
+            newModule = GamepadModule(
+                id: "scroll_strip_\(num)", type: .scrollStrip,
+                anchorX: baseX, anchorY: 0.48,
+                scrollStripSensitivity: 1.0,
+                widthNorm: 0.10, heightNorm: 0.36
+            )
+            newModule.displayLabel = "Wheel"
         }
+
+        var updatedDoc = doc
+        updatedDoc.modules.append(newModule)
+        presetRepository.updateDocument(updatedDoc)
+        presetRepository.saveActiveDocument()
     }
 }
 

@@ -17,6 +17,8 @@ struct GamepadModuleView: View {
     let isEditMode: Bool
     let isPositionEditMode: Bool
     let isKeyMappingMode: Bool
+    let layoutScale: CGFloat
+    let canvasSize: CGSize
 
     var onModulePress: (String, String?) -> Void
     var onModuleRelease: (String, String?) -> Void
@@ -58,7 +60,25 @@ struct GamepadModuleView: View {
                 moduleTriggerView
             }
         }
-        .scaleEffect(CGFloat(effectiveScale))
+        .overlay(alignment: .topTrailing) {
+            if isEditMode {
+                settingsButton
+            }
+        }
+    }
+
+    // MARK: - Settings Button
+
+    private var settingsButton: some View {
+        Button {
+            onModuleConfig(module.id)
+        } label: {
+            Image(systemName: "gearshape.fill")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.orange)
+                .padding(4)
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Button Module
@@ -67,18 +87,22 @@ struct GamepadModuleView: View {
     private var moduleButtonView: some View {
         let label = module.displayLabel ?? "Btn"
         let key = module.derivedKey ?? ""
+        let baseRadius = 100.0 * layoutScale * CGFloat(module.scale)
+        let w = baseRadius * 2 * CGFloat(module.buttonWidthRatio)
+        let h = baseRadius * 2 * CGFloat(module.buttonHeightRatio)
+        let cornerRadius = module.buttonCornerRadiusNorm * min(w, h) / 2
 
         Button(action: {}) {
             Text(label)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(.white)
-                .frame(width: 50, height: 50)
+                .frame(width: w, height: h)
                 .background(
-                    Circle()
+                    RoundedRectangle(cornerRadius: cornerRadius)
                         .fill(isPressed ? accentColor.opacity(0.7) : accentColor)
                 )
                 .overlay(
-                    Circle()
+                    RoundedRectangle(cornerRadius: cornerRadius)
                         .stroke(Color.gray.opacity(0.3), lineWidth: 1)
                 )
         }
@@ -90,8 +114,10 @@ struct GamepadModuleView: View {
     @ViewBuilder
     private var moduleDpadView: some View {
         let variant = DPadVariant(rawValue: module.dpadVariant ?? "cross") ?? .cross
+        let baseRadius = 180.0 * layoutScale * CGFloat(module.scale)
         DPadVariantView(
             variant: variant,
+            baseRadius: baseRadius,
             onDirection: { dir in onModulePress(module.id, dir) },
             onDirectionUp: { dir in onModuleRelease(module.id, dir) },
             onLongPress: { dir in onModuleConfig(module.id) },
@@ -104,19 +130,20 @@ struct GamepadModuleView: View {
 
     @ViewBuilder
     private var moduleStickView: some View {
+        let baseRadius = 180.0 * layoutScale * CGFloat(module.scale)
         let isMouseStick = module.stickMouseSensitivity != nil
         if isMouseStick {
             AnalogStickView(
                 position: Binding(
                     get: { .zero },
                     set: { pos in
-                        // Route to mouse manager
                         handleStickMouseMove(pos: pos)
                     }
                 ),
                 onTap: { onModuleConfig(module.id) },
                 stickName: module.id,
-                isEditMode: isEditMode
+                isEditMode: isEditMode,
+                baseRadius: baseRadius
             )
         } else {
             AnalogStickView(
@@ -128,7 +155,8 @@ struct GamepadModuleView: View {
                 ),
                 onTap: { onModuleConfig(module.id) },
                 stickName: module.id,
-                isEditMode: isEditMode
+                isEditMode: isEditMode,
+                baseRadius: baseRadius
             )
         }
     }
@@ -174,20 +202,36 @@ struct GamepadModuleView: View {
 
     @ViewBuilder
     private var moduleScrollStripView: some View {
+        let ww = CGFloat(module.widthNorm ?? 0.10) * canvasSize.width
+        let hh = CGFloat(module.heightNorm ?? 0.36) * canvasSize.height
         ScrollStripView(
             mouseManager: mouseManager,
             isEditMode: isEditMode,
             sensitivity: module.scrollStripSensitivity ?? 1.0
         )
-        .frame(width: 40, height: 120)
+        .frame(width: ww, height: hh)
     }
 
     // MARK: - Touchpad Module
 
     @ViewBuilder
     private var moduleTouchpadView: some View {
-        TouchpadModuleView(mouseManager: mouseManager, isEditMode: isEditMode)
-            .frame(width: 200, height: 150)
+        let ww = CGFloat(module.widthNorm ?? 0.35) * canvasSize.width
+        let hh = CGFloat(module.heightNorm ?? 0.25) * canvasSize.height
+        TouchpadModuleView(
+            mouseManager: mouseManager,
+            isEditMode: isEditMode,
+            onDelta: { dx, dy in
+                let basePosition = CGPoint(x: 100, y: 100)
+                let currentPosition = CGPoint(x: basePosition.x + dx, y: basePosition.y + dy)
+                mouseManager.previousPosition = basePosition
+                mouseManager.handleDragChanged(currentPosition: currentPosition)
+            },
+            onDragEnd: {
+                mouseManager.handleDragEnded()
+            }
+        )
+        .frame(width: ww, height: hh)
     }
 
     // MARK: - Mouse Button Module
@@ -195,11 +239,12 @@ struct GamepadModuleView: View {
     @ViewBuilder
     private var moduleMouseButtonView: some View {
         let label = mouseButtonLabel
+        let baseRadius = 52.0 * layoutScale * CGFloat(module.scale)
         Button(action: {}) {
             Text(label)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(.white)
-                .frame(width: 50, height: 50)
+                .frame(width: baseRadius * 2, height: baseRadius * 2)
                 .background(
                     Circle()
                         .fill(isPressed ? Color.gray : Color(red: 0.35, green: 0.35, blue: 0.38))
@@ -223,12 +268,14 @@ struct GamepadModuleView: View {
     private var moduleShoulderView: some View {
         let label = module.displayLabel ?? "SH"
         let key = hidKeyToKeyName(module.hidKey)
+        let sw = 108.0 * layoutScale * CGFloat(module.scale)
+        let sh = 34.0 * layoutScale * CGFloat(module.scale)
 
         Button(action: {}) {
             Text(label)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.white)
-                .frame(width: 80, height: 35)
+                .frame(width: sw, height: sh)
                 .background(
                     RoundedRectangle(cornerRadius: 8)
                         .fill(isPressed ? accentColor.opacity(0.7) : Color(red: 0.35, green: 0.37, blue: 0.4))
@@ -243,12 +290,14 @@ struct GamepadModuleView: View {
     private var moduleTriggerView: some View {
         let label = module.displayLabel ?? "TR"
         let key = hidKeyToKeyName(module.hidKey)
+        let sw = 108.0 * layoutScale * CGFloat(module.scale)
+        let sh = 34.0 * layoutScale * CGFloat(module.scale)
 
         Button(action: {}) {
             Text(label)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.white)
-                .frame(width: 80, height: 30)
+                .frame(width: sw, height: sh)
                 .background(
                     RoundedRectangle(cornerRadius: 6)
                         .fill(isPressed ? accentColor.opacity(0.7) : Color(red: 0.29, green: 0.31, blue: 0.34))

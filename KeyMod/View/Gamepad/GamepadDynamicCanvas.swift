@@ -17,6 +17,7 @@ struct GamepadDynamicCanvas: View {
     let isEditMode: Bool
     let isPositionEditMode: Bool
     let isKeyMappingMode: Bool
+    var onSaveDocument: () -> Void = {}
 
     @State private var moduleDragOffsets: [String: CGSize] = [:]
     @State private var moduleBaseOffsets: [String: CGSize] = [:]
@@ -30,7 +31,8 @@ struct GamepadDynamicCanvas: View {
         backgroundManager: GamepadBackgroundManager,
         isEditMode: Bool,
         isPositionEditMode: Bool,
-        isKeyMappingMode: Bool
+        isKeyMappingMode: Bool,
+        onSaveDocument: @escaping () -> Void = {}
     ) {
         self._document = document
         self.keyboardManager = keyboardManager
@@ -39,6 +41,7 @@ struct GamepadDynamicCanvas: View {
         self.isEditMode = isEditMode
         self.isPositionEditMode = isPositionEditMode
         self.isKeyMappingMode = isKeyMappingMode
+        self.onSaveDocument = onSaveDocument
         _turboEngine = StateObject(wrappedValue: TurboEngine(keyboardManager: keyboardManager))
     }
 
@@ -66,6 +69,9 @@ struct GamepadDynamicCanvas: View {
                     module: module,
                     isPresented: $showModuleConfig
                 )
+                .onDisappear {
+                    onSaveDocument()
+                }
             }
         }
     }
@@ -82,6 +88,7 @@ struct GamepadDynamicCanvas: View {
     private func moduleRenderer(for module: GamepadModule, in size: CGSize) -> some View {
         let x = CGFloat(module.anchorX) * size.width + (moduleDragOffsets[module.id]?.width ?? 0)
         let y = CGFloat(module.anchorY) * size.height + (moduleDragOffsets[module.id]?.height ?? 0)
+        let layoutScale = max(0.35, min(1.35, min(size.width, size.height) / 800.0))
 
         GamepadModuleView(
             module: module,
@@ -92,13 +99,15 @@ struct GamepadDynamicCanvas: View {
             isEditMode: isEditMode,
             isPositionEditMode: isPositionEditMode,
             isKeyMappingMode: isKeyMappingMode,
+            layoutScale: layoutScale,
+            canvasSize: size,
             onModulePress: handleModulePress,
             onModuleRelease: handleModuleRelease,
             onModuleConfig: handleModuleConfig
         )
         .position(x: x, y: y)
         .gesture(
-            positionEditGesture(for: module, size: size)
+            isEditMode ? positionEditGesture(for: module, size: size) : nil
         )
     }
 
