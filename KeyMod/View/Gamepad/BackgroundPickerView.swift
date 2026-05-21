@@ -13,6 +13,7 @@ import PhotosUI
 struct BackgroundPickerView: View {
     @ObservedObject var manager: GamepadBackgroundManager
     @Binding var isPresented: Bool
+    var onSave: (() -> Void)?
     @State private var showImagePicker = false
     @State private var selectedItem: PhotosPickerItem?
 
@@ -160,6 +161,7 @@ struct BackgroundPickerView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
+                        onSave?()
                         isPresented = false
                     }
                 }

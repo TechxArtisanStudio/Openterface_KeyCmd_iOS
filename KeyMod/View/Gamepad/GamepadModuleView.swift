@@ -39,6 +39,18 @@ struct GamepadModuleView: View {
         return .blue
     }
 
+    var accentUIColor: UIColor {
+        UIColor(accentColor)
+    }
+
+    var accentPressedUIColor: UIColor {
+        if let argb = module.moduleAccentArgb {
+            let color = Color(argb: argb)
+            return UIColor(color).withAlphaComponent(0.7)
+        }
+        return UIColor.blue.withAlphaComponent(0.7)
+    }
+
     var body: some View {
         Group {
             switch module.type {
@@ -90,23 +102,30 @@ struct GamepadModuleView: View {
         let baseRadius = 100.0 * layoutScale * CGFloat(module.scale)
         let w = baseRadius * 2 * CGFloat(module.buttonWidthRatio)
         let h = baseRadius * 2 * CGFloat(module.buttonHeightRatio)
-        let cornerRadius = module.buttonCornerRadiusNorm * min(w, h) / 2
 
-        Button(action: {}) {
-            Text(label)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(.white)
-                .frame(width: w, height: h)
-                .background(
-                    RoundedRectangle(cornerRadius: cornerRadius)
-                        .fill(isPressed ? accentColor.opacity(0.7) : accentColor)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: cornerRadius)
-                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                )
-        }
-        .simultaneousGesture(moduleDragGesture(componentId: module.id, key: key))
+        MultiTouchDragButton(
+            label: label,
+            normalColor: accentUIColor,
+            pressedColor: accentPressedUIColor,
+            cornerRadiusNorm: module.buttonCornerRadiusNorm,
+            borderColor: .clear,
+            onPress: {
+                if !isPressed {
+                    isPressed = true
+                    hapticManager.triggerButtonPress()
+                    handleButtonPress(key: key)
+                }
+            },
+            onDrag: { translation in
+                gestureTracker.recordOffset(dx: translation.width, dy: translation.height)
+            },
+            onRelease: {
+                let wasPressed = isPressed
+                isPressed = false
+                handleButtonRelease(wasPressed: wasPressed, key: key)
+            }
+        )
+        .frame(width: w, height: h)
     }
 
     // MARK: - D-Pad Module
@@ -220,16 +239,7 @@ struct GamepadModuleView: View {
         let hh = CGFloat(module.heightNorm ?? 0.25) * canvasSize.height
         TouchpadModuleView(
             mouseManager: mouseManager,
-            isEditMode: isEditMode,
-            onDelta: { dx, dy in
-                let basePosition = CGPoint(x: 100, y: 100)
-                let currentPosition = CGPoint(x: basePosition.x + dx, y: basePosition.y + dy)
-                mouseManager.previousPosition = basePosition
-                mouseManager.handleDragChanged(currentPosition: currentPosition)
-            },
-            onDragEnd: {
-                mouseManager.handleDragEnded()
-            }
+            isEditMode: isEditMode
         )
         .frame(width: ww, height: hh)
     }
@@ -240,17 +250,25 @@ struct GamepadModuleView: View {
     private var moduleMouseButtonView: some View {
         let label = mouseButtonLabel
         let baseRadius = 52.0 * layoutScale * CGFloat(module.scale)
-        Button(action: {}) {
-            Text(label)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(.white)
-                .frame(width: baseRadius * 2, height: baseRadius * 2)
-                .background(
-                    Circle()
-                        .fill(isPressed ? Color.gray : Color(red: 0.35, green: 0.35, blue: 0.38))
-                )
-        }
-        .simultaneousGesture(moduleDragGesture(componentId: module.id, key: ""))
+        MultiTouchDragButton(
+            label: label,
+            normalColor: UIColor(red: 0.35, green: 0.35, blue: 0.38, alpha: 1.0),
+            pressedColor: .systemGray,
+            cornerRadiusNorm: 1.0,  // Perfect circle
+            onPress: {
+                if !isPressed {
+                    isPressed = true
+                    hapticManager.triggerButtonPress()
+                    onModulePress(module.id, nil)
+                }
+            },
+            onDrag: { _ in },
+            onRelease: {
+                isPressed = false
+                onModuleRelease(module.id, nil)
+            }
+        )
+        .frame(width: baseRadius * 2, height: baseRadius * 2)
     }
 
     private var mouseButtonLabel: String {
@@ -271,17 +289,28 @@ struct GamepadModuleView: View {
         let sw = 108.0 * layoutScale * CGFloat(module.scale)
         let sh = 34.0 * layoutScale * CGFloat(module.scale)
 
-        Button(action: {}) {
-            Text(label)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.white)
-                .frame(width: sw, height: sh)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(isPressed ? accentColor.opacity(0.7) : Color(red: 0.35, green: 0.37, blue: 0.4))
-                )
-        }
-        .simultaneousGesture(moduleDragGesture(componentId: module.id, key: key))
+        MultiTouchDragButton(
+            label: label,
+            normalColor: UIColor(red: 0.35, green: 0.37, blue: 0.4, alpha: 1.0),
+            pressedColor: accentPressedUIColor,
+            cornerRadiusNorm: 0.47,  // ~8px on 34pt height, matching Android shoulder
+            onPress: {
+                if !isPressed {
+                    isPressed = true
+                    hapticManager.triggerButtonPress()
+                    handleButtonPress(key: key)
+                }
+            },
+            onDrag: { translation in
+                gestureTracker.recordOffset(dx: translation.width, dy: translation.height)
+            },
+            onRelease: {
+                let wasPressed = isPressed
+                isPressed = false
+                handleButtonRelease(wasPressed: wasPressed, key: key)
+            }
+        )
+        .frame(width: sw, height: sh)
     }
 
     // MARK: - Trigger Module
@@ -293,76 +322,68 @@ struct GamepadModuleView: View {
         let sw = 108.0 * layoutScale * CGFloat(module.scale)
         let sh = 34.0 * layoutScale * CGFloat(module.scale)
 
-        Button(action: {}) {
-            Text(label)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.white)
-                .frame(width: sw, height: sh)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(isPressed ? accentColor.opacity(0.7) : Color(red: 0.29, green: 0.31, blue: 0.34))
-                )
-        }
-        .simultaneousGesture(moduleDragGesture(componentId: module.id, key: key))
-    }
-
-    // MARK: - Shared Gesture Handler
-
-    private func moduleDragGesture(componentId: String, key: String) -> some Gesture {
-        DragGesture(minimumDistance: 0)
-            .onChanged { value in
+        MultiTouchDragButton(
+            label: label,
+            normalColor: UIColor(red: 0.29, green: 0.31, blue: 0.34, alpha: 1.0),
+            pressedColor: accentPressedUIColor,
+            cornerRadiusNorm: 0.35,  // ~6px on 34pt height, matching Android trigger
+            onPress: {
                 if !isPressed {
                     isPressed = true
                     hapticManager.triggerButtonPress()
-                    if !key.isEmpty {
-                        // Check turbo first
-                        if module.turboEnabled && !key.isEmpty {
-                            turboEngine.start(key: key, config: TurboConfig(
-                                enabled: true,
-                                intervalMs: module.turboIntervalMs ?? 80,
-                                initialDelayMs: module.turboInitialDelayMs ?? 400
-                            ))
-                        } else if module.hasGestureLock {
-                            // Gesture lock: send keyDown for hold behavior
-                            keyboardManager.handleKeyDown(key)
-                        } else {
-                            onModulePress(componentId, nil)
-                        }
-                    }
+                    handleButtonPress(key: key)
                 }
-                // Track for gesture lock
-                gestureTracker.recordOffset(dx: value.translation.width, dy: value.translation.height)
-            }
-            .onEnded { value in
+            },
+            onDrag: { translation in
+                gestureTracker.recordOffset(dx: translation.width, dy: translation.height)
+            },
+            onRelease: {
                 let wasPressed = isPressed
                 isPressed = false
-                gestureTracker.recordOffset(dx: value.translation.width, dy: value.translation.height)
+                handleButtonRelease(wasPressed: wasPressed, key: key)
+            }
+        )
+        .frame(width: sw, height: sh)
+    }
 
-                if wasPressed && !key.isEmpty {
-                    // If turbo is running, stop it
-                    if turboEngine.isActive {
-                        turboEngine.stop()
-                    } else if module.hasGestureLock {
-                        // For gesture lock, check the resolved action
-                        let action = gestureTracker.committedAction(for: module)
-                        gestureTracker.highlightedQuadrant = nil
-                        switch action {
-                        case PresetConstants.gestureLockActionHoldLock,
-                             PresetConstants.gestureLockActionKeyHold:
-                            keyboardManager.handleKeyUp(key)
-                        default:
-                            keyboardManager.handleKeyUp(key)
-                        }
-                    } else {
-                        onModuleRelease(componentId, nil)
-                    }
-                }
+    // MARK: - Button Press/Release Handlers
 
-                // Check gesture lock
+    private func handleButtonPress(key: String) {
+        if !key.isEmpty {
+            if module.turboEnabled {
+                turboEngine.start(key: key, config: TurboConfig(
+                    enabled: true,
+                    intervalMs: module.turboIntervalMs ?? 80,
+                    initialDelayMs: module.turboInitialDelayMs ?? 400
+                ))
+            } else if module.hasGestureLock {
+                keyboardManager.handleKeyDown(key)
+            } else {
+                onModulePress(module.id, nil)
+            }
+        }
+    }
+
+    private func handleButtonRelease(wasPressed: Bool, key: String) {
+        if wasPressed && !key.isEmpty {
+            if turboEngine.isActive {
+                turboEngine.stop()
+            } else if module.hasGestureLock {
                 let action = gestureTracker.committedAction(for: module)
                 gestureTracker.highlightedQuadrant = nil
+                keyboardManager.handleKeyUp(key)
                 handleGestureLockAction(action, key: key)
+            } else {
+                onModuleRelease(module.id, nil)
             }
+        }
+
+        // Check gesture lock action
+        if module.hasGestureLock {
+            let action = gestureTracker.committedAction(for: module)
+            gestureTracker.highlightedQuadrant = nil
+            handleGestureLockAction(action, key: key)
+        }
     }
 
     private func handleGestureLockAction(_ action: String, key: String) {
@@ -370,11 +391,8 @@ struct GamepadModuleView: View {
         case PresetConstants.gestureLockActionHoldLock:
             if !key.isEmpty {
                 keyboardManager.handleKeyDown(key)
-                // Key stays pressed until explicit release
             }
         case PresetConstants.gestureLockActionTurbo:
-            // Turbo would be started here if we had a TurboEngine reference
-            // For now, just send the key
             if !key.isEmpty {
                 keyboardManager.handleKeyDown(key)
             }

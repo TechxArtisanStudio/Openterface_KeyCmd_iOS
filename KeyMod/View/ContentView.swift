@@ -640,6 +640,12 @@ struct ContentView: View {
                             onSaveDocument: { self.presetRepository.saveActiveDocument() }
                         )
                         .id("dynamic_\(presetRepository.activePresetId ?? "none")")
+                        .task(id: presetRepository.activePresetId ?? "") {
+                            // Sync preset's background settings to background manager
+                            if let doc = presetRepository.activeDocument {
+                                backgroundManager.loadFromLayout(doc.layout)
+                            }
+                        }
                     } else {
                         Text("No preset available")
                     }
@@ -665,7 +671,14 @@ struct ContentView: View {
                     if #available(iOS 16.0, *) {
                         BackgroundPickerView(
                             manager: backgroundManager,
-                            isPresented: $showBackgroundPicker
+                            isPresented: $showBackgroundPicker,
+                            onSave: {
+                                // Save background settings back to the preset document's layout
+                                if var doc = presetRepository.activeDocument {
+                                    backgroundManager.saveToLayout(&doc.layout)
+                                    presetRepository.updateDocument(doc)
+                                }
+                            }
                         )
                     }
                 }

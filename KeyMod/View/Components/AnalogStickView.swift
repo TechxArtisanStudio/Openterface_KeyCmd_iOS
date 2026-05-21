@@ -11,6 +11,7 @@ struct AnalogStickView: View {
     @Binding var position: CGPoint
     @State private var dragOffset: CGSize = .zero
     @State private var hasDragStarted = false
+    @State private var hasFiredPress = false
     var onTap: (() -> Void)? = nil
     let stickName: String
     let isEditMode: Bool
@@ -34,14 +35,15 @@ struct AnalogStickView: View {
                 .fill(Color.blue)
                 .frame(width: baseRadius * 1.08, height: baseRadius * 1.08)
                 .offset(dragOffset)
-                .gesture(
+                .simultaneousGesture(
                     DragGesture()
                         .onChanged { value in
                             if !isEditMode {
-                                if !hasDragStarted {
-                                    hasDragStarted = true
+                                if !hasFiredPress {
+                                    hasFiredPress = true
                                     hapticManager.triggerButtonPress()
                                 }
+                                hasDragStarted = true
 
                                 let distance = sqrt(value.translation.width * value.translation.width + value.translation.height * value.translation.height)
                                 if distance <= baseRadius {
@@ -61,6 +63,7 @@ struct AnalogStickView: View {
                         .onEnded { _ in
                             if !isEditMode {
                                 hasDragStarted = false
+                                hasFiredPress = false
                                 withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                     dragOffset = .zero
                                     position = CGPoint.zero

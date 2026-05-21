@@ -57,6 +57,65 @@ class GamepadBackgroundManager: ObservableObject {
         loadImage()
     }
 
+    // MARK: - Layout Integration
+
+    /// Load background settings from a preset's LayoutGlobals.
+    /// This overrides the global UserDefaults config with per-preset values.
+    func loadFromLayout(_ layout: LayoutGlobals) {
+        if let fillArgb = layout.backgroundFillArgb {
+            backgroundType = .pattern
+            // Convert ARGB int to hex string
+            let a = (fillArgb >> 24) & 0xFF
+            let r = (fillArgb >> 16) & 0xFF
+            let g = (fillArgb >> 8) & 0xFF
+            let b = fillArgb & 0xFF
+            let hex = String(format: "#%02X%02X%02X", r, g, b)
+            gradientTopHex = hex
+            gradientBottomHex = hex
+            solidColorHex = hex
+        }
+        if let pattern = layout.backgroundPattern, !pattern.isEmpty {
+            self.pattern = BackgroundPattern(rawValue: pattern) ?? .none
+        }
+        if let imageFile = layout.backgroundImageFile {
+            imageFileName = imageFile
+            loadImage()
+        }
+        bgScale = CGFloat(layout.backgroundScale)
+        bgOffsetX = CGFloat(layout.backgroundOffsetX)
+        bgOffsetY = CGFloat(layout.backgroundOffsetY)
+    }
+
+    /// Save current background settings back to the preset's LayoutGlobals.
+    func saveToLayout(_ layout: inout LayoutGlobals) {
+        if backgroundType == .pattern || backgroundType == .solidColor {
+            if let argb = colorHexToArgb(gradientTopHex) {
+                layout.backgroundFillArgb = argb
+            }
+        }
+        if pattern != .none {
+            layout.backgroundPattern = pattern.rawValue
+        } else {
+            layout.backgroundPattern = nil
+        }
+        if let fileName = imageFileName {
+            layout.backgroundImageFile = fileName
+        }
+        layout.backgroundScale = Double(bgScale)
+        layout.backgroundOffsetX = Double(bgOffsetX)
+        layout.backgroundOffsetY = Double(bgOffsetY)
+    }
+
+    private func colorHexToArgb(_ hex: String) -> Int? {
+        let clean = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        guard Scanner(string: clean).scanHexInt64(&int) else { return nil }
+        let r = Int((int >> 16) & 0xFF)
+        let g = Int((int >> 8) & 0xFF)
+        let b = Int(int & 0xFF)
+        return (0xFF << 24) | (r << 16) | (g << 8) | b
+    }
+
     // MARK: - Image Management
 
     func setImage(_ image: UIImage) {
