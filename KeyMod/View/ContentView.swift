@@ -519,7 +519,7 @@ struct ContentView: View {
             Button(action: {
                 showTargetOSDialog = true
             }) {
-                Image(systemName: aiSettings.targetOS.systemImage)
+                Image(aiSettings.targetOS.imageName)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 20, height: 20)
@@ -553,10 +553,12 @@ struct ContentView: View {
                             aiSettings.targetOS = os
                             showTargetOSDialog = false
                         } label: {
-                            Image(systemName: os.systemImage)
-                                .font(.system(size: 32, weight: .semibold))
+                            Image(os.imageName)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
                                 .foregroundColor(aiSettings.targetOS == os ? .white : .primary)
-                                .frame(width: 56, height: 56)
+                                .frame(width: 32, height: 32)
+                                .padding(12)
                                 .background(
                                     Circle()
                                         .fill(aiSettings.targetOS == os ? Color.accentColor : Color(UIColor.secondarySystemFill))

@@ -495,17 +495,26 @@ struct BasicKeyboardMouseView: View {
             switch key {
             case "Cmd": return "⌘"
             case "Option": return "⌥"
-            case "Super": return "❖"
             default: return key
             }
         }()
-        ModifierKeyButton(key: key, keyboardManager: keyboardManager, keyPreview: displayLabel) { isPhysical, isLocked in
-            Text(displayLabel)
-                .font(.system(size: 12, weight: .medium))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(isLocked ? Color.blue : (isPhysical ? Color.blue.opacity(0.6) : Self.functionKeyBg))
-                .cornerRadius(6)
-                .foregroundColor(isPhysical || isLocked ? .white : .primary)
+        let isSuperKey = key == "Super" || key == "Win"
+        return ModifierKeyButton(key: key, keyboardManager: keyboardManager, keyPreview: displayLabel) { isPhysical, isLocked in
+            Group {
+                if isSuperKey && aiSettings.targetOS == .windows {
+                    Image("targetos_windows")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 28, height: 28)
+                } else {
+                    Text(displayLabel)
+                        .font(.system(size: 12, weight: .medium))
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(isLocked ? Color.blue : (isPhysical ? Color.blue.opacity(0.6) : Self.functionKeyBg))
+            .cornerRadius(6)
+            .foregroundColor(isPhysical || isLocked ? .white : .primary)
         }
     }
 

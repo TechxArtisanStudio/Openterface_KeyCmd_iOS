@@ -62,7 +62,7 @@ struct GeneralSettingsView: View {
 
         Section(header: Text("Target System")) {
             HStack {
-                Label("Target OS", systemImage: aiSettings.targetOS.systemImage)
+                Label("Target OS", image: aiSettings.targetOS.imageName)
                 Spacer()
             }
             Picker("Target OS", selection: $aiSettings.targetOS) {
