@@ -704,6 +704,12 @@ struct BasicKeyboardMouseView: View {
 
     private static let functionKeyBg = Color(UIColor.secondarySystemBackground)
     private static let regularKeyBg = Color(UIColor.systemBackground)
+    private static let touchpadBase = Color(red: 32/255, green: 34/255, blue: 38/255)
+    private static let touchpadPanel = Color(red: 24/255, green: 26/255, blue: 30/255)
+    private static let touchpadButton = Color(red: 48/255, green: 50/255, blue: 56/255)
+    private static let touchpadButtonPressed = Color(red: 18/255, green: 20/255, blue: 24/255)
+    private static let touchpadAccent = Color.white.opacity(0.65)
+    private static let touchpadText = Color(red: 0.90, green: 0.90, blue: 0.94)
     /// Keys that should NOT repeat while held (modifiers and function keys).
     private static let noRepeatKeys: Set<String> = [
         "Esc", "Tab", "Caps", "Shift", "Ctrl", "Alt", "Win", "Cmd", "Option", "Super",
@@ -761,12 +767,40 @@ struct BasicKeyboardMouseView: View {
                             }
                         )
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(
+                            ZStack {
+                                Self.touchpadPanel
+                                LinearGradient(
+                                    gradient: Gradient(colors: [Color.white.opacity(0.08), Color.clear]),
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                                LinearGradient(
+                                    gradient: Gradient(colors: [Color.black.opacity(0.14), Color.clear]),
+                                    startPoint: .bottomLeading,
+                                    endPoint: .topTrailing
+                                )
+                                RadialGradient(
+                                    gradient: Gradient(colors: [Color.white.opacity(0.06), Color.clear]),
+                                    center: .init(x: 0.28, y: 0.24),
+                                    startRadius: 0,
+                                    endRadius: 260
+                                )
+                                RadialGradient(
+                                    gradient: Gradient(colors: [Color.black.opacity(0.12), Color.clear]),
+                                    center: .init(x: 0.78, y: 0.82),
+                                    startRadius: 0,
+                                    endRadius: 280
+                                )
+                            }
+                        )
+                        .cornerRadius(12)
 
                         // Glow border when drag or buttons are held
                         if isAnyButtonHeld || mouseManager.isSelectMode {
                             RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.blue.opacity(0.6), lineWidth: 3)
-                                .shadow(color: .blue.opacity(0.4), radius: 8, x: 0, y: 0)
+                                .stroke(Color.black.opacity(0.15), lineWidth: 1)
+                                .shadow(color: Color.black.opacity(0.18), radius: 6, x: 0, y: 0)
                                 .transition(.opacity)
                         }
 
@@ -774,30 +808,47 @@ struct BasicKeyboardMouseView: View {
                         VStack(spacing: 4) {
                             Text("TouchPad")
                                 .font(.system(size: 16, weight: .bold))
-                                .foregroundColor(.primary)
+                                .foregroundColor(Self.touchpadText)
                             Text("Buttons: \(touchpadButtonsText)")
                                 .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(.secondary)
+                                .foregroundColor(Self.touchpadText.opacity(0.8))
                             Text("Touch: \(touchpadTouchText)")
                                 .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(.secondary)
+                                .foregroundColor(Self.touchpadText.opacity(0.8))
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
                         .background(
                             RoundedRectangle(cornerRadius: 10)
-                                .fill(Color(UIColor.secondarySystemBackground).opacity(0.88))
+                                .fill(Self.touchpadPanel.opacity(0.92))
+                                .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 0)
                         )
+                        .allowsHitTesting(false)
+
+                        // Openterface logo in the touchpad surface.
+                        VStack {
+                            Spacer()
+                            HStack {
+                                Spacer()
+                                Image("openterface_wordmark")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(height: 18)
+                                    .opacity(0.70)
+                                Spacer()
+                            }
+                            .padding(.bottom, 12)
+                        }
                         .allowsHitTesting(false)
 
                         // Visual indicator when left button is held (matches Android hold-lock feedback)
                         if isLeftButtonHeld {
                             ZStack {
                                 Circle()
-                                    .fill(Color.white.opacity(0.35))
+                                    .fill(Color.white.opacity(0.40))
                                     .frame(width: 24, height: 24)
                                 Circle()
-                                    .stroke(Color.blue, lineWidth: 2)
+                                    .stroke(Color.black.opacity(0.28), lineWidth: 2)
                                     .frame(width: 24, height: 24)
                             }
                             .transition(.scale.combined(with: .opacity))
@@ -807,6 +858,7 @@ struct BasicKeyboardMouseView: View {
                         .frame(width: stripGeo.size.width * 0.3)
                 }
                 .frame(maxHeight: .infinity)
+                .background(Self.touchpadPanel)
 
                 // Mouse buttons row
                 HStack(spacing: 8) {
@@ -831,6 +883,7 @@ struct BasicKeyboardMouseView: View {
                 .frame(height: buttonRowHeight)
                 .padding(.horizontal, 12)
                 .padding(.vertical, isLandscape ? 4 : 8)
+                .background(Self.touchpadPanel)
             }
         }
     }
@@ -853,12 +906,13 @@ struct BasicKeyboardMouseView: View {
         ) { isPressed, isLocked in
             Text(label)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(isPressed || isLocked ? .white : .primary)
+                .foregroundColor(isPressed || isLocked ? .white : Self.touchpadText)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(isLocked ? Color.blue : (isPressed ? Color.blue.opacity(0.7) : Color(UIColor.tertiarySystemBackground)))
+                .background(isLocked ? Self.touchpadButtonPressed : (isPressed ? Self.touchpadButtonPressed : Self.touchpadButton))
                 .cornerRadius(8)
                 .overlay(
-                    isLocked ? RoundedRectangle(cornerRadius: 8).stroke(Color.blue, lineWidth: 2) : nil
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.black.opacity(isPressed || isLocked ? 0.18 : 0.12), lineWidth: isPressed || isLocked ? 2 : 1)
                 )
         }
     }

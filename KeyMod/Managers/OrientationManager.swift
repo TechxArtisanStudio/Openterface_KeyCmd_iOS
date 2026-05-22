@@ -68,8 +68,7 @@ class OrientationManager: ObservableObject {
         printCurrentState()
         
         let newIsLandscape = !isLandscape
-        let targetOrientation: UIInterfaceOrientation = newIsLandscape ? .landscapeLeft : .portrait
-        
+
         print("Attempting to change orientation to: \(newIsLandscape ? "Landscape" : "Portrait")")
         
         // Update the preferred orientation
@@ -201,16 +200,22 @@ class OrientationManager: ObservableObject {
     }
 
     func restoreOrientation() {
+        // Clear any stale saved orientation first
         guard let saved = savedDeviceOrientation else {
-            Self.setOrientationLock(.all)
+            // No saved orientation — check what the interface currently is.
+            // If we're in portrait (likely from a compose/numpad transition),
+            // try to restore to the physical device's natural orientation.
+            if #available(iOS 16.0, *), let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                let currentOrientation = windowScene.interfaceOrientation
+                // Only force rotation if we're currently locked in portrait
+                if currentOrientation == .portrait {
+                    Self.setOrientationLock(.all)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        UIViewController.attemptRotationToDeviceOrientation()
+                    }
+                }
+            }
             return
-        }
-        // Determine the target interface orientation
-        let target: UIInterfaceOrientation
-        if saved.isLandscape {
-            target = .landscapeLeft
-        } else {
-            target = .portrait
         }
         Self.setOrientationLock(.all)
         UIViewController.attemptRotationToDeviceOrientation()
@@ -230,6 +235,21 @@ class OrientationManager: ObservableObject {
 
     func unlockOrientation() {
         Self.setOrientationLock(.all)
+        // Also force rotation attempt — without this the UI stays in whatever
+        // orientation it was locked to (e.g. landscape from gamepad) even though
+        // the device may be held differently.
+        UIViewController.attemptRotationToDeviceOrientation()
+        if #available(iOS 16.0, *) {
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .all)) { _ in }
+            }
+        }
+        // Clear stale saved orientation
+        savedDeviceOrientation = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            self.updateOrientation()
+            self.forceUIRefresh()
+        }
     }
 
     /// Set to true while the launch panel is visible to prevent any view

@@ -233,6 +233,11 @@ struct ContentView: View {
                     }
                     if viewManager.currentView == .keyboardMousePro {
                         proSubmodeSelector
+                        let currentSubmode = ProKeyboardMouseView.ProSubmode(rawValue: proSubmodeRaw) ?? .keyboard
+                        if currentSubmode == .keyboard {
+                            orientationToggleDivider
+                            orientationToggleButton
+                        }
                     }
                 }
             }
@@ -283,6 +288,26 @@ struct ContentView: View {
         }
         .frame(width: 68)
         .clipped()
+    }
+
+    private var orientationToggleDivider: some View {
+        Divider()
+            .frame(height: 24)
+            .padding(.horizontal, 4)
+    }
+
+    @ViewBuilder private var orientationToggleButton: some View {
+        let currentSubmode = ProKeyboardMouseView.ProSubmode(rawValue: proSubmodeRaw) ?? .keyboard
+        if currentSubmode == .keyboard {
+            Button {
+                orientationManager.toggleOrientationWithInstruction()
+            } label: {
+                Image(systemName: orientationManager.isLandscape ? "rectangle.rotate.landscape" : "rectangle.rotate.portrait")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.secondary)
+                    .frame(width: 34, height: 34)
+            }
+        }
     }
 
     private var topBarButtons: some View {
@@ -908,6 +933,16 @@ struct ContentView: View {
                         orientationManager.lockToPortrait()
                         // Stop gyro when leaving gamepad
                         gyroMouseManager.disable()
+                    } else if viewType == .keyboardMousePro {
+                        // Pro keyboard submode manages its own orientation —
+                        // just unlock so the submode's logic takes over.
+                        orientationManager.savedDeviceOrientation = nil
+                        let submode = ProKeyboardMouseView.ProSubmode(rawValue: proSubmodeRaw) ?? .keyboard
+                        if submode == .keyboard {
+                            orientationManager.unlockOrientation()
+                        } else {
+                            orientationManager.lockToPortrait()
+                        }
                     }
                     // .keyboardMouseBasic manages its own orientation per submode
                 }

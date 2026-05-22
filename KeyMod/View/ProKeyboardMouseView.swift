@@ -73,6 +73,9 @@ private struct SplitPagingView<PageContent: View>: View {
     }
 }
 
+/// Shared metal-gray color for touchpad controls (scroll strip, LMR buttons).
+private let touchpadControlGray = Color(red: 0.24, green: 0.26, blue: 0.30)
+
 /// Button style that flashes blue on press and stays blue when held.
 private struct ProMouseButtonStyle: ButtonStyle {
     var held: Bool = false
@@ -80,8 +83,8 @@ private struct ProMouseButtonStyle: ButtonStyle {
         let active = configuration.isPressed || held
         return configuration.label
             .clipShape(RoundedRectangle(cornerRadius: 8))
-            .background(active ? Color.blue.opacity(held ? 0.7 : 0.5) : Color(UIColor.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 8))
-            .foregroundColor(active ? .white : .primary)
+            .background(active ? Color.blue.opacity(held ? 0.7 : 0.5) : touchpadControlGray, in: RoundedRectangle(cornerRadius: 8))
+            .foregroundColor(active ? .white : .white.opacity(0.85))
             .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }
@@ -247,7 +250,6 @@ struct ProKeyboardMouseView: View {
         let km = keyboardManager
         let lock = fixedRowsLocalFnLocked
         let te = { Self.textEntry(km, label: $0) }
-        let ke = { Self.keyEntry(km, label: $0, icon: "") }
         let keKey = { (label: String, key: String) in Self.keyEntry(km, label: label, icon: "", key: key) }
         let tog = fixedRowsToggleEntry
         let kbdTog = keyboardToggleEntry
@@ -361,7 +363,7 @@ struct ProKeyboardMouseView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .background(Color(UIColor.secondarySystemBackground))
+        .background(touchpadControlGray)
     }
 
     private func proMouseButton(label: String, held: Bool = false, action: @escaping () -> Void) -> some View {
@@ -455,6 +457,12 @@ struct ProKeyboardMouseView: View {
                     // Compose and Numpad are portrait-only — re-force if device rotated
                     if proSubmode != .keyboard {
                         orientationManager.lockToPortrait()
+                    } else if proSubmode == .keyboard {
+                        // Keyboard: sync layout state to persisted values for the new orientation
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            isSplitLayout = persistedLandscapeLayout == .split
+                            isImeSurface = persistedPortraitInput == .ime
+                        }
                     }
                 }
         }
@@ -549,7 +557,12 @@ struct ProKeyboardMouseView: View {
             }
         case 2:
             switch kd.label { case "Shift": return 16; case "Enter": return 12; default: return 9 }
-        case 3: return kd.label == "Space" ? 40 : 10
+        case 3:
+            switch kd.label {
+            case "Space": return 42
+            case "Ctrl", "Win", "Alt", "App": return 13
+            default: return 10
+            }
         default: return 10
         }
     }
@@ -628,12 +641,18 @@ struct ProKeyboardMouseView: View {
         VStack(spacing: 0) {
             ForEach(currentKeys.indices, id: \.self) { r in
                 let row = currentKeys[r]
-                HStack(spacing: 0) {
-                    ForEach(row.indices, id: \.self) { c in
-                        let kd = row[c]
-                        keyButton(for: kd, width: keyWidth(for: kd, row: row))
+                GeometryReader { rowGeo in
+                    HStack(spacing: 0) {
+                        ForEach(row.indices, id: \.self) { c in
+                            let kd = row[c]
+                            let widthFraction = keyWidth(for: kd, row: row)
+                            keyButton(for: kd, width: widthFraction)
+                                .frame(width: max(0, rowGeo.size.width * widthFraction))
+                        }
                     }
-                }.frame(maxWidth: .infinity)
+                    .frame(width: rowGeo.size.width, height: rowGeo.size.height, alignment: .leading)
+                }
+                .frame(height: 56)
             }
         }
         .frame(maxWidth: .infinity)
@@ -662,7 +681,13 @@ struct ProKeyboardMouseView: View {
                         if isTextInputMode && !isTextInputExpanded { ScrollView { shortcutPanelContent } }
                         else { shortcutPanelContent.frame(maxWidth: .infinity) }
                     }
-                }.background(Color(UIColor.secondarySystemBackground))
+                }
+                .background(Color(UIColor.secondarySystemBackground))
+                .overlay(alignment: .bottom) {
+                    if !isImeSurface {
+                        portraitLogoOverlay.padding(.bottom, 10)
+                    }
+                }
                 if isTextInputMode && isTextInputExpanded { expandedTextInputView(g) }
                 if isImeSurface && proSubmode == .keyboard { imeCaptureOverlay }
             }
@@ -697,8 +722,21 @@ struct ProKeyboardMouseView: View {
         VStack(spacing: 0) {
             ShortcutStripPager(pages: shortcutPages).id(profileMgr.activeProfileId).padding(.horizontal, 4)
             FixedRowsPager(pages: fixedRowsPages, defaultPageIndex: 1).padding(.horizontal, 4)
-            if !isImeSurface { keyboardRows.frame(height: 380).padding(.top, -40).padding(.bottom, 10) }
+            if !isImeSurface { keyboardRows.frame(height: 360).padding(.top, -40).padding(.bottom, 10) }
         }
+    }
+
+    private var portraitLogoOverlay: some View {
+        Image("openterface_wordmark")
+            .resizable()
+            .renderingMode(.original)
+            .scaledToFit()
+            .frame(width: 64, height: 12)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(Color(UIColor.secondarySystemBackground))
+            .cornerRadius(10)
+            .shadow(color: .black.opacity(0.08), radius: 2, x: 0, y: 1)
     }
 
     private func expandedTextInputView(_ g: GeometryProxy) -> some View {
@@ -727,7 +765,20 @@ struct ProKeyboardMouseView: View {
             default: return 100 / CGFloat(row.count)
             }
         }
-        if row.contains(where: { $0.label == "Space" }) { return kd.label == "Space" ? 40 : 10 }
+        if isSplitLayout && row.count == 4 && row.contains(where: { $0.label == "Space" }) {
+            switch kd.label {
+            case "Space": return 30
+            case "Ctrl", "Win", "Alt", "App": return 18
+            default: return 12
+            }
+        }
+        if row.contains(where: { $0.label == "Space" }) {
+            switch kd.label {
+            case "Space": return 50
+            case "Ctrl", "Win", "Alt", "Cmd", "Option", "App": return 10
+            default: return 8
+            }
+        }
         if row.contains(where: { $0.label == "Fn" }) && row.contains(where: { $0.label == "Delete" || $0.label == "FwdDel" }) {
             switch kd.label {
             case "Fn": return 9.5; case "a": return 10.6
@@ -873,6 +924,17 @@ struct ProKeyboardMouseView: View {
         case "Enter": Image(systemName: "return").font(.system(size: 16))
         case "Shift": Image(systemName: "shift").font(.system(size: 16))
         case "Del", "Delete", "FwdDel": Image(systemName: "delete.forward").font(.system(size: 16))
+        case "Space":
+            if orientationManager.isLandscape && !isSplitLayout {
+                Image("openterface_wordmark")
+                    .resizable()
+                    .renderingMode(.original)
+                    .scaledToFit()
+                    .frame(width: 60, height: 25)
+                    .padding(.horizontal, 8)
+            } else {
+                Text("Space").font(.system(size: 12))
+            }
         case "Cmd": cmdKeyLabel
         case "Option": optionKeyLabel
         case "App": Image(systemName: "app").font(.system(size: 14))

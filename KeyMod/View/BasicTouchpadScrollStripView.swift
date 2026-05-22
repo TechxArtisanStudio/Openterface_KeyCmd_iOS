@@ -22,17 +22,17 @@ struct BasicTouchpadScrollStripView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                Color(UIColor.secondarySystemBackground)
+                Color(red: 24/255, green: 26/255, blue: 30/255)
 
                 // Up/down chevron indicators
                 VStack(spacing: 0) {
                     Image(systemName: "chevron.up")
                         .font(.system(size: labelFontSize + 2, weight: .bold))
-                        .foregroundColor(.secondary.opacity(0.4))
+                        .foregroundColor(Color.white.opacity(0.76))
                     Spacer()
                     Image(systemName: "chevron.down")
                         .font(.system(size: labelFontSize + 2, weight: .bold))
-                        .foregroundColor(.secondary.opacity(0.4))
+                        .foregroundColor(Color.white.opacity(0.76))
                 }
                 .padding(.vertical, 4)
             }
