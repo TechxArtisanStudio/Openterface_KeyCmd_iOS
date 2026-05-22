@@ -107,7 +107,6 @@ struct KeyModApp: App {
             // Short delay so the window scene is fully initialised before
             // requesting a geometry update (needed on cold launch).
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                UIDevice.current.setValue(UIInterfaceOrientation.portrait.rawValue, forKey: "orientation")
                 UIViewController.attemptRotationToDeviceOrientation()
                 if #available(iOS 16.0, *) {
                     if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {

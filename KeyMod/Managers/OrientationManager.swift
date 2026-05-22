@@ -43,6 +43,14 @@ class OrientationManager: ObservableObject {
     }
     
     func updateOrientation() {
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+            let interfaceOrientation = windowScene.interfaceOrientation
+            if interfaceOrientation != .unknown {
+                isLandscape = interfaceOrientation.isLandscape
+                return
+            }
+        }
+
         let orientation = UIDevice.current.orientation
         switch orientation {
         case .landscapeLeft, .landscapeRight:
@@ -50,11 +58,8 @@ class OrientationManager: ObservableObject {
         case .portrait, .portraitUpsideDown:
             isLandscape = false
         default:
-            // For unknown or face up/down, check interface orientation
-            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-                let interfaceOrientation = windowScene.interfaceOrientation
-                isLandscape = interfaceOrientation.isLandscape
-            }
+            // Keep the existing state when the device orientation is ambiguous.
+            break
         }
     }
     
@@ -74,25 +79,19 @@ class OrientationManager: ObservableObject {
         AppDelegate.orientationLock = preferredOrientation
         print("Updated AppDelegate orientation lock to: \(preferredOrientation)")
         
-        // Multiple methods to try to force orientation change
-        
-        // Method 1: Direct device orientation
-        UIDevice.current.setValue(targetOrientation.rawValue, forKey: "orientation")
-        print("Set device orientation value")
-        
-        // Method 2: Force rotation attempt
+        // Force rotation attempt if the system allows it.
         UIViewController.attemptRotationToDeviceOrientation()
         print("Attempted rotation to device orientation")
-        
-        // Method 3: Use window scene geometry (iOS 16+)
+
+        // Use window scene geometry update on iOS 16+ if available.
         if #available(iOS 16.0, *) {
             if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
                 windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: preferredOrientation)) { error in
-                    print("Geometry update result: \(error.localizedDescription )")
+                    print("Geometry update result: \(error.localizedDescription)")
                 }
             }
         }
-        
+
         // Method 4: Post notification to trigger UI update
         NotificationCenter.default.post(name: UIDevice.orientationDidChangeNotification, object: nil)
         print("Posted orientation change notification")
@@ -170,15 +169,27 @@ class OrientationManager: ObservableObject {
     }
     
     func lockToLandscape() {
+        preferredOrientation = .landscape
         Self.setOrientationLock(.landscape)
+        UIViewController.attemptRotationToDeviceOrientation()
+        if #available(iOS 16.0, *) {
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscape)) { error in
+                    print("Landscape geometry update rejected: \(error.localizedDescription)")
+                }
+            }
+        }
+        // isLandscape will be updated naturally by updateOrientation() when the
+        // system completes the rotation. Setting it here creates a race condition:
+        // the geometry update is async, but updateOrientation() may read the still-
+        // portrait interface and flip isLandscape back to false, triggering feedback.
     }
 
     func lockToPortrait() {
         // Save current physical orientation so we can restore it later
         savedDeviceOrientation = UIDevice.current.orientation
+        preferredOrientation = .portrait
         Self.setOrientationLock(.portrait)
-        // Force the rotation to portrait
-        UIDevice.current.setValue(UIInterfaceOrientation.portrait.rawValue, forKey: "orientation")
         UIViewController.attemptRotationToDeviceOrientation()
         if #available(iOS 16.0, *) {
             if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
@@ -202,7 +213,6 @@ class OrientationManager: ObservableObject {
             target = .portrait
         }
         Self.setOrientationLock(.all)
-        UIDevice.current.setValue(target.rawValue, forKey: "orientation")
         UIViewController.attemptRotationToDeviceOrientation()
         if #available(iOS 16.0, *) {
             let mask: UIInterfaceOrientationMask = saved.isLandscape ? .landscape : .portrait

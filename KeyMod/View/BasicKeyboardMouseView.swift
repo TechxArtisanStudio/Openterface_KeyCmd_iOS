@@ -92,18 +92,10 @@ struct BasicKeyboardMouseView: View {
             }
             .padding(.leading, orientationManager.isLandscape ? max(geometry.safeAreaInsets.leading, 45) : 0)
             .onAppear {
-                if selectedSubmode == .keyboard { lockToLandscape() }
-            }
-            .onDisappear {
-                unlockOrientation()
-            }
-            // Snap back to landscape if user physically tilts device while on keyboard tab
-            .onChange(of: orientationManager.isLandscape) { isLandscape in
-                if !isLandscape && selectedSubmode == .keyboard {
-                    guard !OrientationManager.launchPanelVisible else { return }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        lockToLandscape()
-                    }
+                if selectedSubmode == .keyboard {
+                    lockToLandscape()
+                } else {
+                    unlockOrientation()
                 }
             }
         }
@@ -210,12 +202,7 @@ struct BasicKeyboardMouseView: View {
 
     private func lockToLandscape() {
         guard !OrientationManager.launchPanelVisible else { return }
-        // 1. Tell AppDelegate to deny portrait from now on
-        AppDelegate.orientationLock = .landscape
-        // 2. Force rotation to landscape unconditionally — same pattern as OrientationManager.lockToPortrait()
-        //    (requestGeometryUpdate only calls its closure on error, so we cannot rely on it to force rotation)
-        UIDevice.current.setValue(UIInterfaceOrientation.landscapeLeft.rawValue, forKey: "orientation")
-        UIViewController.attemptRotationToDeviceOrientation()
+        orientationManager.lockToLandscape()
         if #available(iOS 16.0, *) {
             if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
                 scene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscape)) { _ in }
@@ -225,8 +212,6 @@ struct BasicKeyboardMouseView: View {
 
     private func unlockOrientation() {
         AppDelegate.orientationLock = .all
-        // Reset forced orientation value so the system re-reads the physical sensor
-        UIDevice.current.setValue(UIInterfaceOrientation.unknown.rawValue, forKey: "orientation")
         if #available(iOS 16.0, *) {
             if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
                 scene.requestGeometryUpdate(.iOS(interfaceOrientations: .all)) { _ in }

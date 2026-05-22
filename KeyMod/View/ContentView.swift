@@ -62,6 +62,7 @@ struct ContentView: View {
                     sidebarNavigation
                     sidebarSettingsButton
                     sidebarWelcomeGuideButton
+                    sidebarSidebarLogo
                     sidebarVersionDisplay
                 }
             }
@@ -599,6 +600,16 @@ struct ContentView: View {
         .buttonStyle(PlainButtonStyle())
     }
 
+    private var sidebarSidebarLogo: some View {
+        Image("openterface_wordmark")
+            .resizable()
+            .renderingMode(.original)
+            .scaledToFit()
+            .frame(width: 90, height: 18)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 4)
+    }
+
     private var sidebarVersionDisplay: some View {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
@@ -781,7 +792,6 @@ struct ContentView: View {
             .onAppear {
                 print("📐 GEOMETRY DEBUG:")
                 print("  Screen size: \(geometry.size.width) x \(geometry.size.height)")
-                orientationManager.isLandscape = geometry.size.width > geometry.size.height
                 print("  Safe area: top=\(geometry.safeAreaInsets.top), bottom=\(geometry.safeAreaInsets.bottom), leading=\(geometry.safeAreaInsets.leading), trailing=\(geometry.safeAreaInsets.trailing)")
                 print("  Window scene: \(UIApplication.shared.connectedScenes.first)")
                 if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
@@ -792,7 +802,6 @@ struct ContentView: View {
             }
             .onChange(of: geometry.size) { newSize in
                 print("🔄 Geometry changed: \(newSize.width) x \(newSize.height)")
-                orientationManager.isLandscape = newSize.width > newSize.height
             }
             .overlay(
                 // Orientation instruction overlay

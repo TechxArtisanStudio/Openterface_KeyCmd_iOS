@@ -280,11 +280,11 @@ struct NumPadView: View {
             },
             onRelease: { keyboardManager.handleKeyUp("Numpad0") }
         ) { isPressed in
-            Text("0")
-                .font(.system(size: fontSize, weight: .semibold))
-                .minimumScaleFactor(0.5)
-                .lineLimit(1)
-                .foregroundColor(isPressed ? .white : .primary)
+            Image("openterface_wordmark")
+                .resizable()
+                .renderingMode(.original)
+                .scaledToFit()
+                .frame(width: w * 0.75, height: h * 0.75)
                 .frame(width: w, height: h)
                 .background(isPressed ? Color.blue.opacity(0.7) : Color(UIColor.tertiarySystemBackground))
                 .cornerRadius(8)
