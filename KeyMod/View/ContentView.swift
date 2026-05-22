@@ -28,6 +28,7 @@ struct ContentView: View {
     @State private var showPresetPicker = false
     @State private var showBackgroundPicker = false
     @State private var showAddModulePicker = false
+    @State private var showTargetOSDialog = false
     @StateObject private var presetRepository = GamepadPresetRepository()
     @StateObject private var backgroundManager = GamepadBackgroundManager()
     @StateObject private var gyroMouseManager: GyroMouseManager
@@ -515,22 +516,9 @@ struct ContentView: View {
 
     private var targetOSButton: some View {
         VStack(spacing: 2) {
-            Menu {
-                ForEach(TargetOS.allCases, id: \.self) { os in
-                    Button(action: {
-                        aiSettings.targetOS = os
-                    }) {
-                        HStack {
-                            Label(os.displayName, systemImage: os.systemImage)
-                            if aiSettings.targetOS == os {
-                                Spacer()
-                                Image(systemName: "checkmark")
-                                    .foregroundColor(.blue)
-                            }
-                        }
-                    }
-                }
-            } label: {
+            Button(action: {
+                showTargetOSDialog = true
+            }) {
                 Image(systemName: aiSettings.targetOS.systemImage)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
@@ -539,9 +527,70 @@ struct ContentView: View {
             }
             .frame(width: 34, height: 34)
             .background(Color.clear)
+            .buttonStyle(.plain)
             Text(aiSettings.targetOS.shortName)
                 .font(.caption2)
                 .foregroundColor(.secondary)
+        }
+    }
+
+    private var targetOSSelectionSheet: some View {
+        ZStack {
+            Color.black.opacity(0.36)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    showTargetOSDialog = false
+                }
+
+            VStack(spacing: 18) {
+                Text("Target OS")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+
+                HStack(spacing: 24) {
+                    ForEach(TargetOS.allCases, id: \.self) { os in
+                        Button {
+                            aiSettings.targetOS = os
+                            showTargetOSDialog = false
+                        } label: {
+                            Image(systemName: os.systemImage)
+                                .font(.system(size: 32, weight: .semibold))
+                                .foregroundColor(aiSettings.targetOS == os ? .white : .primary)
+                                .frame(width: 56, height: 56)
+                                .background(
+                                    Circle()
+                                        .fill(aiSettings.targetOS == os ? Color.accentColor : Color(UIColor.secondarySystemFill))
+                                )
+                                .overlay(
+                                    Circle()
+                                        .stroke(aiSettings.targetOS == os ? Color.accentColor : Color.clear, lineWidth: 2)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 16)
+
+                Button(action: {
+                    showTargetOSDialog = false
+                }) {
+                    Text("Cancel")
+                        .font(.headline)
+                        .foregroundColor(.orange)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color(UIColor.systemBackground))
+                        .cornerRadius(14)
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 16)
+            }
+            .padding(.vertical, 20)
+            .padding(.horizontal, 16)
+            .background(Color(UIColor.secondarySystemBackground))
+            .cornerRadius(24)
+            .frame(maxWidth: 360)
+            .shadow(color: Color.black.opacity(0.25), radius: 20, x: 0, y: 12)
         }
     }
 
@@ -885,6 +934,13 @@ struct ContentView: View {
             .sheet(isPresented: $showSettings) {
                 SettingsView()
             }
+            .overlay(
+                Group {
+                    if showTargetOSDialog {
+                        targetOSSelectionSheet
+                    }
+                }
+            )
             .onChange(of: showPopup) { isPresented in
                 if isPresented && viewManager.currentView == .gamepad {
                     orientationManager.lockToLandscape()

@@ -73,8 +73,8 @@ private struct SplitPagingView<PageContent: View>: View {
     }
 }
 
-/// Shared metal-gray color for touchpad controls (scroll strip, LMR buttons).
-private let touchpadControlGray = Color(red: 0.24, green: 0.26, blue: 0.30)
+/// Shared touchpad control background color for Pro mode (scroll strip, LMR buttons).
+private let touchpadControlGray = Color(UIColor.secondarySystemBackground)
 
 /// Button style that flashes blue on press and stays blue when held.
 private struct ProMouseButtonStyle: ButtonStyle {
@@ -343,7 +343,7 @@ struct ProKeyboardMouseView: View {
                             .padding(4)
                             .allowsHitTesting(false)
                     }.frame(width: max(0, geo.size.width - stripWidth))
-                    BasicTouchpadScrollStripView(mouseManager: mouseManager, labelFontSize: orientationManager.isLandscape ? 10 : 7).frame(width: stripWidth)
+                    ProTouchpadScrollStripView(mouseManager: mouseManager, labelFontSize: orientationManager.isLandscape ? 10 : 7).frame(width: stripWidth)
                 }
                 if showMouseButtons {
                     proTouchpadMouseButtons
@@ -1131,6 +1131,68 @@ struct ProKeyboardMouseView: View {
             Image(systemName: isTextInputExpanded ? "chevron.down" : "chevron.up").font(.system(size: 14)).foregroundColor(.blue).padding(8)
                 .background(Color(UIColor.secondarySystemBackground)).cornerRadius(6)
         }.padding(8)
+    }
+}
+
+struct ProTouchpadScrollStripView: View {
+    let mouseManager: MouseManager
+    var labelFontSize: CGFloat = 7
+
+    @State private var lastScrollY: CGFloat?
+    @State private var isScrolling: Bool = false
+
+    private let pixelsPerWheelUnit: CGFloat = 5.0
+    private var sensitivity: Double { KmProPrefs.shared.stripScrollSensitivity }
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                Color(UIColor.secondarySystemBackground)
+                VStack(spacing: 0) {
+                    let chevronSize = min(24, max(14, geometry.size.width * 0.85))
+                    Image(systemName: "chevron.up")
+                        .font(.system(size: labelFontSize))
+                        .foregroundColor(.secondary)
+                        .frame(width: chevronSize, height: chevronSize)
+                    Spacer()
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: labelFontSize))
+                        .foregroundColor(.secondary)
+                        .frame(width: chevronSize, height: chevronSize)
+                }
+                .padding(.vertical, 6)
+            }
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color(UIColor.separator).opacity(0.12), lineWidth: 1)
+            )
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        if lastScrollY == nil {
+                            lastScrollY = value.location.y
+                            isScrolling = true
+                        }
+                        guard let prevY = lastScrollY else { return }
+                        let deltaY = value.location.y - prevY
+                        if abs(deltaY) > pixelsPerWheelUnit {
+                            let wheelUnits = Int(deltaY / pixelsPerWheelUnit * sensitivity)
+                            if wheelUnits != 0 {
+                                mouseManager.handleScroll(deltaX: 0, deltaY: -wheelUnits)
+                                lastScrollY = value.location.y
+                                HapticFeedbackManager.shared.triggerScrollTick()
+                            }
+                        }
+                    }
+                    .onEnded { _ in
+                        lastScrollY = nil
+                        isScrolling = false
+                    }
+            )
+        }
+        .clipped()
     }
 }
 

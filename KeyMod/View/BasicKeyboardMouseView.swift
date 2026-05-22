@@ -838,8 +838,8 @@ struct BasicKeyboardMouseView: View {
                                 Image("openterface_wordmark")
                                     .resizable()
                                     .scaledToFit()
-                                    .frame(height: 18)
-                                    .opacity(0.70)
+                                    .frame(height: 12)
+                                    .opacity(0.50)
                                 Spacer()
                             }
                             .padding(.bottom, 12)
@@ -859,8 +859,9 @@ struct BasicKeyboardMouseView: View {
                             .transition(.scale.combined(with: .opacity))
                         }
                     }
+                    let stripWidth = max(28, stripGeo.size.width / 6)
                     BasicTouchpadScrollStripView(mouseManager: mouseManager, labelFontSize: scrollFontSize)
-                        .frame(width: stripGeo.size.width * 0.3)
+                        .frame(width: stripWidth)
                 }
                 .frame(maxHeight: .infinity)
                 .background(Self.touchpadBase)

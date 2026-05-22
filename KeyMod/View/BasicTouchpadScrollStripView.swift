@@ -48,15 +48,18 @@ struct BasicTouchpadScrollStripView: View {
 
                 // Up/down chevron indicators
                 VStack(spacing: 0) {
+                    let chevronSize = min(24, max(14, geometry.size.width * 0.85))
                     Image(systemName: "chevron.up")
-                        .font(.system(size: labelFontSize + 2, weight: .bold))
+                        .font(.system(size: chevronSize, weight: .regular))
                         .foregroundColor(Color.white.opacity(0.86))
+                        .frame(width: chevronSize, height: chevronSize)
                     Spacer()
                     Image(systemName: "chevron.down")
-                        .font(.system(size: labelFontSize + 2, weight: .bold))
+                        .font(.system(size: chevronSize, weight: .regular))
                         .foregroundColor(Color.white.opacity(0.86))
+                        .frame(width: chevronSize, height: chevronSize)
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, 6)
             }
             .cornerRadius(12)
             .overlay(
