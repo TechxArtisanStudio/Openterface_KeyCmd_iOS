@@ -704,12 +704,12 @@ struct BasicKeyboardMouseView: View {
 
     private static let functionKeyBg = Color(UIColor.secondarySystemBackground)
     private static let regularKeyBg = Color(UIColor.systemBackground)
-    private static let touchpadBase = Color(red: 32/255, green: 34/255, blue: 38/255)
-    private static let touchpadPanel = Color(red: 24/255, green: 26/255, blue: 30/255)
-    private static let touchpadButton = Color(red: 48/255, green: 50/255, blue: 56/255)
-    private static let touchpadButtonPressed = Color(red: 18/255, green: 20/255, blue: 24/255)
-    private static let touchpadAccent = Color.white.opacity(0.65)
-    private static let touchpadText = Color(red: 0.90, green: 0.90, blue: 0.94)
+    private static let touchpadBase = Color(red: 28/255, green: 28/255, blue: 30/255)
+    private static let touchpadPanel = Color(red: 44/255, green: 44/255, blue: 46/255)
+    private static let touchpadButton = Color(red: 44/255, green: 44/255, blue: 46/255)
+    private static let touchpadButtonPressed = Color(red: 58/255, green: 58/255, blue: 60/255)
+    private static let touchpadAccent = Color.white.opacity(0.07)
+    private static let touchpadText = Color.white.opacity(0.92)
     /// Keys that should NOT repeat while held (modifiers and function keys).
     private static let noRepeatKeys: Set<String> = [
         "Esc", "Tab", "Caps", "Shift", "Ctrl", "Alt", "Win", "Cmd", "Option", "Super",
@@ -771,23 +771,23 @@ struct BasicKeyboardMouseView: View {
                             ZStack {
                                 Self.touchpadPanel
                                 LinearGradient(
-                                    gradient: Gradient(colors: [Color.white.opacity(0.08), Color.clear]),
+                                    gradient: Gradient(colors: [Color.white.opacity(0.07), Color.clear]),
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 )
                                 LinearGradient(
-                                    gradient: Gradient(colors: [Color.black.opacity(0.14), Color.clear]),
+                                    gradient: Gradient(colors: [Color.black.opacity(0.08), Color.clear]),
                                     startPoint: .bottomLeading,
                                     endPoint: .topTrailing
                                 )
                                 RadialGradient(
-                                    gradient: Gradient(colors: [Color.white.opacity(0.06), Color.clear]),
+                                    gradient: Gradient(colors: [Color.white.opacity(0.09), Color.clear]),
                                     center: .init(x: 0.28, y: 0.24),
                                     startRadius: 0,
                                     endRadius: 260
                                 )
                                 RadialGradient(
-                                    gradient: Gradient(colors: [Color.black.opacity(0.12), Color.clear]),
+                                    gradient: Gradient(colors: [Color.black.opacity(0.11), Color.clear]),
                                     center: .init(x: 0.78, y: 0.82),
                                     startRadius: 0,
                                     endRadius: 280
@@ -795,6 +795,11 @@ struct BasicKeyboardMouseView: View {
                             }
                         )
                         .cornerRadius(12)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                        )
+                        .shadow(color: Color.black.opacity(0.25), radius: 10, x: 0, y: 4)
 
                         // Glow border when drag or buttons are held
                         if isAnyButtonHeld || mouseManager.isSelectMode {
@@ -858,7 +863,7 @@ struct BasicKeyboardMouseView: View {
                         .frame(width: stripGeo.size.width * 0.3)
                 }
                 .frame(maxHeight: .infinity)
-                .background(Self.touchpadPanel)
+                .background(Self.touchpadBase)
 
                 // Mouse buttons row
                 HStack(spacing: 8) {
@@ -908,12 +913,27 @@ struct BasicKeyboardMouseView: View {
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(isPressed || isLocked ? .white : Self.touchpadText)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(isLocked ? Self.touchpadButtonPressed : (isPressed ? Self.touchpadButtonPressed : Self.touchpadButton))
-                .cornerRadius(8)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.black.opacity(isPressed || isLocked ? 0.18 : 0.12), lineWidth: isPressed || isLocked ? 2 : 1)
-                )
+                .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isLocked ? Self.touchpadButtonPressed : (isPressed ? Self.touchpadButtonPressed : Self.touchpadButton))
+                    .shadow(color: Color.black.opacity(0.22), radius: 4, x: 0, y: 2)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [Color.white.opacity(isPressed || isLocked ? 0.04 : 0.08), Color.clear]),
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                            .blendMode(.screen)
+                    )
+            )
+            .cornerRadius(8)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.white.opacity(isPressed || isLocked ? 0.05 : 0.08), lineWidth: 1)
+            )
         }
     }
 
