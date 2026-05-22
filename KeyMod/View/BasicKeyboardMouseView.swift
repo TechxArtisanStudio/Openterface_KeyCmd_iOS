@@ -759,7 +759,7 @@ struct BasicKeyboardMouseView: View {
     private var touchpadSubmode: some View {
         let isLandscape = orientationManager.isLandscape
         let scrollFontSize: CGFloat = isLandscape ? 13 : 7
-        let buttonRowHeight: CGFloat = isLandscape ? 50 : 60
+        let buttonRowHeight: CGFloat = (isLandscape ? 50 : 60) * 4
 
         return GeometryReader { stripGeo in
             VStack(spacing: 0) {

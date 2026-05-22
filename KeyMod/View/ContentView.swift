@@ -689,6 +689,13 @@ struct ContentView: View {
                     }
                 }
                 .id(viewManager.currentView)
+                .onAppear {
+                    print("🎮 Gamepad view appeared, locking landscape orientation")
+                    orientationManager.lockToLandscape()
+                    if !orientationManager.isLandscape {
+                        orientationManager.toggleOrientationWithInstruction()
+                    }
+                }
                 .onChange(of: presetRepository.activePresetId) { newId in
                     print("🔄 Active preset changed to: \(newId ?? "none")")
                 }
@@ -832,9 +839,25 @@ struct ContentView: View {
                         bleManager.connectToDevice(device)
                     }
                 }
+                .onAppear {
+                    if viewManager.currentView == .gamepad {
+                        orientationManager.lockToLandscape()
+                        if !orientationManager.isLandscape {
+                            orientationManager.toggleOrientationWithInstruction()
+                        }
+                    }
+                }
             }
             .sheet(isPresented: $showSettings) {
                 SettingsView()
+            }
+            .onChange(of: showPopup) { isPresented in
+                if isPresented && viewManager.currentView == .gamepad {
+                    orientationManager.lockToLandscape()
+                    if !orientationManager.isLandscape {
+                        orientationManager.toggleOrientationWithInstruction()
+                    }
+                }
             }
             .onAppear {
                 bleManager.showPopupBinding = $showPopup
