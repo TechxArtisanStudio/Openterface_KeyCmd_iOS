@@ -809,7 +809,8 @@ struct ProKeyboardMouseView: View {
         let content = keyContent(for: kd, displayText: displayText)
             .frame(maxWidth: .infinity, maxHeight: h).background(keyBackground(for: kd, pressed: isPressed, active: isActive))
             .cornerRadius(9).foregroundColor(isPressed || isActive ? .white : .primary)
-            .frame(maxWidth: .infinity, alignment: .leading).overlay(cornerHint(for: kd), alignment: .topTrailing)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(alignment: .top) { self.keyHints(for: kd) }
             .contentShape(Rectangle()).background(bg)
         if isModifier {
             return AnyView(ProModifierKey(kd: kd, keyboardManager: keyboardManager, displayText: displayText, content: AnyView(content), height: h))
@@ -1048,10 +1049,32 @@ struct ProKeyboardMouseView: View {
     private func keyBackground(for kd: KeyboardManager.KeyDef, pressed: Bool, active: Bool) -> Color {
         pressed || active ? .blue : Self.functionKeyBg
     }
-    @ViewBuilder private func cornerHint(for kd: KeyboardManager.KeyDef) -> some View {
-        if kd.cornerHint.isEmpty { EmptyView() }
-        else { Text(kd.cornerHint).font(.system(size: 9, weight: .bold)).foregroundColor(.secondary.opacity(0.6))
-                .padding(.trailing, 6).padding(.top, 2).allowsHitTesting(false) }
+    /// Build a top-center hint row from the first 4 (cardinal) alternates.
+    /// Returns nil if there are no valid cardinal alternates.
+    private func cardinalAlternatesHint(for kd: KeyboardManager.KeyDef) -> String? {
+        let symbols = kd.alternates.prefix(4).compactMap { alt -> String? in
+            let trimmed = alt.trimmingCharacters(in: .whitespaces)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+        return symbols.isEmpty ? nil : symbols.joined(separator: " ")
+    }
+
+    @ViewBuilder private func keyHints(for kd: KeyboardManager.KeyDef) -> some View {
+        if let hint = cardinalAlternatesHint(for: kd) {
+            // Multi-symbol row at top-center (matching Android keycap hint row)
+            Text(hint)
+                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                .foregroundColor(.secondary.opacity(0.5))
+                .allowsHitTesting(false)
+        } else if !kd.cornerHint.isEmpty {
+            // Fallback: single corner hint when no cardinal alternates exist
+            Text(kd.cornerHint)
+                .font(.system(size: 9, weight: .bold))
+                .foregroundColor(.secondary.opacity(0.6))
+                .padding(.trailing, 6)
+                .padding(.top, 2)
+                .allowsHitTesting(false)
+        }
     }
 
     // MARK: - Alternates Popup
