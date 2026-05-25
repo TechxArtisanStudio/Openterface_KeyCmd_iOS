@@ -447,6 +447,16 @@ struct ProKeyboardMouseView: View {
                     // Compose and Numpad are portrait-only — force rotation on appear
                     if proSubmode != .keyboard {
                         orientationManager.lockToPortrait()
+                    } else {
+                        // Keyboard mode supports both orientations — unlock any previous lock
+                        // (e.g., from gamepad or compose) and sync to current device orientation.
+                        orientationManager.unlockOrientation()
+                        // Force an immediate orientation refresh so the layout reflects the
+                        // current physical device orientation rather than a stale cached state.
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            orientationManager.updateOrientation()
+                            orientationManager.forceUIRefresh()
+                        }
                     }
                 }
                 .onDisappear {
