@@ -1115,20 +1115,22 @@ struct ProKeyboardMouseView: View {
 
     // Modifier masks matching Android: 0x04 = Alt, 0x02 = Shift
     // Currency symbols: ¥=Alt+'7', £=Alt+'3', €=Alt+Shift+'4'
-    private static let extraSymbolMap: [Character: (String, String, Bool, UInt8)] = [
+    // Uses String keys to avoid Unicode Character normalization mismatches.
+    private static let extraSymbolMap: [String: (baseKey: String, display: String, requiresShift: Bool, modifierMask: UInt8)] = [
         "\\": ("]", "]", true, 0), "|": ("]", "]", true, 0), "+": ("=", "+", true, 0),
         "#": ("3", "#", true, 0), "$": ("4", "$", true, 0), "%": ("5", "%", true, 0),
         "^": ("6", "^", true, 0), "&": ("7", "&", true, 0), "*": ("8", "*", true, 0),
-        "€": ("4", "€", true, 0x04), "¥": ("7", "¥", false, 0x04), "£": ("3", "£", false, 0x04),
+        "\u{20AC}": ("4", "\u{20AC}", true, 0x04),  // €
+        "\u{00A5}": ("7", "\u{00A5}", false, 0x04), // ¥
+        "\u{00A3}": ("3", "\u{00A3}", false, 0x04), // £
     ]
 
     private func mapAsciiAlternate(_ char: String) -> (display: String, keyCode: String, requiresShift: Bool, modifierMask: UInt8)? {
         guard char.count == 1 else { return nil }
-        let c = char.first!
-        if c.isLetter { return (char, char, false, 0) }
+        if let c = char.first, c.isLetter { return (char, char, false, 0) }
         if let e = Self.shiftKeyMap[char] { return (e.display, e.base, true, 0) }
-        if "0123456789".contains(c) || "-=[];',./`".contains(c) { return (char, char, false, 0) }
-        if let e = Self.extraSymbolMap[c] { return (e.0, e.1, e.2, e.3) }
+        if "0123456789".contains(char) || "-=[];',./`".contains(char) { return (char, char, false, 0) }
+        if let e = Self.extraSymbolMap[char] { return (e.display, e.baseKey, e.requiresShift, e.modifierMask) }
         return nil
     }
 
