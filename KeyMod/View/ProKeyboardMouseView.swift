@@ -9,1384 +9,1208 @@
 import SwiftUI
 import UIKit
 
+/// Transparent UITextField that captures system-keyboard (IME) input in portrait B mode.
+private struct ImeCaptureTextField: UIViewRepresentable {
+    @Binding var text: String; var isActive: Bool
+    func makeUIView(context: Context) -> UITextField {
+        let tf = UITextField()
+        tf.backgroundColor = .clear; tf.textColor = .clear; tf.tintColor = .clear; tf.borderStyle = .none
+        tf.font = .systemFont(ofSize: 1); tf.autocorrectionType = .no; tf.autocapitalizationType = .none
+        tf.spellCheckingType = .no; tf.smartDashesType = .no; tf.smartQuotesType = .no; tf.returnKeyType = .default
+        tf.inputAssistantItem.leadingBarButtonGroups = []; tf.inputAssistantItem.trailingBarButtonGroups = []
+        tf.addTarget(context.coordinator, action: #selector(Coordinator.textChanged), for: .editingChanged)
+        tf.delegate = context.coordinator; return tf
+    }
+    func updateUIView(_ tf: UITextField, context: Context) {
+        if isActive && !tf.isFirstResponder { DispatchQueue.main.async { tf.becomeFirstResponder() } }
+        else if !isActive && tf.isFirstResponder { tf.resignFirstResponder() }
+        if tf.text != text { tf.text = text }
+    }
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+    final class Coordinator: NSObject, UITextFieldDelegate {
+        var parent: ImeCaptureTextField
+        init(_ parent: ImeCaptureTextField) { self.parent = parent }
+        @objc func textChanged(_ tf: UITextField) { parent.text = tf.text ?? "" }
+        func textFieldShouldReturn(_ tf: UITextField) -> Bool {
+            let nt = (tf.text ?? "") + "\n"; tf.text = nt; parent.text = nt; return false
+        }
+    }
+}
+
+/// Generic horizontal paging view with drag gesture — replaces 3 duplicate paging blocks.
+private struct SplitPagingView<PageContent: View>: View {
+    let pageCount: Int
+    let currentPage: Int
+    let isDragging: Bool
+    let dragOffset: CGFloat
+    let onPageChanged: (Int) -> Void
+    let onDraggingChanged: (Bool) -> Void
+    let onDragOffsetChanged: (CGFloat) -> Void
+    @ViewBuilder let pageContent: (Int) -> PageContent
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            HStack(spacing: 0) {
+                ForEach(0..<pageCount, id: \.self) { idx in pageContent(idx).frame(width: w) }
+            }
+            .offset(x: -CGFloat(currentPage) * w + dragOffset)
+            .animation(isDragging ? nil : .spring(response: 0.35, dampingFraction: 0.86, blendDuration: 0), value: currentPage)
+            .animation(isDragging ? nil : .spring(response: 0.35, dampingFraction: 0.86, blendDuration: 0), value: dragOffset)
+            .frame(width: w, alignment: .leading)
+            .clipped()
+            .contentShape(Rectangle())
+            .highPriorityGesture(DragGesture(minimumDistance: 5, coordinateSpace: .local)
+                .onChanged { v in onDraggingChanged(true); onDragOffsetChanged(v.translation.width) }
+                .onEnded { v in
+                    let threshold = w * 0.12
+                    if v.translation.width < -threshold, currentPage < pageCount - 1 { onPageChanged(currentPage + 1) }
+                    else if v.translation.width > threshold, currentPage > 0 { onPageChanged(currentPage - 1) }
+                    onDragOffsetChanged(0); onDraggingChanged(false)
+                }
+            )
+        }
+    }
+}
+
+/// Shared touchpad control background color for Pro mode (scroll strip, LMR buttons).
+private let touchpadControlGray = Color(UIColor.secondarySystemBackground)
+
+/// Button style that flashes blue on press and stays blue when held.
+private struct ProMouseButtonStyle: ButtonStyle {
+    var held: Bool = false
+    func makeBody(configuration: Configuration) -> some View {
+        let active = configuration.isPressed || held
+        return configuration.label
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .background(active ? Color.blue.opacity(held ? 0.7 : 0.5) : touchpadControlGray, in: RoundedRectangle(cornerRadius: 8))
+            .foregroundColor(active ? .white : .white.opacity(0.85))
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
 struct ProKeyboardMouseView: View {
-    // Function keys row (F1-F12)
-    let functionKeys = ["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"]
-
-    // Legacy flat keys for landscape fallback (F-row removed)
-    let keys: [[String]] = [
-        ["Esc", "`", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=", "Backspace"],
-        ["Tab", "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "[", "]"],
-        ["Caps", "a", "s", "d", "f", "g", "h", "j", "k", "l", ";", "'", "Enter"],
-        ["Shift", "z", "x", "c", "v", "b", "n", "m", ",", ".", "/", "Shift"],
-        ["Ctrl", "Alt", "Space", "Alt", "Ctrl"]
-    ]
-
-    // Legacy keys for 101-key extra panel
-    let extraKeys: [[String?]] = [
-        ["PrtSc", "Scroll Lock", "Pause"],
-        ["Insert", "Home", "PgUp"],
-        ["Delete", "End", "PgDn"],
-        [nil, nil, "↑", nil, nil],
-        [nil, "←", "↓", "→", nil]
-    ]
-
-    // Extra number keys for portrait keyboard-only mode
-    let extraNumberKeys: [String] = ["7", "8", "9", "4", "5", "6", "1", "2", "3", "0", "."]
-
     @ObservedObject var mouseManager: MouseManager
     @ObservedObject var keyboardManager: KeyboardManager
     @ObservedObject var compositeKeyManager: CompositeKeyManager
     @ObservedObject var orientationManager: OrientationManager
+    @Binding var proSubmode: ProSubmode
+    @ObservedObject private var prefs = KmProPrefs.shared
 
-    // Pointer tip overlay state
     @StateObject private var pointerTipState = PointerTipState()
 
-    // Alternates popup state
     @State private var alternatesPopup: (options: [AlternateOption], anchor: CGRect, keyDef: KeyboardManager.KeyDef)? = nil
-    /// Tracks whether the current touch was resolved by the alternates popup.
-    /// Prevents the Button action from also sending the original key (matches Android ACTION_UP behavior).
-    @State private var alternatesCommitHandled = false
+    @State private var alternatesGestureStart: CGPoint? = nil
+    @State private var alternatesPick: AlternatesPick = .none
+    @State private var currentDragLocation: CGPoint? = nil
 
-    // Track if a key press is currently in progress to prevent multiple triggers
     @State private var keyPressInProgress = false
-    
-    // Track long press timer for alternates popup
     @State private var longPressTimer: Timer?
-    
-    // Track which key is currently being pressed (for visual feedback)
     @State private var currentlyPressedKey: String?
+    /// True when the alternates popup became visible during the current finger-down.
+    /// Used to suppress the original key on release and only send the selected alternate.
+    @State private var alternatesShownThisPress = false
 
-    // Key repeat controller
-    @State private var keyRepeatController = KeyRepeatController()
+    // MARK: - Pro key repeat (deferred — never holds key-down to avoid host OS auto-repeat)
+    @State private var proRepeatKey: String? = nil
+    @State private var proRepeatStarter: Timer? = nil
+    @State private var proRepeatTimer: Timer? = nil
+    /// True only after the 400ms starter timer fires and the first key tap is sent.
+    /// Used to distinguish "repeat actually ran" from "repeat was merely scheduled".
+    @State private var proRepeatDidFire = false
 
-    // Shortcut panel state
-    @State private var shortcutPage = 0
+    @State private var fixedRowsLocalFnLocked = false
 
-    // Reactive target OS — changes trigger shortcutPages rebuild
     @ObservedObject private var aiSettings = AISettings.shared
-
-    // Shortcut profile manager — changes to active profile trigger shortcutPages rebuild
     @ObservedObject private var profileMgr = ShortcutProfileManager.shared
-    
-    // Text input mode state
-    @State private var isTextInputMode = false
-    @State private var textInputContent = ""
-    @State private var savedTextInputContent = ""
-    @State private var isTextInputExpanded = false
-    
-    // Keyboard height for avoiding keyboard obstruction
+
     @State private var keyboardHeight: CGFloat = 0
-    // Key frame cache for alternates popup positioning (key label → frame in proKMView coordinate space)
     @State private var keyFrames: [String: CGRect] = [:]
 
-    // Symbol mode layout keys
-    let symbolKeysPortrait: [[String]] = [
-        ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
-        ["@", "#", "$", "_", "&", "-", "+", "(", ")", "/"],
-        ["=", "*", "\"", "'", ":", ";", "!", "?", "Backspace"],
-        ["ABC", ",", "12/34", "Space", ".", "=", "Enter"]
-    ]
+    @State private var isTextInputMode = false
+    @State private var textInputContent = ""
+    @State private var isTextInputExpanded = false
+    @State private var showTouchpadHelp = false
+    @State private var pointerMoving = false
 
-    // Symbol mode landscape keys (operator column + number grid)
-    let symbolKeysLandscape: [[String]] = [
-        ["+", "1", "2", "3", "%"],
-        ["-", "4", "5", "6", "Space"],
-        ["*", "7", "8", "9", "Backspace"],
-        ["/", "ABC", ",", "!?#", "0", "=", ".", "Enter"]
-    ]
+    // MARK: - Mouse button state
+    private var isLHeld: Bool { (mouseManager.heldButtons & 0x01) != 0 || mouseManager.isSelectMode || (mouseManager.clickFlash & 0x01) != 0 }
+    private var isMHeld: Bool { (mouseManager.heldButtons & 0x04) != 0 || (mouseManager.clickFlash & 0x04) != 0 }
+    private var isRHeld: Bool { (mouseManager.heldButtons & 0x02) != 0 || (mouseManager.clickFlash & 0x02) != 0 }
+    private var touchpadStatusText: String {
+        var parts: [String] = []
+        if mouseManager.isSelectMode { parts.append("drag") }
+        if (mouseManager.heldButtons & 0x01) != 0 { parts.append("L held") }
+        if (mouseManager.heldButtons & 0x04) != 0 { parts.append("M held") }
+        if (mouseManager.heldButtons & 0x02) != 0 { parts.append("R held") }
+        let buttons = parts.isEmpty ? "buttons up" : parts.joined(separator: " + ")
+        return "\(buttons) · \(pointerMoving ? "moving" : "idle")"
+    }
 
-    // MARK: - Android-parity shortcut strip data
+    // MARK: - Landscape full/split layout & portrait BI/IME persistence
 
-    /// Row-1 (pageable favorites strip): 7 entries per page.
-    /// Priority: active profile My Shortcuts → first category shortcuts → hardcoded standard 7.
-    /// Mirrors Android's rebuildTopShortcutPanels() — one row per page.
+    private enum LandscapeLayout: String { case full = "full", split = "split" }
+    private enum PortraitInput: String { case builtIn = "built_in", ime = "ime" }
+
+    enum ProSubmode: Int, CaseIterable {
+        case keyboard, compose, numpad
+        var icon: String { switch self { case .keyboard: return "keyboard"; case .compose: return "pencil.and.outline"; case .numpad: return "0.square" } }
+        var label: String { switch self { case .keyboard: return "Keyboard"; case .compose: return "Compose"; case .numpad: return "Numpad" } }
+    }
+
+    private static let landscapeLayoutKey = "km_pro_landscape_layout"
+    @AppStorage("km_pro_landscape_layout") private var persistedLandscapeLayoutRawValue: String = LandscapeLayout.full.rawValue
+    private static let portraitInputKey = "km_pro_portrait_input_surface"
+
+    private var persistedLandscapeLayout: LandscapeLayout {
+        LandscapeLayout(rawValue: persistedLandscapeLayoutRawValue) ?? .full
+    }
+
+    private var persistedPortraitInput: PortraitInput {
+        let raw = UserDefaults.standard.string(forKey: Self.portraitInputKey) ?? PortraitInput.builtIn.rawValue
+        return PortraitInput(rawValue: raw) ?? .builtIn
+    }
+
+    @State private var isSplitLayout: Bool = false       // landscape full vs split
+    @State private var isImeSurface: Bool = false         // portrait built-in vs IME
+    @State private var imeLastSent: String = ""           // last text diff-sent to HID in IME mode
+
+    @State private var splitShortcutCurrentPage: Int = 0
+    @State private var splitShortcutDragOffset: CGFloat = 0
+    @State private var splitShortcutIsDragging: Bool = false
+
+    @State private var splitShortcutTopCurrentPage: Int = 1
+    @State private var splitShortcutTopDragOffset: CGFloat = 0
+    @State private var splitShortcutTopIsDragging: Bool = false
+    @State private var splitShortcutBottomCurrentPage: Int = 1
+    @State private var splitShortcutBottomDragOffset: CGFloat = 0
+    @State private var splitShortcutBottomIsDragging: Bool = false
+
+
+    // MARK: - Shortcut strip data
+
     private var shortcutPages: [ShortcutPage] {
-        let isMacOS  = aiSettings.targetOS == .macOS
-        let primaryModifier = isMacOS ? "Cmd" : "Ctrl"
-        let combo = { (mods: [String], key: String) in
-            self.keyboardManager.handleKeyCombo(modifiers: mods, key: key)
-        }
+        let pm = aiSettings.targetOS == .macOS ? "Cmd" : "Ctrl"
+        let combo: ([String], String) -> Void = { self.keyboardManager.handleKeyCombo(modifiers: $0, key: $1) }
+        let source = profileEntries()
+        guard !source.isEmpty else { return [standardShortcuts(combo, pm)] }
+        let chunks = stride(from: 0, to: source.count, by: 7).map { Array(source[$0..<min($0+7, source.count)]) }
+        let name = profileMgr.activeProfile?.name ?? ""
+        return chunks.enumerated().map { (i, c) in ShortcutPage(title: c.count > 1 ? "\(name) \(i+1)/\(c.count)" : name, entries: c) }
+    }
 
-        // Resolve shortcut items for row 1 (max 7 per page)
-        var sourceItems: [ShortcutItem] = []
-
-        if let active = profileMgr.activeProfile {
-            let myItems = profileMgr.myShortcuts(for: active.id)
-            if !myItems.isEmpty {
-                sourceItems = myItems
-            } else if let firstCat = active.categories.first {
-                // Fallback: first 7 shortcuts from the first category
-                sourceItems = Array(firstCat.shortcuts.prefix(7))
+    private func profileEntries() -> [ShortcutEntry] {
+        guard let active = profileMgr.activeProfile else { return [] }
+        let items = !profileMgr.myShortcuts(for: active.id).isEmpty ? profileMgr.myShortcuts(for: active.id) : Array(active.categories.first?.shortcuts.prefix(7) ?? [])
+        return items.map { item in
+            let mods = (item.modifier ?? "").split(separator: "+").map(String.init)
+            return ShortcutEntry(label: String(item.description.prefix(8)), icon: nil) {
+                mods.isEmpty ? keyboardManager.handleSpecialKey(item.keyCode) : keyboardManager.handleKeyCombo(modifiers: mods, key: item.keyCode)
             }
         }
+    }
 
-        if !sourceItems.isEmpty {
-            let allEntries = sourceItems.map { item -> ShortcutEntry in
-                let mods = (item.modifier ?? "").split(separator: "+").map(String.init)
-                return ShortcutEntry(label: String(item.description.prefix(8)), icon: nil) {
-                    if mods.isEmpty {
-                        self.keyboardManager.handleSpecialKey(item.keyCode)
-                    } else {
-                        self.keyboardManager.handleKeyCombo(modifiers: mods, key: item.keyCode)
-                    }
-                }
-            }
-            let rowSize = 7
-            let chunks = stride(from: 0, to: allEntries.count, by: rowSize).map {
-                Array(allEntries[$0..<min($0 + rowSize, allEntries.count)])
-            }
-            let profileName = profileMgr.activeProfile?.name ?? ""
-            return chunks.enumerated().map { (idx, chunk) in
-                let title = chunks.count > 1 ? "\(profileName) \(idx + 1)/\(chunks.count)" : profileName
-                return ShortcutPage(title: title, entries: chunk)
-            }
-        }
-
-        // Default row-1: standard 7 editing shortcuts
-        let defaultEntries: [ShortcutEntry] = [
-            ShortcutEntry(label: "ALL",   icon: "text.badge.checkmark") { combo([primaryModifier], "A") },
-            ShortcutEntry(label: "COPY",  icon: "doc.on.doc")           { combo([primaryModifier], "C") },
-            ShortcutEntry(label: "CUT",   icon: "scissors")             { combo([primaryModifier], "X") },
-            ShortcutEntry(label: "PASTE", icon: "clipboard")            { combo([primaryModifier], "V") },
-            ShortcutEntry(label: "SAVE",  icon: "externaldrive")        { combo([primaryModifier], "S") },
-            ShortcutEntry(label: "UNDO",  icon: "arrow.uturn.backward") { combo([primaryModifier], "Z") },
+    private func standardShortcuts(_ combo: @escaping ([String], String) -> Void, _ pm: String) -> ShortcutPage {
+        ShortcutPage(title: "Standard", entries: [
+            ShortcutEntry(label: "ALL",   icon: "text.badge.checkmark") { combo([pm], "A") },
+            ShortcutEntry(label: "COPY",  icon: "doc.on.doc")           { combo([pm], "C") },
+            ShortcutEntry(label: "CUT",   icon: "scissors")             { combo([pm], "X") },
+            ShortcutEntry(label: "PASTE", icon: "clipboard")            { combo([pm], "V") },
+            ShortcutEntry(label: "SAVE",  icon: "externaldrive")        { combo([pm], "S") },
+            ShortcutEntry(label: "UNDO",  icon: "arrow.uturn.backward") { combo([pm], "Z") },
             ShortcutEntry(label: "FIND",  icon: "magnifyingglass")      { combo(["Ctrl"], "F") },
-        ]
-        return [ShortcutPage(title: "Standard", entries: defaultEntries)]
+        ])
     }
 
-    /// All four pages for the pageable fixed rows 2–3 strip.
-    /// Mirrors Android's rebuildFixedTopRowsPanels() (pages 0–3).
-    private var fixedRowsPages: [FixedRowsPage] {
-        return [fixedRowsPage0, fixedRowsPage1, fixedRowsPage2, fixedRowsPage3]
-    }
-
-    /// Page 0 — F-keys: F7–F12 + = on row 2; F1–F6 + FN toggle on row 3.
-    /// Matches Android buildFixedTopRowsPage0().
-    private var fixedRowsPage0: FixedRowsPage {
-        let fnActive = keyboardManager.isFnLocked
-        return FixedRowsPage(
-            row1: [
-                ShortcutEntry(label: "F7",  icon: nil) { self.keyboardManager.handleKeyPress("F7") },
-                ShortcutEntry(label: "F8",  icon: nil) { self.keyboardManager.handleKeyPress("F8") },
-                ShortcutEntry(label: "F9",  icon: nil) { self.keyboardManager.handleKeyPress("F9") },
-                ShortcutEntry(label: "F10", icon: nil) { self.keyboardManager.handleKeyPress("F10") },
-                ShortcutEntry(label: "F11", icon: nil) { self.keyboardManager.handleKeyPress("F11") },
-                ShortcutEntry(label: "F12", icon: nil) { self.keyboardManager.handleKeyPress("F12") },
-                ShortcutEntry(label: "=",   icon: nil) { self.keyboardManager.handleTextInput("=") },
-            ],
-            row2: [
-                ShortcutEntry(label: "F1", icon: nil) { self.keyboardManager.handleKeyPress("F1") },
-                ShortcutEntry(label: "F2", icon: nil) { self.keyboardManager.handleKeyPress("F2") },
-                ShortcutEntry(label: "F3", icon: nil) { self.keyboardManager.handleKeyPress("F3") },
-                ShortcutEntry(label: "F4", icon: nil) { self.keyboardManager.handleKeyPress("F4") },
-                ShortcutEntry(label: "F5", icon: nil) { self.keyboardManager.handleKeyPress("F5") },
-                ShortcutEntry(label: "F6", icon: nil) { self.keyboardManager.handleKeyPress("F6") },
-                ShortcutEntry(label: "FN", icon: "fn", isActive: fnActive)
-                    { self.keyboardManager.isFnLocked.toggle() },
-            ]
-        )
-    }
-
-    /// Page 1 (default) — Modifiers + Navigation.
-    /// Matches Android buildFixedTopRowsPage1().
-    private var fixedRowsPage1: FixedRowsPage {
-        let isMacOS   = aiSettings.targetOS == .macOS
-        let isWindows = aiSettings.targetOS == .windows
-        let ctrlActive  = keyboardManager.activeModifiers.contains("Ctrl")
-        let altActive   = keyboardManager.activeModifiers.contains("Alt")
-        let cmdActive   = keyboardManager.activeModifiers.contains("Cmd")
-        let shiftActive = keyboardManager.activeModifiers.contains("Shift")
-        let fnActive    = keyboardManager.isFnLocked
-
-        let ctrlEntry: ShortcutEntry
-        let altEntry: ShortcutEntry
-        let cmdEntry: ShortcutEntry
-
-        if isMacOS {
-            ctrlEntry = ShortcutEntry(label: "", icon: "control", isActive: ctrlActive)
-                { self.keyboardManager.handleModifierToggle("Ctrl") }
-            altEntry  = ShortcutEntry(label: "", icon: "option",  isActive: altActive)
-                { self.keyboardManager.handleModifierToggle("Alt") }
-            cmdEntry  = ShortcutEntry(label: "", icon: "command", isActive: cmdActive)
-                { self.keyboardManager.handleModifierToggle("Cmd") }
-        } else if isWindows {
-            ctrlEntry = ShortcutEntry(label: "CTRL", icon: nil, isActive: ctrlActive)
-                { self.keyboardManager.handleModifierToggle("Ctrl") }
-            altEntry  = ShortcutEntry(label: "ALT",  icon: nil, isActive: altActive)
-                { self.keyboardManager.handleModifierToggle("Alt") }
-            cmdEntry  = ShortcutEntry(label: "", icon: "logo.windows", isActive: cmdActive)
-                { self.keyboardManager.handleModifierToggle("Cmd") }
-        } else {
-            ctrlEntry = ShortcutEntry(label: "CTRL", icon: nil, isActive: ctrlActive)
-                { self.keyboardManager.handleModifierToggle("Ctrl") }
-            altEntry  = ShortcutEntry(label: "ALT",  icon: nil, isActive: altActive)
-                { self.keyboardManager.handleModifierToggle("Alt") }
-            cmdEntry  = ShortcutEntry(label: "SUP",  icon: nil, isActive: cmdActive)
-                { self.keyboardManager.handleModifierToggle("Cmd") }
+    private var fixedRowsToggleEntry: ShortcutEntry {
+        ShortcutEntry(label: "", icon: "arrow.left.arrow.right", isActive: fixedRowsLocalFnLocked) {
+            withAnimation(.easeInOut(duration: 0.15)) { fixedRowsLocalFnLocked.toggle() }
         }
-
-        return FixedRowsPage(
-            row1: [
-                ctrlEntry,
-                altEntry,
-                cmdEntry,
-                ShortcutEntry(label: "TAB",   icon: "arrow.right.to.line.compact")
-                    { self.keyboardManager.handleKeyPress("Tab") },
-                ShortcutEntry(label: "UP",    icon: "arrow.up")
-                    { self.keyboardManager.handleKeyPress("Up") },
-                ShortcutEntry(label: "ENTER", icon: "return")
-                    { self.keyboardManager.handleKeyPress("Enter") },
-                ShortcutEntry(label: "", icon: "keyboard",
-                              badge: isTextInputMode ? "A" : "B")
-                    { withAnimation { self.isTextInputMode.toggle() } },
-            ],
-            row2: [
-                ShortcutEntry(label: "ESC",    icon: "escape")
-                    { self.keyboardManager.handleKeyPress("Escape") },
-                ShortcutEntry(label: "SHIFT",  icon: "shift", isActive: shiftActive)
-                    { self.keyboardManager.handleModifierToggle("Shift") },
-                ShortcutEntry(label: "DEL",    icon: "delete.forward")
-                    { self.keyboardManager.handleKeyPress("Delete") },
-                ShortcutEntry(label: "LEFT",   icon: "arrow.left")
-                    { self.keyboardManager.handleKeyPress("Left") },
-                ShortcutEntry(label: "DOWN",   icon: "arrow.down")
-                    { self.keyboardManager.handleKeyPress("Down") },
-                ShortcutEntry(label: "RIGHT",  icon: "arrow.right")
-                    { self.keyboardManager.handleKeyPress("Right") },
-                ShortcutEntry(label: "FN", icon: "fn", isActive: fnActive)
-                    { self.keyboardManager.isFnLocked.toggle() },
-            ]
-        )
     }
 
-    /// Page 2 — Punctuation symbols.
-    /// Matches Android buildFixedTopRowsPage2() (Fn off / base caps).
-    private var fixedRowsPage2: FixedRowsPage {
-        let t = self.keyboardManager.handleTextInput
-        return FixedRowsPage(
-            row1: [
-                ShortcutEntry(label: "(", icon: nil) { t("(") },
-                ShortcutEntry(label: ")", icon: nil) { t(")") },
-                ShortcutEntry(label: "[", icon: nil) { t("[") },
-                ShortcutEntry(label: "]", icon: nil) { t("]") },
-                ShortcutEntry(label: ":", icon: nil) { t(":") },
-                ShortcutEntry(label: "#", icon: nil) { t("#") },
-                ShortcutEntry(label: "@", icon: nil) { t("@") },
-            ],
-            row2: [
-                ShortcutEntry(label: "/",  icon: nil) { t("/") },
-                ShortcutEntry(label: "\\", icon: nil) { t("\\") },
-                ShortcutEntry(label: "|",  icon: nil) { t("|") },
-                ShortcutEntry(label: "?",  icon: nil) { t("?") },
-                ShortcutEntry(label: "-",  icon: nil) { t("-") },
-                ShortcutEntry(label: "_",  icon: nil) { t("_") },
-                ShortcutEntry(label: ".",  icon: nil) { t(".") },
-            ]
-        )
-    }
-
-    /// Page 3 — Profile quick-switch (up to 7 profiles on row 2; row 3 reserved).
-    /// Matches Android buildFixedTopRowsPage3() row 2 (profile hub slots).
-    private var fixedRowsPage3: FixedRowsPage {
-        let profiles = profileMgr.allProfiles
-        let activeid = profileMgr.activeProfileId
-        var row1: [ShortcutEntry] = []
-        for i in 0..<7 {
-            if i < profiles.count {
-                let p = profiles[i]
-                let isActiveProfile = p.id == activeid
-                row1.append(
-                    ShortcutEntry(
-                        label: String(p.name.prefix(6)),
-                        icon: nil,
-                        isActive: isActiveProfile
-                    ) {
-                        withAnimation { self.profileMgr.activeProfileId = p.id }
-                    }
-                )
-            } else {
-                row1.append(ShortcutEntry(label: "", icon: nil) {})
-            }
-        }
-        let extraProfiles = profiles.count > 7 ? Array(profiles[7..<min(14, profiles.count)]) : []
-        var row2: [ShortcutEntry] = []
-        for i in 0..<7 {
-            if i < extraProfiles.count {
-                let p = extraProfiles[i]
-                let isActiveProfile = p.id == activeid
-                row2.append(
-                    ShortcutEntry(
-                        label: String(p.name.prefix(6)),
-                        icon: nil,
-                        isActive: isActiveProfile
-                    ) {
-                        withAnimation { self.profileMgr.activeProfileId = p.id }
-                    }
-                )
-            } else {
-                row2.append(ShortcutEntry(label: "", icon: nil) {})
-            }
-        }
-        return FixedRowsPage(row1: row1, row2: row2)
-    }
-
-    /// Profile switcher dropdown — shows current profile name, tap to pick another.
-    /// Matches Android's profile slot tap/long-press picker.
-    @ViewBuilder
-    private var profileSwitcher: some View {
-        Menu {
-            ForEach(profileMgr.profilesForPicking, id: \.id) { profile in
-                Button(action: {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        profileMgr.activeProfileId = profile.id
-                        shortcutPage = 0
-                    }
-                }) {
-                    HStack {
-                        if profile.id == profileMgr.activeProfileId {
-                            Image(systemName: "checkmark")
-                        }
-                        Text(profile.name)
-                    }
+    private var keyboardToggleEntry: ShortcutEntry {
+        ShortcutEntry(label: keyboardToggleLabel, icon: "keyboard") {
+            withAnimation {
+                if orientationManager.isLandscape {
+                    isSplitLayout.toggle()
+                    persistedLandscapeLayoutRawValue = isSplitLayout ? LandscapeLayout.split.rawValue : LandscapeLayout.full.rawValue
+                } else {
+                    isImeSurface.toggle()
+                    UserDefaults.standard.set(isImeSurface ? PortraitInput.ime.rawValue : PortraitInput.builtIn.rawValue, forKey: Self.portraitInputKey)
                 }
             }
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "rectangle.on.rectangle")
-                    .font(.system(size: 11))
-                Text(profileMgr.activeProfile?.name ?? "Profile")
-                    .font(.system(size: 11, weight: .semibold))
-                    .lineLimit(1)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 8))
-            }
-            .foregroundColor(.secondary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(Color(UIColor.secondarySystemBackground))
-            .cornerRadius(8)
         }
+    }
+
+    private var keyboardToggleLabel: String {
+        orientationManager.isLandscape ? (isSplitLayout ? "Split" : "Full") : (isImeSurface ? "IME" : "BI")
+    }
+
+    private var fixedRowsPages: [FixedRowsPage] {
+        let km = keyboardManager
+        let lock = fixedRowsLocalFnLocked
+        let te = { Self.textEntry(km, label: $0) }
+        let keKey = { (label: String, key: String) in Self.keyEntry(km, label: label, icon: "", key: key) }
+        let tog = fixedRowsToggleEntry
+        let kbdTog = keyboardToggleEntry
+
+        // Page 0 — F-keys / number-symbol
+        let p0Fkeys = [("F1","1"),("F2","2"),("F3","3"),("F4","4"),("F5","5"),("F6","6")]
+            .map { Self.keyEntry(km, label: $0.0, icon: "", badge: $0.1) }
+        let p0FnKeys = [("F7","7"),("F8","8"),("F9","9"),("F10","0"),("F11","+"),("F12","-")]
+            .map { Self.keyEntry(km, label: $0.0, icon: "", badge: $0.1) }
+        let p0 = FixedRowsPage(
+            row1: lock ? ["7","8","9","0","+","-","*"].map { te($0) } : p0FnKeys + [Self.textEntry(km, label: "#", badge: "*")],
+            row2: lock ? ["1","2","3","4","5","6"].map { te($0) } + [tog] : p0Fkeys + [tog]
+        )
+
+        // Page 1 — Modifiers + Navigation
+        let isMacOS = aiSettings.targetOS == .macOS
+        let isWindows = aiSettings.targetOS == .windows
+        let modCfg: [(String, String, String)] = isMacOS
+            ? [("Ctrl","","control"),("Alt","","option"),("Cmd","","command")]
+            : isWindows ? [("Ctrl","CTRL",""),("Alt","ALT",""),("Cmd","WIN","")]
+                        : [("Ctrl","CTRL",""),("Alt","ALT",""),("Cmd","SUP","")]
+        let modEntries = modCfg.map { cfg in ShortcutEntry(label: cfg.1, icon: cfg.2.isEmpty ? nil : cfg.2, isActive: keyboardManager.activeModifiers.contains(cfg.0)) { km.handleModifierToggle(cfg.0) } }
+        let p1Locked = FixedRowsPage(
+            row1: [keKey("SCR","Scroll Lock"),keKey("PRT","PrtSc"),keKey("CAPS","Caps"),keKey("PAUSE","Pause"),keKey("HOME","Home"),keKey("PGUP","PgUp"),kbdTog],
+            row2: [keKey("SPACE","Space"),keKey("BKSP","Backspace"),keKey("DEL","Delete"),keKey("INS","Insert"),keKey("END","End"),keKey("PGDN","PgDn"),tog]
+        )
+        let p1Unlocked = FixedRowsPage(
+            row1: modEntries + [keKey("TAB","Tab"),keKey("UP","Up"),keKey("ENTER","Enter"),kbdTog],
+            row2: [keKey("ESC","Escape"),Self.modifierEntry(km,label:"SHIFT",icon:"shift",key:"Shift"),keKey("DEL","Delete"),keKey("LEFT","Left"),keKey("DOWN","Down"),keKey("RIGHT","Right"),tog]
+        )
+
+        // Page 2 — Punctuation
+        let p2Row1: [(String, String)] = [
+            ("(","`"),(")","~"),("[","'"),("]","\""),(":",":"),("#","#"),("@","@"),
+        ]
+        let p2Row2: [(String, String)] = [
+            ("/","<"),("\\",">"),("|","*"),("?","&"),("-","/"),("_","."),
+        ]
+        let p2 = FixedRowsPage(
+            row1: lock ? ["`","~","'","\"","%","^","|"].map { te($0) }
+                       : p2Row1.map { Self.textEntry(km, label: $0.0, badge: $0.1) },
+            row2: lock ? ["<",">","*","&",",","."].map { te($0) } + [tog]
+                       : p2Row2.map { Self.textEntry(km, label: $0.0, badge: $0.1) } + [tog]
+        )
+
+        return [p0, lock ? p1Locked : p1Unlocked, p2]
+    }
+
+    // MARK: - Shortcut helpers
+
+    private static func modifierEntry(_ km: KeyboardManager, label: String, icon: String, key: String? = nil) -> ShortcutEntry {
+        let k = key ?? label
+        return ShortcutEntry(label: label, icon: icon, isActive: km.activeModifiers.contains(k)) { km.handleModifierToggle(k) }
+    }
+    private static func keyEntry(_ km: KeyboardManager, label: String, icon: String, key: String? = nil, badge: String? = nil) -> ShortcutEntry {
+        let k = key ?? label
+        var entry = ShortcutEntry(label: label, icon: icon.isEmpty ? nil : icon) { km.handleKeyPress(k) }
+        entry.badge = badge
+        return entry
+    }
+    private static func textEntry(_ km: KeyboardManager, label: String, badge: String? = nil) -> ShortcutEntry {
+        var entry = ShortcutEntry(label: label, icon: nil) { km.handleTextInput(label) }
+        entry.badge = badge
+        return entry
+    }
+
+    // MARK: - Touchpad helper
+
+    private func touchpadOverlay(showLabel: Bool = true) -> some View {
+        GeometryReader { geo in
+            let stripWidth = max(28, geo.size.width * 0.30)
+            let showMouseButtons = prefs.showsMouseKeyStrip
+            let padGesturesEnabled = prefs.padClickDragGesturesEnabled
+            VStack(spacing: 0) {
+                HStack(spacing: 0) {
+                    ZStack(alignment: .topTrailing) {
+                        TouchpadView(mouseManager: mouseManager, pointerTipState: pointerTipState, padClickDragGesturesEnabled: padGesturesEnabled, onPointerMoving: { moving in pointerMoving = moving })
+                        Button(action: { showTouchpadHelp = true }) {
+                            Image(systemName: "questionmark.circle.fill").font(.system(size: 18, weight: .semibold)).foregroundColor(.secondary)
+                                .padding(8).background(Color(UIColor.secondarySystemBackground).opacity(0.9)).clipShape(Circle())
+                        }.padding(8)
+                        if showLabel { touchpadLabel.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center).allowsHitTesting(false) }
+                        Text(touchpadStatusText)
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color(UIColor.secondarySystemBackground).opacity(0.85))
+                            .cornerRadius(5)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                            .padding(4)
+                            .allowsHitTesting(false)
+                    }.frame(width: max(0, geo.size.width - stripWidth))
+                    ProTouchpadScrollStripView(mouseManager: mouseManager, labelFontSize: orientationManager.isLandscape ? 10 : 7).frame(width: stripWidth)
+                }
+                if showMouseButtons {
+                    proTouchpadMouseButtons
+                }
+            }.background(mouseManager.isSelectMode ? Color.blue.opacity(0.3) : Color(UIColor.secondarySystemBackground))
+        }
+    }
+
+    /// L/M/R mouse button strip below the touchpad (matching Android include_pro_touchpad_mouse_keys).
+    /// Layout: Left 2/5, Middle 1/5, Right 2/5.
+    private var proTouchpadMouseButtons: some View {
+        HStack(spacing: 8) {
+            proMouseButton(label: "L", held: isLHeld, action: { mouseManager.handleClick() })
+            proMouseButton(label: "M", held: isMHeld, action: { mouseManager.handleMiddleClick() })
+                .frame(maxWidth: .infinity, minHeight: 36)
+            proMouseButton(label: "R", held: isRHeld, action: { mouseManager.handleRightClick() })
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(touchpadControlGray)
+    }
+
+    private func proMouseButton(label: String, held: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 16, weight: .semibold))
+                .frame(maxWidth: .infinity)
+                .frame(height: 36)
+        }
+        .buttonStyle(ProMouseButtonStyle(held: held))
+    }
+
+    private var touchpadLabel: some View {
+        VStack(spacing: 4) {
+            Text("Touch Pad").font(.caption).foregroundColor(.secondary)
+            Text("Openterface").font(.caption2).foregroundColor(.secondary.opacity(0.7))
+        }
+    }
+    private var touchpadHelpSheet: some View {
+        VStack(spacing: 0) {
+            HStack { Text("Touchpad Help").font(.headline); Spacer(); Button("Done") { showTouchpadHelp = false }.font(.subheadline) }
+                .padding(.horizontal, 16).padding(.vertical, 12).background(Color(UIColor.secondarySystemBackground))
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Use these gestures in Pro Keyboard & Mouse mode:").font(.subheadline).foregroundColor(.secondary)
+                    ForEach(["1. One finger drag: move pointer", "2. Single tap: left click", "3. Double tap: double click",
+                             "4. Two-finger tap: right click", "5. Two-finger drag: wheel scrolling", "6. Long press: toggle drag mode",
+                             "7. Right vertical strip: quick page scroll"], id: \.self) { Text($0).font(.body) }
+                    Text("Tip: While drag mode is active, the touchpad background turns blue.")
+                        .font(.footnote).foregroundColor(.secondary).padding(.top, 4)
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(16)
+            }
+        }.background(Color(UIColor.systemBackground))
     }
 
     enum DisplayMode: Int, CaseIterable {
-        case both = 0
-        case keyboard
-        case touchpad
-
-        mutating func toggle() {
-            self = DisplayMode(rawValue: (self.rawValue + 1) % 3) ?? .both
-        }
-
+        case both = 0, keyboard, touchpad
+        mutating func toggle() { self = DisplayMode(rawValue: (rawValue + 1) % 3) ?? .both }
         var icon: String {
-            switch self {
-            case .both: return "rectangle.split.3x1"
-            case .keyboard: return "keyboard"
-            case .touchpad: return "rectangle.and.hand.point.up.left.filled"
-            }
+            switch self { case .both: return "rectangle.split.3x1"; case .keyboard: return "keyboard"; case .touchpad: return "rectangle.and.hand.point.up.left.filled" }
         }
     }
     @State private var displayMode: DisplayMode = .both
 
-    // Compute the display value for each key based on current modifiers
     func getDisplayValue(for key: String) -> String {
-        let specialKeys = ["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
-                          "Tab", "Caps", "Enter", "Shift", "Ctrl", "Alt", "Space", "Backspace"]
-
-        if specialKeys.contains(key) {
-            return key
-        }
-
-        let isShiftActive = keyboardManager.activeModifiers.contains("Shift")
-        let isCapsActive = keyboardManager.capsLockActive
-
-        if key.count == 1 && key.first!.isLetter {
-            let shouldBeUppercase = (isShiftActive && !isCapsActive) || (!isShiftActive && isCapsActive)
-            return shouldBeUppercase ? key.uppercased() : key.lowercased()
-        }
-
-        if isShiftActive {
-            let shiftMap: [String: String] = [
-                "`": "~", "1": "!", "2": "@", "3": "#", "4": "$", "5": "%",
-                "6": "^", "7": "&", "8": "*", "9": "(", "0": ")",
-                "-": "_", "=": "+", "[": "{", "]": "}",
-                ";": ":", "'": "\"", ",": "<", ".": ">", "/": "?"
-            ]
-            return shiftMap[key] ?? key
-        }
-
-        return key
+        let kd = KeyboardManager.KeyDef(key, "")
+        if keyboardManager.isSymbolMode && !kd.symbolLabel.isEmpty { return kd.symbolLabel }
+        if let l = letterDisplay(kd.label) { return l }
+        return keyboardManager.activeModifiers.contains("Shift") ? (shiftMap[key] ?? key) : key
     }
-
-    /// Get display label for a KeyDef, respecting Shift/Caps/Fn state.
     func displayLabel(for kd: KeyboardManager.KeyDef) -> String {
-        // Fn lock: show F1-F12
-        if let fnKey = keyboardManager.resolveFnKey(kd.label) {
-            return fnKey
-        }
-        // Symbol mode: show symbolLabel if available
-        if keyboardManager.isSymbolMode && !kd.symbolLabel.isEmpty {
-            return kd.symbolLabel
-        }
-        // Normal letter key
-        if kd.label.count == 1 && kd.label.first!.isLetter {
-            let isShiftActive = keyboardManager.activeModifiers.contains("Shift")
-            let isCapsActive = keyboardManager.capsLockActive
-            let shouldBeUppercase = (isShiftActive && !isCapsActive) || (!isShiftActive && isCapsActive)
-            return shouldBeUppercase ? kd.label.uppercased() : kd.label.lowercased()
-        }
-        return kd.label
+        if let f = keyboardManager.resolveFnKey(kd.label) { return f }
+        if keyboardManager.isSymbolMode && !kd.symbolLabel.isEmpty { return kd.symbolLabel }
+        return letterDisplay(kd.label) ?? kd.label
+    }
+    private func letterDisplay(_ char: String) -> String? {
+        guard char.count == 1, let c = char.first, c.isLetter else { return nil }
+        return (keyboardManager.activeModifiers.contains("Shift") != keyboardManager.capsLockActive) ? char.uppercased() : char.lowercased()
+    }
+    private var shiftMap: [String: String] {
+        ["`":"~","1":"!","2":"@","3":"#","4":"$","5":"%","6":"^","7":"&","8":"*","9":"(","0":")",
+         "-":"_","=":"+","[":"{","]":"}",";":":","'":"\"",",":"<",".":">","/":"?"]
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                VStack(spacing: 0) {
-                    // Conditional layout based on orientation
-                    if orientationManager.isLandscape {
-                    if displayMode == .touchpad {
-                        // Touchpad only mode: occupy all screen area, but show toggle button and tips overlay
-                        ZStack {
-                            TouchpadView(mouseManager: mouseManager, pointerTipState: pointerTipState)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            Rectangle()
-                                .foregroundColor(mouseManager.isSelectMode ? Color.blue.opacity(0.3) : Color(UIColor.tertiarySystemBackground))
-                                .allowsHitTesting(false)
-                            // Toggle button (handle) at the top edge, horizontally centered
-                            VStack {
-                                Button(action: { displayMode.toggle() }) {
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Color(UIColor.secondarySystemBackground))
-                                        .frame(width: 48, height: 24)
-                                        .overlay(
-                                            Rectangle()
-                                                .fill(Color.gray.opacity(0.6))
-                                                .frame(width: 36, height: 3)
-                                                .cornerRadius(1.5)
-                                        )
-                                        .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 1)
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                                Spacer()
-                            }
-                            .padding(.top, 8)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                            // Overlay: Text at the bottom
-                            VStack {
-                                Spacer()
-                                VStack(spacing: 4) {
-                                    Text("Touch Pad")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    Text("Openterface")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary.opacity(0.7))
-                                }
-                                .padding(.bottom, 8)
-                            }
-                            .allowsHitTesting(false)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else {
-                        HStack(spacing: 0) {
-                            if displayMode != .keyboard {
-                                // Touchpad area (30% of width)
-                                VStack(spacing: 0) {
-                                    ZStack {
-                                        Rectangle()
-                                            .foregroundColor(mouseManager.isSelectMode ? Color.blue.opacity(0.3) : Color(UIColor.tertiarySystemBackground))
-                                        
-                                        TouchpadView(mouseManager: mouseManager, pointerTipState: pointerTipState)
-                                        
-                                        VStack {
-                                            Spacer()
-                                            VStack(spacing: 4) {
-                                                Text("Touch Pad")
-                                                    .font(.caption)
-                                                    .foregroundColor(.secondary)
-                                                Text("Openterface")
-                                                    .font(.caption2)
-                                                    .foregroundColor(.secondary.opacity(0.7))
-                                            }
-                                            .padding(.bottom, 8)
-                                        }
-                                        .allowsHitTesting(false)
-                                        .zIndex(1)
-                                    }
-                                    .frame(maxHeight: .infinity)
-                                }
-                                .frame(maxWidth: geometry.size.width * 0.3)
-                            }
-                            // Handle removed to save space
-                            // VStack {
-                            //     Spacer()
-                            //     Button(action: { displayMode.toggle() }) {
-                            //         RoundedRectangle(cornerRadius: 8)
-                            //             .fill(Color(UIColor.secondarySystemBackground))
-                            //             .frame(width: 20, height: 48)
-                            //             .overlay(
-                            //                 Rectangle()
-                            //                     .fill(Color.gray.opacity(0.6))
-                            //                     .frame(width: 3, height: 36)
-                            //                     .cornerRadius(1.5)
-                            //             )
-                            //             .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
-                            //     }
-                            //     .buttonStyle(PlainButtonStyle())
-                            //     Spacer(minLength: 2)
-                            // }
-                            // .frame(width: 36)
-                            if displayMode != .touchpad {
-                                HStack(spacing: 0) {
-                                    // Add black space for camera area only on the top side in landscape keyboard-only mode
-                                    if displayMode == .keyboard && orientationManager.isLandscape && isTopOnLeft {
-                                        Color.black.frame(width: 60)
-                                    }
-                                    VStack(spacing: 0) {
-                                        // In landscape keyboard-only mode, make the keyboard rows fill all available vertical space
-                                        if displayMode == .keyboard && orientationManager.isLandscape {
-                                            GeometryReader { innerGeometry in
-                                                VStack(spacing: 0) {
-                                                    ForEach(keysForCurrentOrientation, id: \.self) { row in
-                                                        HStack(spacing: 0) {
-                                                            ForEach(row, id: \.self) { key in
-                                                                Button(action: {
-                                                                    keyboardManager.handleSpecialKey(key)
-                                                                }) {
-                                                                    if key == "Backspace" {
-                                                                        Image(systemName: "delete.left")
-                                                                            .font(.system(size: 16))
-                                                                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                                                            .background(Self.functionKeyBg)
-                                                                            .cornerRadius(9)
-                                                                            .foregroundColor(.primary)
-                                                                    } else if key == "Enter" {
-                                                                        Image(systemName: "return")
-                                                                            .font(.system(size: 16))
-                                                                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                                                            .background(Self.functionKeyBg)
-                                                                            .cornerRadius(9)
-                                                                            .foregroundColor(.primary)
-                                                                    } else if key == "Shift" {
-                                                                        Image(systemName: "shift")
-                                                                            .font(.system(size: 16))
-                                                                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                                                            .background(keyboardManager.activeModifiers.contains("Shift") ? Color.blue : Self.functionKeyBg)
-                                                                            .cornerRadius(9)
-                                                                            .foregroundColor(keyboardManager.activeModifiers.contains("Shift") ? .white : .primary)
-                                                                    } else if ["Ctrl", "Alt", "Cmd"].contains(key) {
-                                                                        Text(getDisplayValue(for: key))
-                                                                            .font(.system(size: 12))
-                                                                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                                                            .background(keyboardManager.activeModifiers.contains(key) ? Color.blue : Self.functionKeyBg)
-                                                                            .cornerRadius(9)
-                                                                            .foregroundColor(keyboardManager.activeModifiers.contains(key) ? .white : .primary)
-                                                                    } else if key == "Caps" {
-                                                                        Text(getDisplayValue(for: key))
-                                                                            .font(.system(size: 12))
-                                                                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                                                            .background(keyboardManager.capsLockActive ? Color.green : Self.functionKeyBg)
-                                                                            .cornerRadius(9)
-                                                                            .foregroundColor(keyboardManager.capsLockActive ? .white : .primary)
-                                                                    } else {
-                                                                        Text(getDisplayValue(for: key))
-                                                                            .font(.system(size: 12))
-                                                                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                                                            .background(Self.regularKeyBg)
-                                                                            .cornerRadius(9)
-                                                                            .foregroundColor(.primary)
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                        .frame(maxHeight: innerGeometry.size.height / CGFloat(keysForCurrentOrientation.count))
-                                                    }
-                                                }
-                                            }
-                                        } else {
-                                            keyboardLayoutView
-                                        }
-                                        // Show extra keys only in keyboard-only mode and only in portrait
-                                        if displayMode == .keyboard && !orientationManager.isLandscape {
-                                            extraKeysView
-                                                .padding(.top, 4)
-                                        }
-                                    }
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                    if displayMode == .keyboard && orientationManager.isLandscape && isTopOnRight {
-                                        Color.black.frame(width: 60)
-                                    }
-                                }
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        GeometryReader { g in
+            VStack(spacing: 0) {
+                if orientationManager.isLandscape { landscapeContent(g) } else { portraitContent(g) }
+            }
+                .coordinateSpace(name: "proKMView")
+                .overlay { if proSubmode == .keyboard, let p = alternatesPopup { KeyAlternatesPopupView(options: p.options, anchorFrame: p.anchor, pick: alternatesPick).allowsHitTesting(false) } }
+                .sheet(isPresented: $showTouchpadHelp) { touchpadHelpSheet }
+                .offset(y: isTextInputMode ? (keyboardHeight > 0 ? -keyboardHeight * 0.65 : 30) : 0)
+                .animation(.easeOut(duration: 0.3), value: keyboardHeight).animation(.easeOut(duration: 0.3), value: isTextInputMode)
+                .onAppear {
+                    isSplitLayout = persistedLandscapeLayout == .split; isImeSurface = persistedPortraitInput == .ime
+                    NotificationCenter.default.addObserver(forName: UIResponder.keyboardWillShowNotification, object: nil, queue: .main) { n in
+                        if let kf = n.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect { keyboardHeight = kf.height }
                     }
-                } else {
-                    ZStack {
-                        VStack(spacing: 0) {
-                            if displayMode != .keyboard {
-                                ZStack {
-                                    Rectangle()
-                                        .foregroundColor(mouseManager.isSelectMode ? Color.blue.opacity(0.3) : Color(UIColor.tertiarySystemBackground))
-                                    
-                                    TouchpadView(mouseManager: mouseManager, pointerTipState: pointerTipState)
-                                    
-                                    VStack {
-                                        Spacer()
-                                        VStack(spacing: 4) {
-                                            Text("Touch Pad")
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                            Text("Openterface")
-                                                .font(.caption2)
-                                                .foregroundColor(.secondary.opacity(0.7))
-                                        }
-                                        .padding(.bottom, 8)
-                                    }
-                                    .allowsHitTesting(false)
-                                    .zIndex(1)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .frame(height: geometry.size.height * 0.50)
-                                .opacity(isTextInputMode && isTextInputExpanded ? 0 : 1)
-                            }
-                            // Handle removed to save space
-                            // HStack {
-                            //     Spacer()
-                            //     // Portrait handle
-                            //     Button(action: { displayMode.toggle() }) {
-                            //         RoundedRectangle(cornerRadius: 6)
-                            //             .fill(Color(UIColor.secondarySystemBackground))
-                            //             .frame(width: 48, height: 20)
-                            //             .overlay(
-                            //                 Rectangle()
-                            //                     .fill(Color.gray.opacity(0.6))
-                            //                     .frame(width: 36, height: 3)
-                            //                     .cornerRadius(1.5)
-                            //             )
-                            //             .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
-                            //     }
-                            //     .buttonStyle(PlainButtonStyle())
-                            //     Spacer()
-                            // }
-                            // .frame(height: 36)
-                            if displayMode != .touchpad {
-                                if isTextInputMode && !isTextInputExpanded {
-                                    // Text input mode with ScrollView for keyboard avoidance
-                                    ScrollView {
-                                        VStack(spacing: 0) {
-                                            // Profile switcher + shortcut panels
-                                            HStack {
-                                                profileSwitcher
-                                                Spacer()
-                                            }
-                                            .padding(.horizontal, 8)
-                                            .padding(.bottom, 2)
+                    NotificationCenter.default.addObserver(forName: UIResponder.keyboardWillHideNotification, object: nil, queue: .main) { _ in keyboardHeight = 0 }
+                    // Compose and Numpad are portrait-only — force rotation on appear
+                    if proSubmode != .keyboard {
+                        orientationManager.lockToPortrait()
+                    }
+                }
+                .onDisappear {
+                    NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardWillShowNotification, object: nil)
+                    NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardWillHideNotification, object: nil)
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
+                    // Compose and Numpad are portrait-only — re-force if device rotated
+                    if proSubmode != .keyboard {
+                        orientationManager.lockToPortrait()
+                    } else if proSubmode == .keyboard {
+                        // Keyboard: sync layout state to persisted values for the new orientation
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            isSplitLayout = persistedLandscapeLayout == .split
+                            isImeSurface = persistedPortraitInput == .ime
+                        }
+                    }
+                }
+        }
+    }
 
-                                            // Row 1: pageable favorites strip
-                                            ShortcutStripPager(pages: shortcutPages)
-                                                .id(profileMgr.activeProfileId)
-                                                .padding(.horizontal, 4)
-                                            // Rows 2–3: pageable 4-page fixed strip
-                                            FixedRowsPager(pages: fixedRowsPages, defaultPageIndex: 1)
-                                                .padding(.horizontal, 4)
-                                                .padding(.bottom, 2)
-                                            
-                                            textInputView
-                                                .frame(height: 140)
-                                                .padding(.bottom, 10)
-                                            
-                                            // Bottom toolbar
-                                            bottomToolbar
-                                                .padding(.horizontal, 4)
-                                                .padding(.bottom, 4)
-                                        }
-                                        .padding(.bottom, keyboardHeight > 0 ? keyboardHeight : 0)
-                                    }
-                            } else if !isTextInputMode {
-                                VStack(spacing: 0) {
-                                // Profile switcher + shortcut panels
-                                HStack {
-                                    profileSwitcher
-                                    Spacer()
-                                }
-                                .padding(.horizontal, 8)
-                                .padding(.bottom, 2)
+    /// Helper that keeps submode views alive in the view tree to avoid expensive
+    /// recreate-on-switch. Only the active submode is visible and interactive.
+    @ViewBuilder
+    private func submodeView<Content: View>(active: ProSubmode, @ViewBuilder content: () -> Content) -> some View {
+        content()
+            .opacity(proSubmode == active ? 1 : 0)
+            .allowsHitTesting(proSubmode == active)
+    }
 
-                                // Row 1: pageable favorites strip
-                                ShortcutStripPager(pages: shortcutPages)
-                                    .id(profileMgr.activeProfileId)
-                                    .padding(.horizontal, 4)
-                                // Rows 2–3: pageable 4-page fixed strip
-                                FixedRowsPager(pages: fixedRowsPages, defaultPageIndex: 1)
-                                    .padding(.horizontal, 4)
-                                    .padding(.bottom, 2)
+    // MARK: - Landscape layout
 
-                                // Keyboard layout
-                                keyboardLayoutView
-                                    .frame(height: 240)
-                                    .padding(.bottom, 10)
-                                // Show extra keys only in keyboard-only mode and only in portrait
-                                if displayMode == .keyboard && !orientationManager.isLandscape {
-                                    extraKeysView
-                                        .padding(.top, 8)
-                                }
-                                
-                                // Bottom toolbar
-                                bottomToolbar
-                                    .padding(.horizontal, 4)
-                                    .padding(.bottom, 4)
-                                }
+    @ViewBuilder
+    private func landscapeContent(_ geometry: GeometryProxy) -> some View {
+        ZStack {
+            if proSubmode == .compose {
+                ComposeTextView(keyboardManager: keyboardManager)
+                    .background(Color(UIColor.secondarySystemBackground))
+                    .transaction { $0.animation = nil }
+            }
+            if proSubmode == .numpad {
+                ProNumPadView(keyboardManager: keyboardManager, mouseManager: mouseManager)
+                    .background(Color(UIColor.secondarySystemBackground))
+                    .transaction { $0.animation = nil }
+            }
+            submodeView(active: .keyboard) {
+                let barWidth: CGFloat = 50
+                HStack(spacing: 0) {
+                    Color(UIColor.secondarySystemBackground).frame(width: barWidth)
+                    VStack(spacing: 0) {
+                        if displayMode == .touchpad {
+                            VStack(spacing: 0) { landscapeShortcutPanel; ZStack { touchpadOverlay(); landscapeHandleButton } }
+                        } else if isSplitLayout {
+                            let cw = geometry.size.width - barWidth, tw = cw * 0.33, sw = max(0, (cw - tw) / 2)
+                            HStack(spacing: 0) {
+                                splitSideColumn(side: .left, width: sw); touchpadOverlay().frame(width: tw); splitSideColumn(side: .right, width: sw)
                             }
+                        } else {
+                            VStack(spacing: 0) { landscapeShortcutPanel; keyboardRows.layoutPriority(1) }
                         }
                     }
-                    
-                    // Expanded text input overlay
-                    if isTextInputMode && isTextInputExpanded {
-                        VStack(spacing: 8) {
-                            textInputView
-                                .frame(maxHeight: geometry.size.height * 0.50)
-                            
-                            bottomToolbar
-                                .padding(.horizontal, 4)
-                        }
-                        .padding(.top, 90)  // Increased from 10 to 80 to move down by two button heights
-                        .padding(.bottom, 30)
-                        .padding(.horizontal, 8)
-                        .background(Color(UIColor.systemBackground))
-                        .zIndex(10)
-                    }
-                }
-                // Alternates popup overlay (3x3 grid)
-                if let popup = alternatesPopup {
-                    KeyAlternatesPopupView(
-                        options: popup.options,
-                        anchorFrame: popup.anchor,
-                        onCommit: { option in
-                            alternatesCommitHandled = true
-                            HapticFeedbackManager.shared.triggerButtonPress()
-                            if option.requiresShift {
-                                keyboardManager.handleKeyCombo(modifiers: ["Shift"], key: option.keyCode)
-                            } else {
-                                keyboardManager.handleKeyPress(option.keyCode)
-                            }
-                            dismissAlternatesPopup()
-                        },
-                        onCancel: {
-                            // Cancelled — let the Button action send the normal key
-                            alternatesCommitHandled = false
-                            dismissAlternatesPopup()
-                        }
-                    )
-                    .transition(.scale.combined(with: .opacity))
-                }
-            }
-            }
-            }
-            .coordinateSpace(name: "proKMView")
-            .offset(y: isTextInputMode ? (keyboardHeight > 0 ? -keyboardHeight * 0.65 : 30) : 0)
-            .animation(.easeOut(duration: 0.3), value: keyboardHeight)
-            .animation(.easeOut(duration: 0.3), value: isTextInputMode)
-            .onAppear {
-                // Listen for keyboard show/hide notifications
-                NotificationCenter.default.addObserver(
-                    forName: UIResponder.keyboardWillShowNotification,
-                    object: nil,
-                    queue: .main
-                ) { notification in
-                    if let keyboardFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
-                        keyboardHeight = keyboardFrame.height
-                    }
-                }
-                
-                NotificationCenter.default.addObserver(
-                    forName: UIResponder.keyboardWillHideNotification,
-                    object: nil,
-                    queue: .main
-                ) { _ in
-                    keyboardHeight = 0
-                }
-            }
-            .onDisappear {
-                // Clean up notification observers
-                NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardWillShowNotification, object: nil)
-                NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardWillHideNotification, object: nil)
+                }.background(Color(UIColor.secondarySystemBackground))
             }
         }
     }
 
-    // Helper to determine if the top is on the left or right in landscape
-    private var isTopOnLeft: Bool {
-        guard orientationManager.isLandscape else { return false }
-        let deviceOrientation = UIDevice.current.orientation
-        return deviceOrientation == .landscapeLeft
-    }
-    private var isTopOnRight: Bool {
-        guard orientationManager.isLandscape else { return false }
-        let deviceOrientation = UIDevice.current.orientation
-        return deviceOrientation == .landscapeRight
+    @ViewBuilder private func splitSideColumn(side: SplitSide, width: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            splitTopSidePanel(pageIndex: splitShortcutTopCurrentPage, side: side, width: width).frame(height: 44)
+            splitBottomSidePanel(pageIndex: splitShortcutBottomCurrentPage, side: side, width: width).frame(height: 88)
+            splitKeyboardColumn(side: side)
+        }.frame(width: width).clipped()
     }
 
-    // Helper: in landscape F-row is hidden, but since our keys no longer include F-row, return as-is
-    var keysForCurrentOrientation: [[String]] {
-        return keys
-    }
+    enum SplitSide { case left, right }
 
     @ViewBuilder
-    private var keyboardLayoutView: some View {
-        VStack(spacing: 0) {
-            // Letter/symbol keys from portraitLetterKeys
-            ForEach(keyboardManager.portraitLetterKeys.indices, id: \.self) { rowIdx in
-                let row = keyboardManager.portraitLetterKeys[rowIdx]
-                HStack(spacing: 0) {
-                    ForEach(row.indices, id: \.self) { colIdx in
-                        let kd = row[colIdx]
-                        keyButton(for: kd, width: keyWidth(for: kd, row: row))
-                    }
+    private func splitKeyboardColumn(side: SplitSide) -> some View {
+        let keys = side == .left ? splitLeftKeys : splitRightKeys
+        GeometryReader { g in
+            VStack(spacing: 0) {
+                ForEach(keys.indices, id: \.self) { r in
+                    let row = keys[r]
+                    HStack(spacing: 0) {
+                        ForEach(row.indices, id: \.self) { c in
+                            let kd = row[c], w = keyWidthSplit(for: kd, row: row, side: side, rowIndex: r)
+                            keyButton(for: kd, width: w).frame(width: g.size.width * w)
+                        }
+                    }.frame(maxHeight: g.size.height / CGFloat(keys.count))
                 }
+            }
+        }
+    }
+
+    private func keyWidthSplit(for kd: KeyboardManager.KeyDef, row: [KeyboardManager.KeyDef], side: SplitSide, rowIndex: Int) -> CGFloat {
+        let w = row.map { splitKeyWeight(for: $0, rowIndex: rowIndex) }; let t = w.reduce(0, +)
+        guard t > 0 else { return 1.0 / CGFloat(row.count) }
+        return splitKeyWeight(for: kd, rowIndex: rowIndex) / t
+    }
+    private func splitKeyWeight(for kd: KeyboardManager.KeyDef, rowIndex: Int) -> CGFloat {
+        switch rowIndex {
+        case 0: return 10
+        case 1:
+            switch kd.label {
+            case "Fn": return 9.5; case "a": return 10.6
+            case "s","d","f","g","h","j","k","l": return 8.35; case "Delete","FwdDel": return 11.55
+            default: return 10
+            }
+        case 2:
+            switch kd.label { case "Shift": return 16; case "Enter": return 12; default: return 9 }
+        case 3:
+            switch kd.label {
+            case "Space": return 42
+            case "Ctrl", "Win", "Alt", "App": return 13
+            default: return 10
+            }
+        default: return 10
+        }
+    }
+
+    private var landscapeHandleButton: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isSplitLayout.toggle()
+                UserDefaults.standard.set(isSplitLayout ? LandscapeLayout.split.rawValue : LandscapeLayout.full.rawValue, forKey: Self.landscapeLayoutKey)
+            }
+        } label: {
+            VStack(spacing: 4) {
+                RoundedRectangle(cornerRadius: 8).fill(Color(UIColor.secondarySystemBackground))
+                    .frame(width: 48, height: 24)
+                    .overlay(Image(systemName: isSplitLayout ? "rectangle.split.3x1" : "rectangle").font(.system(size: 12, weight: .semibold)).foregroundColor(.secondary))
+                    .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 1)
+                Text(isSplitLayout ? "Split" : "Full").font(.caption2).foregroundColor(.secondary)
+            }
+        }.buttonStyle(PlainButtonStyle()).padding(.top, 8).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private var landscapeShortcutPanel: some View {
+        VStack(spacing: 0) {
+            ShortcutStripPager(pages: shortcutPages).id(profileMgr.activeProfileId)
+            FixedRowsPager(pages: fixedRowsPages, defaultPageIndex: 1)
+        }.background(Color(UIColor.secondarySystemBackground))
+    }
+    @ViewBuilder private var landscapeSplitShortcutPanel: some View {
+        let pc = max(shortcutPages.count, fixedRowsPages.count)
+        if pc > 0 {
+            SplitPagingView(pageCount: pc, currentPage: splitShortcutCurrentPage, isDragging: splitShortcutIsDragging, dragOffset: splitShortcutDragOffset, onPageChanged: { splitShortcutCurrentPage = $0 }, onDraggingChanged: { splitShortcutIsDragging = $0 }, onDragOffsetChanged: { splitShortcutDragOffset = $0 }) { i in
+                let sp = shortcutPages.indices.contains(i) ? shortcutPages[i] : ShortcutPage(title: "", entries: [])
+                let fp = i < fixedRowsPages.count ? fixedRowsPages[i] : FixedRowsPage(row1: [], row2: [])
+                shortcutPageView(sp, fp).allowsHitTesting(!splitShortcutIsDragging)
+            }.background(Color(UIColor.secondarySystemBackground))
+        }
+    }
+    private func shortcutPageView(_ sp: ShortcutPage, _ fp: FixedRowsPage) -> some View {
+        VStack(spacing: 0) {
+            ShortcutStripRowView(entries: sp.entries, background: Color.orange.opacity(0.18)).frame(height: 40)
+            ShortcutStripRowView(entries: fp.row1, background: Color(UIColor.secondarySystemBackground)).frame(height: 40)
+            ShortcutStripRowView(entries: fp.row2, background: Color(UIColor.secondarySystemBackground)).frame(height: 40)
+        }
+    }
+    private func sideEntries(from entries: [ShortcutEntry], side: SplitSide) -> [ShortcutEntry] {
+        side == .left ? Array(entries.prefix(3)) : Array(entries.dropFirst(3).prefix(4))
+    }
+    private func shortcutSlotRow(entries: [ShortcutEntry], maxSlots: Int, background: Color = Color(UIColor.tertiarySystemBackground)) -> some View {
+        HStack(spacing: 2) {
+            ForEach(0..<maxSlots, id: \.self) { i in
+                if i < entries.count { ShortcutButton(entry: entries[i], background: background) }
+                else { ShortcutButton(entry: ShortcutEntry(label: "", icon: nil) {}, background: background).disabled(true).opacity(0.3) }
+            }
+        }
+    }
+
+    private func splitTopSidePanel(pageIndex: Int, side: SplitSide, width: CGFloat) -> some View {
+        let ms = side == .left ? 3 : 4
+        return SplitPagingView(pageCount: shortcutPages.count, currentPage: pageIndex, isDragging: splitShortcutTopIsDragging, dragOffset: splitShortcutTopDragOffset, onPageChanged: { splitShortcutTopCurrentPage = $0 }, onDraggingChanged: { splitShortcutTopIsDragging = $0 }, onDragOffsetChanged: { splitShortcutTopDragOffset = $0 }) { idx in
+            let page = shortcutPages.indices.contains(idx) ? shortcutPages[idx] : ShortcutPage(title: "", entries: [])
+            shortcutSlotRow(entries: sideEntries(from: page.entries, side: side), maxSlots: ms, background: Color.orange.opacity(0.18))
+        }.frame(width: width)
+    }
+    private func splitBottomSidePanel(pageIndex: Int, side: SplitSide, width: CGFloat) -> some View {
+        let ms = side == .left ? 3 : 4
+        return SplitPagingView(pageCount: fixedRowsPages.count, currentPage: pageIndex, isDragging: splitShortcutBottomIsDragging, dragOffset: splitShortcutBottomDragOffset, onPageChanged: { splitShortcutBottomCurrentPage = $0 }, onDraggingChanged: { splitShortcutBottomIsDragging = $0 }, onDragOffsetChanged: { splitShortcutBottomDragOffset = $0 }) { idx in
+            let page = fixedRowsPages.indices.contains(idx) ? fixedRowsPages[idx] : FixedRowsPage(row1: [], row2: [])
+            VStack(spacing: 2) {
+                shortcutSlotRow(entries: sideEntries(from: page.row1, side: side), maxSlots: ms)
+                shortcutSlotRow(entries: sideEntries(from: page.row2, side: side), maxSlots: ms)
+            }
+        }.frame(width: width)
+    }
+
+    private var keyboardRows: some View {
+        VStack(spacing: 0) {
+            ForEach(currentKeys.indices, id: \.self) { r in
+                let row = currentKeys[r]
+                GeometryReader { rowGeo in
+                    HStack(spacing: 0) {
+                        ForEach(row.indices, id: \.self) { c in
+                            let kd = row[c]
+                            let widthFraction = keyWidth(for: kd, row: row)
+                            keyButton(for: kd, width: widthFraction)
+                                .frame(width: max(0, rowGeo.size.width * widthFraction))
+                        }
+                    }
+                    .frame(width: rowGeo.size.width, height: rowGeo.size.height, alignment: .leading)
+                }
+                .frame(height: 56)
             }
         }
         .frame(maxWidth: .infinity)
+        .background(Color(UIColor.secondarySystemBackground))
     }
 
-    /// F1-F12 row (hidden in landscape, matching Android)
-    private var functionKeyRow: some View {
-        HStack(spacing: 0) {
-            ForEach(functionKeys, id: \.self) { key in
-                Button(action: { keyboardManager.handleSpecialKey(key) }) {
-                    Text(key)
-                        .font(.system(size: 10))
-                        .frame(maxWidth: .infinity, maxHeight: 36)
-                        .background(Self.functionKeyBg)
-                        .cornerRadius(9)
-                        .foregroundColor(.primary)
+    // MARK: - Portrait layout
+
+    @ViewBuilder
+    private func portraitContent(_ g: GeometryProxy) -> some View {
+        ZStack {
+            if proSubmode == .compose {
+                ComposeTextView(keyboardManager: keyboardManager)
+                    .background(Color(UIColor.secondarySystemBackground))
+                    .transaction { $0.animation = nil }
+            }
+            if proSubmode == .numpad {
+                ProNumPadView(keyboardManager: keyboardManager, mouseManager: mouseManager)
+                    .background(Color(UIColor.secondarySystemBackground))
+                    .transaction { $0.animation = nil }
+            }
+            submodeView(active: .keyboard) {
+                VStack(spacing: 0) {
+                    if displayMode != .keyboard { touchpadOverlay().frame(height: g.size.height * 0.42).opacity(isTextInputMode && isTextInputExpanded ? 0 : 1) }
+                    if displayMode != .touchpad {
+                        if isTextInputMode && !isTextInputExpanded { ScrollView { shortcutPanelContent } }
+                        else { shortcutPanelContent.frame(maxWidth: .infinity) }
+                    }
                 }
+                .background(Color(UIColor.secondarySystemBackground))
+                .overlay(alignment: .bottom) {
+                    if !isImeSurface {
+                        portraitLogoOverlay.padding(.bottom, 10)
+                    }
+                }
+                if isTextInputMode && isTextInputExpanded { expandedTextInputView(g) }
+                if isImeSurface && proSubmode == .keyboard { imeCaptureOverlay }
             }
         }
-        .padding(.horizontal, 2)
-        .padding(.bottom, 1)
     }
 
-    /// Width proportion for a key in its row, matching Android android:keyWidth percentages.
-    private func keyWidth(for kd: KeyboardManager.KeyDef, row: [KeyboardManager.KeyDef]) -> CGFloat {
-        // Special widths matching Android layout
-        switch kd.label {
-        case "Shift": return 0.15
-        case "Fn": return 0.15
-        case "Cmd", "Win": return 0.10
-        case "Space": return 0.40
-        case "Enter": return 0.15
-        case "Backspace": return 0.095
-        case ",", ".": return 0.10
-        case "/": return 0.15
-        default: return 1.0 / CGFloat(row.count)
+    private var imeCaptureOverlay: some View {
+        ImeCaptureTextField(text: $textInputContent, isActive: isImeSurface)
+            .frame(width: 1, height: 2)
+            .onChange(of: textInputContent) { v in applyImeDiff(newText: v) }
+            .onAppear { textInputContent = ""; imeLastSent = "" }
+    }
+
+    private func applyImeDiff(newText: String) {
+        let old = imeLastSent; guard old != newText else { return }
+        var lcp = 0; let oldC = Array(old), newC = Array(newText)
+        while lcp < min(oldC.count, newC.count) && oldC[lcp] == newC[lcp] { lcp += 1 }
+        let deleteCount = oldC.count - lcp; let insertStr = String(newC.dropFirst(lcp))
+        imeLastSent = newText
+        DispatchQueue.global(qos: .userInteractive).async {
+            for _ in 0..<deleteCount { self.keyboardManager.sendKeyPressSynchronous("Backspace") }
+            for char in insertStr {
+                let s = char.unicodeScalars.first?.value ?? 0
+                if s > 0x7E { UnicodeManager.shared.sendChar(char, keyboardManager: self.keyboardManager); usleep(50_000); continue }
+                DispatchQueue.main.sync { self.keyboardManager.sendASCIICharInline(char) }
+                usleep(50_000)
+            }
         }
     }
 
-    /// Build a single key button with long-press alternates and repeat support.
-    @ViewBuilder
-    private func keyButton(for kd: KeyboardManager.KeyDef, width: CGFloat) -> some View {
-        let displayText = displayLabel(for: kd)
-        let isModifier = ["Ctrl", "Alt", "Cmd", "Win", "Shift"].contains(kd.label)
-        let isPressed = isModifier && keyboardManager.activeModifiers.contains(kd.label)
-        let isCapsActive = kd.label == "Caps" && keyboardManager.capsLockActive
-        let isFnActive = kd.label == "Fn" && keyboardManager.isFnLocked
+    private var shortcutPanelContent: some View {
+        VStack(spacing: 0) {
+            ShortcutStripPager(pages: shortcutPages).id(profileMgr.activeProfileId).padding(.horizontal, 4)
+            FixedRowsPager(pages: fixedRowsPages, defaultPageIndex: 1).padding(.horizontal, 4)
+            if !isImeSurface { keyboardRows.frame(height: 360).padding(.top, -40).padding(.bottom, 10) }
+        }
+    }
 
-        keyContent(for: kd, displayText: displayText)
-            .frame(maxWidth: .infinity, maxHeight: 48)
-            .background(keyBackground(for: kd, pressed: isPressed, active: isCapsActive || isFnActive))
-            .cornerRadius(9)
-            .foregroundColor(isPressed || isCapsActive || isFnActive ? .white : .primary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .overlay(
-                cornerHint(for: kd),
-                alignment: .topTrailing
-            )
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { _ in
-                        // Only trigger action once when touch begins
+    private var portraitLogoOverlay: some View {
+        Image("openterface_wordmark")
+            .resizable()
+            .renderingMode(.original)
+            .scaledToFit()
+            .frame(width: 64, height: 12)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(Color(UIColor.secondarySystemBackground))
+            .cornerRadius(10)
+            .shadow(color: .black.opacity(0.08), radius: 2, x: 0, y: 1)
+    }
+
+    private func expandedTextInputView(_ g: GeometryProxy) -> some View {
+        VStack(spacing: 8) { textInputView.frame(maxHeight: g.size.height * 0.50) }
+            .padding(.top, 90).padding(.bottom, 30).padding(.horizontal, 8)
+            .background(Color(UIColor.systemBackground)).zIndex(10)
+    }
+
+    var currentKeys: [[KeyboardManager.KeyDef]] {
+        orientationManager.isLandscape ? (isSplitLayout ? splitLeftKeys : keyboardManager.landscapeKeys(for: aiSettings.targetOS)) : keyboardManager.portraitLetterKeys
+    }
+
+    private func splitRow(_ row: [KeyboardManager.KeyDef]) -> ([KeyboardManager.KeyDef], [KeyboardManager.KeyDef]) {
+        if row.count == 7, row[3].label == "Space" { return (Array(row.prefix(3)), Array(row.suffix(4))) }
+        let n = (row.count + 1) / 2; return (Array(row.prefix(n)), Array(row.suffix(row.count - n)))
+    }
+
+    private var splitLeftKeys: [[KeyboardManager.KeyDef]] { keyboardManager.landscapeKeys(for: aiSettings.targetOS).map { splitRow($0).0 } }
+    private var splitRightKeys: [[KeyboardManager.KeyDef]] { keyboardManager.landscapeKeys(for: aiSettings.targetOS).map { splitRow($0).1 } }
+
+    private func keyWeight(for kd: KeyboardManager.KeyDef, row: [KeyboardManager.KeyDef]) -> CGFloat {
+        if !orientationManager.isLandscape {
+            switch kd.label {
+            case "Shift": return 16; case "Enter": return 12; case "Fn": return 9.5
+            case "Space": return 47; case "Win": return 19; case "Del": return 11.5
+            default: return 100 / CGFloat(row.count)
+            }
+        }
+        if isSplitLayout && row.count == 4 && row.contains(where: { $0.label == "Space" }) {
+            switch kd.label {
+            case "Space": return 30
+            case "Ctrl", "Win", "Alt", "App": return 18
+            default: return 12
+            }
+        }
+        if row.contains(where: { $0.label == "Space" }) {
+            switch kd.label {
+            case "Space": return 50
+            case "Ctrl", "Win", "Alt", "Cmd", "Option", "App": return 10
+            default: return 8
+            }
+        }
+        if row.contains(where: { $0.label == "Fn" }) && row.contains(where: { $0.label == "Delete" || $0.label == "FwdDel" }) {
+            switch kd.label {
+            case "Fn": return 9.5; case "a": return 10.6
+            case "s","d","f","g","h","j","k","l": return 8.35; case "Delete","FwdDel": return 11.55
+            default: return 10
+            }
+        }
+        if row.contains(where: { $0.label == "Shift" }) && row.contains(where: { $0.label == "Enter" }) {
+            switch kd.label { case "Shift": return 16; case "Enter": return 12; default: return 9 }
+        }
+        return 10
+    }
+
+    private func keyWidth(for kd: KeyboardManager.KeyDef, row: [KeyboardManager.KeyDef]) -> CGFloat {
+        let weights = row.map { keyWeight(for: $0, row: row) }
+        let totalWeight = weights.reduce(0, +)
+        guard totalWeight > 0 else { return 1.0 / CGFloat(row.count) }
+        return keyWeight(for: kd, row: row) / totalWeight
+    }
+
+    private func keyButton(for kd: KeyboardManager.KeyDef, width: CGFloat) -> AnyView {
+        let displayText = displayLabel(for: kd)
+        let isModifier = ["Ctrl", "Alt", "Cmd", "Win", "Shift", "Option"].contains(kd.label)
+        let isPressed = isModifier && keyboardManager.activeModifiers.contains(kd.label)
+        let isActive = (kd.label == "Caps" && keyboardManager.capsLockActive) || (kd.label == "Fn" && keyboardManager.isFnLocked)
+        let h = orientationManager.isLandscape ? 56.0 : 72.0
+        let bg = GeometryReader { g in DispatchQueue.main.async { keyFrames[kd.label] = g.frame(in: .named("proKMView")) }; return Color.clear }
+        let content = keyContent(for: kd, displayText: displayText)
+            .frame(maxWidth: .infinity, maxHeight: h).background(keyBackground(for: kd, pressed: isPressed, active: isActive))
+            .cornerRadius(9).foregroundColor(isPressed || isActive ? .white : .primary)
+            .frame(maxWidth: .infinity, alignment: .leading).overlay(cornerHint(for: kd), alignment: .topTrailing)
+            .contentShape(Rectangle()).background(bg)
+        if isModifier {
+            return AnyView(ProModifierKey(kd: kd, keyboardManager: keyboardManager, displayText: displayText, content: AnyView(content), height: h))
+        } else {
+            let ek = keyboardManager.resolveFnKey(kd.keyCode) ?? kd.keyCode
+            let isRepeatable = KeyRepeatController.repeatableKeys.contains(kd.label)
+            return AnyView(content
+                .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .named("proKMView"))
+                    .onChanged { v in
                         if !keyPressInProgress {
                             keyPressInProgress = true
                             currentlyPressedKey = kd.label
-                            handleKeyPress(kd)
-                            
-                            // Start timer for long press (alternates popup after 0.4s)
-                            if keyboardManager.shouldShowAlternates(for: kd.label) {
-                                longPressTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { _ in
-                                    showAlternatesPopup(for: kd)
+                            HapticFeedbackManager.shared.triggerButtonPress()
+                            if isRepeatable {
+                                // Start deferred repeat — waits 400ms then sends key-down/up pairs.
+                                // Does NOT send key-down immediately, so host OS won't auto-repeat.
+                                proRepeatStart(for: ek)
+                            }
+                            // For non-repeatable keys: do NOT send key-down yet.
+                            // The key will be sent on finger lift in onEnded.
+                        }
+                        currentDragLocation = v.location
+                        if alternatesPopup != nil, let start = alternatesGestureStart {
+                            let dx = v.location.x - start.x, dy = v.location.y - start.y
+                            let occ = Array(repeating: false, count: AlternatePopupGeometry.slotCount)
+                                .enumerated().map { slot, _ in alternatesPopup!.options.contains { $0.slot == slot } }
+                            let raw = AlternatePopupGeometry.pickSlot(dx: dx, dy: dy, rMinPx: 12, rCancelPx: 228, axisDeadzonePx: 18, slotOccupied: occ)
+                            alternatesPick = raw == AlternatePopupGeometry.resultDefault ? .defaultSlot : raw == AlternatePopupGeometry.resultCancel ? .cancel : .slot(raw)
+                        }
+                        if keyboardManager.shouldShowAlternates(for: kd.label), longPressTimer == nil {
+                            longPressTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { _ in
+                                DispatchQueue.main.async {
+                                    // For repeatable keys: stop the deferred repeat cycle
+                                    if isRepeatable {
+                                        proRepeatStop()
+                                    }
+                                    self.showAlternatesPopup(for: kd)
                                 }
                             }
                         }
                     }
                     .onEnded { _ in
-                        // Cancel long press timer
-                        longPressTimer?.invalidate()
-                        longPressTimer = nil
-                        
+                        longPressTimer?.invalidate(); longPressTimer = nil
                         keyPressInProgress = false
                         currentlyPressedKey = nil
-                        handleKeyRelease()
-                    }
-            )
-            .background(
-                GeometryReader { geo -> Color in
-                    DispatchQueue.main.async {
-                        self.keyFrames[kd.label] = geo.frame(in: .named("proKMView"))
-                    }
-                    return Color.clear
-                }
-            )
-    }
-    
-    /// Unified handler for key press - handles both single tap and long press
-    private func handleKeyPress(_ kd: KeyboardManager.KeyDef) {
-        // If the alternates popup was committed for this touch, skip normal key action
-        if alternatesCommitHandled {
-            alternatesCommitHandled = false
-            return
-        }
+                        defer { alternatesShownThisPress = false }
 
+                        if alternatesShownThisPress {
+                            // Popup was shown — commit the selected alternate character
+                            if let popup = alternatesPopup {
+                                // Stop any remaining repeat, then commit alternate
+                                proRepeatStop()
+                                commitAlternate(from: popup)
+                            } else {
+                                // Popup was already dismissed (e.g. swipe-cancel);
+                                // still need to stop any pending proRepeat timers.
+                                proRepeatStop()
+                                dismissAlternatesPopup()
+                            }
+                        } else {
+                            // Short tap — popup never appeared
+                            dismissAlternatesPopup()
+                            if isRepeatable {
+                                // Stop repeat and send one final key tap.
+                                // If repeat had already started, this stops it cleanly.
+                                // If finger lifted before repeat delay, sends one tap.
+                                proRepeatStopAndFinalize(for: ek)
+                            } else {
+                                // Non-repeatable key: send full press+release cycle on finger lift
+                                handleKeyDownFor(kd)
+                                handleKeyUpFor(kd)
+                            }
+                        }
+                    }
+                ))
+        }
+    }
+
+    private func commitAlternate(from popup: (options: [AlternateOption], anchor: CGRect, keyDef: KeyboardManager.KeyDef)) {
+        let option: AlternateOption?
+        if case .slot(let s) = alternatesPick { option = popup.options.first(where: { $0.slot == s }) }
+        else if case .defaultSlot = alternatesPick { option = popup.options.first(where: { $0.slot == AlternatePopupGeometry.slotCenter }) }
+        else { option = nil }
+
+        handleKeyUpFor(popup.keyDef)
+        dismissAlternatesPopup()
+
+        guard let opt = option else { return }
         HapticFeedbackManager.shared.triggerButtonPress()
 
-        // Fn toggle
-        if kd.label == "Fn" {
-            keyboardManager.isFnLocked.toggle()
-            return
-        }
-        // Symbol mode toggle
-        if kd.label == "ABC" || kd.label == "12/34" {
-            keyboardManager.isSymbolMode.toggle()
-            return
-        }
-        if kd.label == "!?#" {
-            keyboardManager.isSymbolMode = true
-            return
-        }
-        // Modifiers
-        if ["Ctrl", "Alt", "Cmd", "Win", "Shift"].contains(kd.label) {
-            keyboardManager.handleSpecialKey(kd.label)
-            return
-        }
-        
-        // Fn-resolved key
-        let effectiveKey = keyboardManager.resolveFnKey(kd.keyCode) ?? kd.keyCode
-        
-        // For repeatable keys (arrows, backspace): execute once immediately, then start repeat timer
-        if KeyRepeatController.repeatableKeys.contains(effectiveKey) {
-            // Execute immediately for single tap
-            keyboardManager.handleSpecialKey(effectiveKey)
-            // Start repeat controller for long press (will repeat after 0.4s)
-            keyRepeatController.startRepeating(keyAction: {
-                keyboardManager.handleSpecialKey(effectiveKey)
-            })
+        // Build modifier list from requiresShift + modifierMask (matching Android sendAlternateOption)
+        var mods: [String] = []
+        if opt.requiresShift { mods.append("Shift") }
+        if (opt.modifierMask & 0x01) != 0 { mods.append("Ctrl") }
+        if (opt.modifierMask & 0x02) != 0 { mods.append("Shift") }
+        if (opt.modifierMask & 0x04) != 0 { mods.append("Alt") }
+        if (opt.modifierMask & 0x08) != 0 { mods.append("Win") }
+
+        if mods.isEmpty {
+            keyboardManager.handleKeyPress(opt.keyCode)
         } else {
-            // For normal keys: just execute once
-            keyRepeatController.stopRepeating()
-            keyboardManager.handleSpecialKey(effectiveKey)
+            keyboardManager.handleKeyCombo(modifiers: mods, key: opt.keyCode)
         }
     }
 
     @ViewBuilder
     private func keyContent(for kd: KeyboardManager.KeyDef, displayText: String) -> some View {
-        if kd.label == "Backspace" {
-            Image(systemName: "delete.left")
-                .font(.system(size: 16))
+        switch kd.label {
+        case "Backspace":
+            Image(systemName: "delete.left").font(.system(size: 16))
                 .rotationEffect(kd.symbolLabel.isEmpty && keyboardManager.activeModifiers.contains("Shift") ? .degrees(180) : .degrees(0))
-        } else if kd.label == "Enter" {
-            Image(systemName: "return")
-                .font(.system(size: 16))
-        } else if kd.label == "Shift" {
-            Image(systemName: "shift")
-                .font(.system(size: 16))
-        } else if ["Ctrl", "Alt", "Cmd"].contains(kd.label) {
-            Text(getDisplayValue(for: kd.label))
-                .font(.system(size: 12))
-        } else if kd.label == "Caps" {
-            Text("Caps")
-                .font(.system(size: 11))
-        } else if kd.label == "Fn" {
-            Text("Fn")
-                .font(.system(size: 12, weight: .bold))
-        } else if kd.label == "Cmd" {
-            // Target OS label: show Cmd/Win/Super based on settings
-            switch aiSettings.targetOS {
-            case .windows: Text("Win").font(.system(size: 12))
-            case .linux: Text("Super").font(.system(size: 10))
-            default: Text("Cmd").font(.system(size: 12))
+        case "Enter": Image(systemName: "return").font(.system(size: 16))
+        case "Shift": Image(systemName: "shift").font(.system(size: 16))
+        case "Del", "Delete", "FwdDel": Image(systemName: "delete.forward").font(.system(size: 16))
+        case "Space":
+            if orientationManager.isLandscape && !isSplitLayout {
+                Image("openterface_wordmark")
+                    .resizable()
+                    .renderingMode(.original)
+                    .scaledToFit()
+                    .frame(width: 60, height: 25)
+                    .padding(.horizontal, 8)
+            } else {
+                Text("Space").font(.system(size: 12))
             }
-        } else if keyboardManager.isSymbolMode && !kd.symbolLabel.isEmpty {
-            Text(kd.symbolLabel)
-                .font(.system(size: 14))
+        case "Cmd": cmdKeyLabel
+        case "Option": optionKeyLabel
+        case "App": Image(systemName: "app").font(.system(size: 14))
+        case "Tab": Image(systemName: "arrow.right.to.line.compact").font(.system(size: 14))
+        case "Ctrl", "Alt", "Win": Text(getDisplayValue(for: kd.label)).font(.system(size: 12))
+        case "Caps": Text("Caps").font(.system(size: 11))
+        case "Fn": Text("Fn").font(.system(size: 12, weight: .bold))
+        default:
+            Text(keyboardManager.isSymbolMode && !kd.symbolLabel.isEmpty ? kd.symbolLabel : displayText)
+                .font(.system(size: keyboardManager.isSymbolMode && !kd.symbolLabel.isEmpty ? 14 : 12))
+        }
+    }
+
+    private var cmdKeyLabel: some View {
+        let t: String
+        switch aiSettings.targetOS {
+        case .windows: t = "Win"; case .linux: t = "Super"; default: t = "Cmd"
+        }
+        return Text(t).font(.system(size: aiSettings.targetOS == .linux ? 10 : 12))
+    }
+    private var optionKeyLabel: some View {
+        let t: String
+        switch aiSettings.targetOS {
+        case .windows: t = "Alt"; case .linux: t = "AltGr"; default: t = "Opt"
+        }
+        return Text(t).font(.system(size: aiSettings.targetOS == .linux ? 11 : 12))
+    }
+
+    // MARK: - Pro Key Repeat (deferred — never holds key-down)
+
+    /// Start deferred key repeat. Waits 400ms, then sends key-down/up pairs every 80ms.
+    /// The key is NOT sent on initial touch, so the host OS won't start its own auto-repeat.
+    private func proRepeatStart(for key: String) {
+        proRepeatStop()
+        proRepeatKey = key
+        proRepeatDidFire = false
+        proRepeatStarter = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { [self] _ in
+            guard let k = proRepeatKey else { return }
+            proRepeatStarter = nil
+            proRepeatDidFire = true  // mark that at least one key tap has been sent
+            // First key tap
+            keyboardManager.handleKeyPress(k)
+            // Start bouncing every 80ms
+            proRepeatTimer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { [self] _ in
+                guard let k = proRepeatKey else { return }
+                keyboardManager.handleKeyPress(k)
+            }
+        }
+    }
+
+    /// Stop deferred repeat. Does NOT send any key — caller decides what to commit.
+    /// Returns true only if the repeat actually fired (i.e. ≥1 key tap was sent).
+    @discardableResult
+    private func proRepeatStop() -> Bool {
+        let didFire = proRepeatDidFire
+        proRepeatStarter?.invalidate(); proRepeatStarter = nil
+        proRepeatTimer?.invalidate(); proRepeatTimer = nil
+        proRepeatKey = nil
+        proRepeatDidFire = false
+        return didFire
+    }
+
+    /// Stop repeat and send one final key tap.
+    /// If the repeat already fired (starter timer ran), just stops — keys already sent.
+    /// If finger lifted before the 400ms delay, sends a single key tap.
+    private func proRepeatStopAndFinalize(for key: String) {
+        if proRepeatStop() {
+            // Repeat fired — already sent key taps. Nothing more to do.
         } else {
-            Text(displayText)
-                .font(.system(size: 12))
+            // Finger lifted before repeat delay — send one key tap
+            keyboardManager.handleKeyPress(key)
         }
     }
 
-    /// Whether a key is a "function" key (F-row, modifiers, special action keys) that gets a gray bg.
-    private func isFunctionKey(_ kd: KeyboardManager.KeyDef) -> Bool {
-        let functionLabels = ["Esc", "Tab", "Caps", "Shift", "Ctrl", "Alt", "Fn", "Backspace", "Enter"]
-        return functionLabels.contains(kd.label) || keyboardManager.isSymbolMode && ["ABC", "12/34", "!?#"].contains(kd.label)
+    /// Send key-down for a non-modifier key. For repeatable keys (arrows, backspace),
+    /// starts a proper key-repeat cycle (up-down bounce). For non-repeatable keys,
+    /// just sends a key-down.
+    private func handleKeyDownFor(_ kd: KeyboardManager.KeyDef) {
+        switch kd.label {
+        case "Fn": keyboardManager.isFnLocked.toggle()
+        case "ABC", "12/34": keyboardManager.isSymbolMode.toggle()
+        case "!?#": keyboardManager.isSymbolMode = true
+        default:
+            let ek = keyboardManager.resolveFnKey(kd.keyCode) ?? kd.keyCode
+            if KeyRepeatController.repeatableKeys.contains(ek) {
+                // Proper key repeat: sends key-down, then up-down bounces after initial delay
+                keyboardManager.startKeyRepeat(ek)
+            } else {
+                keyboardManager.handleKeyDown(ek)
+            }
+        }
     }
 
-    /// System-adaptive backgrounds for keys (auto light/dark).
+    /// Send key-up for a non-modifier key. For repeatable keys, stops the
+    /// key-repeat cycle (which internally sends a final key-up).
+    private func handleKeyUpFor(_ kd: KeyboardManager.KeyDef) {
+        switch kd.label {
+        case "Fn", "ABC", "12/34", "!?#":
+            break // Toggle-only keys — no key-up needed
+        default:
+            let ek = keyboardManager.resolveFnKey(kd.keyCode) ?? kd.keyCode
+            if KeyRepeatController.repeatableKeys.contains(ek) {
+                keyboardManager.stopKeyRepeat()
+            } else {
+                keyboardManager.handleKeyUp(ek)
+            }
+        }
+    }
+
     private static let functionKeyBg = Color(UIColor.secondarySystemBackground)
-    private static let regularKeyBg = Color(UIColor.systemBackground)
-
     private func keyBackground(for kd: KeyboardManager.KeyDef, pressed: Bool, active: Bool) -> Color {
-        if pressed || active { return .blue }
-        if isFunctionKey(kd) { return Self.functionKeyBg }
-        return Self.regularKeyBg
+        pressed || active ? .blue : Self.functionKeyBg
     }
-
-    @ViewBuilder
-    private func cornerHint(for kd: KeyboardManager.KeyDef) -> some View {
-        if !kd.cornerHint.isEmpty && !keyboardManager.isFnLocked && keyboardManager.isSymbolMode == false {
-            Text(kd.cornerHint)
-                .font(.system(size: 9, weight: .bold))
-                .foregroundColor(.secondary.opacity(0.25))
-                .padding(.trailing, 6)
-                .padding(.top, 2)
-                .allowsHitTesting(false)
-        }
-    }
-    
-    @ViewBuilder
-    private var extraKeysView: some View {
-        VStack(spacing: 4) {
-            ForEach(0..<extraKeys.count, id: \.self) { rowIndex in
-                HStack(spacing: 4) {
-                    ForEach(0..<extraKeys[rowIndex].count, id: \.self) { colIndex in
-                        if let key = extraKeys[rowIndex][colIndex] {
-                            Button(action: {
-                                let mappedKey: String
-                                switch key {
-                                case "↑": mappedKey = "Up"
-                                case "↓": mappedKey = "Down"
-                                case "←": mappedKey = "Left"
-                                case "→": mappedKey = "Right"
-                                default: mappedKey = key
-                                }
-                                keyboardManager.handleSpecialKey(mappedKey)
-                            }) {
-                                Text(key)
-                                    .font(.system(size: 12, weight: .medium))
-                                    .frame(maxWidth: .infinity, minHeight: 36)
-                                    .background(Self.functionKeyBg)
-                                    .cornerRadius(9)
-                                    .foregroundColor(.primary)
-                            }
-                        } else {
-                            Spacer()
-                        }
-                    }
-                }
-            }
-            // Number pad in portrait keyboard-only mode
-            if displayMode == .keyboard && !orientationManager.isLandscape {
-                numberPadView
-            }
-        }
-        .padding(.horizontal, 8)
-    }
-
-    @ViewBuilder
-    private var numberPadView: some View {
-        VStack(spacing: 3) {
-            ForEach(0..<3, id: \.self) { row in
-                HStack(spacing: 3) {
-                    ForEach(0..<3, id: \.self) { col in
-                        let key = extraNumberKeys[row * 3 + col]
-                        numberPadButton(key: key)
-                    }
-                }
-            }
-            HStack(spacing: 3) {
-                numberPadButton(key: "0", width: 2)
-                numberPadButton(key: ".")
-            }
-        }
-    }
-
-    private func numberPadButton(key: String, width: Int = 1) -> some View {
-        Button(action: {
-            let mappedKey: String
-            switch key {
-            case "0": mappedKey = "Numpad0"
-            case ".": mappedKey = "NumpadDot"
-            default: mappedKey = "Numpad\(key)"
-            }
-            keyboardManager.handleSpecialKey(mappedKey)
-        }) {
-            Text(key)
-                .font(.system(size: 14, weight: .medium))
-                .frame(maxWidth: .infinity, minHeight: 36)
-                .background(Self.functionKeyBg)
-                .cornerRadius(9)
-                .foregroundColor(.primary)
-        }
-    }
-
-    // MARK: - Key Action Handler
-
-    /// Called when finger lifts off any key — stops key repeat if active.
-    private func handleKeyRelease() {
-        keyRepeatController.stopRepeating()
+    @ViewBuilder private func cornerHint(for kd: KeyboardManager.KeyDef) -> some View {
+        if kd.cornerHint.isEmpty { EmptyView() }
+        else { Text(kd.cornerHint).font(.system(size: 9, weight: .bold)).foregroundColor(.secondary.opacity(0.6))
+                .padding(.trailing, 6).padding(.top, 2).allowsHitTesting(false) }
     }
 
     // MARK: - Alternates Popup
 
     private func showAlternatesPopup(for kd: KeyboardManager.KeyDef) {
+        alternatesShownThisPress = true
         guard keyboardManager.shouldShowAlternates(for: kd.label) else { return }
-
-        var slotMap: [Int: AlternateOption] = [:]
-        var seen: Set<String> = []
-
-        // Center slot: key label itself (capital for a-z)
-        if let centerOpt = centerAlternateOption(for: kd), !seen.contains(centerOpt.display) {
-            slotMap[AlternatePopupGeometry.slotCenter] = centerOpt
-            seen.insert(centerOpt.display)
+        var slotMap: [Int: AlternateOption] = [:], seen: Set<String> = []
+        func addOpt(_ slot: Int, _ alt: String) {
+            guard let m = mapAsciiAlternate(alt), !seen.contains(m.display) else { return }
+            slotMap[slot] = AlternateOption(display: m.display, keyCode: m.keyCode, requiresShift: m.requiresShift, modifierMask: m.modifierMask, slot: slot)
+            seen.insert(m.display)
         }
-
-        // Cardinal slots from alternates: Up, Down, Left, Right (tokens 0-3)
-        let cardinalSlots = [
-            AlternatePopupGeometry.slotUp,
-            AlternatePopupGeometry.slotDown,
-            AlternatePopupGeometry.slotLeft,
-            AlternatePopupGeometry.slotRight,
-        ]
-        for (i, slot) in cardinalSlots.enumerated() where i < kd.alternates.count {
-            let alt = kd.alternates[i]
-            if let mapped = mapAsciiAlternate(alt), !seen.contains(mapped.display) {
-                slotMap[slot] = AlternateOption(
-                    display: mapped.display, keyCode: mapped.keyCode, requiresShift: mapped.requiresShift, slot: slot
-                )
-                seen.insert(mapped.display)
-            }
-        }
-
-        // Corner slots from alternates: UL, UR, DL, DR (tokens 4-7)
-        let cornerSlots = [
-            AlternatePopupGeometry.slotUpLeft,
-            AlternatePopupGeometry.slotUpRight,
-            AlternatePopupGeometry.slotDownLeft,
-            AlternatePopupGeometry.slotDownRight,
-        ]
-        for (i, slot) in cornerSlots.enumerated() where (i + 4) < kd.alternates.count {
-            let alt = kd.alternates[i + 4]
-            if let mapped = mapAsciiAlternate(alt), !seen.contains(mapped.display) {
-                slotMap[slot] = AlternateOption(
-                    display: mapped.display, keyCode: mapped.keyCode, requiresShift: mapped.requiresShift, slot: slot
-                )
-                seen.insert(mapped.display)
-            }
-        }
-
+        if let c = centerAlternateOption(for: kd), !seen.contains(c.display) { slotMap[AlternatePopupGeometry.slotCenter] = c; seen.insert(c.display) }
+        let allSlots = [AlternatePopupGeometry.slotUp, AlternatePopupGeometry.slotDown, AlternatePopupGeometry.slotLeft, AlternatePopupGeometry.slotRight, AlternatePopupGeometry.slotUpLeft, AlternatePopupGeometry.slotUpRight, AlternatePopupGeometry.slotDownLeft, AlternatePopupGeometry.slotDownRight]
+        for (i, slot) in allSlots.enumerated() where i < kd.alternates.count { addOpt(slot, kd.alternates[i]) }
         let options = Array(slotMap.values)
         guard options.count >= 2 else { return }
-        alternatesPopup = (options, keyFrames[kd.label] ?? CGRect.zero, kd)
+        alternatesPopup = (options, keyFrames[kd.label] ?? .zero, kd)
+        alternatesGestureStart = currentDragLocation; alternatesPick = .defaultSlot
+    }
+    private func centerAlternateOption(for kd: KeyboardManager.KeyDef) -> AlternateOption? {
+        let sc = AlternatePopupGeometry.slotCenter
+        if kd.label.count == 1, let c = kd.label.first, c.isLetter {
+            return AlternateOption(display: kd.label.uppercased(), keyCode: kd.label, requiresShift: true, modifierMask: 0, slot: sc)
+        }
+        guard let m = mapAsciiAlternate(kd.label) else { return nil }
+        return AlternateOption(display: m.display, keyCode: m.keyCode, requiresShift: m.requiresShift, modifierMask: m.modifierMask, slot: sc)
     }
 
-    /// Build the center (default) option for a key.
-    private func centerAlternateOption(for kd: KeyboardManager.KeyDef) -> AlternateOption? {
-        // For a-z keys, center = uppercase letter
-        if kd.label.count == 1, let c = kd.label.first, c.isLetter {
-            let display = kd.label.uppercased()
-            return AlternateOption(display: display, keyCode: kd.label, requiresShift: true, slot: AlternatePopupGeometry.slotCenter)
-        }
-        // Otherwise use the base key label
-        if let mapped = mapAsciiAlternate(kd.label) {
-            return AlternateOption(display: mapped.display, keyCode: mapped.keyCode, requiresShift: mapped.requiresShift, slot: AlternatePopupGeometry.slotCenter)
-        }
+    private static let shiftKeyMap: [String: (base: String, display: String)] = [
+        "!": ("1", "!"), "@": ("2", "@"), "#": ("3", "#"), "$": ("4", "$"), "%": ("5", "%"),
+        "^": ("6", "^"), "&": ("7", "&"), "*": ("8", "*"), "(": ("9", "("), ")": ("0", ")"),
+        "_": ("-", "_"), "+": ("=", "+"), "{": ("[", "{"), "}": ("]", "}"),
+        "<": (",", "<"), ">": (".", ">"), "?": ("/", "?"), ":": (";", ":"),
+        "\"": ("'", "\""), "~": ("`", "~"),
+    ]
+
+    // Modifier masks matching Android: 0x04 = Alt, 0x02 = Shift
+    // Currency symbols: ¥=Alt+'7', £=Alt+'3', €=Alt+Shift+'4'
+    private static let extraSymbolMap: [Character: (String, String, Bool, UInt8)] = [
+        "\\": ("]", "]", true, 0), "|": ("]", "]", true, 0), "+": ("=", "+", true, 0),
+        "#": ("3", "#", true, 0), "$": ("4", "$", true, 0), "%": ("5", "%", true, 0),
+        "^": ("6", "^", true, 0), "&": ("7", "&", true, 0), "*": ("8", "*", true, 0),
+        "€": ("4", "€", true, 0x04), "¥": ("7", "¥", false, 0x04), "£": ("3", "£", false, 0x04),
+    ]
+
+    private func mapAsciiAlternate(_ char: String) -> (display: String, keyCode: String, requiresShift: Bool, modifierMask: UInt8)? {
+        guard char.count == 1 else { return nil }
+        let c = char.first!
+        if c.isLetter { return (char, char, false, 0) }
+        if let e = Self.shiftKeyMap[char] { return (e.display, e.base, true, 0) }
+        if "0123456789".contains(c) || "-=[];',./`".contains(c) { return (char, char, false, 0) }
+        if let e = Self.extraSymbolMap[c] { return (e.0, e.1, e.2, e.3) }
         return nil
     }
 
-    private func mapAsciiAlternate(_ char: String) -> (display: String, keyCode: String, requiresShift: Bool)? {
-        switch char {
-        case "a"..."z": return (char, char, false)
-        case "A"..."Z": return (char, char.lowercased(), true)
-        case "1": return ("1", "1", false); case "!": return ("!", "1", true)
-        case "2": return ("2", "2", false); case "@": return ("@", "2", true)
-        case "3": return ("3", "3", false); case "#": return ("#", "3", true)
-        case "4": return ("4", "4", false); case "$": return ("$", "4", true)
-        case "5": return ("5", "5", false); case "%": return ("%", "5", true)
-        case "6": return ("6", "6", false); case "^": return ("^", "6", true)
-        case "7": return ("7", "7", false); case "&": return ("&", "7", true)
-        case "8": return ("8", "8", false); case "*": return ("*", "8", true)
-        case "9": return ("9", "9", false); case "(": return ("(", "9", true)
-        case "0": return ("0", "0", false); case ")": return (")", "0", true)
-        case "-": return ("-", "-", false); case "_": return ("_", "-", true)
-        case "=": return ("=", "=", false); case "+": return ("+", "=", true)
-        case "[": return ("[", "[", false); case "{": return ("{", "[", true)
-        case "]": return ("]", "]", false); case "}": return ("}", "]", true)
-        case ",": return (",", ",", false); case "<": return ("<", ",", true)
-        case ".": return (".", ".", false); case ">": return (">", ".", true)
-        case "/": return ("/", "/", false); case "?": return ("?", "/", true)
-        case ";": return (";", ";", false); case ":": return (":", ";", true)
-        case "'": return ("'", "'", false); case "\"": return ("\"", "'", true)
-        case "`": return ("`", "`", false); case "~": return ("~", "`", true)
-        default: return nil
-        }
-    }
-
-    private func commitAlternatesSelection() {
-        // Selection is now handled by KeyAlternatesPopupView's onCommit
-    }
-
     private func dismissAlternatesPopup() {
-        alternatesPopup = nil
+        alternatesPopup = nil; alternatesGestureStart = nil; alternatesPick = .none
     }
     
     // MARK: - Text Input View
-    
-    /// Text input area with placeholder and send functionality
+
     private var textInputView: some View {
-        VStack(spacing: 8) {
-            ZStack(alignment: .topLeading) {
-                TextEditor(text: $textInputContent)
-                    .font(.system(size: 14))
-                    .padding(8)
-                    .padding(.trailing, 40)  // Make space for expand button
-                    .padding(.bottom, 40)  // Make space for expand button
-                    .background(Color(UIColor.systemBackground))
-                    .cornerRadius(8)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color(UIColor.separator), lineWidth: 1)
-                    )
-                
-                if textInputContent.isEmpty {
-                    Text("Type and edit long text here - tap Send to send it to the connected device")
-                        .font(.system(size: 14))
+        ZStack(alignment: .topLeading) {
+            TextEditor(text: $textInputContent).font(.system(size: 14)).padding(8).padding(.trailing, 40).padding(.bottom, 40)
+                .background(Color(UIColor.systemBackground)).cornerRadius(8)
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(UIColor.separator), lineWidth: 1))
+            if textInputContent.isEmpty {
+                Text("Type and edit long text here - tap Send to send it to the connected device").font(.system(size: 14)).foregroundColor(.secondary).padding(.horizontal, 12).padding(.vertical, 16).allowsHitTesting(false)
+            }
+            VStack { Spacer(); HStack { Spacer(); textExpandBtn } }
+        }.padding(.horizontal, 8).padding(.vertical, 4).background(Color(UIColor.secondarySystemBackground)).cornerRadius(12)
+    }
+    private var textExpandBtn: some View {
+        Button { withAnimation { isTextInputExpanded.toggle() } } label: {
+            Image(systemName: isTextInputExpanded ? "chevron.down" : "chevron.up").font(.system(size: 14)).foregroundColor(.blue).padding(8)
+                .background(Color(UIColor.secondarySystemBackground)).cornerRadius(6)
+        }.padding(8)
+    }
+}
+
+struct ProTouchpadScrollStripView: View {
+    let mouseManager: MouseManager
+    var labelFontSize: CGFloat = 7
+
+    @State private var lastScrollY: CGFloat?
+    @State private var isScrolling: Bool = false
+
+    private let pixelsPerWheelUnit: CGFloat = 5.0
+    private var sensitivity: Double { KmProPrefs.shared.stripScrollSensitivity }
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                Color(UIColor.secondarySystemBackground)
+                VStack(spacing: 0) {
+                    let chevronSize = min(24, max(14, geometry.size.width * 0.85))
+                    Image(systemName: "chevron.up")
+                        .font(.system(size: labelFontSize))
                         .foregroundColor(.secondary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 16)
-                        .allowsHitTesting(false)
-                }
-                
-                // Expand button at bottom-right corner
-                VStack {
+                        .frame(width: chevronSize, height: chevronSize)
                     Spacer()
-                    HStack {
-                        Spacer()
-                        Button(action: {
-                            withAnimation {
-                                isTextInputExpanded.toggle()
-                            }
-                        }) {
-                            Image(systemName: isTextInputExpanded ? "chevron.down" : "chevron.up")
-                                .font(.system(size: 14))
-                                .foregroundColor(.blue)
-                                .padding(8)
-                                .background(Color(UIColor.secondarySystemBackground))
-                                .cornerRadius(6)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: labelFontSize))
+                        .foregroundColor(.secondary)
+                        .frame(width: chevronSize, height: chevronSize)
+                }
+                .padding(.vertical, 6)
+            }
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color(UIColor.separator).opacity(0.12), lineWidth: 1)
+            )
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        if lastScrollY == nil {
+                            lastScrollY = value.location.y
+                            isScrolling = true
                         }
-                        .padding(8)
+                        guard let prevY = lastScrollY else { return }
+                        let deltaY = value.location.y - prevY
+                        if abs(deltaY) > pixelsPerWheelUnit {
+                            let wheelUnits = Int(deltaY / pixelsPerWheelUnit * sensitivity)
+                            if wheelUnits != 0 {
+                                mouseManager.handleScroll(deltaX: 0, deltaY: -wheelUnits)
+                                lastScrollY = value.location.y
+                                HapticFeedbackManager.shared.triggerScrollTick()
+                            }
+                        }
                     }
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+                    .onEnded { _ in
+                        lastScrollY = nil
+                        isScrolling = false
+                    }
+            )
         }
-        .background(Color(UIColor.secondarySystemBackground))
-        .cornerRadius(12)
+        .clipped()
     }
-    
-    /// Bottom toolbar with mode switch, restore, and clear buttons
-    private var bottomToolbar: some View {
-        HStack(spacing: 4) {
-            if isTextInputMode {
-                // Restore button
-                Button(action: {
-                    textInputContent = savedTextInputContent
-                }) {
-                    HStack(spacing: 2) {
-                        Image(systemName: "arrow.uturn.backward")
-                            .font(.system(size: 12))
-                        Text("Restore")
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                    .foregroundColor(.orange)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
-                    .background(Color(UIColor.secondarySystemBackground))
-                    .cornerRadius(6)
-                }
-                .disabled(savedTextInputContent.isEmpty)
-                
-                // Clear button
-                Button(action: {
-                    savedTextInputContent = textInputContent
-                    textInputContent = ""
-                }) {
-                    HStack(spacing: 2) {
-                        Image(systemName: "trash")
-                            .font(.system(size: 12))
-                        Text("Clear")
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                    .foregroundColor(.red)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
-                    .background(Color(UIColor.secondarySystemBackground))
-                    .cornerRadius(6)
-                }
-                .disabled(textInputContent.isEmpty)
-                
-                Spacer()
-                
-                // Send button
-                Button(action: {
-                    sendTextToDevice()
-                }) {
-                    HStack(spacing: 2) {
-                        Image(systemName: "paperplane.fill")
-                            .font(.system(size: 12))
-                        Text("Send")
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
-                    .background(textInputContent.isEmpty ? Color.gray : Color.blue)
-                    .cornerRadius(6)
-                }
-                .disabled(textInputContent.isEmpty)
-            }
+}
+
+/// Modifier key wrapper for Pro mode — uses ModifierKeyButton with lock/sticky support,
+/// matching BasicKeyboardMouseView's modifier behavior.
+private struct ProModifierKey: View {
+    let kd: KeyboardManager.KeyDef
+    let keyboardManager: KeyboardManager
+    let displayText: String
+    let content: AnyView
+    let height: CGFloat
+
+    var body: some View {
+        ModifierKeyButton(key: kd.label, keyboardManager: keyboardManager, keyPreview: displayText) { physical, locked in
+            content
+                .background(locked ? Color.blue : (physical ? Color.blue.opacity(0.7) : Color(UIColor.secondarySystemBackground)))
+                .foregroundColor(locked || physical ? .white : .primary)
         }
-    }
-    
-    /// Send text content to the connected device
-    private func sendTextToDevice() {
-        guard !textInputContent.isEmpty else { return }
-        
-        // Save current content before sending
-        savedTextInputContent = textInputContent
-        
-        // Send each character to the keyboard manager with delay
-        let characters = Array(textInputContent)
-        for (index, char) in characters.enumerated() {
-            // Use delay to ensure each character is properly sent and released
-            // KeyboardManager releases keys after 0.1s, so we need at least 0.12s between characters
-            DispatchQueue.main.asyncAfter(deadline: .now() + Double(index) * 0.12) {
-                let charString = String(char)
-                if char.isNewline {
-                    self.keyboardManager.handleKeyPress("Enter")
-                } else {
-                    self.keyboardManager.handleKeyPress(charString)
-                }
-            }
-        }
-        
-        // Clear the input after all characters are queued for sending
-        textInputContent = ""
-        
-        // Show feedback
-        HapticFeedbackManager.shared.triggerButtonPress()
+        .frame(height: height)
     }
 }

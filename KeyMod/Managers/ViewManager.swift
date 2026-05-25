@@ -18,9 +18,9 @@ enum ViewMode: String, CaseIterable, Identifiable {
     var views: [ViewType] {
         switch self {
         case .basic:
-            return [.keyboardMouseBasic, .keyboardMousePro, .gamepad, .numpad, .shortcutHub, .macros, .voiceInput]
+            return [.keyboardMouseBasic, .keyboardMousePro, .presentation, .gamepad, .shortcutHub, .macros, .voiceInput]
         case .pro:
-            return [.keyboardMouseBasic, .keyboardMousePro, .gamepad, .numpad, .shortcutHub, .macros, .voiceInput]
+            return [.keyboardMouseBasic, .keyboardMousePro, .presentation, .gamepad, .shortcutHub, .macros, .voiceInput]
         }
     }
 }
@@ -33,6 +33,7 @@ enum ViewType: String, CaseIterable {
     case shortcutHub = "Shortcuts"
     case macros = "Macros"
     case voiceInput = "Voice Input"
+    case presentation = "Presentation"
 
     var iconName: String {
         switch self {
@@ -48,6 +49,8 @@ enum ViewType: String, CaseIterable {
             return "square.and.pencil"
         case .voiceInput:
             return "mic.circle"
+        case .presentation:
+            return "play.rectangle"
         }
     }
 
@@ -55,7 +58,7 @@ enum ViewType: String, CaseIterable {
         switch self {
         case .keyboardMouseBasic, .gamepad, .numpad, .macros, .voiceInput:
             return .basic
-        case .keyboardMousePro, .shortcutHub:
+        case .keyboardMousePro, .shortcutHub, .presentation:
             return .pro
         }
     }

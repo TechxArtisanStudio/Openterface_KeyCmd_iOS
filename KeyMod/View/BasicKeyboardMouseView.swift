@@ -17,7 +17,6 @@ struct BasicKeyboardMouseView: View {
     enum Submode: String, CaseIterable {
         case keyboard = "Keyboard"
         case touchpad = "Touchpad"
-        case ime = "IME"
         case numpad = "Numpad"
     }
 
@@ -79,8 +78,6 @@ struct BasicKeyboardMouseView: View {
                         touchpadSubmode
                     case .numpad:
                         numpadSubmode
-                    case .ime:
-                        imeSubmode
                     }
                 }
                 .id(selectedSubmode.rawValue)
@@ -95,10 +92,11 @@ struct BasicKeyboardMouseView: View {
             }
             .padding(.leading, orientationManager.isLandscape ? max(geometry.safeAreaInsets.leading, 45) : 0)
             .onAppear {
-                if selectedSubmode == .keyboard { lockToLandscape() }
-            }
-            .onDisappear {
-                unlockOrientation()
+                if selectedSubmode == .keyboard {
+                    lockToLandscape()
+                } else {
+                    unlockOrientation()
+                }
             }
         }
     }
@@ -203,35 +201,17 @@ struct BasicKeyboardMouseView: View {
     }
 
     private func lockToLandscape() {
-        // 1. Tell AppDelegate to deny portrait from now on
-        AppDelegate.orientationLock = .landscape
-        // 2. Programmatically rotate the scene
-        //    IMPORTANT: do NOT call setNeedsUpdateOfSupportedInterfaceOrientations() after this.
-        //    UIHostingController.supportedInterfaceOrientations returns .all (it is not overridden),
-        //    so that call makes the system re-evaluate against the physical device orientation (portrait)
-        //    and snap back. AppDelegate.orientationLock is sufficient to hold the lock.
+        guard !OrientationManager.launchPanelVisible else { return }
+        orientationManager.lockToLandscape()
         if #available(iOS 16.0, *) {
             if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-                scene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscape)) { _ in
-                    // requestGeometryUpdate may be refused by UIHostingController's default
-                    // supportedInterfaceOrientations; fall back to the legacy API.
-                    DispatchQueue.main.async {
-                        UIDevice.current.setValue(UIInterfaceOrientation.landscapeLeft.rawValue,
-                                                  forKey: "orientation")
-                        UIViewController.attemptRotationToDeviceOrientation()
-                    }
-                }
+                scene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscape)) { _ in }
             }
-        } else {
-            UIDevice.current.setValue(UIInterfaceOrientation.landscapeLeft.rawValue, forKey: "orientation")
-            UIViewController.attemptRotationToDeviceOrientation()
         }
     }
 
     private func unlockOrientation() {
         AppDelegate.orientationLock = .all
-        // Reset forced orientation value so the system re-reads the physical sensor
-        UIDevice.current.setValue(UIInterfaceOrientation.unknown.rawValue, forKey: "orientation")
         if #available(iOS 16.0, *) {
             if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
                 scene.requestGeometryUpdate(.iOS(interfaceOrientations: .all)) { _ in }
@@ -515,17 +495,26 @@ struct BasicKeyboardMouseView: View {
             switch key {
             case "Cmd": return "⌘"
             case "Option": return "⌥"
-            case "Super": return "❖"
             default: return key
             }
         }()
-        ModifierKeyButton(key: key, keyboardManager: keyboardManager, keyPreview: displayLabel) { isPhysical, isLocked in
-            Text(displayLabel)
-                .font(.system(size: 12, weight: .medium))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(isLocked ? Color.blue : (isPhysical ? Color.blue.opacity(0.6) : Self.functionKeyBg))
-                .cornerRadius(6)
-                .foregroundColor(isPhysical || isLocked ? .white : .primary)
+        let isSuperKey = key == "Super" || key == "Win"
+        return ModifierKeyButton(key: key, keyboardManager: keyboardManager, keyPreview: displayLabel) { isPhysical, isLocked in
+            Group {
+                if isSuperKey && aiSettings.targetOS == .windows {
+                    Image("targetos_windows")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 28, height: 28)
+                } else {
+                    Text(displayLabel)
+                        .font(.system(size: 12, weight: .medium))
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(isLocked ? Color.blue : (isPhysical ? Color.blue.opacity(0.6) : Self.functionKeyBg))
+            .cornerRadius(6)
+            .foregroundColor(isPhysical || isLocked ? .white : .primary)
         }
     }
 
@@ -724,6 +713,12 @@ struct BasicKeyboardMouseView: View {
 
     private static let functionKeyBg = Color(UIColor.secondarySystemBackground)
     private static let regularKeyBg = Color(UIColor.systemBackground)
+    private static let touchpadBase = Color(red: 28/255, green: 28/255, blue: 30/255)
+    private static let touchpadPanel = Color(red: 44/255, green: 44/255, blue: 46/255)
+    private static let touchpadButton = Color(red: 44/255, green: 44/255, blue: 46/255)
+    private static let touchpadButtonPressed = Color(red: 58/255, green: 58/255, blue: 60/255)
+    private static let touchpadAccent = Color.white.opacity(0.07)
+    private static let touchpadText = Color.white.opacity(0.92)
     /// Keys that should NOT repeat while held (modifiers and function keys).
     private static let noRepeatKeys: Set<String> = [
         "Esc", "Tab", "Caps", "Shift", "Ctrl", "Alt", "Win", "Cmd", "Option", "Super",
@@ -764,7 +759,7 @@ struct BasicKeyboardMouseView: View {
     private var touchpadSubmode: some View {
         let isLandscape = orientationManager.isLandscape
         let scrollFontSize: CGFloat = isLandscape ? 13 : 7
-        let buttonRowHeight: CGFloat = isLandscape ? 50 : 60
+        let buttonRowHeight: CGFloat = (isLandscape ? 50 : 60) * 4
 
         return GeometryReader { stripGeo in
             VStack(spacing: 0) {
@@ -781,12 +776,45 @@ struct BasicKeyboardMouseView: View {
                             }
                         )
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(
+                            ZStack {
+                                Self.touchpadPanel
+                                LinearGradient(
+                                    gradient: Gradient(colors: [Color.white.opacity(0.07), Color.clear]),
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                                LinearGradient(
+                                    gradient: Gradient(colors: [Color.black.opacity(0.08), Color.clear]),
+                                    startPoint: .bottomLeading,
+                                    endPoint: .topTrailing
+                                )
+                                RadialGradient(
+                                    gradient: Gradient(colors: [Color.white.opacity(0.09), Color.clear]),
+                                    center: .init(x: 0.28, y: 0.24),
+                                    startRadius: 0,
+                                    endRadius: 260
+                                )
+                                RadialGradient(
+                                    gradient: Gradient(colors: [Color.black.opacity(0.11), Color.clear]),
+                                    center: .init(x: 0.78, y: 0.82),
+                                    startRadius: 0,
+                                    endRadius: 280
+                                )
+                            }
+                        )
+                        .cornerRadius(12)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                        )
+                        .shadow(color: Color.black.opacity(0.25), radius: 10, x: 0, y: 4)
 
                         // Glow border when drag or buttons are held
                         if isAnyButtonHeld || mouseManager.isSelectMode {
                             RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.blue.opacity(0.6), lineWidth: 3)
-                                .shadow(color: .blue.opacity(0.4), radius: 8, x: 0, y: 0)
+                                .stroke(Color.black.opacity(0.15), lineWidth: 1)
+                                .shadow(color: Color.black.opacity(0.18), radius: 6, x: 0, y: 0)
                                 .transition(.opacity)
                         }
 
@@ -794,39 +822,58 @@ struct BasicKeyboardMouseView: View {
                         VStack(spacing: 4) {
                             Text("TouchPad")
                                 .font(.system(size: 16, weight: .bold))
-                                .foregroundColor(.primary)
+                                .foregroundColor(Self.touchpadText)
                             Text("Buttons: \(touchpadButtonsText)")
                                 .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(.secondary)
+                                .foregroundColor(Self.touchpadText.opacity(0.8))
                             Text("Touch: \(touchpadTouchText)")
                                 .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(.secondary)
+                                .foregroundColor(Self.touchpadText.opacity(0.8))
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
                         .background(
                             RoundedRectangle(cornerRadius: 10)
-                                .fill(Color(UIColor.secondarySystemBackground).opacity(0.88))
+                                .fill(Self.touchpadPanel.opacity(0.92))
+                                .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 0)
                         )
+                        .allowsHitTesting(false)
+
+                        // Openterface logo in the touchpad surface.
+                        VStack {
+                            Spacer()
+                            HStack {
+                                Spacer()
+                                Image("openterface_wordmark")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(height: 12)
+                                    .opacity(0.50)
+                                Spacer()
+                            }
+                            .padding(.bottom, 12)
+                        }
                         .allowsHitTesting(false)
 
                         // Visual indicator when left button is held (matches Android hold-lock feedback)
                         if isLeftButtonHeld {
                             ZStack {
                                 Circle()
-                                    .fill(Color.white.opacity(0.35))
+                                    .fill(Color.white.opacity(0.40))
                                     .frame(width: 24, height: 24)
                                 Circle()
-                                    .stroke(Color.blue, lineWidth: 2)
+                                    .stroke(Color.black.opacity(0.28), lineWidth: 2)
                                     .frame(width: 24, height: 24)
                             }
                             .transition(.scale.combined(with: .opacity))
                         }
                     }
+                    let stripWidth = max(28, stripGeo.size.width / 6)
                     BasicTouchpadScrollStripView(mouseManager: mouseManager, labelFontSize: scrollFontSize)
-                        .frame(width: stripGeo.size.width * 0.3)
+                        .frame(width: stripWidth)
                 }
                 .frame(maxHeight: .infinity)
+                .background(Self.touchpadBase)
 
                 // Mouse buttons row
                 HStack(spacing: 8) {
@@ -851,6 +898,7 @@ struct BasicKeyboardMouseView: View {
                 .frame(height: buttonRowHeight)
                 .padding(.horizontal, 12)
                 .padding(.vertical, isLandscape ? 4 : 8)
+                .background(Self.touchpadPanel)
             }
         }
     }
@@ -873,13 +921,29 @@ struct BasicKeyboardMouseView: View {
         ) { isPressed, isLocked in
             Text(label)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(isPressed || isLocked ? .white : .primary)
+                .foregroundColor(isPressed || isLocked ? .white : Self.touchpadText)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(isLocked ? Color.blue : (isPressed ? Color.blue.opacity(0.7) : Color(UIColor.tertiarySystemBackground)))
-                .cornerRadius(8)
-                .overlay(
-                    isLocked ? RoundedRectangle(cornerRadius: 8).stroke(Color.blue, lineWidth: 2) : nil
-                )
+                .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isLocked ? Self.touchpadButtonPressed : (isPressed ? Self.touchpadButtonPressed : Self.touchpadButton))
+                    .shadow(color: Color.black.opacity(0.22), radius: 4, x: 0, y: 2)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [Color.white.opacity(isPressed || isLocked ? 0.04 : 0.08), Color.clear]),
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                            .blendMode(.screen)
+                    )
+            )
+            .cornerRadius(8)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.white.opacity(isPressed || isLocked ? 0.05 : 0.08), lineWidth: 1)
+            )
         }
     }
 
@@ -888,14 +952,9 @@ struct BasicKeyboardMouseView: View {
     // MARK: - Numpad Submode
 
     private var numpadSubmode: some View {
-        NumPadView(keyboardManager: keyboardManager, orientationManager: orientationManager)
+        BasicNumPadView(keyboardManager: keyboardManager, orientationManager: orientationManager)
     }
 
-    // MARK: - IME Submode
-
-    private var imeSubmode: some View {
-        IMEView(keyboardManager: keyboardManager)
-    }
 }
 
 // MARK: - Key Callout Preview

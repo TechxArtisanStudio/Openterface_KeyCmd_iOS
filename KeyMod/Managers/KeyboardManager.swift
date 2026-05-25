@@ -16,6 +16,9 @@ class KeyboardManager: ObservableObject {
     @Published var isGameMode: Bool = false // Track current mode
     @Published var isFnLocked: Bool = false // Fn lock for F1-F12 mapping
     @Published var isSymbolMode: Bool = false // Symbol mode keyboard layout
+    @Published var isSending: Bool = false    // True while handleTextInput is in-flight
+    private var sendCancelFlag = false
+    private let sendLock = NSLock()
     let compositeKeyManager: CompositeKeyManager
     private let hapticManager = HapticFeedbackManager.shared
     private let logger = LogManager.shared
@@ -47,50 +50,52 @@ class KeyboardManager: ObservableObject {
         }
     }
 
-    /// Portrait letter key definitions with alternates (matches Android keyboard_lower_portrait.xml)
+    /// Portrait letter key definitions with alternates
+    /// Matches Android keyboard_lower_portrait_no_gui.xml (4 rows)
     let portraitLetterKeys: [[KeyDef]] = [
-        [ // Row 1: q-p with number alternates
-            KeyDef("q", "Q", ["1"], "1", "q"),
-            KeyDef("w", "W", ["2"], "2", "w"),
-            KeyDef("e", "E", ["3"], "3", "e"),
-            KeyDef("r", "R", ["4"], "4", "r"),
-            KeyDef("t", "T", ["5"], "5", "t"),
-            KeyDef("y", "Y", ["6"], "6", "y"),
-            KeyDef("u", "U", ["7"], "7", "u"),
-            KeyDef("i", "I", ["8"], "8", "i"),
-            KeyDef("o", "O", ["9"], "9", "o"),
-            KeyDef("p", "P", ["0"], "0", "p")
+        [ // Row 1: q-p (10 letter keys, equal width)
+            KeyDef("q", "Q", ["!", "1"], "!", "q"),
+            KeyDef("w", "W", ["@", "2"], "@", "w"),
+            KeyDef("e", "E", ["#", "3"], "#", "e"),
+            KeyDef("r", "R", ["$", "4"], "$", "r"),
+            KeyDef("t", "T", ["%", "5"], "%", "t"),
+            KeyDef("y", "Y", ["^", "6"], "^", "y"),
+            KeyDef("u", "U", ["&", "7"], "&", "u"),
+            KeyDef("i", "I", ["*", "8"], "*", "i"),
+            KeyDef("o", "O", [",", "9"], ",", "o"),
+            KeyDef("p", "P", [".", "0"], ".", "p")
         ],
-        [ // Row 2: a-l + Backspace with symbol alternates
-            KeyDef("a", "A", ["@"], "@", "a"),
-            KeyDef("s", "S", ["#"], "#", "s"),
-            KeyDef("d", "D", ["$"], "$", "d"),
-            KeyDef("f", "F", ["%"], "%", "f"),
-            KeyDef("g", "G", ["^"], "^", "g"),
-            KeyDef("h", "H", ["&"], "&", "h"),
-            KeyDef("j", "J", ["*"], "*", "j"),
-            KeyDef("k", "K", ["(", "{", "[", "<"], "(", "k"),
-            KeyDef("l", "L", [")", "}", "]", ">"], ")", "l"),
+        [ // Row 2: Tab + a-l + Forward Delete
+            KeyDef("Tab", "", [], "", "Tab"),
+            KeyDef("a", "A", ["¥", "", "£", "€"], "¥", "a"),
+            KeyDef("s", "S", ["", "", "`", "~"], "`", "s"),
+            KeyDef("d", "D", ["", "-", "_"], "-", "d"),
+            KeyDef("f", "F", ["", "+", "="], "+", "f"),
+            KeyDef("g", "G", ["", "/", "?"], "/", "g"),
+            KeyDef("h", "H", ["", "<", ">"], "<", "h"),
+            KeyDef("j", "J", ["", "[", "]"], "[", "j"),
+            KeyDef("k", "K", ["", "{", "}"], "{", "k"),
+            KeyDef("l", "L", ["", "(", ")"], "(", "l"),
             KeyDef("Backspace", "", [], "", "Backspace")
         ],
-        [ // Row 3: z-/ with symbol alternates
+        [ // Row 3: Shift + z-m + / + Enter
             KeyDef("Shift", "", [], "", "Shift"),
-            KeyDef("z", "Z", ["!"], "!", "z"),
-            KeyDef("x", "X", ["?"], "?", "x"),
+            KeyDef("z", "Z", ["'", "", ","], "'", "z"),
+            KeyDef("x", "X", ["\""], "\"", "x"),
             KeyDef("c", "C", [";"], ";", "c"),
             KeyDef("v", "V", [":"], ":", "v"),
-            KeyDef("b", "B", ["'"], "'", "b"),
-            KeyDef("n", "N", ["\""], "\"", "n"),
-            KeyDef("m", "M", ["_"], "_", "m"),
-            KeyDef("/", "?", ["+", "`", "~"], "+", "/")
-        ],
-        [ // Row 4: Fn, comma, Win, Space, period, Enter
-            KeyDef("Fn", "", [], "", "Fn"),
-            KeyDef(",", ";", ["-", ":"], "-", ","),
-            KeyDef("Cmd", "", [], "", "Cmd"),
-            KeyDef("Space", "", [], "", "Space"),
-            KeyDef(".", "'", ["=", "\""], "=", "."),
+            KeyDef("b", "B", ["/"], "/", "b"),
+            KeyDef("n", "N", ["|"], "|", "n"),
+            KeyDef("m", "M", ["\\"], "\\", "m"),
+            KeyDef("/", "?", ["?"], "?", "/"),
             KeyDef("Enter", "", [], "", "Enter")
+        ],
+        [ // Row 4: Fn + Ctrl + Space + Alt + Win
+            KeyDef("Fn", "", [], "", "Fn"),
+            KeyDef("Ctrl", "", [], "", "Ctrl"),
+            KeyDef("Space", "", [], "", "Space"),
+            KeyDef("Alt", "", [], "", "Alt"),
+            KeyDef("Win", "", [], "", "Win")
         ]
     ]
 
@@ -193,6 +198,114 @@ class KeyboardManager: ObservableObject {
         KeyDef("Left", "", [], "←", "Left"),
         KeyDef("Down", "", [], "↓", "Down"),
         KeyDef("Right", "", [], "→", "Right")
+    ]
+
+    // MARK: - Landscape Key Definitions (matches Android keyboard_lower_landscape_no_gui_*.xml)
+
+    /// macOS landscape layout — symmetrical bottom row: Ctrl + Opt + Cmd + Space + Cmd + Opt + Ctrl
+    /// Matches Android keyboard_lower_landscape_no_gui.xml
+    let landscapeMacKeys: [[KeyDef]] = [
+        [ // Row 1: Tab + q-p + Backspace
+            KeyDef("Tab", "", [], "", "Tab"),
+            KeyDef("q", "Q", ["!", "1"], "!", "q"),
+            KeyDef("w", "W", ["@", "2"], "@", "w"),
+            KeyDef("e", "E", ["#", "3"], "#", "e"),
+            KeyDef("r", "R", ["$", "4"], "$", "r"),
+            KeyDef("t", "T", ["%", "5"], "%", "t"),
+            KeyDef("y", "Y", ["^", "6"], "^", "y"),
+            KeyDef("u", "U", ["&", "7"], "&", "u"),
+            KeyDef("i", "I", ["*", "8"], "*", "i"),
+            KeyDef("o", "O", [",", "9"], ",", "o"),
+            KeyDef("p", "P", [".", "0"], ".", "p"),
+            KeyDef("Backspace", "", [], "", "Backspace")
+        ],
+        [ // Row 2: Fn + a-l + Delete
+            KeyDef("Fn", "", [], "", "Fn"),
+            KeyDef("a", "A", ["¥", "", "£", "€"], "¥", "a"),
+            KeyDef("s", "S", ["", "", "`", "~"], "`", "s"),
+            KeyDef("d", "D", ["", "-", "_"], "-", "d"),
+            KeyDef("f", "F", ["", "+", "="], "+", "f"),
+            KeyDef("g", "G", ["", "/", "?"], "/", "g"),
+            KeyDef("h", "H", ["", "<", ">"], "<", "h"),
+            KeyDef("j", "J", ["", "[", "]"], "[", "j"),
+            KeyDef("k", "K", ["", "{", "}"], "{", "k"),
+            KeyDef("l", "L", ["", "(", ")"], "(", "l"),
+            KeyDef("Delete", "", [], "", "Delete")
+        ],
+        [ // Row 3: Shift + z-m + / + Enter
+            KeyDef("Shift", "", [], "", "Shift"),
+            KeyDef("z", "Z", ["'", "", ","], "'", "z"),
+            KeyDef("x", "X", ["\""], "\"", "x"),
+            KeyDef("c", "C", [";"], ";", "c"),
+            KeyDef("v", "V", [":"], ":", "v"),
+            KeyDef("b", "B", ["/"], "/", "b"),
+            KeyDef("n", "N", ["|"], "|", "n"),
+            KeyDef("m", "M", ["\\"], "\\", "m"),
+            KeyDef("/", "?", ["?"], "?", "/"),
+            KeyDef("Enter", "", [], "", "Enter")
+        ],
+        [ // Row 4: Ctrl + Opt + Cmd + Space + Cmd + Opt + Ctrl
+            KeyDef("Ctrl", "", [], "", "Ctrl"),
+            KeyDef("Option", "", [], "", "Alt"),
+            KeyDef("Cmd", "", [], "", "Cmd"),
+            KeyDef("Space", "", [], "", "Space"),
+            KeyDef("Cmd", "", [], "", "Cmd"),
+            KeyDef("Option", "", [], "", "Alt"),
+            KeyDef("Ctrl", "", [], "", "Ctrl")
+        ]
+    ]
+
+    /// Windows/Linux landscape layout — bottom row: Ctrl + Win + Alt + Space + Alt + App + Right Ctrl
+    /// Matches Android keyboard_lower_landscape_no_gui.xml
+    let landscapePcKeys: [[KeyDef]] = [
+        [ // Row 1: Tab + q-p + Backspace
+            KeyDef("Tab", "", [], "", "Tab"),
+            KeyDef("q", "Q", ["!", "1"], "!", "q"),
+            KeyDef("w", "W", ["@", "2"], "@", "w"),
+            KeyDef("e", "E", ["#", "3"], "#", "e"),
+            KeyDef("r", "R", ["$", "4"], "$", "r"),
+            KeyDef("t", "T", ["%", "5"], "%", "t"),
+            KeyDef("y", "Y", ["^", "6"], "^", "y"),
+            KeyDef("u", "U", ["&", "7"], "&", "u"),
+            KeyDef("i", "I", ["*", "8"], "*", "i"),
+            KeyDef("o", "O", [",", "9"], ",", "o"),
+            KeyDef("p", "P", [".", "0"], ".", "p"),
+            KeyDef("Backspace", "", [], "", "Backspace")
+        ],
+        [ // Row 2: Fn + a-l + Forward Delete
+            KeyDef("Fn", "", [], "", "Fn"),
+            KeyDef("a", "A", ["¥", "", "£", "€"], "¥", "a"),
+            KeyDef("s", "S", ["", "", "`", "~"], "`", "s"),
+            KeyDef("d", "D", ["", "-", "_"], "-", "d"),
+            KeyDef("f", "F", ["", "+", "="], "+", "f"),
+            KeyDef("g", "G", ["", "/", "?"], "/", "g"),
+            KeyDef("h", "H", ["", "<", ">"], "<", "h"),
+            KeyDef("j", "J", ["", "[", "]"], "[", "j"),
+            KeyDef("k", "K", ["", "{", "}"], "{", "k"),
+            KeyDef("l", "L", ["", "(", ")"], "(", "l"),
+            KeyDef("FwdDel", "", [], "", "Delete")
+        ],
+        [ // Row 3: Shift + z-m + / + Enter
+            KeyDef("Shift", "", [], "", "Shift"),
+            KeyDef("z", "Z", ["'", "", ","], "'", "z"),
+            KeyDef("x", "X", ["\""], "\"", "x"),
+            KeyDef("c", "C", [";"], ";", "c"),
+            KeyDef("v", "V", [":"], ":", "v"),
+            KeyDef("b", "B", ["/"], "/", "b"),
+            KeyDef("n", "N", ["|"], "|", "n"),
+            KeyDef("m", "M", ["\\"], "\\", "m"),
+            KeyDef("/", "?", ["?"], "?", "/"),
+            KeyDef("Enter", "", [], "", "Enter")
+        ],
+        [ // Row 4: Ctrl + Win + Alt + Space + Alt + App + Right Ctrl
+            KeyDef("Ctrl", "", [], "", "Ctrl"),
+            KeyDef("Win", "", [], "", "Win"),
+            KeyDef("Alt", "", [], "", "Alt"),
+            KeyDef("Space", "", [], "", "Space"),
+            KeyDef("Alt", "", [], "", "Alt"),
+            KeyDef("App", "", [], "", "App"),
+            KeyDef("Ctrl", "", [], "", "Ctrl")
+        ]
     ]
 
     /// Optional handler invoked (on the background thread) when a
@@ -503,9 +616,17 @@ class KeyboardManager: ObservableObject {
         return nil
     }
 
+    /// Select the appropriate landscape keyboard layout based on target OS.
+    func landscapeKeys(for targetOS: TargetOS) -> [[KeyDef]] {
+        switch targetOS {
+        case .macOS: return landscapeMacKeys
+        case .windows, .linux: return landscapePcKeys
+        }
+    }
+
     /// Check if a key is a modifier or special key that should not show alternates.
     func isModifierOrSpecialKey(_ label: String) -> Bool {
-        let skipSet = ["Shift", "Ctrl", "Alt", "Cmd", "Win", "Fn", "Space", "Enter", "Backspace", "Caps", "Tab", "Esc", "Escape"]
+        let skipSet = ["Shift", "Ctrl", "Alt", "Cmd", "Win", "Fn", "Space", "Enter", "Backspace", "Caps", "Tab", "Esc", "Escape", "Delete", "Forward Delete", "FwdDel", "Del", "App", "Option"]
         return skipSet.contains(label)
     }
 
@@ -523,9 +644,18 @@ class KeyboardManager: ObservableObject {
     func handleTextInput(_ text: String) {
         logger.log("Starting text input: \(text)", category: "Keyboard")
         logger.logCheckpoint("Text input started", category: "Keyboard")
-        
+        sendLock.lock()
+        sendCancelFlag = false
+        sendLock.unlock()
+        isSending = true
+
         DispatchQueue.global(qos: .userInitiated).async {
             for char in text {
+                self.sendLock.lock()
+                let cancelled = self.sendCancelFlag
+                self.sendLock.unlock()
+                if cancelled { break }
+
                 let scalar = char.unicodeScalars.first?.value ?? 0
                 // Non-ASCII Unicode — delegate to UnicodeManager (already on bg thread)
                 if scalar > 0x7E {
@@ -533,33 +663,34 @@ class KeyboardManager: ObservableObject {
                     usleep(self.keyDelayUs)
                     continue
                 }
-                // Press and release key synchronously
-                DispatchQueue.main.sync {
-                    if char.isLetter {
-                        let key = String(char).uppercased()
-                        if char.isUppercase {
-                            self.sendKeyPressAndRelease(modifiers: ["Shift"], key: key)
-                        } else {
-                            self.sendKeyPressAndRelease(key: key)
-                        }
-                    } else if char == " " {
-                        self.sendKeyPressAndRelease(key: "Space")
-                    } else if char == "\n" || char == "\r" {
-                        self.sendKeyPressAndRelease(key: "Enter")
-                    } else if char == "\t" {
-                        self.sendKeyPressAndRelease(key: "Tab")
+                // ASCII characters — send directly from background thread.
+                // sendKeyPressAndRelease is thread-safe (builds HID packets, no UI access).
+                // Using main.sync here would deadlock when the main thread is blocked
+                // (gesture gate timeout, haptic engine, etc.).
+                if char.isLetter {
+                    let key = String(char).uppercased()
+                    if char.isUppercase {
+                        self.sendKeyPressAndRelease(modifiers: ["Shift"], key: key)
                     } else {
-                        let (code, needsShift) = Keymod.hidCode(for: char)
-                        if code >= 0 {
-                            if needsShift {
-                                self.sendKeyPressAndRelease(modifiers: ["Shift"], key: String(char), rawHidCode: UInt8(code))
-                            } else {
-                                self.sendKeyPressAndRelease(key: String(char), rawHidCode: UInt8(code))
-                            }
+                        self.sendKeyPressAndRelease(key: key)
+                    }
+                } else if char == " " {
+                    self.sendKeyPressAndRelease(key: "Space")
+                } else if char == "\n" || char == "\r" {
+                    self.sendKeyPressAndRelease(key: "Enter")
+                } else if char == "\t" {
+                    self.sendKeyPressAndRelease(key: "Tab")
+                } else {
+                    let (code, needsShift) = Keymod.hidCode(for: char)
+                    if code >= 0 {
+                        if needsShift {
+                            self.sendKeyPressAndRelease(modifiers: ["Shift"], key: String(char), rawHidCode: UInt8(code))
                         } else {
-                            // Fallback for unmappable chars
-                            self.sendKeyPressAndRelease(key: String(char).uppercased())
+                            self.sendKeyPressAndRelease(key: String(char), rawHidCode: UInt8(code))
                         }
+                    } else {
+                        // Fallback for unmappable chars
+                        self.sendKeyPressAndRelease(key: String(char).uppercased())
                     }
                 }
                 // Wait between characters for proper timing
@@ -567,9 +698,20 @@ class KeyboardManager: ObservableObject {
             }
             
             DispatchQueue.main.async {
+                self.sendLock.lock()
+                self.sendCancelFlag = false
+                self.sendLock.unlock()
+                self.isSending = false
                 self.logger.logCheckpoint("Text input completed", category: "Keyboard")
             }
         }
+    }
+
+    /// Cancel an in-flight text send operation.
+    func cancelSend() {
+        sendLock.lock()
+        sendCancelFlag = true
+        sendLock.unlock()
     }
     
     /// Send a complete key press and release cycle synchronously.

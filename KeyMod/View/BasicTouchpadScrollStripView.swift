@@ -22,20 +22,51 @@ struct BasicTouchpadScrollStripView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                Color(UIColor.secondarySystemBackground)
+                Color(red: 44/255, green: 44/255, blue: 46/255)
+                LinearGradient(
+                    gradient: Gradient(colors: [Color.white.opacity(0.07), Color.clear]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                LinearGradient(
+                    gradient: Gradient(colors: [Color.black.opacity(0.08), Color.clear]),
+                    startPoint: .bottomLeading,
+                    endPoint: .topTrailing
+                )
+                RadialGradient(
+                    gradient: Gradient(colors: [Color.white.opacity(0.09), Color.clear]),
+                    center: .init(x: 0.28, y: 0.24),
+                    startRadius: 0,
+                    endRadius: 160
+                )
+                RadialGradient(
+                    gradient: Gradient(colors: [Color.black.opacity(0.11), Color.clear]),
+                    center: .init(x: 0.78, y: 0.82),
+                    startRadius: 0,
+                    endRadius: 200
+                )
 
                 // Up/down chevron indicators
                 VStack(spacing: 0) {
+                    let chevronSize = min(24, max(14, geometry.size.width * 0.85))
                     Image(systemName: "chevron.up")
-                        .font(.system(size: labelFontSize + 2, weight: .bold))
-                        .foregroundColor(.secondary.opacity(0.4))
+                        .font(.system(size: chevronSize, weight: .regular))
+                        .foregroundColor(Color.white.opacity(0.86))
+                        .frame(width: chevronSize, height: chevronSize)
                     Spacer()
                     Image(systemName: "chevron.down")
-                        .font(.system(size: labelFontSize + 2, weight: .bold))
-                        .foregroundColor(.secondary.opacity(0.4))
+                        .font(.system(size: chevronSize, weight: .regular))
+                        .foregroundColor(Color.white.opacity(0.86))
+                        .frame(width: chevronSize, height: chevronSize)
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, 6)
             }
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.20), radius: 8, x: 0, y: 3)
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0)

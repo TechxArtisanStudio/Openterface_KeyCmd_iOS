@@ -8,7 +8,6 @@
 //               Page 0: F-keys (F7–F12/= | F1–F6/FN)
 //               Page 1: Modifiers + Navigation (default)
 //               Page 2: Punctuation symbols
-//               Page 3: Profile quick-switch
 //  Total ≈ 150px, matching Android's three-row shortcut strip.
 //
 
@@ -47,7 +46,7 @@ struct ShortcutButton: View {
 
     var body: some View {
         Button(action: entry.action) {
-            ZStack(alignment: .bottomTrailing) {
+            ZStack(alignment: .topTrailing) {
                 VStack(spacing: 1) {
                     if let icon = entry.icon {
                         Image(systemName: icon)
@@ -66,13 +65,10 @@ struct ShortcutButton: View {
 
                 if let badge = entry.badge {
                     Text(badge)
-                        .font(.system(size: 7, weight: .bold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 2)
-                        .padding(.vertical, 1)
-                        .background(Color.orange)
-                        .cornerRadius(2)
-                        .offset(x: 2, y: 2)
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.secondary)
+                        .padding(1)
+                        .offset(x: 2, y: -1)
                 }
             }
         }
@@ -81,39 +77,58 @@ struct ShortcutButton: View {
 
 // MARK: - ShortcutStripPager (row 1 — horizontally scrollable favorites)
 
-/// Horizontally scrollable single-row strip — all shortcuts visible by swiping.
-/// Uses ScrollView(.horizontal) so it works correctly inside a vertical ScrollView.
-/// Apply `.id(profileId)` at the call site to scroll back to the start on profile switch.
+/// Swipeable single-row pager — 7 shortcuts per page.
+/// Matches Android behavior where the whole row flips page together.
+/// Apply `.id(profileId)` at the call site to reset to page 0 on profile switch.
 struct ShortcutStripPager: View {
     let pages: [ShortcutPage]
 
-    private var allEntries: [ShortcutEntry] {
-        pages.flatMap { $0.entries }
-    }
+    @State private var currentPage: Int = 0
+    @State private var dragOffset: CGFloat = 0
+    @State private var isDragging: Bool = false
 
     var body: some View {
-        let entries = allEntries
-        if entries.isEmpty { return AnyView(EmptyView()) }
-        return AnyView(
-            GeometryReader { geo in
-                // Each button takes exactly 1/7 of the available width so 7 are
-                // visible at a time; extra entries scroll into view.
-                let btnWidth = (geo.size.width - 8) / 7
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 2) {
-                        ForEach(entries) { entry in
-                            ShortcutButton(
-                                entry: entry,
+        if !pages.isEmpty {
+            VStack(spacing: 0) {
+                GeometryReader { geo in
+                    let w = geo.size.width
+                    HStack(spacing: 0) {
+                        ForEach(pages.indices, id: \.self) { idx in
+                            ShortcutStripRowView(
+                                entries: pages[idx].entries,
                                 background: Color.orange.opacity(0.18)
                             )
-                            .frame(width: max(btnWidth, 20))
+                            .frame(width: w)
                         }
                     }
-                    .padding(.horizontal, 2)
+                    .offset(x: -CGFloat(currentPage) * w + dragOffset)
+                    .animation(.interactiveSpring(response: 0.3, dampingFraction: 0.8),
+                               value: currentPage)
+                    .frame(width: w, alignment: .leading)
+                    .clipped()
+                    .highPriorityGesture(
+                        DragGesture(minimumDistance: 10, coordinateSpace: .local)
+                            .onChanged { v in
+                                dragOffset = v.translation.width
+                            }
+                            .onEnded { v in
+                                let threshold = w * 0.12
+                                withAnimation(.easeOut(duration: 0.2)) {
+                                    if v.translation.width < -threshold,
+                                       currentPage < pages.count - 1 {
+                                        currentPage += 1
+                                    } else if v.translation.width > threshold,
+                                              currentPage > 0 {
+                                        currentPage -= 1
+                                    }
+                                    dragOffset = 0
+                                }
+                            }
+                    )
                 }
+                .frame(height: 40)
             }
-            .frame(height: 40)
-        )
+        }
     }
 }
 
@@ -128,7 +143,6 @@ struct FixedRowsPager: View {
 
     @State private var currentPage: Int = -1
     @State private var dragOffset: CGFloat = 0
-    @State private var isDragging: Bool = false
 
     private let rowBackground = Color(UIColor.tertiarySystemBackground)
 
@@ -137,8 +151,7 @@ struct FixedRowsPager: View {
     }
 
     var body: some View {
-        if pages.isEmpty { return AnyView(EmptyView()) }
-        return AnyView(
+        if !pages.isEmpty {
             VStack(spacing: 0) {
                 GeometryReader { geo in
                     let w = geo.size.width
@@ -150,9 +163,8 @@ struct FixedRowsPager: View {
                                 ShortcutStripRowView(entries: pages[idx].row2,
                                                     background: rowBackground)
                             }
-                            .padding(.horizontal, 2)
+                            .padding(.horizontal, 0)
                             .frame(width: w)
-                            .allowsHitTesting(!isDragging)
                         }
                     }
                     .offset(x: -CGFloat(activePage) * w + dragOffset)
@@ -161,9 +173,8 @@ struct FixedRowsPager: View {
                     .frame(width: w, alignment: .leading)
                     .clipped()
                     .highPriorityGesture(
-                        DragGesture(minimumDistance: 5, coordinateSpace: .local)
+                        DragGesture(minimumDistance: 10, coordinateSpace: .local)
                             .onChanged { v in
-                                isDragging = true
                                 dragOffset = v.translation.width
                             }
                             .onEnded { v in
@@ -178,7 +189,6 @@ struct FixedRowsPager: View {
                                     }
                                     dragOffset = 0
                                 }
-                                isDragging = false
                             }
                     )
                 }
@@ -188,18 +198,8 @@ struct FixedRowsPager: View {
                         currentPage = min(defaultPageIndex, pages.count - 1)
                     }
                 }
-
-                // Page indicator dots
-                HStack(spacing: 4) {
-                    ForEach(0..<pages.count, id: \.self) { idx in
-                        Circle()
-                            .fill(idx == activePage ? Color.blue : Color.gray.opacity(0.3))
-                            .frame(width: 5, height: 5)
-                    }
-                }
-                .frame(height: 9)
             }
-        )
+        }
     }
 }
 
@@ -233,100 +233,12 @@ struct ShortcutStripRowView: View {
                 if colIndex < entries.count {
                     ShortcutButton(entry: entries[colIndex], background: background)
                 } else {
-                    Color.clear
+                    ShortcutButton(entry: ShortcutEntry(label: "", icon: nil) {}, background: background)
+                        .disabled(true)
+                        .opacity(0.3)
                 }
             }
         }
         .padding(.horizontal, 2)
-    }
-}
-
-// MARK: - Legacy components (kept for backward compatibility)
-
-/// Legacy swipeable panel (3-row per page). Superseded by ShortcutStripPager + ShortcutFixedRowsView.
-struct ShortcutPanelPager: View {
-    let pages: [ShortcutPage]
-    @State private var currentPageIndex: Int = 0
-
-    var body: some View {
-        if pages.isEmpty { return AnyView(EmptyView()) }
-        return AnyView(
-            VStack(spacing: 0) {
-                TabView(selection: $currentPageIndex) {
-                    ForEach(0..<pages.count, id: \.self) { index in
-                        ShortcutPageView(page: pages[index])
-                            .tag(index)
-                    }
-                }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                .frame(height: 135)
-                if pages.count > 1 {
-                    HStack(spacing: 4) {
-                        ForEach(0..<pages.count, id: \.self) { index in
-                            Circle()
-                                .fill(index == currentPageIndex ? Color.blue : Color.gray.opacity(0.3))
-                                .frame(width: 6, height: 6)
-                        }
-                    }
-                    .padding(.top, 2)
-                }
-            }
-        )
-    }
-}
-
-struct ShortcutPageView: View {
-    let page: ShortcutPage
-    var body: some View {
-        GeometryReader { _ in
-            VStack(spacing: 0) {
-                ForEach(0..<3, id: \.self) { rowIndex in
-                    HStack(spacing: 2) {
-                        ForEach(0..<7, id: \.self) { colIndex in
-                            let entryIndex = rowIndex * 7 + colIndex
-                            if entryIndex < page.entries.count {
-                                ShortcutButton(
-                                    entry: page.entries[entryIndex],
-                                    background: rowIndex == 0
-                                        ? Color.orange.opacity(0.25)
-                                        : Color(UIColor.tertiarySystemBackground)
-                                )
-                            } else {
-                                Color.clear
-                            }
-                        }
-                    }
-                }
-            }
-            .padding(2)
-        }
-    }
-}
-
-struct ShortcutPanel: View {
-    let pages: [ShortcutPage]
-    @State private var currentPageIndex: Int = 0
-    var body: some View {
-        if pages.isEmpty { return AnyView(EmptyView()) }
-        return AnyView(
-            GeometryReader { _ in
-                VStack(spacing: 0) {
-                    ForEach(0..<2, id: \.self) { rowIndex in
-                        HStack(spacing: 2) {
-                            ForEach(0..<7, id: \.self) { colIndex in
-                                let entryIndex = rowIndex * 7 + colIndex
-                                if entryIndex < pages[currentPageIndex].entries.count {
-                                    let entry = pages[currentPageIndex].entries[entryIndex]
-                                    ShortcutButton(entry: entry)
-                                } else {
-                                    Color.clear
-                                }
-                            }
-                        }
-                    }
-                }
-                .padding(2)
-            }
-        )
     }
 }

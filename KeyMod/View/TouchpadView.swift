@@ -7,7 +7,6 @@
 
 import SwiftUI
 import UIKit
-import Combine
 
 /// Shared state for pointer tip positions shown on the touchpad overlay.
 class PointerTipState: ObservableObject {
@@ -20,6 +19,8 @@ struct TouchpadView: UIViewRepresentable {
     let mouseManager: MouseManager
     let pointerTipState: PointerTipState
     @ObservedObject private var touchpadSettings = TouchpadSettings.shared
+    /// When false, disables pad tap/click/drag gestures — pointer movement and two-finger scroll only.
+    var padClickDragGesturesEnabled: Bool = true
     /// Callback when pointer movement state changes (true = moving, false = idle)
     var onPointerMoving: ((Bool) -> Void)?
 
@@ -29,6 +30,7 @@ struct TouchpadView: UIViewRepresentable {
         view.touchpadSettings = touchpadSettings
         view.pointerTipState = pointerTipState
         view.backgroundColor = UIColor.clear
+        view.padClickDragGesturesEnabled = padClickDragGesturesEnabled
         view.onPointerMoving = onPointerMoving
         return view
     }
@@ -36,6 +38,7 @@ struct TouchpadView: UIViewRepresentable {
     func updateUIView(_ uiView: UIView, context: Context) {
         if let touchpadView = uiView as? TouchpadUIView {
             touchpadView.updateSettings(touchpadSettings)
+            touchpadView.padClickDragGesturesEnabled = padClickDragGesturesEnabled
         }
     }
 }
@@ -43,18 +46,12 @@ struct TouchpadView: UIViewRepresentable {
 class TouchpadUIView: UIView {
     var mouseManager: MouseManager?
     var touchpadSettings: TouchpadSettings?
+    /// When false, disables pad tap/click/drag gestures — pointer movement and two-finger scroll only.
+    var padClickDragGesturesEnabled = true
     /// Fires when pointer movement state changes (true = moving, false = idle)
     var onPointerMoving: ((Bool) -> Void)?
     private var wasPointerMoving = false
-    var pointerTipState: PointerTipState? {
-        didSet {
-            pointerTipObserver = pointerTipState?.objectWillChange.sink { [weak self] _ in
-                self?.updatePointerIndicator()
-            }
-            updatePointerIndicator()
-        }
-    }
-    private var pointerTipObserver: AnyCancellable?
+    var pointerTipState: PointerTipState?
     private var dragStartPosition: CGPoint?
     private var isDragging = false
     private var tapTimer: Timer?
@@ -70,10 +67,6 @@ class TouchpadUIView: UIView {
     private var scrollAccumY: Float = 0
 
     private let hapticManager = HapticFeedbackManager.shared
-
-    // Pointer tip indicator layers
-    private let pointerFillLayer = CALayer()
-    private let pointerStrokeLayer = CAShapeLayer()
 
     // Default values that can be updated from settings
     private var tapDelayThreshold: TimeInterval = 0.15
@@ -95,34 +88,11 @@ class TouchpadUIView: UIView {
     }
 
     private func setupPointerIndicator() {
-        pointerFillLayer.cornerRadius = 12
-        pointerFillLayer.backgroundColor = UIColor.white.withAlphaComponent(0.5).cgColor
-        pointerFillLayer.isHidden = true
-        pointerFillLayer.zPosition = 1
-        layer.addSublayer(pointerFillLayer)
-
-        pointerStrokeLayer.lineWidth = 2
-        pointerStrokeLayer.strokeColor = UIColor.blue.cgColor
-        pointerStrokeLayer.fillColor = UIColor.clear.cgColor
-        pointerStrokeLayer.isHidden = true
-        pointerStrokeLayer.zPosition = 2
-        layer.addSublayer(pointerStrokeLayer)
+        // Removed: no pointer indicator circles on touchpad
     }
 
     private func updatePointerIndicator() {
-        guard let pos = pointerTipState?.pointerPosition else {
-            pointerFillLayer.isHidden = true
-            pointerStrokeLayer.isHidden = true
-            return
-        }
-        let radius: CGFloat = 12
-        let origin = CGPoint(x: pos.x - radius, y: pos.y - radius)
-        pointerFillLayer.frame = CGRect(origin: origin, size: CGSize(width: radius * 2, height: radius * 2))
-        pointerFillLayer.isHidden = false
-
-        let circlePath = UIBezierPath(ovalIn: CGRect(origin: origin, size: CGSize(width: radius * 2, height: radius * 2)))
-        pointerStrokeLayer.path = circlePath.cgPath
-        pointerStrokeLayer.isHidden = false
+        // Removed: no pointer indicator circles on touchpad
     }
 
     override func awakeFromNib() {
@@ -201,7 +171,7 @@ class TouchpadUIView: UIView {
     private var longPressJustFired = false
 
     @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
-        if gesture.state == .began {
+        if gesture.state == .began && padClickDragGesturesEnabled {
             print("Long press detected - toggling drag mode")
             hapticManager.triggerMediumFeedback()
             longPressJustFired = true
@@ -327,8 +297,10 @@ class TouchpadUIView: UIView {
 
         // Check if it's a single finger touch
         if touches.count == 1 && event?.allTouches?.count == 1 {
-            tapStartTime = Date()
-            pendingTapLocation = location
+            if padClickDragGesturesEnabled {
+                tapStartTime = Date()
+                pendingTapLocation = location
+            }
             print("✅ touchesBegan - single finger detected at \(location), starting tap detection")
         } else {
             print("⚠️ touchesBegan - multi-finger touch detected, ignoring tap")
@@ -379,7 +351,8 @@ class TouchpadUIView: UIView {
         print("⏱️ touchesEnded - tap duration: \(tapDuration)s, max allowed: \(tapDurationThreshold)s")
 
         // Check if it's a valid single tap
-        if touches.count == 1 &&
+        if padClickDragGesturesEnabled &&
+           touches.count == 1 &&
            event?.allTouches?.count == 1 &&
            tapDuration < tapDurationThreshold {
 

@@ -23,9 +23,19 @@ struct ContentView: View {
     @State private var sidebarVisible = false
     @State private var showSettings = false
     @State private var showSetupSheet = false
-    @State private var selectedGamepadLayout: GamepadLayout = .xbox
+    @State private var showProSetupSheet = false
     @State private var isGamepadEditMode = false
+    @State private var showPresetPicker = false
+    @State private var showBackgroundPicker = false
+    @State private var showAddModulePicker = false
+    @State private var showTargetOSDialog = false
+    @StateObject private var presetRepository = GamepadPresetRepository()
+    @StateObject private var backgroundManager = GamepadBackgroundManager()
+    @StateObject private var gyroMouseManager: GyroMouseManager
+    @AppStorage("gyroMouseEnabled") private var gyroMouseEnabled = false
+    @AppStorage("gyroMouseSensitivity") private var gyroMouseSensitivity: Double = 1.0
     @State private var basicSubmode: BasicKeyboardMouseView.Submode = .keyboard
+    @AppStorage("km_pro_submode") private var proSubmodeRaw: Int = 0
     
     init(launchPanelManager: LaunchPanelManager) {
         self.launchPanelManager = launchPanelManager
@@ -38,6 +48,9 @@ struct ContentView: View {
         _orientationManager = StateObject(wrappedValue: OrientationManager())
         _viewManager = StateObject(wrappedValue: ViewManager())
         _clipboardManager = StateObject(wrappedValue: ClipboardManager())
+        let gyroManager = GyroMouseManager(mouseManager: mouseManager)
+        gyroManager.sensitivity = UserDefaults.standard.double(forKey: "gyroMouseSensitivity") != 0 ? UserDefaults.standard.double(forKey: "gyroMouseSensitivity") : 1.0
+        _gyroMouseManager = StateObject(wrappedValue: gyroManager)
     }
     
     // MARK: - Sidebar View
@@ -45,10 +58,15 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 0) {
             sidebarHeader
             modifiersDisplay
-            sidebarNavigation
-            Spacer()
-            // sidebarModeSelectionButton - Hidden as requested
-            sidebarSettingsButton
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 0) {
+                    sidebarNavigation
+                    sidebarSettingsButton
+                    sidebarWelcomeGuideButton
+                    sidebarSidebarLogo
+                    sidebarVersionDisplay
+                }
+            }
         }
         .frame(width: 180)
         .background(Color(UIColor.secondarySystemBackground))
@@ -189,7 +207,9 @@ struct ContentView: View {
     private var topBar: some View {
         HStack {
             if !sidebarVisible {
-                HStack(spacing: 8) {
+                if viewManager.currentView == .gamepad {
+                    gamepadTopBarButtons
+                } else {
                     Button(action: {
                         withAnimation {
                             sidebarVisible.toggle()
@@ -199,25 +219,27 @@ struct ContentView: View {
                             .rotationEffect(.degrees(90))
                             .font(.title2)
                             .foregroundColor(.primary)
+                            .frame(width: 44, height: 44)
                     }
-                    .buttonStyle(PlainButtonStyle())
-                    Text("KeyMod")
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                        .onTapGesture {
-                            withAnimation {
-                                sidebarVisible.toggle()
-                            }
+                    .buttonStyle(.plain)
+                    .contentShape(Rectangle())
+                    .padding(.leading, 12)
+                    if orientationManager.isLandscape && viewManager.currentView == .keyboardMouseBasic {
+                        BasicKeyboardMouseView(
+                            mouseManager: mouseManager,
+                            keyboardManager: keyboardManager,
+                            orientationManager: orientationManager,
+                            selectedSubmode: $basicSubmode
+                        ).landscapeTabBar
+                    }
+                    if viewManager.currentView == .keyboardMousePro {
+                        proSubmodeSelector
+                        let currentSubmode = ProKeyboardMouseView.ProSubmode(rawValue: proSubmodeRaw) ?? .keyboard
+                        if currentSubmode == .keyboard {
+                            orientationToggleDivider
+                            orientationToggleButton
                         }
-                }
-                // Submode tabs in landscape for keyboard&mouse view
-                if orientationManager.isLandscape && viewManager.currentView == .keyboardMouseBasic {
-                    BasicKeyboardMouseView(
-                        mouseManager: mouseManager,
-                        keyboardManager: keyboardManager,
-                        orientationManager: orientationManager,
-                        selectedSubmode: $basicSubmode
-                    ).landscapeTabBar
+                    }
                 }
             }
             Spacer()
@@ -240,20 +262,90 @@ struct ContentView: View {
             print("🔝 TopBar rendered with height: 50")
         }
     }
-    
+
+    @ViewBuilder private var proSubmodeSelector: some View {
+        let current = ProKeyboardMouseView.ProSubmode(rawValue: proSubmodeRaw) ?? .keyboard
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 0) {
+                Button { proSubmodeRaw = ProKeyboardMouseView.ProSubmode.keyboard.rawValue } label: {
+                    Image(systemName: "keyboard")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(current == .keyboard ? .purple : .secondary)
+                        .frame(width: 34, height: 34)
+                }
+                Button { proSubmodeRaw = ProKeyboardMouseView.ProSubmode.compose.rawValue } label: {
+                    Image(systemName: "pencil.and.outline")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(current == .compose ? .purple : .secondary)
+                        .frame(width: 34, height: 34)
+                }
+                Button { proSubmodeRaw = ProKeyboardMouseView.ProSubmode.numpad.rawValue } label: {
+                    Image(systemName: "0.square")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(current == .numpad ? .purple : .secondary)
+                        .frame(width: 34, height: 34)
+                }
+            }
+        }
+        .frame(width: 68)
+        .clipped()
+    }
+
+    private var orientationToggleDivider: some View {
+        Divider()
+            .frame(height: 24)
+            .padding(.horizontal, 4)
+    }
+
+    @ViewBuilder private var orientationToggleButton: some View {
+        let currentSubmode = ProKeyboardMouseView.ProSubmode(rawValue: proSubmodeRaw) ?? .keyboard
+        if currentSubmode == .keyboard {
+            Button {
+                orientationManager.toggleOrientationWithInstruction()
+            } label: {
+                Image(systemName: orientationManager.isLandscape ? "rectangle.rotate.landscape" : "rectangle.rotate.portrait")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.secondary)
+                    .frame(width: 34, height: 34)
+            }
+        }
+    }
+
     private var topBarButtons: some View {
         HStack(spacing: 10) {
-            targetOSButton
-            // Show gamepad layout selector only when in gamepad view
             if viewManager.currentView == .gamepad {
-                gamepadEditModeButton
-                gamepadLayoutSelector
+                // Gamepad right-side controls
+                // Gyro mouse toggle
+                Button {
+                    withAnimation {
+                        gyroMouseEnabled.toggle()
+                        if gyroMouseEnabled {
+                            gyroMouseManager.enable()
+                        } else {
+                            gyroMouseManager.disable()
+                        }
+                    }
+                } label: {
+                    Image(systemName: gyroMouseManager.isEnabled ? "motion.sensor.fill" : "motion.sensor")
+                        .font(.system(size: 16))
+                        .foregroundColor(gyroMouseManager.isEnabled ? .cyan : .secondary)
+                        .frame(width: 36, height: 36)
+                }
+                .buttonStyle(.plain)
+
+                bleButton
+            } else {
+                targetOSButton
+                // Show KM Basic setup button between targetOS and BLE
+                if viewManager.currentView == .keyboardMouseBasic {
+                    kmBasicSetupButton
+                }
+                // Show KM Pro setup button between targetOS and BLE
+                if viewManager.currentView == .keyboardMousePro {
+                    kmProSetupButton
+                }
+                bleButton
             }
-            // Show KM Basic setup button between targetOS and BLE
-            if viewManager.currentView == .keyboardMouseBasic {
-                kmBasicSetupButton
-            }
-            bleButton
         }
         .onAppear {
             print("🎯 TopBarButtons appeared - Current view: \(viewManager.currentView.rawValue)")
@@ -291,88 +383,143 @@ struct ContentView: View {
         }
     }
 
-    private var gamepadEditModeButton: some View {
+    private var kmProSetupButton: some View {
         VStack(spacing: 2) {
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isGamepadEditMode.toggle()
-                }
-            }) {
-                Image(systemName: isGamepadEditMode ? "checkmark.circle.fill" : "gearshape.fill")
+            Button(action: { showProSetupSheet = true }) {
+                Image(systemName: "gearshape")
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 24, height: 24)
-                    .foregroundColor(isGamepadEditMode ? .green : .blue)
+                    .frame(width: 20, height: 20)
+                    .foregroundColor(.gray)
             }
-            .frame(width: 40, height: 40)
-            .background(Color.clear)
-            Text(isGamepadEditMode ? "Done" : "Edit")
+            .frame(width: 34, height: 34)
+            .popover(isPresented: $showProSetupSheet, arrowEdge: .top) {
+                NavigationView {
+                    Form {
+                        KmProSettingsView(keyboardManager: keyboardManager)
+                    }
+                    .navigationTitle("Pro Setup")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("Done") { showProSetupSheet = false }
+                        }
+                    }
+                }
+                .frame(minWidth: 320, idealWidth: 380, minHeight: 500)
+            }
+            Text("Setup")
                 .font(.caption2)
                 .foregroundColor(.secondary)
         }
-        .onAppear {
-            print("🎮 GamepadEditModeButton rendered")
-        }
     }
-    
-    private var gamepadLayoutSelector: some View {
-        VStack(spacing: 2) {
-            Menu {
-                ForEach(GamepadLayout.allCases, id: \.self) { layout in
-                    Button(action: {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            selectedGamepadLayout = layout
-                        }
-                    }) {
-                        HStack {
-                            Text(layout.rawValue)
-                            if selectedGamepadLayout == layout {
-                                Spacer()
-                                Image(systemName: "checkmark")
-                                    .foregroundColor(.blue)
-                            }
-                        }
-                    }
-                }
-            } label: {
-                VStack(spacing: 2) {
-                    Image(systemName: "gamecontroller")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 24, height: 24)
-                        .foregroundColor(.blue)
-                    Text(layoutDisplayName(for: selectedGamepadLayout))
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
+
+    // MARK: - Gamepad Top Bar Buttons (left side, replaces hamburger menu)
+
+    @ViewBuilder
+    private var gamepadTopBarButtons: some View {
+        // 1. Menu button (opens sidebar)
+        Button {
+            withAnimation {
+                sidebarVisible = true
             }
-            .frame(width: 40, height: 40)
-            .background(Color.clear)
+        } label: {
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(.primary)
+                .frame(width: 36, height: 36)
         }
-        .onAppear {
-            print("🎮 GamepadLayoutSelector rendered")
+        .buttonStyle(.plain)
+
+        // 2. Edit mode toggle
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isGamepadEditMode.toggle()
+            }
+        } label: {
+            Image(systemName: isGamepadEditMode ? "checkmark.circle.fill" : "square.and.pencil")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(isGamepadEditMode ? .blue : .secondary)
+                .frame(width: 36, height: 36)
+        }
+        .buttonStyle(.plain)
+
+        // 3. Presets cycle button
+        Button {
+            cycleToNextPreset()
+        } label: {
+            Image(systemName: "arrow.left.arrow.right")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(.secondary)
+                .frame(width: 36, height: 36)
+        }
+        .buttonStyle(.plain)
+
+        // 4. Active preset chip
+        Button {
+            showPresetPicker = true
+        } label: {
+            HStack(spacing: 3) {
+                Text(currentPresetDisplayName)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .medium))
+            }
+            .foregroundColor(.primary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color(UIColor.tertiarySystemBackground).opacity(0.85))
+            .cornerRadius(12)
+        }
+        .buttonStyle(.plain)
+
+        // Edit mode buttons (shown only in edit mode)
+        if isGamepadEditMode {
+            Divider().frame(height: 24)
+
+            // Background picker
+            Button {
+                showBackgroundPicker = true
+            } label: {
+                Image(systemName: "photo.on.rectangle")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.primary)
+                    .frame(width: 36, height: 36)
+            }
+            .buttonStyle(.plain)
+
+            // Add module
+            Button {
+                showAddModulePicker = true
+            } label: {
+                Image(systemName: "plus.circle")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.primary)
+                    .frame(width: 36, height: 36)
+            }
+            .buttonStyle(.plain)
+
+            // Mapping hints toggle
+            Button {
+                // TODO: Toggle key mapping hints visibility
+            } label: {
+                Image(systemName: "eye")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.secondary)
+                    .frame(width: 36, height: 36)
+            }
+            .buttonStyle(.plain)
         }
     }
-    
+
     private var targetOSButton: some View {
         VStack(spacing: 2) {
-            Menu {
-                ForEach(TargetOS.allCases, id: \.self) { os in
-                    Button(action: {
-                        aiSettings.targetOS = os
-                    }) {
-                        HStack {
-                            Label(os.displayName, systemImage: os.systemImage)
-                            if aiSettings.targetOS == os {
-                                Spacer()
-                                Image(systemName: "checkmark")
-                                    .foregroundColor(.blue)
-                            }
-                        }
-                    }
-                }
-            } label: {
-                Image(systemName: aiSettings.targetOS.systemImage)
+            Button(action: {
+                showTargetOSDialog = true
+            }) {
+                Image(aiSettings.targetOS.imageName)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 20, height: 20)
@@ -380,9 +527,72 @@ struct ContentView: View {
             }
             .frame(width: 34, height: 34)
             .background(Color.clear)
+            .buttonStyle(.plain)
             Text(aiSettings.targetOS.shortName)
                 .font(.caption2)
                 .foregroundColor(.secondary)
+        }
+    }
+
+    private var targetOSSelectionSheet: some View {
+        ZStack {
+            Color.black.opacity(0.36)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    showTargetOSDialog = false
+                }
+
+            VStack(spacing: 18) {
+                Text("Target OS")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+
+                HStack(spacing: 24) {
+                    ForEach(TargetOS.allCases, id: \.self) { os in
+                        Button {
+                            aiSettings.targetOS = os
+                            showTargetOSDialog = false
+                        } label: {
+                            Image(os.imageName)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .foregroundColor(aiSettings.targetOS == os ? .white : .primary)
+                                .frame(width: 32, height: 32)
+                                .padding(12)
+                                .background(
+                                    Circle()
+                                        .fill(aiSettings.targetOS == os ? Color.accentColor : Color(UIColor.secondarySystemFill))
+                                )
+                                .overlay(
+                                    Circle()
+                                        .stroke(aiSettings.targetOS == os ? Color.accentColor : Color.clear, lineWidth: 2)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 16)
+
+                Button(action: {
+                    showTargetOSDialog = false
+                }) {
+                    Text("Cancel")
+                        .font(.headline)
+                        .foregroundColor(.orange)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color(UIColor.systemBackground))
+                        .cornerRadius(14)
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 16)
+            }
+            .padding(.vertical, 20)
+            .padding(.horizontal, 16)
+            .background(Color(UIColor.secondarySystemBackground))
+            .cornerRadius(24)
+            .frame(maxWidth: 360)
+            .shadow(color: Color.black.opacity(0.25), radius: 20, x: 0, y: 12)
         }
     }
 
@@ -439,9 +649,55 @@ struct ContentView: View {
             .cornerRadius(8)
         }
         .buttonStyle(PlainButtonStyle())
-        .padding(.bottom, 30)
     }
-    
+
+    private var sidebarWelcomeGuideButton: some View {
+        Button(action: {
+            withAnimation {
+                sidebarVisible = false
+            }
+            launchPanelManager.showLaunchPanelAgain()
+        }) {
+            HStack {
+                Image(systemName: "book.fill")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 20, height: 20)
+                    .foregroundColor(.blue)
+                Text("Welcome & Guide")
+                    .font(.body)
+                    .foregroundColor(.primary)
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .background(Color.clear)
+            .cornerRadius(8)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+
+    private var sidebarSidebarLogo: some View {
+        Image("openterface_wordmark")
+            .resizable()
+            .renderingMode(.original)
+            .scaledToFit()
+            .frame(width: 90, height: 18)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 4)
+    }
+
+    private var sidebarVersionDisplay: some View {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+        return Text("v\(version) (\(build))")
+            .font(.caption2)
+            .foregroundColor(.secondary)
+            .frame(maxWidth: .infinity)
+            .multilineTextAlignment(.center)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
+    }
+
     private var sidebarModeSelectionButton: some View {
         Button(action: {
             viewManager.switchToMode(viewManager.currentMode == .basic ? .pro : .basic)
@@ -484,18 +740,81 @@ struct ContentView: View {
                     mouseManager: mouseManager,
                     keyboardManager: keyboardManager,
                     compositeKeyManager: keyboardManager.compositeKeyManager,
-                    orientationManager: orientationManager
+                    orientationManager: orientationManager,
+                    proSubmode: Binding(
+                        get: { ProKeyboardMouseView.ProSubmode(rawValue: proSubmodeRaw) ?? .keyboard },
+                        set: { proSubmodeRaw = $0.rawValue }
+                    )
                 )
                 .id(viewManager.currentView)
             case .gamepad:
-                GamepadView(
-                    orientationManager: orientationManager,
-                    keyboardManager: keyboardManager,
-                    mouseManager: mouseManager,
-                    selectedLayout: selectedGamepadLayout,
-                    isEditMode: isGamepadEditMode
-                )
+                Group {
+                    if let _ = presetRepository.activeDocument {
+                        let docBinding = Binding(
+                            get: { self.presetRepository.activeDocument ?? GamepadPresetDocument() },
+                            set: { self.presetRepository.updateDocument($0) }
+                        )
+                        GamepadDynamicCanvas(
+                            document: docBinding,
+                            keyboardManager: keyboardManager,
+                            mouseManager: mouseManager,
+                            backgroundManager: backgroundManager,
+                            isEditMode: isGamepadEditMode,
+                            isPositionEditMode: false,
+                            isKeyMappingMode: false,
+                            onSaveDocument: { self.presetRepository.saveActiveDocument() }
+                        )
+                        .id("dynamic_\(presetRepository.activePresetId ?? "none")")
+                        .task(id: presetRepository.activePresetId ?? "") {
+                            // Sync preset's background settings to background manager
+                            if let doc = presetRepository.activeDocument {
+                                backgroundManager.loadFromLayout(doc.layout)
+                            }
+                        }
+                    } else {
+                        Text("No preset available")
+                    }
+                }
                 .id(viewManager.currentView)
+                .onAppear {
+                    print("🎮 Gamepad view appeared, locking landscape orientation")
+                    orientationManager.lockToLandscape()
+                    if !orientationManager.isLandscape {
+                        orientationManager.toggleOrientationWithInstruction()
+                    }
+                }
+                .onChange(of: presetRepository.activePresetId) { newId in
+                    print("🔄 Active preset changed to: \(newId ?? "none")")
+                }
+                .fullScreenCover(isPresented: $showPresetPicker) {
+                    PresetPickerView(
+                        repository: presetRepository,
+                        isPresented: $showPresetPicker
+                    )
+                }
+                .sheet(isPresented: $showBackgroundPicker) {
+                    if #available(iOS 16.0, *) {
+                        BackgroundPickerView(
+                            manager: backgroundManager,
+                            isPresented: $showBackgroundPicker,
+                            onSave: {
+                                // Save background settings back to the preset document's layout
+                                if var doc = presetRepository.activeDocument {
+                                    backgroundManager.saveToLayout(&doc.layout)
+                                    presetRepository.updateDocument(doc)
+                                }
+                            }
+                        )
+                    }
+                }
+                .sheet(isPresented: $showAddModulePicker) {
+                    AddModulePicker(
+                        isPresented: $showAddModulePicker,
+                        onAdd: { moduleType in
+                            addModule(ofType: moduleType)
+                        }
+                    )
+                }
             case .numpad:
                 NumPadView(keyboardManager: keyboardManager, orientationManager: orientationManager)
                     .id(viewManager.currentView)
@@ -508,14 +827,30 @@ struct ContentView: View {
             case .voiceInput:
                 VoiceInputView(keyboardManager: keyboardManager)
                     .id(viewManager.currentView)
+            case .presentation:
+                PresentationView(
+                    keyboardManager: keyboardManager,
+                    mouseManager: mouseManager,
+                    orientationManager: orientationManager
+                )
+                .id(viewManager.currentView)
             }
         }
         .onAppear {
             print("🎮 MainContent view type: \(viewManager.currentView.rawValue)")
             print("   Frame: maxWidth=.infinity, maxHeight=.infinity")
         }
+        .onTapGesture {
+        }
         .onChange(of: viewManager.currentView) { newView in
             print("🔄 View switched to: \(newView.rawValue)")
+            if newView != .gamepad {
+                // Stop gyro when leaving gamepad view
+                gyroMouseManager.disable()
+            }
+        }
+        .onChange(of: gyroMouseSensitivity) { newValue in
+            gyroMouseManager.sensitivity = newValue
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -533,7 +868,6 @@ struct ContentView: View {
             .onAppear {
                 print("📐 GEOMETRY DEBUG:")
                 print("  Screen size: \(geometry.size.width) x \(geometry.size.height)")
-                orientationManager.isLandscape = geometry.size.width > geometry.size.height
                 print("  Safe area: top=\(geometry.safeAreaInsets.top), bottom=\(geometry.safeAreaInsets.bottom), leading=\(geometry.safeAreaInsets.leading), trailing=\(geometry.safeAreaInsets.trailing)")
                 print("  Window scene: \(UIApplication.shared.connectedScenes.first)")
                 if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
@@ -544,7 +878,6 @@ struct ContentView: View {
             }
             .onChange(of: geometry.size) { newSize in
                 print("🔄 Geometry changed: \(newSize.width) x \(newSize.height)")
-                orientationManager.isLandscape = newSize.width > newSize.height
             }
             .overlay(
                 // Orientation instruction overlay
@@ -591,9 +924,32 @@ struct ContentView: View {
                         bleManager.connectToDevice(device)
                     }
                 }
+                .onAppear {
+                    if viewManager.currentView == .gamepad {
+                        orientationManager.lockToLandscape()
+                        if !orientationManager.isLandscape {
+                            orientationManager.toggleOrientationWithInstruction()
+                        }
+                    }
+                }
             }
             .sheet(isPresented: $showSettings) {
                 SettingsView()
+            }
+            .overlay(
+                Group {
+                    if showTargetOSDialog {
+                        targetOSSelectionSheet
+                    }
+                }
+            )
+            .onChange(of: showPopup) { isPresented in
+                if isPresented && viewManager.currentView == .gamepad {
+                    orientationManager.lockToLandscape()
+                    if !orientationManager.isLandscape {
+                        orientationManager.toggleOrientationWithInstruction()
+                    }
+                }
             }
             .onAppear {
                 bleManager.showPopupBinding = $showPopup
@@ -627,39 +983,154 @@ struct ContentView: View {
                         if !orientationManager.isLandscape {
                             orientationManager.toggleOrientationWithInstruction()
                         }
-                    } else {
-                        orientationManager.unlockOrientation()
+                        // Restore gyro mouse state if previously enabled
+                        if gyroMouseEnabled {
+                            gyroMouseManager.enable()
+                        }
+                    } else if viewType == .presentation {
+                        orientationManager.lockToPortrait()
+                        // Stop gyro when leaving gamepad
+                        gyroMouseManager.disable()
+                    } else if viewType == .keyboardMousePro {
+                        // Pro keyboard submode manages its own orientation —
+                        // just unlock so the submode's logic takes over.
+                        orientationManager.savedDeviceOrientation = nil
+                        let submode = ProKeyboardMouseView.ProSubmode(rawValue: proSubmodeRaw) ?? .keyboard
+                        if submode == .keyboard {
+                            orientationManager.unlockOrientation()
+                        } else {
+                            orientationManager.lockToPortrait()
+                        }
                     }
+                    // .keyboardMouseBasic manages its own orientation per submode
                 }
                 // Initial setup if app launches directly into Gamepad view
+                // Initial orientation based on view and submode
                 if viewManager.currentView == .gamepad {
-                    // Just lock to landscape, don't force rotation on startup
                     orientationManager.lockToLandscape()
-                    // Set initial game mode if starting with gamepad view
                     keyboardManager.switchToGameMode()
-                } else {
-                    orientationManager.unlockOrientation()
+                } else if viewManager.currentView == .keyboardMousePro {
+                    let submode = ProKeyboardMouseView.ProSubmode(rawValue: proSubmodeRaw) ?? .keyboard
+                    switch submode {
+                    case .compose, .numpad:
+                        orientationManager.lockToPortrait()
+                    case .keyboard:
+                        orientationManager.unlockOrientation()
+                    }
                     // Set initial normal mode for other views
                     keyboardManager.switchToNormalMode()
                 }
             }
+            .onChange(of: launchPanelManager.showLaunchPanel) { isShowing in
+                // When the panel is dismissed, navigate to whatever mode the user selected
+                if !isShowing {
+                    viewManager.switchToView(launchPanelManager.selectedMode)
+                }
+            }
+            .onChange(of: proSubmodeRaw) { newValue in
+                let submode = ProKeyboardMouseView.ProSubmode(rawValue: newValue) ?? .keyboard
+                switch submode {
+                case .compose, .numpad:
+                    // Compose and Numpad are portrait-only — force rotation
+                    orientationManager.lockToPortrait()
+                case .keyboard:
+                    // Restore the physical orientation that was saved before forcing portrait
+                    orientationManager.restoreOrientation()
+                }
+            }
             .onChange(of: orientationManager.isLandscape) { isLandscape in
-                // No longer force orientation repeatedly to avoid flashing
+                // If in compose/numpad and device rotated to landscape, force back to portrait
+                if isLandscape {
+                    let submode = ProKeyboardMouseView.ProSubmode(rawValue: proSubmodeRaw) ?? .keyboard
+                    if submode == .compose || submode == .numpad {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            orientationManager.lockToPortrait()
+                        }
+                    }
+                }
             }
         }
     }
-    
-    // MARK: - Helper Functions
-    
-    private func layoutDisplayName(for layout: GamepadLayout) -> String {
-        switch layout {
-        case .xbox:
-            return "Xbox"
-        case .playStation:
-            return "PS"
-        case .nes:
-            return "NES"
+
+    // MARK: - Preset Cycling
+
+    private func cycleToNextPreset() {
+        let presets = presetRepository.presets
+        guard !presets.isEmpty else { return }
+        let activeId = presetRepository.activePresetId
+        let idx = presets.firstIndex { $0.id == activeId } ?? 0
+        let nextIdx = (idx + 1) % presets.count
+        presetRepository.activatePreset(id: presets[nextIdx].id)
+    }
+
+    private var currentPresetDisplayName: String {
+        if let doc = presetRepository.activeDocument {
+            return doc.meta.displayName
         }
+        return "No Preset"
+    }
+
+    // MARK: - Add Module
+
+    private func addModule(ofType type: AddModuleType) {
+        guard var doc = presetRepository.activeDocument else { return }
+        var newModule: GamepadModule
+
+        switch type {
+        case .dpadStick:
+            // Android: stick_left, type=DPAD, variant=cross, WASD keys (HID: W=26, A=4, S=22, D=7)
+            let id = "stick_left"
+            newModule = GamepadModule(
+                id: id, type: .dpad,
+                anchorX: 0.20, anchorY: 0.50,
+                dpadVariant: "cross",
+                stickUpKey: "W", stickLeftKey: "A", stickDownKey: "S", stickRightKey: "D"
+            )
+            // Derive key from default Up key
+            newModule.derivedKey = "W"
+
+        case .button:
+            // Android: button_N, hidKey=40 (Enter), displayLabel="Btn"
+            let existingButtons = doc.modules.filter { $0.type == .button }
+            let nextNum = existingButtons.count + 1
+            newModule = GamepadModule(
+                id: "button_\(nextNum)", type: .button,
+                anchorX: 0.50, anchorY: 0.55,
+                hidKey: 40, derivedKey: "Enter", displayLabel: "Btn"
+            )
+            // Match scale of existing buttons if any
+            if let firstButton = doc.modules.first(where: { $0.type == .button }) {
+                newModule.scale = firstButton.scale
+            }
+
+        case .touchpad:
+            // Android: touchpad_N, widthNorm=0.28, heightNorm=0.28
+            let existing = doc.modules.filter { $0.type == .touchpad }
+            let num = existing.count + 1
+            newModule = GamepadModule(
+                id: "touchpad_\(num)", type: .touchpad,
+                anchorX: 0.50, anchorY: 0.35,
+                widthNorm: 0.28, heightNorm: 0.28
+            )
+
+        case .scrollStrip:
+            // Android: scroll_strip_N, widthNorm=0.10, heightNorm=0.36, displayLabel="Wheel"
+            let existing = doc.modules.filter { $0.type == .scrollStrip }
+            let num = existing.count + 1
+            let baseX = 0.06 + Double(num - 1) * 0.10
+            newModule = GamepadModule(
+                id: "scroll_strip_\(num)", type: .scrollStrip,
+                anchorX: baseX, anchorY: 0.48,
+                scrollStripSensitivity: 1.0,
+                widthNorm: 0.10, heightNorm: 0.36
+            )
+            newModule.displayLabel = "Wheel"
+        }
+
+        var updatedDoc = doc
+        updatedDoc.modules.append(newModule)
+        presetRepository.updateDocument(updatedDoc)
+        presetRepository.saveActiveDocument()
     }
 }
 

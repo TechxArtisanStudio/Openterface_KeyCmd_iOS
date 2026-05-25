@@ -332,6 +332,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = NSBluetoothAlwaysUsageDescription;
+				INFOPLIST_KEY_NSMotionUsageDescription = "Uses device motion sensors to control the mouse cursor via gyroscope.";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
@@ -390,6 +391,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = NSBluetoothAlwaysUsageDescription;
+				INFOPLIST_KEY_NSMotionUsageDescription = "Uses device motion sensors to control the mouse cursor via gyroscope.";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
@@ -408,7 +410,7 @@
 				CODE_SIGN_ENTITLEMENTS = KeyMod/KeyMod.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEVELOPMENT_ASSET_PATHS = "\"KeyMod/Preview Content\"";
 				DEVELOPMENT_TEAM = NXWD68TXUQ;
 				ENABLE_PREVIEWS = YES;
@@ -450,7 +452,7 @@
 				CODE_SIGN_ENTITLEMENTS = KeyMod/KeyMod.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEVELOPMENT_ASSET_PATHS = "\"KeyMod/Preview Content\"";
 				DEVELOPMENT_TEAM = NXWD68TXUQ;
 				ENABLE_PREVIEWS = YES;

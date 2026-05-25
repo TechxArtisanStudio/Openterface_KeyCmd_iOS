@@ -31,6 +31,15 @@ enum TargetOS: String, CaseIterable, Codable {
         }
     }
 
+    /// Asset name for the OS-specific icon in the asset catalog.
+    var imageName: String {
+        switch self {
+        case .windows: return "targetos_windows"
+        case .macOS:   return "targetos_macos"
+        case .linux:   return "targetos_linux"
+        }
+    }
+
     /// SF Symbol name representing the target OS.
     var systemImage: String {
         switch self {
