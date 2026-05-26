@@ -1247,5 +1247,7 @@ private struct ProModifierKey: View {
                 .foregroundColor(locked || physical ? .white : .primary)
         }
         .frame(height: height)
+        
     }
 }
+

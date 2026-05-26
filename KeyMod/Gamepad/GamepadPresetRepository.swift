@@ -101,6 +101,15 @@ class GamepadPresetRepository: ObservableObject {
               var document = try? decoder.decode(GamepadPresetDocument.self, from: data) else {
             return nil
         }
+        // Deduplicate module IDs — keep first occurrence, reassign duplicates
+        var seenIds: Set<String> = []
+        for i in document.modules.indices {
+            let origId = document.modules[i].id
+            if seenIds.contains(origId) {
+                document.modules[i].id = "\(document.modules[i].type.rawValue)_dup_\(UUID().uuidString.prefix(6))"
+            }
+            seenIds.insert(origId)
+        }
         // Upgrade schema version if needed
         if document.schemaVersion < PresetConstants.currentSchemaVersion {
             document = migrateDocument(document)

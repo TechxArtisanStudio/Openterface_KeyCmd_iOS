@@ -654,7 +654,14 @@ struct ModuleConfigSheet: View {
         guard let index = document.modules.firstIndex(where: { $0.id == module.id }) else { return }
 
         // Common fields for all module types
-        document.modules[index].displayLabel = displayLabel.isEmpty ? nil : displayLabel
+        // Only clear displayLabel if it was never set; preserve existing label when field is empty
+        let newDisplayLabel = displayLabel.isEmpty ? nil : displayLabel
+        let hadOriginalLabel = module.displayLabel != nil && !module.displayLabel!.isEmpty
+        if newDisplayLabel == nil && hadOriginalLabel {
+            document.modules[index].displayLabel = module.displayLabel
+        } else {
+            document.modules[index].displayLabel = newDisplayLabel
+        }
         document.modules[index].scale = moduleScale
 
         // Accent color

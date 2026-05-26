@@ -320,10 +320,17 @@ private struct DraggableModuleWrapper: View {
     }
 }
 
-/// Isolated drag layer — holds its own @GestureState so drag updates only
-/// re-render this view, not the parent canvas or sibling modules.
-/// Uses .position (not .offset) so the gesture hit-area moves together
-/// with the visual, keeping tracking locked to the finger.
+/// Isolated drag layer — mirrors Android's `onTouchEvent` approach:
+///
+/// Android: single `onTouchEvent` on the View → checks `componentBounds` → mutates `anchorX/Y` → `invalidate()`.
+/// Here: ONE `DragGesture` on the OUTER ZStack so NOTHING can intercept touches (unlike the previous
+/// approach with a Rectangle behind content in a ZStack, where content still received touches first).
+///
+/// State flow:
+/// 1. `onChanged` captures start position on first call, tracks translation via `@State` (not `@GestureState`)
+/// 2. Position = module.anchor * canvasSize + translation during drag
+/// 3. `onEnded` writes normalized anchor back to document → triggers SwiftUI re-render via `@Binding`
+/// 4. New `DraggingOverlay` instance created from updated `module`, position stable
 private struct DraggingOverlay<Content: View>: View {
     @Binding var document: GamepadPresetDocument
     let baseX: CGFloat
@@ -333,27 +340,42 @@ private struct DraggingOverlay<Content: View>: View {
     let onSaveDocument: () -> Void
     @ViewBuilder let content: () -> Content
 
-    @GestureState private var dragOffset: CGSize = .zero
+    @State private var dragOffset: CGSize = .zero
+    @State private var dragStartX: CGFloat = 0
+    @State private var dragStartY: CGFloat = 0
+    @State private var isDragging: Bool = false
 
     var body: some View {
+        let currentBaseX = isDragging ? dragStartX : CGFloat(module.anchorX) * canvasSize.width
+        let currentBaseY = isDragging ? dragStartY : CGFloat(module.anchorY) * canvasSize.height
+
         let dragGesture = DragGesture(minimumDistance: 4)
-            .updating($dragOffset) { value, state, _ in
-                state = value.translation
+            .onChanged { value in
+                if !isDragging {
+                    dragStartX = CGFloat(module.anchorX) * canvasSize.width
+                    dragStartY = CGFloat(module.anchorY) * canvasSize.height
+                    isDragging = true
+                }
+                dragOffset = value.translation
             }
             .onEnded { value in
-                let newX = module.anchorX + Double(value.translation.width / canvasSize.width)
-                let newY = module.anchorY + Double(value.translation.height / canvasSize.height)
+                let finalX = currentBaseX + value.translation.width
+                let finalY = currentBaseY + value.translation.height
+                let normX = max(0, min(1, Double(finalX / canvasSize.width)))
+                let normY = max(0, min(1, Double(finalY / canvasSize.height)))
                 if let index = document.modules.firstIndex(where: { $0.id == module.id }) {
-                    document.modules[index].anchorX = max(0, min(1, newX))
-                    document.modules[index].anchorY = max(0, min(1, newY))
+                    document.modules[index].anchorX = normX
+                    document.modules[index].anchorY = normY
                 }
+                dragOffset = .zero
+                isDragging = false
                 onSaveDocument()
             }
 
         content()
             .position(
-                x: baseX + dragOffset.width,
-                y: baseY + dragOffset.height
+                x: currentBaseX + dragOffset.width,
+                y: currentBaseY + dragOffset.height
             )
             .gesture(dragGesture)
     }
