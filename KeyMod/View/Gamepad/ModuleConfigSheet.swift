@@ -156,6 +156,13 @@ struct ModuleConfigSheet: View {
         } message: {
             Text("Create a copy of \(module.id)?")
         }
+        .sheet(isPresented: $showKeyPicker) {
+            KeyPickerSheet(
+                isPresented: $showKeyPicker,
+                selectedKey: keyBinding(for: keyPickerTarget ?? .mappedKey),
+                selectedHidKey: keyHidBinding()
+            )
+        }
     }
 
     // MARK: - Module Settings (type-specific)
@@ -605,6 +612,24 @@ struct ModuleConfigSheet: View {
                 .cornerRadius(8)
         }
         .buttonStyle(.plain)
+    }
+
+    /// Return a binding to the correct @State variable for the given picker target.
+    func keyBinding(for target: KeyPickerTarget) -> Binding<String> {
+        switch target {
+        case .up: $stickUpKey
+        case .left: $stickLeftKey
+        case .down: $stickDownKey
+        case .right: $stickRightKey
+        case .center: $stickCenterKey
+        case .mappedKey: $derivedKey
+        }
+    }
+
+    /// Return a binding to the hidKey state (used for mapped key only).
+    /// For stick keys, hidKey is fixed; for mapped key we read/write hidKey directly.
+    func keyHidBinding() -> Binding<Int> {
+        $hidKey
     }
 
     // MARK: - Gesture Lock Picker

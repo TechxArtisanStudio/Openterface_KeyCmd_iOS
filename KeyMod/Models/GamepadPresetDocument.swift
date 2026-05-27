@@ -89,7 +89,7 @@ struct LayoutGlobals: Codable, Equatable {
 
 // MARK: - Gamepad Module
 
-struct GamepadModule: Codable, Equatable, Identifiable {
+struct GamepadModule: Codable, Equatable, Identifiable, Hashable {
     var id: String
     var type: ModuleType
     var zIndex: Int = 0
@@ -218,6 +218,34 @@ struct GamepadModule: Codable, Equatable, Identifiable {
         lhs.id == rhs.id
     }
 
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(type)
+        hasher.combine(zIndex)
+        hasher.combine(scale)
+        hasher.combine(anchorX)
+        hasher.combine(anchorY)
+        hasher.combine(moduleAccentArgb)
+        hasher.combine(displayLabel)
+        hasher.combine(hidKey)
+        hasher.combine(derivedKey)
+        hasher.combine(buttonCornerRadiusNorm)
+        hasher.combine(buttonWidthRatio)
+        hasher.combine(buttonHeightRatio)
+        hasher.combine(dpadVariant)
+        hasher.combine(stickUpKey)
+        hasher.combine(stickLeftKey)
+        hasher.combine(stickDownKey)
+        hasher.combine(stickRightKey)
+        hasher.combine(stickMouseSensitivity)
+        hasher.combine(widthNorm)
+        hasher.combine(heightNorm)
+        hasher.combine(mouseButton)
+        hasher.combine(scrollStripSensitivity)
+        hasher.combine(turboEnabled)
+        hasher.combine(gestureLock)
+    }
+
     var hasGestureLock: Bool {
         gestureLock != nil || keyboardHoldLock == true
     }
@@ -225,14 +253,14 @@ struct GamepadModule: Codable, Equatable, Identifiable {
 
 // MARK: - Gesture Lock Config
 
-struct GestureLockConfig: Codable, Equatable {
+struct GestureLockConfig: Codable, Equatable, Hashable {
     var upLeft: GestureLockSlotDetail?
     var upRight: GestureLockSlotDetail?
     var downLeft: GestureLockSlotDetail?
     var downRight: GestureLockSlotDetail?
 }
 
-struct GestureLockSlotDetail: Codable, Equatable {
+struct GestureLockSlotDetail: Codable, Equatable, Hashable {
     var action: String
     var hidKey: Int?
     var modifierMask: Int?
