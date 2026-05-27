@@ -69,6 +69,19 @@ struct GamepadDynamicCanvas: View {
                         onSaveDocument: onSaveDocument
                     )
                 }
+
+                // Openterface logo watermark at bottom center
+                VStack {
+                    Spacer()
+                    Image("openterface_wordmark")
+                        .resizable()
+                        .renderingMode(.original)
+                        .scaledToFit()
+                        .frame(width: 70, height: 14)
+                        .opacity(0.4)
+                        .padding(.bottom, 8)
+                }
+                .allowsHitTesting(false)
             }
         }
         .onDisappear {
