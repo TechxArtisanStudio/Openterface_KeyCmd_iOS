@@ -156,6 +156,13 @@ struct ModuleConfigSheet: View {
         } message: {
             Text("Create a copy of \(module.id)?")
         }
+        .sheet(isPresented: $showKeyPicker) {
+            KeyPickerSheet(
+                isPresented: $showKeyPicker,
+                selectedKey: keyBinding(for: keyPickerTarget ?? .mappedKey),
+                selectedHidKey: keyHidBinding()
+            )
+        }
     }
 
     // MARK: - Module Settings (type-specific)
@@ -607,6 +614,24 @@ struct ModuleConfigSheet: View {
         .buttonStyle(.plain)
     }
 
+    /// Return a binding to the correct @State variable for the given picker target.
+    func keyBinding(for target: KeyPickerTarget) -> Binding<String> {
+        switch target {
+        case .up: $stickUpKey
+        case .left: $stickLeftKey
+        case .down: $stickDownKey
+        case .right: $stickRightKey
+        case .center: $stickCenterKey
+        case .mappedKey: $derivedKey
+        }
+    }
+
+    /// Return a binding to the hidKey state (used for mapped key only).
+    /// For stick keys, hidKey is fixed; for mapped key we read/write hidKey directly.
+    func keyHidBinding() -> Binding<Int> {
+        $hidKey
+    }
+
     // MARK: - Gesture Lock Picker
 
     private func gestureLockPicker(_ label: String, selection: Binding<String>) -> some View {
@@ -654,7 +679,14 @@ struct ModuleConfigSheet: View {
         guard let index = document.modules.firstIndex(where: { $0.id == module.id }) else { return }
 
         // Common fields for all module types
-        document.modules[index].displayLabel = displayLabel.isEmpty ? nil : displayLabel
+        // Only clear displayLabel if it was never set; preserve existing label when field is empty
+        let newDisplayLabel = displayLabel.isEmpty ? nil : displayLabel
+        let hadOriginalLabel = module.displayLabel != nil && !module.displayLabel!.isEmpty
+        if newDisplayLabel == nil && hadOriginalLabel {
+            document.modules[index].displayLabel = module.displayLabel
+        } else {
+            document.modules[index].displayLabel = newDisplayLabel
+        }
         document.modules[index].scale = moduleScale
 
         // Accent color

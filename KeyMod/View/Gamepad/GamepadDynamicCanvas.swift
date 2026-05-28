@@ -22,6 +22,7 @@ struct GamepadDynamicCanvas: View {
     // Drag state is now local to each DraggableModuleWrapper via @GestureState
     @State private var showModuleConfig = false
     @State private var configModuleId = ""
+    @State private var showContextMenu = false
 
     init(
         document: Binding<GamepadPresetDocument>,
@@ -54,7 +55,7 @@ struct GamepadDynamicCanvas: View {
                 ForEach(sortedModules) { module in
                     DraggableModuleWrapper(
                         document: $document,
-                        module: module,
+                        moduleId: module.id,
                         canvasSize: geometry.size,
                         isEditMode: isEditMode,
                         isPositionEditMode: isPositionEditMode,
@@ -68,12 +69,61 @@ struct GamepadDynamicCanvas: View {
                         onSaveDocument: onSaveDocument
                     )
                 }
+
+                // Openterface logo watermark at bottom center
+                VStack {
+                    Spacer()
+                    Image("openterface_wordmark")
+                        .resizable()
+                        .renderingMode(.original)
+                        .scaledToFit()
+                        .frame(width: 70, height: 14)
+                        .opacity(0.4)
+                        .padding(.bottom, 8)
+                }
+                .allowsHitTesting(false)
             }
         }
         .onDisappear {
             turboEngine.stop()
             keyboardManager.releaseAllKeys()
             mouseManager.handleDragEnded()
+        }
+        .overlay {
+            if showContextMenu {
+                Color.black.opacity(0.35)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        showContextMenu = false
+                    }
+                if let module = document.modules.first(where: { $0.id == configModuleId }) {
+                    let displayName = module.displayLabel?.isEmpty == false ? module.displayLabel! : module.id
+                    GamepadModuleContextMenu(
+                        moduleId: module.id,
+                        moduleDisplayName: displayName,
+                        showConfigure: canConfigure(module),
+                        showReorder: canReorderLayers(),
+                        showRemove: !isEssentialModule(module.id),
+                        onConfigure: {
+                            showContextMenu = false
+                            showModuleConfig = true
+                        },
+                        onBringToFront: {
+                            bringModuleToFront(module.id)
+                            showContextMenu = false
+                        },
+                        onSendToBack: {
+                            sendModuleToBack(module.id)
+                            showContextMenu = false
+                        },
+                        onRemove: {
+                            removeModule(module.id)
+                            showContextMenu = false
+                        },
+                        isPresented: $showContextMenu
+                    )
+                }
+            }
         }
         .sheet(isPresented: $showModuleConfig) {
             if let module = document.modules.first(where: { $0.id == configModuleId }) {
@@ -145,7 +195,47 @@ struct GamepadDynamicCanvas: View {
 
     private func handleModuleConfig(_ moduleId: String) {
         configModuleId = moduleId
-        showModuleConfig = true
+        showContextMenu = true
+    }
+
+    // MARK: - Context Menu Helpers
+
+    private func canConfigure(_ module: GamepadModule) -> Bool {
+        switch module.type {
+        case .button, .shoulder, .trigger, .dpad, .analogStick:
+            return true
+        case .touchpad, .scrollStrip, .mouseButton:
+            return false
+        }
+    }
+
+    private func canReorderLayers() -> Bool {
+        document.modules.count >= 2
+    }
+
+    private func isEssentialModule(_ id: String) -> Bool {
+        let essentialIds = ["stick_left", "stick_right", "shoulder_l", "shoulder_r", "trigger_l", "trigger_r"]
+        return essentialIds.contains(id)
+    }
+
+    private func bringModuleToFront(_ moduleId: String) {
+        guard let index = document.modules.firstIndex(where: { $0.id == moduleId }) else { return }
+        let maxZ = document.modules.map { $0.zIndex }.max() ?? 0
+        document.modules[index].zIndex = maxZ + 1
+        onSaveDocument()
+    }
+
+    private func sendModuleToBack(_ moduleId: String) {
+        guard let index = document.modules.firstIndex(where: { $0.id == moduleId }) else { return }
+        let minZ = document.modules.map { $0.zIndex }.min() ?? 0
+        document.modules[index].zIndex = minZ - 1
+        onSaveDocument()
+    }
+
+    private func removeModule(_ moduleId: String) {
+        guard let index = document.modules.firstIndex(where: { $0.id == moduleId }) else { return }
+        document.modules.remove(at: index)
+        onSaveDocument()
     }
 
     // MARK: - Helpers
@@ -208,7 +298,7 @@ struct GamepadDynamicCanvas: View {
 /// siblings stay completely still, preventing gesture interruption.
 private struct DraggableModuleWrapper: View {
     @Binding var document: GamepadPresetDocument
-    let module: GamepadModule
+    let moduleId: String
     let canvasSize: CGSize
     let isEditMode: Bool
     let isPositionEditMode: Bool
@@ -221,70 +311,83 @@ private struct DraggableModuleWrapper: View {
     let onModuleConfig: (String) -> Void
     let onSaveDocument: () -> Void
 
-    var body: some View {
-        let layoutScale = max(0.35, min(1.35, min(canvasSize.width, canvasSize.height) / 800.0))
-        let moduleSize = self.moduleSize(layoutScale: layoutScale)
-        let baseX = CGFloat(module.anchorX) * canvasSize.width
-        let baseY = CGFloat(module.anchorY) * canvasSize.height
-
-        let moduleContent = GamepadModuleView(
-            module: module,
-            globalSettings: document.layout,
-            keyboardManager: keyboardManager,
-            mouseManager: mouseManager,
-            turboEngine: turboEngine,
-            isEditMode: isEditMode,
-            isPositionEditMode: isPositionEditMode,
-            isKeyMappingMode: isKeyMappingMode,
-            showSettingsButton: false,
-            layoutScale: layoutScale,
-            canvasSize: canvasSize,
-            onModulePress: onModulePress,
-            onModuleRelease: onModuleRelease,
-            onModuleConfig: onModuleConfig
-        )
-        .allowsHitTesting(!isEditMode)
-
-        let wrapper = ZStack {
-            if isEditMode {
-                Color.clear
-                    .contentShape(Rectangle())
-            }
-            moduleContent
-        }
-        .frame(width: moduleSize.width, height: moduleSize.height)
-        .overlay(alignment: .topTrailing) {
-            if isEditMode {
-                Button { onModuleConfig(module.id) } label: {
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.orange)
-                        .padding(4)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-
-        // Position the wrapper at its base location using .position.
-        // .position moves both the visual AND the hit area together,
-        // so the gesture stays anchored to the finger throughout the drag.
-        if isEditMode {
-            DraggingOverlay(
-                document: $document,
-                baseX: baseX,
-                baseY: baseY,
-                canvasSize: canvasSize,
-                module: module,
-                onSaveDocument: onSaveDocument,
-                content: { wrapper }
-            )
-        } else {
-            wrapper
-                .position(x: baseX, y: baseY)
-        }
+    private var module: GamepadModule? {
+        document.modules.first(where: { $0.id == moduleId })
     }
 
-    private func moduleSize(layoutScale: CGFloat) -> CGSize {
+    var body: some View {
+        Group {
+            if let module {
+                let layoutScale = max(0.35, min(1.35, min(canvasSize.width, canvasSize.height) / 800.0))
+                let moduleSize = self.moduleSize(module: module, layoutScale: layoutScale)
+                let baseX = CGFloat(module.anchorX) * canvasSize.width
+                let baseY = CGFloat(module.anchorY) * canvasSize.height
+
+                let moduleContent = GamepadModuleView(
+                    module: module,
+                    globalSettings: document.layout,
+                    keyboardManager: keyboardManager,
+                    mouseManager: mouseManager,
+                    turboEngine: turboEngine,
+                    isEditMode: isEditMode,
+                    isPositionEditMode: isPositionEditMode,
+                    isKeyMappingMode: isKeyMappingMode,
+                    showSettingsButton: false,
+                    layoutScale: layoutScale,
+                    canvasSize: canvasSize,
+                    onModulePress: onModulePress,
+                    onModuleRelease: onModuleRelease,
+                    onModuleConfig: onModuleConfig
+                )
+                .allowsHitTesting(!isEditMode)
+
+                let wrapper = ZStack {
+                    if isEditMode {
+                        Color.clear
+                            .contentShape(Rectangle())
+                    }
+                    moduleContent
+                }
+                .frame(width: moduleSize.width, height: moduleSize.height)
+                .overlay(alignment: .topTrailing) {
+                    if isEditMode {
+                        Button { onModuleConfig(module.id) } label: {
+                            Image(systemName: "gearshape.fill")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.orange)
+                                .padding(4)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                // Position the wrapper at its base location using .position.
+                // .position moves both the visual AND the hit area together,
+                // so the gesture stays anchored to the finger throughout the drag.
+                if isEditMode {
+                    DraggingOverlay(
+                        document: $document,
+                        baseX: baseX,
+                        baseY: baseY,
+                        canvasSize: canvasSize,
+                        module: module,
+                        onSaveDocument: onSaveDocument,
+                        content: { wrapper }
+                    )
+                } else {
+                    wrapper
+                        .position(x: baseX, y: baseY)
+                }
+            } else {
+                Color.clear
+            }
+        }
+        // Force re-render when the module's content changes (not just its ID).
+        // ForEach only tracks identity changes; this ensures color/label updates propagate.
+        .id("\(moduleId)_\(module?.hashValue ?? 0)")
+    }
+
+    private func moduleSize(module: GamepadModule, layoutScale: CGFloat) -> CGSize {
         switch module.type {
         case .button:
             let baseRadius = 100.0 * layoutScale * CGFloat(module.scale)
@@ -320,10 +423,17 @@ private struct DraggableModuleWrapper: View {
     }
 }
 
-/// Isolated drag layer — holds its own @GestureState so drag updates only
-/// re-render this view, not the parent canvas or sibling modules.
-/// Uses .position (not .offset) so the gesture hit-area moves together
-/// with the visual, keeping tracking locked to the finger.
+/// Isolated drag layer — mirrors Android's `onTouchEvent` approach:
+///
+/// Android: single `onTouchEvent` on the View → checks `componentBounds` → mutates `anchorX/Y` → `invalidate()`.
+/// Here: ONE `DragGesture` on the OUTER ZStack so NOTHING can intercept touches (unlike the previous
+/// approach with a Rectangle behind content in a ZStack, where content still received touches first).
+///
+/// State flow:
+/// 1. `onChanged` captures start position on first call, tracks translation via `@State` (not `@GestureState`)
+/// 2. Position = module.anchor * canvasSize + translation during drag
+/// 3. `onEnded` writes normalized anchor back to document → triggers SwiftUI re-render via `@Binding`
+/// 4. New `DraggingOverlay` instance created from updated `module`, position stable
 private struct DraggingOverlay<Content: View>: View {
     @Binding var document: GamepadPresetDocument
     let baseX: CGFloat
@@ -333,27 +443,42 @@ private struct DraggingOverlay<Content: View>: View {
     let onSaveDocument: () -> Void
     @ViewBuilder let content: () -> Content
 
-    @GestureState private var dragOffset: CGSize = .zero
+    @State private var dragOffset: CGSize = .zero
+    @State private var dragStartX: CGFloat = 0
+    @State private var dragStartY: CGFloat = 0
+    @State private var isDragging: Bool = false
 
     var body: some View {
+        let currentBaseX = isDragging ? dragStartX : CGFloat(module.anchorX) * canvasSize.width
+        let currentBaseY = isDragging ? dragStartY : CGFloat(module.anchorY) * canvasSize.height
+
         let dragGesture = DragGesture(minimumDistance: 4)
-            .updating($dragOffset) { value, state, _ in
-                state = value.translation
+            .onChanged { value in
+                if !isDragging {
+                    dragStartX = CGFloat(module.anchorX) * canvasSize.width
+                    dragStartY = CGFloat(module.anchorY) * canvasSize.height
+                    isDragging = true
+                }
+                dragOffset = value.translation
             }
             .onEnded { value in
-                let newX = module.anchorX + Double(value.translation.width / canvasSize.width)
-                let newY = module.anchorY + Double(value.translation.height / canvasSize.height)
+                let finalX = currentBaseX + value.translation.width
+                let finalY = currentBaseY + value.translation.height
+                let normX = max(0, min(1, Double(finalX / canvasSize.width)))
+                let normY = max(0, min(1, Double(finalY / canvasSize.height)))
                 if let index = document.modules.firstIndex(where: { $0.id == module.id }) {
-                    document.modules[index].anchorX = max(0, min(1, newX))
-                    document.modules[index].anchorY = max(0, min(1, newY))
+                    document.modules[index].anchorX = normX
+                    document.modules[index].anchorY = normY
                 }
+                dragOffset = .zero
+                isDragging = false
                 onSaveDocument()
             }
 
         content()
             .position(
-                x: baseX + dragOffset.width,
-                y: baseY + dragOffset.height
+                x: currentBaseX + dragOffset.width,
+                y: currentBaseY + dragOffset.height
             )
             .gesture(dragGesture)
     }

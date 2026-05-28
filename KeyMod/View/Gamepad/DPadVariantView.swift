@@ -62,13 +62,13 @@ class DPadUIView: UIView {
     // Direction label layers
     private var labelLayers: [UILabel] = []
 
-    init(variant: DPadVariant, baseRadius: CGFloat, directionLabels: [String: String] = [:]) {
+    init(variant: DPadVariant, baseRadius: CGFloat, directionLabels: [String: String] = [:], isEditMode: Bool = false) {
         self.variant = variant
         self.baseRadius = baseRadius
         self.directionLabels = directionLabels
         self.accentColor = UIColor(red: 0.15, green: 0.15, blue: 0.18, alpha: 1.0)
         super.init(frame: .zero)
-        isUserInteractionEnabled = true
+        isUserInteractionEnabled = !isEditMode
         isMultipleTouchEnabled = true
         backgroundColor = .clear
     }
@@ -449,6 +449,7 @@ struct DPadViewRepresentable: UIViewRepresentable {
     let variant: DPadVariant
     let baseRadius: CGFloat
     let directionLabels: [String: String]
+    let isEditMode: Bool
     @ObservedObject var buttonState: DPadButtonState
     var onDirection: ((String) -> Void)?
     var onDirectionUp: ((String) -> Void)?
@@ -457,7 +458,8 @@ struct DPadViewRepresentable: UIViewRepresentable {
         let view = DPadUIView(
             variant: variant,
             baseRadius: baseRadius,
-            directionLabels: directionLabels
+            directionLabels: directionLabels,
+            isEditMode: isEditMode
         )
         view.onDirectionPress = { [weak buttonState] dir in
             buttonState?.press(dir)
@@ -472,6 +474,7 @@ struct DPadViewRepresentable: UIViewRepresentable {
 
     func updateUIView(_ uiView: DPadUIView, context: Context) {
         uiView.setPressedDirections(buttonState.pressedDirections)
+        uiView.isUserInteractionEnabled = !isEditMode
     }
 }
 
@@ -495,6 +498,7 @@ struct DPadVariantView: View {
                 variant: variant,
                 baseRadius: baseRadius,
                 directionLabels: directionLabels,
+                isEditMode: isEditMode,
                 buttonState: buttonState,
                 onDirection: onDirection,
                 onDirectionUp: onDirectionUp

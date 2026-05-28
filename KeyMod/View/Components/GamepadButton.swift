@@ -571,6 +571,7 @@ struct MultiTouchDragButton: UIViewRepresentable {
     let pressedColor: UIColor
     let cornerRadiusNorm: Double
     let borderColor: UIColor
+    let isEnabled: Bool
     var onPress: (() -> Void)?
     var onDrag: ((CGSize) -> Void)?
     var onRelease: (() -> Void)?
@@ -581,6 +582,7 @@ struct MultiTouchDragButton: UIViewRepresentable {
         pressedColor: UIColor = .systemGray,
         cornerRadiusNorm: Double = 1.0,
         borderColor: UIColor = .clear,
+        isEnabled: Bool = true,
         onPress: (() -> Void)? = nil,
         onDrag: ((CGSize) -> Void)? = nil,
         onRelease: (() -> Void)? = nil
@@ -590,6 +592,7 @@ struct MultiTouchDragButton: UIViewRepresentable {
         self.pressedColor = pressedColor
         self.cornerRadiusNorm = cornerRadiusNorm
         self.borderColor = borderColor
+        self.isEnabled = isEnabled
         self.onPress = onPress
         self.onDrag = onDrag
         self.onRelease = onRelease
@@ -606,11 +609,12 @@ struct MultiTouchDragButton: UIViewRepresentable {
         view.onPress = { self.onPress?() }
         view.onDrag = { translation in self.onDrag?(translation) }
         view.onRelease = { self.onRelease?() }
+        view.isUserInteractionEnabled = isEnabled
         return view
     }
 
     func updateUIView(_ uiView: DragTrackingButtonView, context: Context) {
-        // Appearance updates handled internally
+        uiView.isUserInteractionEnabled = isEnabled
     }
 }
 

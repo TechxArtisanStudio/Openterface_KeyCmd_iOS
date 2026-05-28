@@ -576,11 +576,7 @@ class KeyboardManager: ObservableObject {
 
     // Send keyboard data via BLE
     private func sendKeyboardData(modifier: UInt8, keyCodes: [UInt8]) {
-        var packet = Keymod.buildKeyboard(modifiers: modifier, keys: keyCodes)
-        // Override header byte 3 for game mode (Core uses 0x02, game mode uses 0x12)
-        if isGameMode {
-            packet[3] = 0x12
-        }
+        let packet = Keymod.buildKeyboard(modifiers: modifier, keys: keyCodes)
         bleManager.sendTouchData(data: packet)
     }
     

@@ -303,7 +303,7 @@ struct ContentView: View {
             Button {
                 orientationManager.toggleOrientationWithInstruction()
             } label: {
-                Image(systemName: orientationManager.isLandscape ? "rectangle.rotate.landscape" : "rectangle.rotate.portrait")
+                Image(systemName: orientationManager.isLandscape ? "rectangle.portrait.arrowtriangle.2.inout" : "rectangle.arrowtriangle.2.inout")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(.secondary)
                     .frame(width: 34, height: 34)
@@ -326,7 +326,7 @@ struct ContentView: View {
                         }
                     }
                 } label: {
-                    Image(systemName: gyroMouseManager.isEnabled ? "motion.sensor.fill" : "motion.sensor")
+                    Image(systemName: gyroMouseManager.isEnabled ? "gyroscope.fill" : "gyroscope")
                         .font(.system(size: 16))
                         .foregroundColor(gyroMouseManager.isEnabled ? .cyan : .secondary)
                         .frame(width: 36, height: 36)
@@ -844,9 +844,16 @@ struct ContentView: View {
         }
         .onChange(of: viewManager.currentView) { newView in
             print("🔄 View switched to: \(newView.rawValue)")
-            if newView != .gamepad {
-                // Stop gyro when leaving gamepad view
+            if newView == .gamepad {
+                // Entering gamepad: enable game mode and clear stale key state
+                // from any previous view (keyboard/mouse could leave modifiers or
+                // pressed keys active).
+                keyboardManager.releaseAllKeys()
+                keyboardManager.switchToGameMode()
+            } else {
+                // Leaving gamepad: disable gyro and restore normal keyboard mode
                 gyroMouseManager.disable()
+                keyboardManager.switchToNormalMode()
             }
         }
         .onChange(of: gyroMouseSensitivity) { newValue in
@@ -1075,51 +1082,69 @@ struct ContentView: View {
     private func addModule(ofType type: AddModuleType) {
         guard var doc = presetRepository.activeDocument else { return }
         var newModule: GamepadModule
+        let existingIds = Set(doc.modules.map { $0.id })
 
         switch type {
         case .dpadStick:
-            // Android: stick_left, type=DPAD, variant=cross, WASD keys (HID: W=26, A=4, S=22, D=7)
-            let id = "stick_left"
+            let existing = doc.modules.filter { $0.type == .dpad || $0.type == .analogStick }
+            let num = existing.count + 1
+            var id = "stick_left_\(num)"
+            var n = num
+            while existingIds.contains(id) {
+                n += 1
+                id = "stick_left_\(n)"
+            }
             newModule = GamepadModule(
                 id: id, type: .dpad,
                 anchorX: 0.20, anchorY: 0.50,
                 dpadVariant: "cross",
                 stickUpKey: "W", stickLeftKey: "A", stickDownKey: "S", stickRightKey: "D"
             )
-            // Derive key from default Up key
             newModule.derivedKey = "W"
 
         case .button:
-            // Android: button_N, hidKey=40 (Enter), displayLabel="Btn"
             let existingButtons = doc.modules.filter { $0.type == .button }
-            let nextNum = existingButtons.count + 1
+            var num = existingButtons.count + 1
+            var id = "button_\(num)"
+            while existingIds.contains(id) {
+                num += 1
+                id = "button_\(num)"
+            }
             newModule = GamepadModule(
-                id: "button_\(nextNum)", type: .button,
+                id: id, type: .button,
                 anchorX: 0.50, anchorY: 0.55,
-                hidKey: 40, derivedKey: "Enter", displayLabel: "Btn"
+                hidKey: 40, derivedKey: "Enter", displayLabel: "Btn \(num)"
             )
-            // Match scale of existing buttons if any
             if let firstButton = doc.modules.first(where: { $0.type == .button }) {
                 newModule.scale = firstButton.scale
             }
 
         case .touchpad:
-            // Android: touchpad_N, widthNorm=0.28, heightNorm=0.28
             let existing = doc.modules.filter { $0.type == .touchpad }
-            let num = existing.count + 1
+            var num = existing.count + 1
+            var id = "touchpad_\(num)"
+            while existingIds.contains(id) {
+                num += 1
+                id = "touchpad_\(num)"
+            }
             newModule = GamepadModule(
-                id: "touchpad_\(num)", type: .touchpad,
+                id: id, type: .touchpad,
                 anchorX: 0.50, anchorY: 0.35,
                 widthNorm: 0.28, heightNorm: 0.28
             )
 
         case .scrollStrip:
-            // Android: scroll_strip_N, widthNorm=0.10, heightNorm=0.36, displayLabel="Wheel"
             let existing = doc.modules.filter { $0.type == .scrollStrip }
             let num = existing.count + 1
-            let baseX = 0.06 + Double(num - 1) * 0.10
+            var id = "scroll_strip_\(num)"
+            var n = num
+            while existingIds.contains(id) {
+                n += 1
+                id = "scroll_strip_\(n)"
+            }
+            let baseX = 0.06 + Double(n - 1) * 0.10
             newModule = GamepadModule(
-                id: "scroll_strip_\(num)", type: .scrollStrip,
+                id: id, type: .scrollStrip,
                 anchorX: baseX, anchorY: 0.48,
                 scrollStripSensitivity: 1.0,
                 widthNorm: 0.10, heightNorm: 0.36

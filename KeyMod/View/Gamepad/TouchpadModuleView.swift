@@ -44,6 +44,7 @@ struct TouchpadModuleUIViewRepresentable: UIViewRepresentable {
         let view = TouchpadModuleUIView()
         view.mouseManager = mouseManager
         view.isEditMode = isEditMode
+        view.isUserInteractionEnabled = !isEditMode
         view.backgroundColor = .clear
         return view
     }
@@ -51,6 +52,7 @@ struct TouchpadModuleUIViewRepresentable: UIViewRepresentable {
     func updateUIView(_ uiView: TouchpadModuleUIView, context: Context) {
         uiView.mouseManager = mouseManager
         uiView.isEditMode = isEditMode
+        uiView.isUserInteractionEnabled = !isEditMode
     }
 }
 

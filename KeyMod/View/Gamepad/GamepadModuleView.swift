@@ -110,6 +110,7 @@ struct GamepadModuleView: View {
             pressedColor: accentPressedUIColor,
             cornerRadiusNorm: module.buttonCornerRadiusNorm,
             borderColor: .clear,
+            isEnabled: !isEditMode,
             onPress: {
                 if !isPressed {
                     isPressed = true
@@ -263,6 +264,7 @@ struct GamepadModuleView: View {
             normalColor: UIColor(red: 0.35, green: 0.35, blue: 0.38, alpha: 1.0),
             pressedColor: .systemGray,
             cornerRadiusNorm: 1.0,  // Perfect circle
+            isEnabled: !isEditMode,
             onPress: {
                 if !isPressed {
                     isPressed = true
@@ -302,6 +304,7 @@ struct GamepadModuleView: View {
             normalColor: UIColor(red: 0.35, green: 0.37, blue: 0.4, alpha: 1.0),
             pressedColor: accentPressedUIColor,
             cornerRadiusNorm: 0.47,  // ~8px on 34pt height, matching Android shoulder
+            isEnabled: !isEditMode,
             onPress: {
                 if !isPressed {
                     isPressed = true
@@ -335,6 +338,7 @@ struct GamepadModuleView: View {
             normalColor: UIColor(red: 0.29, green: 0.31, blue: 0.34, alpha: 1.0),
             pressedColor: accentPressedUIColor,
             cornerRadiusNorm: 0.35,  // ~6px on 34pt height, matching Android trigger
+            isEnabled: !isEditMode,
             onPress: {
                 if !isPressed {
                     isPressed = true

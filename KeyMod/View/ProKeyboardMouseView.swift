@@ -447,6 +447,16 @@ struct ProKeyboardMouseView: View {
                     // Compose and Numpad are portrait-only — force rotation on appear
                     if proSubmode != .keyboard {
                         orientationManager.lockToPortrait()
+                    } else {
+                        // Keyboard mode supports both orientations — unlock any previous lock
+                        // (e.g., from gamepad or compose) and sync to current device orientation.
+                        orientationManager.unlockOrientation()
+                        // Force an immediate orientation refresh so the layout reflects the
+                        // current physical device orientation rather than a stale cached state.
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            orientationManager.updateOrientation()
+                            orientationManager.forceUIRefresh()
+                        }
                     }
                 }
                 .onDisappear {
@@ -809,7 +819,8 @@ struct ProKeyboardMouseView: View {
         let content = keyContent(for: kd, displayText: displayText)
             .frame(maxWidth: .infinity, maxHeight: h).background(keyBackground(for: kd, pressed: isPressed, active: isActive))
             .cornerRadius(9).foregroundColor(isPressed || isActive ? .white : .primary)
-            .frame(maxWidth: .infinity, alignment: .leading).overlay(cornerHint(for: kd), alignment: .topTrailing)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(alignment: .top) { self.keyHints(for: kd) }
             .contentShape(Rectangle()).background(bg)
         if isModifier {
             return AnyView(ProModifierKey(kd: kd, keyboardManager: keyboardManager, displayText: displayText, content: AnyView(content), height: h))
@@ -1048,10 +1059,32 @@ struct ProKeyboardMouseView: View {
     private func keyBackground(for kd: KeyboardManager.KeyDef, pressed: Bool, active: Bool) -> Color {
         pressed || active ? .blue : Self.functionKeyBg
     }
-    @ViewBuilder private func cornerHint(for kd: KeyboardManager.KeyDef) -> some View {
-        if kd.cornerHint.isEmpty { EmptyView() }
-        else { Text(kd.cornerHint).font(.system(size: 9, weight: .bold)).foregroundColor(.secondary.opacity(0.6))
-                .padding(.trailing, 6).padding(.top, 2).allowsHitTesting(false) }
+    /// Build a top-center hint row from the first 4 (cardinal) alternates.
+    /// Returns nil if there are no valid cardinal alternates.
+    private func cardinalAlternatesHint(for kd: KeyboardManager.KeyDef) -> String? {
+        let symbols = kd.alternates.prefix(4).compactMap { alt -> String? in
+            let trimmed = alt.trimmingCharacters(in: .whitespaces)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+        return symbols.isEmpty ? nil : symbols.joined(separator: " ")
+    }
+
+    @ViewBuilder private func keyHints(for kd: KeyboardManager.KeyDef) -> some View {
+        if let hint = cardinalAlternatesHint(for: kd) {
+            // Multi-symbol row at top-center (matching Android keycap hint row)
+            Text(hint)
+                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                .foregroundColor(.secondary.opacity(0.5))
+                .allowsHitTesting(false)
+        } else if !kd.cornerHint.isEmpty {
+            // Fallback: single corner hint when no cardinal alternates exist
+            Text(kd.cornerHint)
+                .font(.system(size: 9, weight: .bold))
+                .foregroundColor(.secondary.opacity(0.6))
+                .padding(.trailing, 6)
+                .padding(.top, 2)
+                .allowsHitTesting(false)
+        }
     }
 
     // MARK: - Alternates Popup
@@ -1092,20 +1125,22 @@ struct ProKeyboardMouseView: View {
 
     // Modifier masks matching Android: 0x04 = Alt, 0x02 = Shift
     // Currency symbols: ¥=Alt+'7', £=Alt+'3', €=Alt+Shift+'4'
-    private static let extraSymbolMap: [Character: (String, String, Bool, UInt8)] = [
+    // Uses String keys to avoid Unicode Character normalization mismatches.
+    private static let extraSymbolMap: [String: (baseKey: String, display: String, requiresShift: Bool, modifierMask: UInt8)] = [
         "\\": ("]", "]", true, 0), "|": ("]", "]", true, 0), "+": ("=", "+", true, 0),
         "#": ("3", "#", true, 0), "$": ("4", "$", true, 0), "%": ("5", "%", true, 0),
         "^": ("6", "^", true, 0), "&": ("7", "&", true, 0), "*": ("8", "*", true, 0),
-        "€": ("4", "€", true, 0x04), "¥": ("7", "¥", false, 0x04), "£": ("3", "£", false, 0x04),
+        "\u{20AC}": ("4", "\u{20AC}", true, 0x04),  // €
+        "\u{00A5}": ("7", "\u{00A5}", false, 0x04), // ¥
+        "\u{00A3}": ("3", "\u{00A3}", false, 0x04), // £
     ]
 
     private func mapAsciiAlternate(_ char: String) -> (display: String, keyCode: String, requiresShift: Bool, modifierMask: UInt8)? {
         guard char.count == 1 else { return nil }
-        let c = char.first!
-        if c.isLetter { return (char, char, false, 0) }
+        if let c = char.first, c.isLetter { return (char, char, false, 0) }
         if let e = Self.shiftKeyMap[char] { return (e.display, e.base, true, 0) }
-        if "0123456789".contains(c) || "-=[];',./`".contains(c) { return (char, char, false, 0) }
-        if let e = Self.extraSymbolMap[c] { return (e.0, e.1, e.2, e.3) }
+        if "0123456789".contains(char) || "-=[];',./`".contains(char) { return (char, char, false, 0) }
+        if let e = Self.extraSymbolMap[char] { return (e.display, e.baseKey, e.requiresShift, e.modifierMask) }
         return nil
     }
 
@@ -1212,5 +1247,7 @@ private struct ProModifierKey: View {
                 .foregroundColor(locked || physical ? .white : .primary)
         }
         .frame(height: height)
+        
     }
 }
+

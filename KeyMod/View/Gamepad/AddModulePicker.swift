@@ -80,7 +80,7 @@ enum AddModuleType: String, CaseIterable {
 
     var icon: String {
         switch self {
-        case .touchpad: return "trackpad"
+        case .touchpad: return "rectangle.fill"
         case .scrollStrip: return "arrow.up.arrow.down.circle"
         case .dpadStick: return "plus.circle"
         case .button: return "rectangle.fill"
