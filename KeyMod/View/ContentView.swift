@@ -1046,8 +1046,12 @@ struct ContentView: View {
                 }
             }
             .onChange(of: orientationManager.isLandscape) { isLandscape in
-                // If in compose/numpad and device rotated to landscape, force back to portrait
-                if isLandscape {
+                // If in compose/numpad and device rotated to landscape, force back to portrait.
+                // Only apply this guard when the current view is actually the Pro keyboard —
+                // proSubmodeRaw is persisted via @AppStorage and keeps its last value even
+                // after switching to other views (gamepad, basic keyboard, etc.), so checking
+                // it alone would cause a stale portrait lock that overwrites landscape views.
+                if isLandscape, viewManager.currentView == .keyboardMousePro {
                     let submode = ProKeyboardMouseView.ProSubmode(rawValue: proSubmodeRaw) ?? .keyboard
                     if submode == .compose || submode == .numpad {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
