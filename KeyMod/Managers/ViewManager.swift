@@ -54,6 +54,8 @@ enum ViewType: String, CaseIterable {
         }
     }
 
+    var localizedName: LocalizedStringKey { LocalizedStringKey(rawValue) }
+
     var mode: ViewMode {
         switch self {
         case .keyboardMouseBasic, .gamepad, .numpad, .macros, .voiceInput:

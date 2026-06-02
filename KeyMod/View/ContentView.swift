@@ -170,7 +170,7 @@ struct ContentView: View {
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 20, height: 20)
                         .foregroundColor(viewManager.currentView == viewType ? .green : .blue)
-                    Text(viewType.rawValue)
+                    Text(viewType.localizedName)
                         .font(.body)
                         .foregroundColor(viewManager.currentView == viewType ? .green : .primary)
                 }

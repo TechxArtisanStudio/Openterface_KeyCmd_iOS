@@ -1,0 +1,392 @@
+/* ============================================================
+   zh-Hant.lproj/Localizable.strings — 繁體中文
+   ============================================================ */
+
+"Done" = "完成";
+"Cancel" = "取消";
+"Save" = "儲存";
+"Reset" = "重置";
+"OK" = "好";
+"Close" = "關閉";
+"Delete" = "刪除";
+"Edit" = "編輯";
+"Create" = "建立";
+"Rename" = "重新命名";
+"Export" = "匯出";
+"Import" = "匯入";
+"Duplicate" = "複製";
+"Remove" = "移除";
+"Clear" = "清除";
+"Send" = "傳送";
+"Dismiss" = "關閉";
+"Run" = "執行";
+"Undo" = "復原";
+"Check" = "檢查";
+"Copy" = "複製";
+"Preview" = "預覽";
+"Refresh" = "重新整理";
+"Information" = "資訊";
+"Notes" = "備註";
+"Setup" = "設定";
+"Status" = "狀態";
+"Active" = "活躍";
+"Start" = "開始";
+"Read-only" = "唯讀";
+"Stop Repeat" = "停止重複";
+"Send Anyway" = "仍然傳送";
+
+"Settings" = "設定";
+"General" = "一般";
+"Keyboard" = "鍵盤";
+"Voice Input" = "語音輸入";
+"AI Settings" = "AI 設定";
+"History" = "歷史記錄";
+
+"Pro Setup" = "專業設定";
+"ASCII Preview" = "ASCII 預覽";
+"Add Module" = "新增模組";
+"Background" = "背景";
+"Clipboard Info" = "剪貼簿資訊";
+"Layouts" = "版面配置";
+"Saved Texts" = "已儲存文字";
+"Select Key" = "選擇按鍵";
+"Timer Settings" = "計時器設定";
+"Shortcut Hub" = "快捷鍵中心";
+"Request History" = "請求歷史";
+
+"Appearance" = "外觀";
+"Color Family" = "顏色系列";
+"Follow System Appearance" = "跟隨系統外觀";
+"Theme Mode" = "主題模式";
+
+"Target System" = "目標系統";
+"Target OS" = "目標作業系統";
+"Sets the operating system of the target machine. The AI Command Assistant will use OS-specific shortcuts and key tokens." = "設定目標電腦的作業系統。AI 指令助手將使用特定於作業系統的快捷鍵和按鍵標記。";
+
+"Touchpad Settings" = "觸控板設定";
+"Tap Duration Threshold" = "點擊持續時間閾值";
+"Maximum time allowed for a tap (shorter = more responsive, longer = more forgiving)" = "點擊的最大允許時間（越短 = 反應越快，越長 = 越寬容）";
+"Movement Threshold" = "移動閾值";
+"Maximum finger movement allowed during a tap" = "點擊期間允許的最大手指移動距離";
+"Delay Before Click" = "點擊前延遲";
+"Delay to distinguish between tap and drag (shorter = faster response)" = "區分點擊和拖曳的延遲（越短 = 反應越快）";
+"Scroll Sensitivity" = "捲動靈敏度";
+"Adjusts scroll sensitivity for two-finger scrolling (lower = slower, higher = faster)" = "調整雙指捲動靈敏度（越低 = 越慢，越高 = 越快）";
+
+"Clipboard Monitoring" = "剪貼簿監控";
+"Enable Clipboard Monitoring" = "啟用剪貼簿監控";
+"Detects new clipboard content and asks if you want to send it to the target device" = "偵測新的剪貼簿內容並詢問是否傳送到目標裝置";
+
+"BLE Key Delay" = "BLE 按鍵延遲";
+"Inter-key Delay" = "鍵間延遲";
+"Delay between each BLE HID key report. Lower values = faster typing but may miss keys on slow targets. Default: 10 ms." = "每次 BLE HID 按鍵報告之間的延遲。值越低 = 打字越快，但在慢速目標上可能遺漏按鍵。預設：10 毫秒。";
+
+"Haptic Feedback" = "觸覺回饋";
+"Enable Haptic Feedback" = "啟用觸覺回饋";
+"Provides vibration feedback for all interactions including button presses, key presses, mouse clicks, and touch gestures" = "為所有互動提供振動回饋，包括按鈕按壓、按鍵、滑鼠點擊和觸控手勢";
+"Test Light Feedback" = "測試輕觸回饋";
+"Test Medium Feedback" = "測試中等回饋";
+"Test Strong Feedback" = "測試強烈回饋";
+
+"Reset to Defaults" = "重置為預設值";
+"Current Values" = "目前值";
+"Tap Duration:" = "點擊持續時間：";
+"Movement Threshold:" = "移動閾值：";
+"Click Delay:" = "點擊延遲：";
+"Scroll Sensitivity:" = "捲動靈敏度：";
+
+"Language" = "語言";
+"App Language" = "應用程式語言";
+"Follow System" = "跟隨系統";
+"The selected language takes effect immediately." = "所選語言立即生效。";
+
+"KM Basic Keyboard" = "KM 基礎鍵盤";
+"Full keyboard in Keyboard + Mouse (Basic) mode: how Ctrl, Shift, Alt/Option, and Win/Cmd behave." = "鍵盤 + 滑鼠（基礎）模式下的完整鍵盤：Ctrl、Shift、Alt/Option 和 Win/Cmd 的行為方式。";
+"Modifier Behavior" = "修飾鍵行為";
+"Sticky modifiers" = "黏滯修飾鍵";
+"Tap once to latch a modifier on; tap again to turn off. Highlighted keys show what is latched." = "點擊一次鎖定修飾鍵；再次點擊關閉。醒目顯示的按鍵表示已鎖定的內容。";
+"Momentary and long-press chord (default)" = "瞬時與長按和絃（預設）";
+"Short tap sends that modifier key once to the target. Long-press a modifier, keep your finger down, then tap other keys to chord (e.g. long-press Shift and tap 1 for !). Release the modifier to stop." = "短按將修飾鍵傳送一次到目標。長按修飾鍵，保持手指按住，然後點擊其他鍵進行和絃（例如長按 Shift 再點擊 1 輸入 !）。放開修飾鍵停止。";
+"Chord Sustain" = "和絃持續";
+"Hold modifier on target while chording" = "和絃時在目標上保持修飾鍵";
+"Sends a real modifier-down to the connected device when you long-press, and keeps it applied after each chorded key until you lift your finger. Turn off only if your host misbehaves with sustained modifiers." = "長按時向已連接裝置傳送真實的修飾鍵按下訊號，並在每個和絃鍵之後保持套用，直到您抬起手指。僅在主機對持續修飾鍵行為異常時才關閉。";
+"Long-Press Behavior" = "長按行為";
+"Repeat key presses while held (default)" = "按住時重複按鍵（預設）";
+"After a short delay, sends many quick press-and-release cycles — similar to auto-repeat when holding a physical key for typing." = "短暫延遲後，傳送多次快速按下和放開循環——類似於按住實體鍵打字時的自動重複。";
+"Hold key down on the target" = "在目標上按住按鍵";
+"Sends one key-down when you press and releases when you lift your finger. Better for games or apps that expect a real held key instead of repeated taps." = "按下時傳送一次按鍵訊號，抬起手指時放開。更適合需要真實按住按鍵而非重複點擊的遊戲或應用程式。";
+"KM Basic Touchpad" = "KM 基礎觸控板";
+"Touchpad sub-mode in Keyboard & Mouse (Basic): the vertical strip at the right edge for page scroll." = "鍵盤和滑鼠（基礎）模式下的觸控板子模式：右邊緣的垂直條用於頁面捲動。";
+"Scroll Strip Sensitivity" = "捲動條靈敏度";
+"Vertical scroll strip sensitivity" = "垂直捲動條靈敏度";
+"Slow" = "慢";
+"Fast" = "快";
+"How fast content scrolls when you drag the strip beside the touchpad. Independent from General → touchpad two-finger scroll sensitivity." = "拖曳觸控板旁邊捲動條時內容的捲動速度。與一般 → 觸控板雙指捲動靈敏度無關。";
+
+"Display" = "顯示";
+"Keys Display" = "按鍵顯示";
+"Controls how shortcuts and keys appear on the keyboard strip and QWERTY layout." = "控制快捷鍵和按鍵在鍵盤條和 QWERTY 版面配置上的顯示方式。";
+"Touchpad" = "觸控板";
+"Touchpad Mode" = "觸控板模式";
+"Strip Scroll Sensitivity" = "條形捲動靈敏度";
+"How fast content scrolls when dragging the strip." = "拖曳條形時內容的捲動速度。";
+"Gaming Key Behavior" = "遊戲按鍵行為";
+"Letter keys show long-press hint glyphs for alternates. Turn off for hold-to-repeat gaming style." = "字母鍵顯示長按提示符號以顯示備用字元。關閉以使用按住重複的遊戲風格。";
+"Modifiers (shared with Basic)" = "修飾鍵（與基礎模式共用）";
+"Sends a real modifier-down to the connected device when long-pressing." = "長按時向已連接裝置傳送真實的修飾鍵按下訊號。";
+"Show a floating label above a held key while pressing." = "按住按鍵時顯示浮動標籤。";
+"Show compact gesture status line on touchpad (buttons up / touch idle)." = "在觸控板上顯示精簡手勢狀態列（按鈕放開 / 觸控閒置）。";
+"Show drag strip beside touchpad for mouse wheel scroll." = "在觸控板旁邊顯示拖曳條用於滑鼠滾輪捲動。";
+"Shortcut Hub Profile" = "快捷鍵中心設定檔";
+"Choose which profile's shortcuts appear on the keyboard strip." = "選擇哪個設定檔的快捷鍵顯示在鍵盤條上。";
+"These settings also apply in Keyboard & Mouse (Basic) mode." = "這些設定也適用於鍵盤和滑鼠（基礎）模式。";
+"Tap to change" = "點擊變更";
+"Typing" = "打字";
+"Remember compose text while switching to Keyboard or NumPad submodes (in-memory only)." = "切換到鍵盤或數字鍵盤子模式時記住編輯文字（僅在記憶體中）。";
+
+"Welcome to KeyMod" = "歡迎使用 KeyMod";
+"Choose your preferred mode" = "選擇您偏好的模式";
+"Remember this choice and auto-enter this mode" = "記住此選擇並自動進入此模式";
+"Skip for now" = "暫時略過";
+"Welcome & Guide" = "歡迎和指南";
+
+"Clipboard Content Detected" = "偵測到剪貼簿內容";
+"Send to target device?" = "傳送到目標裝置？";
+"Preview:" = "預覽：";
+"Current Clipboard Content" = "目前剪貼簿內容";
+"Clear Clipboard" = "清除剪貼簿";
+"Clipboard Detection:" = "剪貼簿偵測：";
+"Monitoring Active" = "監控已啟動";
+"Automatically detects when new text is copied to the clipboard. When new content is detected, a prompt will appear asking if you want to send it to the target device." = "自動偵測剪貼簿中的新文字。當偵測到新內容時，將出現提示詢問是否將其傳送到目標裝置。";
+"Send Check" = "傳送檢查";
+"Long text: Sending may take longer" = "長文字：傳送可能需要更長時間";
+"Non-ASCII characters: Unprintable characters will be dropped" = "非 ASCII 字元：不可列印字元將被丟棄";
+"Unicode mode: Send all characters via host HID encoding" = "Unicode 模式：透過主機 HID 編碼傳送所有字元";
+"Send to Target" = "傳送到目標";
+
+"Type or paste your text here, edit as needed then tap Send." = "在此處輸入或貼上文字，根據需要編輯，然後點擊傳送。";
+"Type and edit long text here - tap Send to send it to the connected device" = "在此處輸入和編輯長文字 - 點擊傳送將其傳送到已連接的裝置";
+"Type text, then send (ASCII-friendly for HID)." = "輸入文字，然後傳送（HID 相容 ASCII）。";
+"Save as Macro" = "儲存為巨集";
+
+"Enable AI Refinement" = "啟用 AI 精煉";
+"After voice input, AI will check intention and refine text" = "語音輸入後，AI 將檢查意圖並精煉文字";
+"API Configuration" = "API 設定";
+"API Key" = "API 金鑰";
+"API Key Optional" = "API 金鑰（選用）";
+"API Key Management" = "API 金鑰管理";
+"Select or manage AI providers" = "選擇或管理 AI 提供者";
+"AI Provider Setting" = "AI 提供者設定";
+"Enable for local providers (Ollama, LM Studio, etc.)" = "為本機提供者啟用（Ollama、LM Studio 等）";
+"Add New Provider" = "新增提供者";
+"Delete This Provider" = "刪除此提供者";
+"Update API Key" = "更新 API 金鑰";
+"Role Management" = "角色管理";
+"System Prompt Role" = "系統提示角色";
+"Select a predefined role or create a custom prompt" = "選擇預先定義的角色或建立自訂提示";
+"Prompt Management" = "提示管理";
+"Current System Prompt" = "目前系統提示";
+"Custom System Prompt" = "自訂系統提示";
+"System Prompt" = "系統提示";
+"Testing" = "測試";
+"Testing…" = "測試中…";
+"✓ Connection Successful" = "✓ 連接成功";
+"✗ Connection Failed" = "✗ 連接失敗";
+"Test API Connection" = "測試 API 連接";
+"Add to My" = "加入我的";
+"Remove from My" = "從我的中移除";
+
+"Speech Recognition Engine" = "語音識別引擎";
+"Apple Voice Input" = "Apple 語音輸入";
+"Whisper (Local)" = "Whisper（本機）";
+"Whisper requires the model to be downloaded. Restart the app after switching to use the new engine." = "Whisper 需要下載模型。切換後重新啟動應用程式以使用新引擎。";
+"Please restart the app to apply the speech engine change." = "請重新啟動應用程式以套用語音引擎變更。";
+"Recognition Language" = "辨識語言";
+"Why Whisper?" = "為什麼選擇 Whisper？";
+"Whisper Model" = "Whisper 模型";
+"Download Model" = "下載模型";
+"Download" = "下載";
+"Downloaded" = "已下載";
+"Downloading..." = "下載中...";
+"Not downloaded" = "未下載";
+"Works offline with no internet required" = "離線工作，無需網路";
+"Better accuracy for technical terms and accents" = "對技術術語和口音有更好的準確性";
+"No transcription data sent to servers" = "不向伺服器傳送轉錄資料";
+"Fast and optimized for Apple devices" = "針對 Apple 裝置最佳化，速度快";
+"No extra downloads required" = "無需額外下載";
+"Uses Apple's advanced speech recognition" = "使用 Apple 進階語音識別";
+"The selected language requires a multilingual Whisper model. Please select the \"Multilingual\" model below." = "所選語言需要多語言 Whisper 模型。請在下方選擇「多語言」模型。";
+
+"No Request History" = "暫無請求歷史";
+"AI requests will appear here" = "AI 請求將顯示在此處";
+"Delete this request?" = "刪除此請求？";
+"This will delete all request history. This action cannot be undone." = "這將刪除所有請求歷史記錄。此操作無法復原。";
+"Input" = "輸入";
+"Output" = "輸出";
+"Summary" = "摘要";
+"Clear All" = "清除全部";
+"Delete All" = "刪除全部";
+
+"📝 Awaiting Voice Input" = "📝 等待語音輸入";
+"Listening…" = "正在聆聽…";
+"Text marked for refinement" = "標記待精煉的文字";
+"Refinement Failed" = "精煉失敗";
+"Macro Name" = "巨集名稱";
+
+"Macros" = "巨集";
+"Macro Name (Label)" = "巨集名稱（標籤）";
+"Macro Data (e.g. ^C, Hello,  A)" = "巨集資料（例如 ^C, Hello, A）";
+"Scheduler (Optional)" = "排程器（選用）";
+"Send Char Interval (ms)" = "傳送字元間隔（毫秒）";
+"Every" = "每";
+"Count Up" = "正計時";
+"Countdown" = "倒數計時";
+
+"Fixed Strip Layout" = "固定條形版面配置";
+"Viewport Numpad" = "視埠數字鍵盤";
+"No favorites yet" = "暫無收藏";
+"Add Shortcut" = "新增快捷鍵";
+"Tap the bookmark icon in a category tab to add shortcuts here, or use + Add Shortcut." = "點擊分類標籤中的書籤圖示在此處新增快捷鍵，或使用 + 新增快捷鍵。";
+"No profiles yet.\nUse Create or Import to add one." = "暫無設定檔。\n使用建立或匯入來新增一個。";
+"Create Profile" = "建立設定檔";
+
+"Tap to pick key" = "點擊選擇按鍵";
+"Background Type" = "背景類型";
+"Current Background" = "目前背景";
+"Color" = "顏色";
+"Gradient" = "漸層";
+"Image" = "圖片";
+"Pattern" = "圖案";
+"Pan & Zoom" = "平移和縮放";
+"Hold Lock" = "保持鎖定";
+"Key Hold" = "按鍵保持";
+"Key Turbo" = "按鍵連射";
+"Turbo" = "連射";
+"None" = "無";
+"Nothing" = "無內容";
+"Enter a name." = "輸入名稱。";
+"Enter a new name for this preset." = "為此預設輸入新名稱。";
+"Gap between segments" = "區段間距";
+"Outer reach of segments" = "區段的外延";
+"Width ratio" = "寬度比例";
+"X Offset" = "X 偏移";
+"Y Offset" = "Y 偏移";
+"Zoom" = "縮放";
+"Mapped key labels" = "對應按鍵標籤";
+"Direction icons" = "方向圖示";
+"Change Image" = "變更圖片";
+"Slower — Faster" = "慢 — 快";
+"Square — Round" = "方形 — 圓形";
+"No preset available" = "暫無預設";
+
+"Touch Pad" = "觸控板";
+"TOUCHPAD" = "觸控板";
+"TouchPad" = "觸控板";
+"Touchpad Help" = "觸控板說明";
+"Mouse move / click / right-click" = "滑鼠移動 / 點擊 / 右鍵點擊";
+"Use these gestures in Pro Keyboard & Mouse mode:" = "在專業鍵盤和滑鼠模式下使用這些手勢：";
+"Tip: While drag mode is active, the touchpad background turns blue." = "提示：拖曳模式啟動時，觸控板背景變為藍色。";
+"Pointer" = "指標";
+
+"TIMER" = "計時器";
+
+"Switch to Basic" = "切換到基礎模式";
+"Switch to Pro" = "切換到專業模式";
+"Unknown Device" = "未知裝置";
+
+"Composite Keys: <CTRL>A</CTRL> = press Ctrl, press A, release all" = "組合鍵：<CTRL>A</CTRL> = 按下 Ctrl，按下 A，釋放所有鍵";
+
+/* --- 啟動面板模式名稱 --- */
+"Keyboard & Mouse" = "鍵盤和滑鼠";
+"Keyboard & Mouse Pro" = "鍵盤和滑鼠專業版";
+"Gamepad" = "遊戲控制器";
+"Numpad" = "數字鍵盤";
+"Shortcuts" = "快捷鍵";
+"Presentation" = "簡報";
+"Compose" = "編輯";
+
+/* --- Presentation View --- */
+"Keynote" = "Keynote";
+"PowerPoint" = "PowerPoint";
+"Google Slides" = "Google Slides";
+"Word" = "Word";
+"Adobe Reader" = "Adobe Reader";"PRESENT" = "開始";
+"STOP" = "停止";"remaining" = "剩餘";
+"elapsed" = "已用";
+" of " = " / ";
+"◀  PREVIOUS" = "◀  上一頁";
+"NEXT  ▶" = "下一頁  ▶";
+"← Left arrow\nLong = First slide" = "← 左箭頭\n長按 = 第一頁";
+"→ Right arrow\nLong = Last slide" = "→ 右箭頭\n長按 = 最後一頁";
+"HIDE\nSCREEN" = "隱藏\n螢幕";
+"SHOW\nSCREEN" = "顯示\n螢幕";
+"B" = "B";
+"RELEASE" = "釋放";
+"SWITCH APP" = "切換應用";
+"⌘Tab · tap / cycle · double = confirm" = "⌘Tab · 點擊 / 循環 · 雙擊 = 確認";
+"Minutes" = "分鐘";
+"Duration" = "時長";
+"Mode" = "模式";
+"Timer Mode" = "計時模式";
+
+/* --- 快捷鍵編輯器 --- */
+"Name" = "名稱";
+"Modifiers" = "修飾鍵";
+"Keys — Letters" = "按鍵 — 字母";
+"Keys — Special" = "按鍵 — 特殊";
+"Edit Shortcut" = "編輯快捷鍵";
+"New Shortcut" = "新快捷鍵";
+"e.g. Save, Undo, Open Find…" = "例如 儲存、復原、開啟尋找…";
+"Select a key above." = "請在上方選擇一個按鍵。";
+
+/* --- KM Pro設定切換標籤 --- */
+"Alternate Hints" = "備選提示";
+"Key Tap Preview" = "按鍵點擊預覽";
+"Compose Draft Retention" = "保留編輯草稿";
+"Vertical Scroll Strip" = "垂直捲動條";
+"Gesture Status Line" = "手勢狀態列";
+"Select Profile" = "選擇設定檔";
+
+/* --- KM Pro簡短描述 --- */
+"Tap once to latch a modifier on; tap again to turn off." = "點擊一次鎖定修飾鍵；再次點擊關閉。";
+"Short tap sends modifier once. Long-press to chord with other keys." = "短按傳送修飾鍵一次。長按與其他鍵組合。";
+"Repeat key presses" = "重複按鍵";
+"Rapid tap cycles while held." = "按住時快速點擊循環。";
+"Hold key down" = "按住按鍵";
+"One key-down until release. Better for games." = "按下直到放開。更適合遊戲。";
+
+/* --- 觸控板模式 --- */
+"Gestures only" = "僅手勢";
+"Pad + mouse keys" = "觸控板 + 滑鼠鍵";
+"Hybrid" = "混合";
+"Touchpad gestures control the pointer only." = "觸控板手勢僅控制指標。";
+"Left/middle/right strip for mouse clicks." = "滑鼠點擊的左/中/右條形。";
+"Full touchpad gestures plus L/M/R strip with visual sync." = "完整觸控板手勢加上具有視覺同步的左/中/右條形。";
+
+/* --- 鍵顯示模式 --- */
+"Names" = "名稱";
+"Icons" = "圖示";
+"Combo" = "組合";
+
+/* --- Whisper 對話框 --- */
+"Download Whisper Model?" = "下載 Whisper 模型？";
+"Delete Whisper Model?" = "刪除 Whisper 模型？";
+
+/* --- 快捷鍵類別 --- */
+"Basic" = "基礎";
+"System" = "系統";
+"File" = "檔案";
+"Navigation" = "導覽";
+"Tab" = "Tab";
+"Editing" = "編輯";
+
+/* --- 巨集編輯器 --- */
+"e.g. Copy" = "例如 複製";
+"Enable Scheduler" = "啟用排程器";
+"Repeat" = "重複";
+"Repeat Interval" = "重複間隔";
+"Edit Macro" = "編輯巨集";
+"Add Macro" = "新增巨集";
+
+/* --- ShortcutHub --- */
+"Profile name" = "設定檔名稱";

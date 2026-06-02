@@ -28,9 +28,9 @@ class KmProPrefs: ObservableObject {
         case names = 0, icons, combo
         var label: String {
             switch self {
-            case .names: return "Names"
-            case .icons: return "Icons"
-            case .combo: return "Combo"
+            case .names: return String(localized: "Names")
+            case .icons: return String(localized: "Icons")
+            case .combo: return String(localized: "Combo")
             }
         }
     }
@@ -71,16 +71,16 @@ class KmProPrefs: ObservableObject {
         case gesturesOnly = 0, padAndMouseKeys, hybrid
         var label: String {
             switch self {
-            case .gesturesOnly: return "Gestures only"
-            case .padAndMouseKeys: return "Pad + mouse keys"
-            case .hybrid: return "Hybrid"
+            case .gesturesOnly: return String(localized: "Gestures only")
+            case .padAndMouseKeys: return String(localized: "Pad + mouse keys")
+            case .hybrid: return String(localized: "Hybrid")
             }
         }
         var description: String {
             switch self {
-            case .gesturesOnly: return "Touchpad gestures control the pointer only."
-            case .padAndMouseKeys: return "Left/middle/right strip for mouse clicks."
-            case .hybrid: return "Full touchpad gestures plus L/M/R strip with visual sync."
+            case .gesturesOnly: return String(localized: "Touchpad gestures control the pointer only.")
+            case .padAndMouseKeys: return String(localized: "Left/middle/right strip for mouse clicks.")
+            case .hybrid: return String(localized: "Full touchpad gestures plus L/M/R strip with visual sync.")
             }
         }
     }

@@ -1,0 +1,421 @@
+/* ============================================================
+   en.lproj/Localizable.strings — English (base)
+   ============================================================ */
+
+/* --- Common Actions --- */
+"Done" = "Done";
+"Cancel" = "Cancel";
+"Save" = "Save";
+"Reset" = "Reset";
+"OK" = "OK";
+"Close" = "Close";
+"Delete" = "Delete";
+"Edit" = "Edit";
+"Create" = "Create";
+"Rename" = "Rename";
+"Export" = "Export";
+"Import" = "Import";
+"Duplicate" = "Duplicate";
+"Remove" = "Remove";
+"Clear" = "Clear";
+"Send" = "Send";
+"Dismiss" = "Dismiss";
+"Run" = "Run";
+"Undo" = "Undo";
+"Check" = "Check";
+"Copy" = "Copy";
+"Preview" = "Preview";
+"Refresh" = "Refresh";
+"Information" = "Information";
+"Notes" = "Notes";
+"Setup" = "Setup";
+"Status" = "Status";
+"Active" = "Active";
+"Start" = "Start";
+"Read-only" = "Read-only";
+"Stop Repeat" = "Stop Repeat";
+"Send Anyway" = "Send Anyway";
+
+/* --- Settings Tabs --- */
+"Settings" = "Settings";
+"General" = "General";
+"Keyboard" = "Keyboard";
+"Voice Input" = "Voice Input";
+"AI Settings" = "AI Settings";
+"History" = "History";
+
+/* --- Navigation Titles --- */
+"Pro Setup" = "Pro Setup";
+"ASCII Preview" = "ASCII Preview";
+"Add Module" = "Add Module";
+"Background" = "Background";
+"Clipboard Info" = "Clipboard Info";
+"Layouts" = "Layouts";
+"Saved Texts" = "Saved Texts";
+"Select Key" = "Select Key";
+"Timer Settings" = "Timer Settings";
+"Shortcut Hub" = "Shortcut Hub";
+"Request History" = "Request History";
+
+/* --- General – Appearance --- */
+"Appearance" = "Appearance";
+"Color Family" = "Color Family";
+"Follow System Appearance" = "Follow System Appearance";
+"Theme Mode" = "Theme Mode";
+
+/* --- General – Target System --- */
+"Target System" = "Target System";
+"Target OS" = "Target OS";
+"Sets the operating system of the target machine. The AI Command Assistant will use OS-specific shortcuts and key tokens." = "Sets the operating system of the target machine. The AI Command Assistant will use OS-specific shortcuts and key tokens.";
+
+/* --- General – Touchpad --- */
+"Touchpad Settings" = "Touchpad Settings";
+"Tap Duration Threshold" = "Tap Duration Threshold";
+"Maximum time allowed for a tap (shorter = more responsive, longer = more forgiving)" = "Maximum time allowed for a tap (shorter = more responsive, longer = more forgiving)";
+"Movement Threshold" = "Movement Threshold";
+"Maximum finger movement allowed during a tap" = "Maximum finger movement allowed during a tap";
+"Delay Before Click" = "Delay Before Click";
+"Delay to distinguish between tap and drag (shorter = faster response)" = "Delay to distinguish between tap and drag (shorter = faster response)";
+"Scroll Sensitivity" = "Scroll Sensitivity";
+"Adjusts scroll sensitivity for two-finger scrolling (lower = slower, higher = faster)" = "Adjusts scroll sensitivity for two-finger scrolling (lower = slower, higher = faster)";
+
+/* --- General – Clipboard --- */
+"Clipboard Monitoring" = "Clipboard Monitoring";
+"Enable Clipboard Monitoring" = "Enable Clipboard Monitoring";
+"Detects new clipboard content and asks if you want to send it to the target device" = "Detects new clipboard content and asks if you want to send it to the target device";
+
+/* --- General – BLE --- */
+"BLE Key Delay" = "BLE Key Delay";
+"Inter-key Delay" = "Inter-key Delay";
+"Delay between each BLE HID key report. Lower values = faster typing but may miss keys on slow targets. Default: 10 ms." = "Delay between each BLE HID key report. Lower values = faster typing but may miss keys on slow targets. Default: 10 ms.";
+
+/* --- General – Haptic --- */
+"Haptic Feedback" = "Haptic Feedback";
+"Enable Haptic Feedback" = "Enable Haptic Feedback";
+"Provides vibration feedback for all interactions including button presses, key presses, mouse clicks, and touch gestures" = "Provides vibration feedback for all interactions including button presses, key presses, mouse clicks, and touch gestures";
+"Test Light Feedback" = "Test Light Feedback";
+"Test Medium Feedback" = "Test Medium Feedback";
+"Test Strong Feedback" = "Test Strong Feedback";
+
+/* --- General – Reset / Debug --- */
+"Reset to Defaults" = "Reset to Defaults";
+"Current Values" = "Current Values";
+"Tap Duration:" = "Tap Duration:";
+"Movement Threshold:" = "Movement Threshold:";
+"Click Delay:" = "Click Delay:";
+"Scroll Sensitivity:" = "Scroll Sensitivity:";
+
+/* --- General – Language --- */
+"Language" = "Language";
+"App Language" = "App Language";
+"Follow System" = "Follow System";
+"The selected language takes effect immediately." = "The selected language takes effect immediately.";
+
+/* --- KM Basic Settings --- */
+"KM Basic Keyboard" = "KM Basic Keyboard";
+"Full keyboard in Keyboard + Mouse (Basic) mode: how Ctrl, Shift, Alt/Option, and Win/Cmd behave." = "Full keyboard in Keyboard + Mouse (Basic) mode: how Ctrl, Shift, Alt/Option, and Win/Cmd behave.";
+"Modifier Behavior" = "Modifier Behavior";
+"Sticky modifiers" = "Sticky modifiers";
+"Tap once to latch a modifier on; tap again to turn off. Highlighted keys show what is latched." = "Tap once to latch a modifier on; tap again to turn off. Highlighted keys show what is latched.";
+"Momentary and long-press chord (default)" = "Momentary and long-press chord (default)";
+"Short tap sends that modifier key once to the target. Long-press a modifier, keep your finger down, then tap other keys to chord (e.g. long-press Shift and tap 1 for !). Release the modifier to stop." = "Short tap sends that modifier key once to the target. Long-press a modifier, keep your finger down, then tap other keys to chord (e.g. long-press Shift and tap 1 for !). Release the modifier to stop.";
+"Chord Sustain" = "Chord Sustain";
+"Hold modifier on target while chording" = "Hold modifier on target while chording";
+"Sends a real modifier-down to the connected device when you long-press, and keeps it applied after each chorded key until you lift your finger. Turn off only if your host misbehaves with sustained modifiers." = "Sends a real modifier-down to the connected device when you long-press, and keeps it applied after each chorded key until you lift your finger. Turn off only if your host misbehaves with sustained modifiers.";
+"Long-Press Behavior" = "Long-Press Behavior";
+"Repeat key presses while held (default)" = "Repeat key presses while held (default)";
+"After a short delay, sends many quick press-and-release cycles — similar to auto-repeat when holding a physical key for typing." = "After a short delay, sends many quick press-and-release cycles — similar to auto-repeat when holding a physical key for typing.";
+"Hold key down on the target" = "Hold key down on the target";
+"Sends one key-down when you press and releases when you lift your finger. Better for games or apps that expect a real held key instead of repeated taps." = "Sends one key-down when you press and releases when you lift your finger. Better for games or apps that expect a real held key instead of repeated taps.";
+"KM Basic Touchpad" = "KM Basic Touchpad";
+"Touchpad sub-mode in Keyboard & Mouse (Basic): the vertical strip at the right edge for page scroll." = "Touchpad sub-mode in Keyboard & Mouse (Basic): the vertical strip at the right edge for page scroll.";
+"Scroll Strip Sensitivity" = "Scroll Strip Sensitivity";
+"Vertical scroll strip sensitivity" = "Vertical scroll strip sensitivity";
+"Slow" = "Slow";
+"Fast" = "Fast";
+"How fast content scrolls when you drag the strip beside the touchpad. Independent from General → touchpad two-finger scroll sensitivity." = "How fast content scrolls when you drag the strip beside the touchpad. Independent from General → touchpad two-finger scroll sensitivity.";
+
+/* --- KM Pro Settings --- */
+"Display" = "Display";
+"Keys Display" = "Keys Display";
+"Controls how shortcuts and keys appear on the keyboard strip and QWERTY layout." = "Controls how shortcuts and keys appear on the keyboard strip and QWERTY layout.";
+"Touchpad" = "Touchpad";
+"Touchpad Mode" = "Touchpad Mode";
+"Strip Scroll Sensitivity" = "Strip Scroll Sensitivity";
+"How fast content scrolls when dragging the strip." = "How fast content scrolls when dragging the strip.";
+"Gaming Key Behavior" = "Gaming Key Behavior";
+"Letter keys show long-press hint glyphs for alternates. Turn off for hold-to-repeat gaming style." = "Letter keys show long-press hint glyphs for alternates. Turn off for hold-to-repeat gaming style.";
+"Modifiers (shared with Basic)" = "Modifiers (shared with Basic)";
+"Sends a real modifier-down to the connected device when long-pressing." = "Sends a real modifier-down to the connected device when long-pressing.";
+"Show a floating label above a held key while pressing." = "Show a floating label above a held key while pressing.";
+"Show compact gesture status line on touchpad (buttons up / touch idle)." = "Show compact gesture status line on touchpad (buttons up / touch idle).";
+"Show drag strip beside touchpad for mouse wheel scroll." = "Show drag strip beside touchpad for mouse wheel scroll.";
+"Shortcut Hub Profile" = "Shortcut Hub Profile";
+"Choose which profile's shortcuts appear on the keyboard strip." = "Choose which profile's shortcuts appear on the keyboard strip.";
+"These settings also apply in Keyboard & Mouse (Basic) mode." = "These settings also apply in Keyboard & Mouse (Basic) mode.";
+"Tap to change" = "Tap to change";
+"Typing" = "Typing";
+"Remember compose text while switching to Keyboard or NumPad submodes (in-memory only)." = "Remember compose text while switching to Keyboard or NumPad submodes (in-memory only).";
+
+/* --- Launch Panel --- */
+"Welcome to KeyMod" = "Welcome to KeyMod";
+"Choose your preferred mode" = "Choose your preferred mode";
+"Remember this choice and auto-enter this mode" = "Remember this choice and auto-enter this mode";
+"Skip for now" = "Skip for now";
+"Welcome & Guide" = "Welcome & Guide";
+
+/* --- Clipboard Prompt --- */
+"Clipboard Content Detected" = "Clipboard Content Detected";
+"Send to target device?" = "Send to target device?";
+"Preview:" = "Preview:";
+"Current Clipboard Content" = "Current Clipboard Content";
+"Clear Clipboard" = "Clear Clipboard";
+"Clipboard Detection:" = "Clipboard Detection:";
+"Monitoring Active" = "Monitoring Active";
+"Automatically detects when new text is copied to the clipboard. When new content is detected, a prompt will appear asking if you want to send it to the target device." = "Automatically detects when new text is copied to the clipboard. When new content is detected, a prompt will appear asking if you want to send it to the target device.";
+"Send Check" = "Send Check";
+"Long text: Sending may take longer" = "Long text: Sending may take longer";
+"Non-ASCII characters: Unprintable characters will be dropped" = "Non-ASCII characters: Unprintable characters will be dropped";
+"Unicode mode: Send all characters via host HID encoding" = "Unicode mode: Send all characters via host HID encoding";
+"Send to Target" = "Send to Target";
+
+/* --- Compose Text --- */
+"Type or paste your text here, edit as needed then tap Send." = "Type or paste your text here, edit as needed then tap Send.";
+"Type and edit long text here - tap Send to send it to the connected device" = "Type and edit long text here - tap Send to send it to the connected device";
+"Type text, then send (ASCII-friendly for HID)." = "Type text, then send (ASCII-friendly for HID).";
+"Save as Macro" = "Save as Macro";
+
+/* --- AI Settings --- */
+"Enable AI Refinement" = "Enable AI Refinement";
+"After voice input, AI will check intention and refine text" = "After voice input, AI will check intention and refine text";
+"API Configuration" = "API Configuration";
+"API Key" = "API Key";
+"API Key Optional" = "API Key Optional";
+"API Key Management" = "API Key Management";
+"Select or manage AI providers" = "Select or manage AI providers";
+"AI Provider Setting" = "AI Provider Setting";
+"Enable for local providers (Ollama, LM Studio, etc.)" = "Enable for local providers (Ollama, LM Studio, etc.)";
+"Add New Provider" = "Add New Provider";
+"Delete This Provider" = "Delete This Provider";
+"Update API Key" = "Update API Key";
+"Role Management" = "Role Management";
+"System Prompt Role" = "System Prompt Role";
+"Select a predefined role or create a custom prompt" = "Select a predefined role or create a custom prompt";
+"Prompt Management" = "Prompt Management";
+"Current System Prompt" = "Current System Prompt";
+"Custom System Prompt" = "Custom System Prompt";
+"System Prompt" = "System Prompt";
+"Testing" = "Testing";
+"Testing…" = "Testing…";
+"✓ Connection Successful" = "✓ Connection Successful";
+"✗ Connection Failed" = "✗ Connection Failed";
+"Test API Connection" = "Test API Connection";
+"Add to My" = "Add to My";
+"Remove from My" = "Remove from My";
+
+/* --- Speech / Whisper --- */
+"Speech Recognition Engine" = "Speech Recognition Engine";
+"Apple Voice Input" = "Apple Voice Input";
+"Whisper (Local)" = "Whisper (Local)";
+"Whisper requires the model to be downloaded. Restart the app after switching to use the new engine." = "Whisper requires the model to be downloaded. Restart the app after switching to use the new engine.";
+"Please restart the app to apply the speech engine change." = "Please restart the app to apply the speech engine change.";
+"Recognition Language" = "Recognition Language";
+"Why Whisper?" = "Why Whisper?";
+"Whisper Model" = "Whisper Model";
+"Download Model" = "Download Model";
+"Download" = "Download";
+"Downloaded" = "Downloaded";
+"Downloading..." = "Downloading...";
+"Not downloaded" = "Not downloaded";
+"Works offline with no internet required" = "Works offline with no internet required";
+"Better accuracy for technical terms and accents" = "Better accuracy for technical terms and accents";
+"No transcription data sent to servers" = "No transcription data sent to servers";
+"Fast and optimized for Apple devices" = "Fast and optimized for Apple devices";
+"No extra downloads required" = "No extra downloads required";
+"Uses Apple's advanced speech recognition" = "Uses Apple's advanced speech recognition";
+"The selected language requires a multilingual Whisper model. Please select the \"Multilingual\" model below." = "The selected language requires a multilingual Whisper model. Please select the \"Multilingual\" model below.";
+
+/* --- AI Request History --- */
+"No Request History" = "No Request History";
+"AI requests will appear here" = "AI requests will appear here";
+"Delete this request?" = "Delete this request?";
+"This will delete all request history. This action cannot be undone." = "This will delete all request history. This action cannot be undone.";
+"Input" = "Input";
+"Output" = "Output";
+"Summary" = "Summary";
+"Clear All" = "Clear All";
+"Delete All" = "Delete All";
+
+/* --- Voice Input View --- */
+"📝 Awaiting Voice Input" = "📝 Awaiting Voice Input";
+"Listening…" = "Listening…";
+"Text marked for refinement" = "Text marked for refinement";
+"Refinement Failed" = "Refinement Failed";
+"Macro Name" = "Macro Name";
+
+/* --- Macros --- */
+"Macros" = "Macros";
+"Macro Name (Label)" = "Macro Name (Label)";
+"Macro Data (e.g. ^C, Hello,  A)" = "Macro Data (e.g. ^C, Hello,  A)";
+"Scheduler (Optional)" = "Scheduler (Optional)";
+"Send Char Interval (ms)" = "Send Char Interval (ms)";
+"Every" = "Every";
+"Count Up" = "Count Up";
+"Countdown" = "Countdown";
+
+/* --- Shortcut Hub --- */
+"Fixed Strip Layout" = "Fixed Strip Layout";
+"Viewport Numpad" = "Viewport Numpad";
+"No favorites yet" = "No favorites yet";
+"Add Shortcut" = "Add Shortcut";
+"Tap the bookmark icon in a category tab to add shortcuts here, or use + Add Shortcut." = "Tap the bookmark icon in a category tab to add shortcuts here, or use + Add Shortcut.";
+"No profiles yet.\nUse Create or Import to add one." = "No profiles yet.\nUse Create or Import to add one.";
+"Create Profile" = "Create Profile";
+
+/* --- Gamepad --- */
+"Tap to pick key" = "Tap to pick key";
+"Background Type" = "Background Type";
+"Current Background" = "Current Background";
+"Color" = "Color";
+"Gradient" = "Gradient";
+"Image" = "Image";
+"Pattern" = "Pattern";
+"Pan & Zoom" = "Pan & Zoom";
+"Hold Lock" = "Hold Lock";
+"Key Hold" = "Key Hold";
+"Key Turbo" = "Key Turbo";
+"Turbo" = "Turbo";
+"None" = "None";
+"Nothing" = "Nothing";
+"Enter a name." = "Enter a name.";
+"Enter a new name for this preset." = "Enter a new name for this preset.";
+"Gap between segments" = "Gap between segments";
+"Outer reach of segments" = "Outer reach of segments";
+"Width ratio" = "Width ratio";
+"X Offset" = "X Offset";
+"Y Offset" = "Y Offset";
+"Zoom" = "Zoom";
+"Mapped key labels" = "Mapped key labels";
+"Direction icons" = "Direction icons";
+"Change Image" = "Change Image";
+"Slower — Faster" = "Slower — Faster";
+"Square — Round" = "Square — Round";
+"No preset available" = "No preset available";
+
+/* --- Touchpad / Mouse --- */
+"Touch Pad" = "Touch Pad";
+"TOUCHPAD" = "TOUCHPAD";
+"TouchPad" = "TouchPad";
+"Touchpad Help" = "Touchpad Help";
+"Mouse move / click / right-click" = "Mouse move / click / right-click";
+"Use these gestures in Pro Keyboard & Mouse mode:" = "Use these gestures in Pro Keyboard & Mouse mode:";
+"Tip: While drag mode is active, the touchpad background turns blue." = "Tip: While drag mode is active, the touchpad background turns blue.";
+"Pointer" = "Pointer";
+
+/* --- Timer --- */
+"TIMER" = "TIMER";
+
+/* --- Content View --- */
+"Switch to Basic" = "Switch to Basic";
+"Switch to Pro" = "Switch to Pro";
+"Unknown Device" = "Unknown Device";
+
+/* --- Composite Keys --- */
+"Composite Keys: <CTRL>A</CTRL> = press Ctrl, press A, release all" = "Composite Keys: <CTRL>A</CTRL> = press Ctrl, press A, release all";
+
+/* --- Launch Panel Mode Names --- */
+"Keyboard & Mouse" = "Keyboard & Mouse";
+"Keyboard & Mouse Pro" = "Keyboard & Mouse Pro";
+"Gamepad" = "Gamepad";
+"Numpad" = "Numpad";
+"Shortcuts" = "Shortcuts";
+"Presentation" = "Presentation";
+"Compose" = "Compose";
+
+/* --- Presentation View --- */
+"Keynote" = "Keynote";
+"PowerPoint" = "PowerPoint";
+"Google Slides" = "Google Slides";
+"Word" = "Word";
+"Adobe Reader" = "Adobe Reader";
+"PRESENT" = "PRESENT";
+"STOP" = "STOP";
+"remaining" = "remaining";
+"elapsed" = "elapsed";
+" of " = " of ";
+"◀  PREVIOUS" = "◀  PREVIOUS";
+"NEXT  ▶" = "NEXT  ▶";
+"← Left arrow\nLong = First slide" = "← Left arrow\nLong = First slide";
+"→ Right arrow\nLong = Last slide" = "→ Right arrow\nLong = Last slide";
+"HIDE\nSCREEN" = "HIDE\nSCREEN";
+"SHOW\nSCREEN" = "SHOW\nSCREEN";
+"B" = "B";
+"RELEASE" = "RELEASE";
+"SWITCH APP" = "SWITCH APP";
+"⌘Tab · tap / cycle · double = confirm" = "⌘Tab · tap / cycle · double = confirm";
+"Minutes" = "Minutes";
+"Duration" = "Duration";
+"Mode" = "Mode";
+"Timer Mode" = "Timer Mode";
+
+/* --- Shortcut Editor --- */
+"Name" = "Name";
+"Modifiers" = "Modifiers";
+"Keys — Letters" = "Keys — Letters";
+"Keys — Special" = "Keys — Special";
+"Edit Shortcut" = "Edit Shortcut";
+"New Shortcut" = "New Shortcut";
+"e.g. Save, Undo, Open Find…" = "e.g. Save, Undo, Open Find…";
+"Select a key above." = "Select a key above.";
+
+/* --- KM Pro Settings Toggle Labels --- */
+"Alternate Hints" = "Alternate Hints";
+"Key Tap Preview" = "Key Tap Preview";
+"Compose Draft Retention" = "Compose Draft Retention";
+"Vertical Scroll Strip" = "Vertical Scroll Strip";
+"Gesture Status Line" = "Gesture Status Line";
+"Select Profile" = "Select Profile";
+
+/* --- KM Pro Short Descriptions (compact versions) --- */
+"Tap once to latch a modifier on; tap again to turn off." = "Tap once to latch a modifier on; tap again to turn off.";
+"Short tap sends modifier once. Long-press to chord with other keys." = "Short tap sends modifier once. Long-press to chord with other keys.";
+"Repeat key presses" = "Repeat key presses";
+"Rapid tap cycles while held." = "Rapid tap cycles while held.";
+"Hold key down" = "Hold key down";
+"One key-down until release. Better for games." = "One key-down until release. Better for games.";
+
+/* --- Touchpad Modes --- */
+"Gestures only" = "Gestures only";
+"Pad + mouse keys" = "Pad + mouse keys";
+"Hybrid" = "Hybrid";
+"Touchpad gestures control the pointer only." = "Touchpad gestures control the pointer only.";
+"Left/middle/right strip for mouse clicks." = "Left/middle/right strip for mouse clicks.";
+"Full touchpad gestures plus L/M/R strip with visual sync." = "Full touchpad gestures plus L/M/R strip with visual sync.";
+
+/* --- Keys Display Modes --- */
+"Names" = "Names";
+"Icons" = "Icons";
+"Combo" = "Combo";
+
+/* --- Whisper Download/Delete Dialogs --- */
+"Download Whisper Model?" = "Download Whisper Model?";
+"Delete Whisper Model?" = "Delete Whisper Model?";
+
+/* --- Shortcut Categories --- */
+"Basic" = "Basic";
+"System" = "System";
+"File" = "File";
+"Navigation" = "Navigation";
+"Tab" = "Tab";
+"Editing" = "Editing";
+
+/* --- Macro Editor --- */
+"e.g. Copy" = "e.g. Copy";
+"Enable Scheduler" = "Enable Scheduler";
+"Repeat" = "Repeat";
+"Repeat Interval" = "Repeat Interval";
+"Edit Macro" = "Edit Macro";
+"Add Macro" = "Add Macro";
+
+/* --- ShortcutHub --- */
+"Profile name" = "Profile name";

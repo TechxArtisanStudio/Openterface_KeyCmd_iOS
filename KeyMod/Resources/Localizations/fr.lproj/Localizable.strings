@@ -1,0 +1,394 @@
+/* ============================================================
+   fr.lproj/Localizable.strings — Français
+   ============================================================ */
+
+"Done" = "Terminé";
+"Cancel" = "Annuler";
+"Save" = "Enregistrer";
+"Reset" = "Réinitialiser";
+"OK" = "OK";
+"Close" = "Fermer";
+"Delete" = "Supprimer";
+"Edit" = "Modifier";
+"Create" = "Créer";
+"Rename" = "Renommer";
+"Export" = "Exporter";
+"Import" = "Importer";
+"Duplicate" = "Dupliquer";
+"Remove" = "Supprimer";
+"Clear" = "Effacer";
+"Send" = "Envoyer";
+"Dismiss" = "Fermer";
+"Run" = "Exécuter";
+"Undo" = "Annuler";
+"Check" = "Vérifier";
+"Copy" = "Copier";
+"Preview" = "Aperçu";
+"Refresh" = "Actualiser";
+"Information" = "Informations";
+"Notes" = "Notes";
+"Setup" = "Configuration";
+"Status" = "Statut";
+"Active" = "Actif";
+"Start" = "Démarrer";
+"Read-only" = "Lecture seule";
+"Stop Repeat" = "Arrêter la répétition";
+"Send Anyway" = "Envoyer quand même";
+
+"Settings" = "Paramètres";
+"General" = "Général";
+"Keyboard" = "Clavier";
+"Voice Input" = "Saisie vocale";
+"AI Settings" = "Paramètres IA";
+"History" = "Historique";
+
+"Pro Setup" = "Configuration Pro";
+"ASCII Preview" = "Aperçu ASCII";
+"Add Module" = "Ajouter un module";
+"Background" = "Arrière-plan";
+"Clipboard Info" = "Info presse-papiers";
+"Layouts" = "Dispositions";
+"Saved Texts" = "Textes enregistrés";
+"Select Key" = "Sélectionner une touche";
+"Timer Settings" = "Paramètres du minuteur";
+"Shortcut Hub" = "Centre de raccourcis";
+"Request History" = "Historique des requêtes";
+
+"Appearance" = "Apparence";
+"Color Family" = "Famille de couleurs";
+"Follow System Appearance" = "Suivre l'apparence du système";
+"Theme Mode" = "Mode thème";
+
+"Target System" = "Système cible";
+"Target OS" = "Système d'exploitation cible";
+"Sets the operating system of the target machine. The AI Command Assistant will use OS-specific shortcuts and key tokens." = "Définit le système d'exploitation de la machine cible. L'assistant de commande IA utilisera des raccourcis et des jetons de touche spécifiques au système d'exploitation.";
+
+"Touchpad Settings" = "Paramètres du pavé tactile";
+"Tap Duration Threshold" = "Seuil de durée d'appui";
+"Maximum time allowed for a tap (shorter = more responsive, longer = more forgiving)" = "Temps maximum autorisé pour un appui (plus court = plus réactif, plus long = plus tolérant)";
+"Movement Threshold" = "Seuil de mouvement";
+"Maximum finger movement allowed during a tap" = "Mouvement maximal du doigt autorisé pendant un appui";
+"Delay Before Click" = "Délai avant clic";
+"Delay to distinguish between tap and drag (shorter = faster response)" = "Délai pour distinguer l'appui du glissement (plus court = réponse plus rapide)";
+"Scroll Sensitivity" = "Sensibilité du défilement";
+"Adjusts scroll sensitivity for two-finger scrolling (lower = slower, higher = faster)" = "Ajuste la sensibilité du défilement à deux doigts (plus bas = plus lent, plus haut = plus rapide)";
+
+"Clipboard Monitoring" = "Surveillance du presse-papiers";
+"Enable Clipboard Monitoring" = "Activer la surveillance du presse-papiers";
+"Detects new clipboard content and asks if you want to send it to the target device" = "Détecte le nouveau contenu du presse-papiers et demande si vous souhaitez l'envoyer à l'appareil cible";
+
+"BLE Key Delay" = "Délai de touche BLE";
+"Inter-key Delay" = "Délai entre les touches";
+"Delay between each BLE HID key report. Lower values = faster typing but may miss keys on slow targets. Default: 10 ms." = "Délai entre chaque rapport de touche BLE HID. Valeurs plus basses = frappe plus rapide mais peut manquer des touches sur les cibles lentes. Par défaut : 10 ms.";
+
+"Haptic Feedback" = "Retour haptique";
+"Enable Haptic Feedback" = "Activer le retour haptique";
+"Provides vibration feedback for all interactions including button presses, key presses, mouse clicks, and touch gestures" = "Fournit un retour par vibration pour toutes les interactions, y compris les pressions de boutons, les frappes de touches, les clics de souris et les gestes tactiles";
+"Test Light Feedback" = "Tester le retour léger";
+"Test Medium Feedback" = "Tester le retour moyen";
+"Test Strong Feedback" = "Tester le retour fort";
+
+"Reset to Defaults" = "Réinitialiser aux valeurs par défaut";
+"Current Values" = "Valeurs actuelles";
+"Tap Duration:" = "Durée d'appui :";
+"Movement Threshold:" = "Seuil de mouvement :";
+"Click Delay:" = "Délai de clic :";
+"Scroll Sensitivity:" = "Sensibilité du défilement :";
+
+"Language" = "Langue";
+"App Language" = "Langue de l'application";
+"Follow System" = "Suivre le système";
+"The selected language takes effect immediately." = "La langue sélectionnée prend effet immédiatement.";
+
+"KM Basic Keyboard" = "Clavier KM Basic";
+"Full keyboard in Keyboard + Mouse (Basic) mode: how Ctrl, Shift, Alt/Option, and Win/Cmd behave." = "Clavier complet en mode Clavier + Souris (Basic) : comportement de Ctrl, Shift, Alt/Option et Win/Cmd.";
+"Modifier Behavior" = "Comportement des modificateurs";
+"Sticky modifiers" = "Modificateurs collants";
+"Tap once to latch a modifier on; tap again to turn off. Highlighted keys show what is latched." = "Appuyez une fois pour verrouiller un modificateur ; appuyez à nouveau pour désactiver. Les touches en surbrillance indiquent ce qui est verrouillé.";
+"Momentary and long-press chord (default)" = "Momentané et accord par appui long (par défaut)";
+"Short tap sends that modifier key once to the target. Long-press a modifier, keep your finger down, then tap other keys to chord (e.g. long-press Shift and tap 1 for !). Release the modifier to stop." = "Un court appui envoie cette touche modificatrice une fois à la cible. Appuyez longuement sur un modificateur, gardez le doigt appuyé, puis appuyez sur d'autres touches pour former un accord (ex. : appui long sur Shift et appui sur 1 pour !). Relâchez le modificateur pour arrêter.";
+"Chord Sustain" = "Maintien d'accord";
+"Hold modifier on target while chording" = "Maintenir le modificateur sur la cible pendant l'accord";
+"Sends a real modifier-down to the connected device when you long-press, and keeps it applied after each chorded key until you lift your finger. Turn off only if your host misbehaves with sustained modifiers." = "Envoie un vrai signal de touche modificatrice enfoncée à l'appareil connecté lors d'un appui long, et le maintient appliqué après chaque touche d'accord jusqu'à ce que vous leviez le doigt. Désactivez uniquement si votre hôte se comporte mal avec des modificateurs soutenus.";
+"Long-Press Behavior" = "Comportement de l'appui long";
+"Repeat key presses while held (default)" = "Répéter les frappes pendant le maintien (par défaut)";
+"After a short delay, sends many quick press-and-release cycles — similar to auto-repeat when holding a physical key for typing." = "Après un court délai, envoie de nombreux cycles rapides d'appui-relâchement — similaire à la répétition automatique lors du maintien d'une touche physique pour la frappe.";
+"Hold key down on the target" = "Maintenir la touche enfoncée sur la cible";
+"Sends one key-down when you press and releases when you lift your finger. Better for games or apps that expect a real held key instead of repeated taps." = "Envoie un signal d'appui unique lorsque vous appuyez et le relâche lorsque vous levez le doigt. Mieux adapté aux jeux ou applications qui attendent une vraie touche maintenue plutôt que des appuis répétés.";
+"KM Basic Touchpad" = "Pavé tactile KM Basic";
+"Touchpad sub-mode in Keyboard & Mouse (Basic): the vertical strip at the right edge for page scroll." = "Sous-mode du pavé tactile en mode Clavier et Souris (Basic) : la bande verticale sur le bord droit pour le défilement de page.";
+"Scroll Strip Sensitivity" = "Sensibilité de la bande de défilement";
+"Vertical scroll strip sensitivity" = "Sensibilité de la bande de défilement verticale";
+"Slow" = "Lent";
+"Fast" = "Rapide";
+"How fast content scrolls when you drag the strip beside the touchpad. Independent from General → touchpad two-finger scroll sensitivity." = "Vitesse de défilement du contenu lorsque vous faites glisser la bande à côté du pavé tactile. Indépendant de Général → sensibilité du défilement à deux doigts du pavé tactile.";
+
+"Display" = "Affichage";
+"Keys Display" = "Affichage des touches";
+"Controls how shortcuts and keys appear on the keyboard strip and QWERTY layout." = "Contrôle la façon dont les raccourcis et les touches apparaissent sur la bande du clavier et la disposition QWERTY.";
+"Touchpad" = "Pavé tactile";
+"Touchpad Mode" = "Mode pavé tactile";
+"Strip Scroll Sensitivity" = "Sensibilité de défilement de bande";
+"How fast content scrolls when dragging the strip." = "Vitesse de défilement du contenu lors du glissement de la bande.";
+"Gaming Key Behavior" = "Comportement des touches de jeu";
+"Letter keys show long-press hint glyphs for alternates. Turn off for hold-to-repeat gaming style." = "Les touches de lettres affichent des glyphes d'indication d'appui long pour les alternatives. Désactivez pour le style de jeu maintien-pour-répéter.";
+"Modifiers (shared with Basic)" = "Modificateurs (partagés avec Basic)";
+"Sends a real modifier-down to the connected device when long-pressing." = "Envoie un vrai signal modificateur-enfoncé à l'appareil connecté lors d'un appui long.";
+"Show a floating label above a held key while pressing." = "Afficher une étiquette flottante au-dessus d'une touche maintenue pendant l'appui.";
+"Show compact gesture status line on touchpad (buttons up / touch idle)." = "Afficher une ligne de statut de geste compacte sur le pavé tactile (boutons relevés / toucher inactif).";
+"Show drag strip beside touchpad for mouse wheel scroll." = "Afficher la bande de glissement à côté du pavé tactile pour le défilement de la molette de souris.";
+"Shortcut Hub Profile" = "Profil du centre de raccourcis";
+"Choose which profile's shortcuts appear on the keyboard strip." = "Choisissez les raccourcis de quel profil apparaissent sur la bande du clavier.";
+"These settings also apply in Keyboard & Mouse (Basic) mode." = "Ces paramètres s'appliquent également en mode Clavier et Souris (Basic).";
+"Tap to change" = "Appuyez pour modifier";
+"Typing" = "Frappe";
+"Remember compose text while switching to Keyboard or NumPad submodes (in-memory only)." = "Mémoriser le texte de composition lors du passage aux sous-modes Clavier ou NumPad (en mémoire uniquement).";
+
+"Welcome to KeyMod" = "Bienvenue sur KeyMod";
+"Choose your preferred mode" = "Choisissez votre mode préféré";
+"Remember this choice and auto-enter this mode" = "Mémoriser ce choix et entrer automatiquement dans ce mode";
+"Skip for now" = "Ignorer pour l'instant";
+"Welcome & Guide" = "Bienvenue et guide";
+
+"Clipboard Content Detected" = "Contenu du presse-papiers détecté";
+"Send to target device?" = "Envoyer à l'appareil cible ?";
+"Preview:" = "Aperçu :";
+"Current Clipboard Content" = "Contenu actuel du presse-papiers";
+"Clear Clipboard" = "Effacer le presse-papiers";
+"Clipboard Detection:" = "Détection du presse-papiers :";
+"Monitoring Active" = "Surveillance active";
+"Automatically detects when new text is copied to the clipboard. When new content is detected, a prompt will appear asking if you want to send it to the target device." = "Détecte automatiquement lorsque du nouveau texte est copié dans le presse-papiers. Lorsque du nouveau contenu est détecté, une invite apparaît vous demandant si vous souhaitez l'envoyer à l'appareil cible.";
+"Send Check" = "Vérification d'envoi";
+"Long text: Sending may take longer" = "Texte long : l'envoi peut prendre plus de temps";
+"Non-ASCII characters: Unprintable characters will be dropped" = "Caractères non-ASCII : les caractères non imprimables seront supprimés";
+"Unicode mode: Send all characters via host HID encoding" = "Mode Unicode : envoyer tous les caractères via l'encodage HID de l'hôte";
+"Send to Target" = "Envoyer à la cible";
+
+"Type or paste your text here, edit as needed then tap Send." = "Tapez ou collez votre texte ici, modifiez-le selon vos besoins, puis appuyez sur Envoyer.";
+"Type and edit long text here - tap Send to send it to the connected device" = "Tapez et modifiez un long texte ici - appuyez sur Envoyer pour l'envoyer à l'appareil connecté";
+"Type text, then send (ASCII-friendly for HID)." = "Tapez le texte, puis envoyez (compatible ASCII pour HID).";
+"Save as Macro" = "Enregistrer comme macro";
+
+"Enable AI Refinement" = "Activer le raffinement IA";
+"After voice input, AI will check intention and refine text" = "Après la saisie vocale, l'IA vérifiera l'intention et affinera le texte";
+"API Configuration" = "Configuration API";
+"API Key" = "Clé API";
+"API Key Optional" = "Clé API (optionnelle)";
+"API Key Management" = "Gestion de la clé API";
+"Select or manage AI providers" = "Sélectionner ou gérer les fournisseurs d'IA";
+"AI Provider Setting" = "Paramètre du fournisseur d'IA";
+"Enable for local providers (Ollama, LM Studio, etc.)" = "Activer pour les fournisseurs locaux (Ollama, LM Studio, etc.)";
+"Add New Provider" = "Ajouter un nouveau fournisseur";
+"Delete This Provider" = "Supprimer ce fournisseur";
+"Update API Key" = "Mettre à jour la clé API";
+"Role Management" = "Gestion des rôles";
+"System Prompt Role" = "Rôle du prompt système";
+"Select a predefined role or create a custom prompt" = "Sélectionner un rôle prédéfini ou créer un prompt personnalisé";
+"Prompt Management" = "Gestion des prompts";
+"Current System Prompt" = "Prompt système actuel";
+"Custom System Prompt" = "Prompt système personnalisé";
+"System Prompt" = "Prompt système";
+"Testing" = "Test";
+"Testing…" = "Test en cours…";
+"✓ Connection Successful" = "✓ Connexion réussie";
+"✗ Connection Failed" = "✗ Échec de la connexion";
+"Test API Connection" = "Tester la connexion API";
+"Add to My" = "Ajouter à Mes";
+"Remove from My" = "Supprimer de Mes";
+
+"Speech Recognition Engine" = "Moteur de reconnaissance vocale";
+"Apple Voice Input" = "Saisie vocale Apple";
+"Whisper (Local)" = "Whisper (local)";
+"Whisper requires the model to be downloaded. Restart the app after switching to use the new engine." = "Whisper nécessite le téléchargement du modèle. Redémarrez l'application après avoir changé pour utiliser le nouveau moteur.";
+"Please restart the app to apply the speech engine change." = "Veuillez redémarrer l'application pour appliquer le changement de moteur vocal.";
+"Recognition Language" = "Langue de reconnaissance";
+"Why Whisper?" = "Pourquoi Whisper ?";
+"Whisper Model" = "Modèle Whisper";
+"Download Model" = "Télécharger le modèle";
+"Download" = "Télécharger";
+"Downloaded" = "Téléchargé";
+"Downloading..." = "Téléchargement...";
+"Not downloaded" = "Non téléchargé";
+"Works offline with no internet required" = "Fonctionne hors ligne, sans internet";
+"Better accuracy for technical terms and accents" = "Meilleure précision pour les termes techniques et les accents";
+"No transcription data sent to servers" = "Aucune donnée de transcription envoyée aux serveurs";
+"Fast and optimized for Apple devices" = "Rapide et optimisé pour les appareils Apple";
+"No extra downloads required" = "Aucun téléchargement supplémentaire requis";
+"Uses Apple's advanced speech recognition" = "Utilise la reconnaissance vocale avancée d'Apple";
+"The selected language requires a multilingual Whisper model. Please select the \"Multilingual\" model below." = "La langue sélectionnée nécessite un modèle Whisper multilingue. Veuillez sélectionner le modèle « Multilingue » ci-dessous.";
+
+"No Request History" = "Aucun historique de requêtes";
+"AI requests will appear here" = "Les requêtes IA apparaîtront ici";
+"Delete this request?" = "Supprimer cette requête ?";
+"This will delete all request history. This action cannot be undone." = "Cela supprimera tout l'historique des requêtes. Cette action est irréversible.";
+"Input" = "Entrée";
+"Output" = "Sortie";
+"Summary" = "Résumé";
+"Clear All" = "Tout effacer";
+"Delete All" = "Tout supprimer";
+
+"📝 Awaiting Voice Input" = "📝 En attente de saisie vocale";
+"Listening…" = "Écoute…";
+"Text marked for refinement" = "Texte marqué pour raffinement";
+"Refinement Failed" = "Échec du raffinement";
+"Macro Name" = "Nom de la macro";
+
+"Macros" = "Macros";
+"Macro Name (Label)" = "Nom de la macro (étiquette)";
+"Macro Data (e.g. ^C, Hello,  A)" = "Données de la macro (ex. : ^C, Bonjour, A)";
+"Scheduler (Optional)" = "Planificateur (optionnel)";
+"Send Char Interval (ms)" = "Intervalle d'envoi de caractères (ms)";
+"Every" = "Chaque";
+"Count Up" = "Compte à rebours croissant";
+"Countdown" = "Compte à rebours";
+
+"Fixed Strip Layout" = "Disposition de bande fixe";
+"Viewport Numpad" = "Pavé numérique de la fenêtre";
+"No favorites yet" = "Pas encore de favoris";
+"Add Shortcut" = "Ajouter un raccourci";
+"Tap the bookmark icon in a category tab to add shortcuts here, or use + Add Shortcut." = "Appuyez sur l'icône de signet dans un onglet de catégorie pour ajouter des raccourcis ici, ou utilisez + Ajouter un raccourci.";
+"No profiles yet.\nUse Create or Import to add one." = "Pas encore de profils.\nUtilisez Créer ou Importer pour en ajouter un.";
+"Create Profile" = "Créer un profil";
+
+"Tap to pick key" = "Appuyez pour choisir une touche";
+"Background Type" = "Type d'arrière-plan";
+"Current Background" = "Arrière-plan actuel";
+"Color" = "Couleur";
+"Gradient" = "Dégradé";
+"Image" = "Image";
+"Pattern" = "Motif";
+"Pan & Zoom" = "Panoramique et zoom";
+"Hold Lock" = "Verrouillage maintenu";
+"Key Hold" = "Maintien de touche";
+"Key Turbo" = "Turbo de touche";
+"Turbo" = "Turbo";
+"None" = "Aucun";
+"Nothing" = "Rien";
+"Enter a name." = "Entrez un nom.";
+"Enter a new name for this preset." = "Entrez un nouveau nom pour ce préréglage.";
+"Gap between segments" = "Écart entre les segments";
+"Outer reach of segments" = "Portée extérieure des segments";
+"Width ratio" = "Rapport de largeur";
+"X Offset" = "Décalage X";
+"Y Offset" = "Décalage Y";
+"Zoom" = "Zoom";
+"Mapped key labels" = "Étiquettes de touches mappées";
+"Direction icons" = "Icônes de direction";
+"Change Image" = "Changer l'image";
+"Slower — Faster" = "Plus lent — Plus rapide";
+"Square — Round" = "Carré — Rond";
+"No preset available" = "Aucun préréglage disponible";
+
+"Touch Pad" = "Pavé tactile";
+"TOUCHPAD" = "PAVÉ TACTILE";
+"TouchPad" = "Pavé tactile";
+"Touchpad Help" = "Aide du pavé tactile";
+"Mouse move / click / right-click" = "Déplacer la souris / cliquer / clic droit";
+"Use these gestures in Pro Keyboard & Mouse mode:" = "Utilisez ces gestes en mode Clavier et Souris Pro :";
+"Tip: While drag mode is active, the touchpad background turns blue." = "Astuce : lorsque le mode glissement est actif, l'arrière-plan du pavé tactile devient bleu.";
+"Pointer" = "Pointeur";
+
+"TIMER" = "MINUTEUR";
+
+"Switch to Basic" = "Passer en mode Basic";
+"Switch to Pro" = "Passer en mode Pro";
+"Unknown Device" = "Appareil inconnu";
+
+"Composite Keys: <CTRL>A</CTRL> = press Ctrl, press A, release all" = "Touches composées : <CTRL>A</CTRL> = appuyer sur Ctrl, appuyer sur A, tout relâcher";
+
+/* --- Noms des modes du panneau de lancement --- */
+"Keyboard & Mouse" = "Clavier et souris";
+"Keyboard & Mouse Pro" = "Clavier et souris Pro";
+"Gamepad" = "Manette";
+"Numpad" = "Pavé numérique";
+"Shortcuts" = "Raccourcis";
+"Presentation" = "Présentation";
+"Compose" = "Composer";
+
+/* --- Presentation View --- */
+"Keynote" = "Keynote";
+"PowerPoint" = "PowerPoint";
+"Google Slides" = "Google Slides";
+"Word" = "Word";
+"Adobe Reader" = "Adobe Reader";
+"PRESENT" = "PRÉSENTER";
+"STOP" = "ARRÊTER";
+"remaining" = "restant";
+"elapsed" = "écoulé";
+" of " = " sur ";
+"◀  PREVIOUS" = "◀  PRÉCÉDENT";
+"NEXT  ▶" = "SUIVANT  ▶";
+"← Left arrow\nLong = First slide" = "← Flèche gauche\nLong = Première diapo";
+"→ Right arrow\nLong = Last slide" = "→ Flèche droite\nLong = Dernière diapo";
+"HIDE\nSCREEN" = "MASQUER\nÉCRAN";
+"SHOW\nSCREEN" = "AFFICHER\nÉCRAN";
+"B" = "B";
+"RELEASE" = "RELÂCHER";
+"SWITCH APP" = "CHANGER APP";
+"⌘Tab · tap / cycle · double = confirm" = "⌘Tab · tap / cycle · double = confirmer";
+"Minutes" = "Minutes";
+"Duration" = "Durée";
+"Mode" = "Mode";
+"Timer Mode" = "Mode minuteur";
+
+/* --- Éditeur de raccourcis --- */
+"Name" = "Nom";
+"Modifiers" = "Modificateurs";
+"Keys — Letters" = "Touches — Lettres";
+"Keys — Special" = "Touches — Spéciales";
+"Edit Shortcut" = "Modifier le raccourci";
+"New Shortcut" = "Nouveau raccourci";
+"e.g. Save, Undo, Open Find…" = "ex. Enregistrer, Annuler, Ouvrir Recherche…";
+"Select a key above." = "Sélectionnez une touche ci-dessus.";
+
+/* --- Libellés des bascules KM Pro --- */
+"Alternate Hints" = "Indices alternatifs";
+"Key Tap Preview" = "Aperçu d'appui de touche";
+"Compose Draft Retention" = "Conservation du brouillon de composition";
+"Vertical Scroll Strip" = "Bande de défilement verticale";
+"Gesture Status Line" = "Ligne d'état des gestes";
+"Select Profile" = "Sélectionner un profil";
+
+/* --- Descriptions courtes KM Pro --- */
+"Tap once to latch a modifier on; tap again to turn off." = "Appuyez une fois pour verrouiller un modificateur ; appuyez à nouveau pour désactiver.";
+"Short tap sends modifier once. Long-press to chord with other keys." = "Court appui envoie le modificateur une fois. Appui long pour accorder avec d'autres touches.";
+"Repeat key presses" = "Répéter les frappes";
+"Rapid tap cycles while held." = "Cycles rapides d'appui pendant le maintien.";
+"Hold key down" = "Maintenir la touche enfoncée";
+"One key-down until release. Better for games." = "Un appui jusqu'au relâchement. Mieux pour les jeux.";
+
+/* --- Modes du pavé tactile --- */
+"Gestures only" = "Gestes uniquement";
+"Pad + mouse keys" = "Pavé + touches souris";
+"Hybrid" = "Hybride";
+"Touchpad gestures control the pointer only." = "Les gestes du pavé tactile contrôlent uniquement le pointeur.";
+"Left/middle/right strip for mouse clicks." = "Bande gauche/milieu/droite pour les clics souris.";
+"Full touchpad gestures plus L/M/R strip with visual sync." = "Gestes complets du pavé tactile plus bande G/M/D avec synchronisation visuelle.";
+
+/* --- Modes d'affichage des touches --- */
+"Names" = "Noms";
+"Icons" = "Icônes";
+"Combo" = "Combo";
+
+/* --- Boîtes de dialogue Whisper --- */
+"Download Whisper Model?" = "Télécharger le modèle Whisper ?";
+"Delete Whisper Model?" = "Supprimer le modèle Whisper ?";
+
+/* --- Catégories de raccourcis --- */
+"Basic" = "De base";
+"System" = "Système";
+"File" = "Fichier";
+"Navigation" = "Navigation";
+"Tab" = "Tab";
+"Editing" = "Édition";
+
+/* --- Éditeur de macros --- */
+"e.g. Copy" = "ex. Copier";
+"Enable Scheduler" = "Activer le planificateur";
+"Repeat" = "Répéter";
+"Repeat Interval" = "Intervalle de répétition";
+"Edit Macro" = "Modifier la macro";
+"Add Macro" = "Ajouter une macro";
+
+/* --- ShortcutHub --- */
+"Profile name" = "Nom du profil";

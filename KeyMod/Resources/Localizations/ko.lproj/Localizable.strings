@@ -1,0 +1,421 @@
+/* ============================================================
+   ko.lproj/Localizable.strings — 한국어
+   ============================================================ */
+
+/* --- 공통 동작 --- */
+"Done" = "완료";
+"Cancel" = "취소";
+"Save" = "저장";
+"Reset" = "재설정";
+"OK" = "확인";
+"Close" = "닫기";
+"Delete" = "삭제";
+"Edit" = "편집";
+"Create" = "만들기";
+"Rename" = "이름 변경";
+"Export" = "내보내기";
+"Import" = "가져오기";
+"Duplicate" = "복제";
+"Remove" = "제거";
+"Clear" = "지우기";
+"Send" = "보내기";
+"Dismiss" = "닫기";
+"Run" = "실행";
+"Undo" = "실행 취소";
+"Check" = "확인";
+"Copy" = "복사";
+"Preview" = "미리보기";
+"Refresh" = "새로고침";
+"Information" = "정보";
+"Notes" = "메모";
+"Setup" = "설정";
+"Status" = "상태";
+"Active" = "활성";
+"Start" = "시작";
+"Read-only" = "읽기 전용";
+"Stop Repeat" = "반복 중지";
+"Send Anyway" = "계속 보내기";
+
+/* --- 설정 탭 --- */
+"Settings" = "설정";
+"General" = "일반";
+"Keyboard" = "키보드";
+"Voice Input" = "음성 입력";
+"AI Settings" = "AI 설정";
+"History" = "기록";
+
+/* --- 탐색 제목 --- */
+"Pro Setup" = "프로 설정";
+"ASCII Preview" = "ASCII 미리보기";
+"Add Module" = "모듈 추가";
+"Background" = "배경";
+"Clipboard Info" = "클립보드 정보";
+"Layouts" = "레이아웃";
+"Saved Texts" = "저장된 텍스트";
+"Select Key" = "키 선택";
+"Timer Settings" = "타이머 설정";
+"Shortcut Hub" = "단축키 허브";
+"Request History" = "요청 기록";
+
+/* --- 일반 – 외관 --- */
+"Appearance" = "외관";
+"Color Family" = "색상 테마";
+"Follow System Appearance" = "시스템 외관 따르기";
+"Theme Mode" = "테마 모드";
+
+/* --- 일반 – 대상 시스템 --- */
+"Target System" = "대상 시스템";
+"Target OS" = "대상 OS";
+"Sets the operating system of the target machine. The AI Command Assistant will use OS-specific shortcuts and key tokens." = "대상 컴퓨터의 운영 체제를 설정합니다. AI 명령 보조자는 OS별 단축키와 키 토큰을 사용합니다.";
+
+/* --- 일반 – 터치패드 --- */
+"Touchpad Settings" = "터치패드 설정";
+"Tap Duration Threshold" = "탭 지속 시간 임계값";
+"Maximum time allowed for a tap (shorter = more responsive, longer = more forgiving)" = "탭에 허용되는 최대 시간 (짧을수록 반응이 빠름, 길수록 관대함)";
+"Movement Threshold" = "이동 임계값";
+"Maximum finger movement allowed during a tap" = "탭 중 허용되는 최대 손가락 이동량";
+"Delay Before Click" = "클릭 전 지연";
+"Delay to distinguish between tap and drag (shorter = faster response)" = "탭과 드래그를 구분하는 지연 (짧을수록 반응 속도가 빠름)";
+"Scroll Sensitivity" = "스크롤 감도";
+"Adjusts scroll sensitivity for two-finger scrolling (lower = slower, higher = faster)" = "두 손가락 스크롤 감도 조정 (낮을수록 느림, 높을수록 빠름)";
+
+/* --- 일반 – 클립보드 --- */
+"Clipboard Monitoring" = "클립보드 모니터링";
+"Enable Clipboard Monitoring" = "클립보드 모니터링 활성화";
+"Detects new clipboard content and asks if you want to send it to the target device" = "새 클립보드 내용을 감지하고 대상 기기에 보낼지 묻습니다";
+
+/* --- 일반 – BLE --- */
+"BLE Key Delay" = "BLE 키 지연";
+"Inter-key Delay" = "키 간격 지연";
+"Delay between each BLE HID key report. Lower values = faster typing but may miss keys on slow targets. Default: 10 ms." = "각 BLE HID 키 보고서 사이의 지연. 낮은 값 = 더 빠른 입력이지만 느린 대상에서 키를 놓칠 수 있습니다. 기본값: 10ms.";
+
+/* --- 일반 – 햅틱 피드백 --- */
+"Haptic Feedback" = "햅틱 피드백";
+"Enable Haptic Feedback" = "햅틱 피드백 활성화";
+"Provides vibration feedback for all interactions including button presses, key presses, mouse clicks, and touch gestures" = "버튼 누르기, 키 누르기, 마우스 클릭 및 터치 제스처를 포함한 모든 상호작용에 진동 피드백 제공";
+"Test Light Feedback" = "가벼운 피드백 테스트";
+"Test Medium Feedback" = "중간 피드백 테스트";
+"Test Strong Feedback" = "강한 피드백 테스트";
+
+/* --- 일반 – 재설정/디버그 --- */
+"Reset to Defaults" = "기본값으로 재설정";
+"Current Values" = "현재 값";
+"Tap Duration:" = "탭 지속 시간:";
+"Movement Threshold:" = "이동 임계값:";
+"Click Delay:" = "클릭 지연:";
+"Scroll Sensitivity:" = "스크롤 감도:";
+
+/* --- 일반 – 언어 --- */
+"Language" = "언어";
+"App Language" = "앱 언어";
+"Follow System" = "시스템 따르기";
+"The selected language takes effect immediately." = "선택한 언어가 즉시 적용됩니다.";
+
+/* --- KM 기본 키보드 설정 --- */
+"KM Basic Keyboard" = "KM 기본 키보드";
+"Full keyboard in Keyboard + Mouse (Basic) mode: how Ctrl, Shift, Alt/Option, and Win/Cmd behave." = "키보드 + 마우스 (기본) 모드의 전체 키보드: Ctrl, Shift, Alt/Option 및 Win/Cmd의 동작 방식.";
+"Modifier Behavior" = "수정자 키 동작";
+"Sticky modifiers" = "고정 수정자 키";
+"Tap once to latch a modifier on; tap again to turn off. Highlighted keys show what is latched." = "한 번 탭하여 수정자 키 고정; 다시 탭하면 해제. 강조 표시된 키는 고정된 항목을 나타냅니다.";
+"Momentary and long-press chord (default)" = "순간 및 길게 누르기 화음 (기본값)";
+"Short tap sends that modifier key once to the target. Long-press a modifier, keep your finger down, then tap other keys to chord (e.g. long-press Shift and tap 1 for !). Release the modifier to stop." = "짧게 탭하면 수정자 키를 한 번 대상에 전송합니다. 수정자 키를 길게 누른 채 다른 키를 탭하여 화음을 구성합니다 (예: Shift 길게 누른 후 1 탭하면 !). 수정자 키를 놓으면 중지됩니다.";
+"Chord Sustain" = "화음 지속";
+"Hold modifier on target while chording" = "화음 중 대상에서 수정자 키 유지";
+"Sends a real modifier-down to the connected device when you long-press, and keeps it applied after each chorded key until you lift your finger. Turn off only if your host misbehaves with sustained modifiers." = "길게 누를 때 연결된 기기에 실제 수정자 키 누름을 전송하고, 손가락을 들어올릴 때까지 각 화음 키 이후에도 계속 적용합니다. 호스트가 지속되는 수정자 키로 오작동하는 경우에만 비활성화하십시오.";
+"Long-Press Behavior" = "길게 누르기 동작";
+"Repeat key presses while held (default)" = "누르고 있는 동안 키 반복 (기본값)";
+"After a short delay, sends many quick press-and-release cycles — similar to auto-repeat when holding a physical key for typing." = "짧은 지연 후 빠른 누름 및 해제 사이클을 여러 번 전송합니다 — 타이핑을 위해 물리적 키를 누르고 있을 때의 자동 반복과 유사합니다.";
+"Hold key down on the target" = "대상에서 키를 누른 상태로 유지";
+"Sends one key-down when you press and releases when you lift your finger. Better for games or apps that expect a real held key instead of repeated taps." = "누를 때 키 누름 신호를 한 번 전송하고 손가락을 들어올리면 해제합니다. 반복 탭 대신 실제로 키를 누르고 있어야 하는 게임이나 앱에 더 적합합니다.";
+"KM Basic Touchpad" = "KM 기본 터치패드";
+"Touchpad sub-mode in Keyboard & Mouse (Basic): the vertical strip at the right edge for page scroll." = "키보드 및 마우스 (기본) 터치패드 서브 모드: 페이지 스크롤을 위한 오른쪽 가장자리의 수직 띠.";
+"Scroll Strip Sensitivity" = "스크롤 띠 감도";
+"Vertical scroll strip sensitivity" = "수직 스크롤 띠 감도";
+"Slow" = "느림";
+"Fast" = "빠름";
+"How fast content scrolls when you drag the strip beside the touchpad. Independent from General → touchpad two-finger scroll sensitivity." = "터치패드 옆의 띠를 드래그할 때 콘텐츠가 스크롤되는 속도. 일반 → 터치패드 두 손가락 스크롤 감도와 독립적입니다.";
+
+/* --- KM 프로 설정 --- */
+"Display" = "표시";
+"Keys Display" = "키 표시";
+"Controls how shortcuts and keys appear on the keyboard strip and QWERTY layout." = "단축키와 키가 키보드 띠 및 QWERTY 레이아웃에 표시되는 방식을 제어합니다.";
+"Touchpad" = "터치패드";
+"Touchpad Mode" = "터치패드 모드";
+"Strip Scroll Sensitivity" = "띠 스크롤 감도";
+"How fast content scrolls when dragging the strip." = "띠를 드래그할 때 콘텐츠가 스크롤되는 속도.";
+"Gaming Key Behavior" = "게임 키 동작";
+"Letter keys show long-press hint glyphs for alternates. Turn off for hold-to-repeat gaming style." = "문자 키에 대체 문자를 위한 길게 누르기 힌트 글리프가 표시됩니다. 누름 반복 게임 스타일의 경우 비활성화하십시오.";
+"Modifiers (shared with Basic)" = "수정자 키 (기본과 공유)";
+"Sends a real modifier-down to the connected device when long-pressing." = "길게 누를 때 연결된 기기에 실제 수정자 키 누름을 전송합니다.";
+"Show a floating label above a held key while pressing." = "누르는 동안 누른 키 위에 부동 레이블을 표시합니다.";
+"Show compact gesture status line on touchpad (buttons up / touch idle)." = "터치패드에 컴팩트한 제스처 상태 표시줄을 표시합니다 (버튼 해제 / 터치 유휴).";
+"Show drag strip beside touchpad for mouse wheel scroll." = "마우스 휠 스크롤을 위해 터치패드 옆에 드래그 띠를 표시합니다.";
+"Shortcut Hub Profile" = "단축키 허브 프로필";
+"Choose which profile's shortcuts appear on the keyboard strip." = "키보드 띠에 표시할 프로필의 단축키를 선택합니다.";
+"These settings also apply in Keyboard & Mouse (Basic) mode." = "이 설정은 키보드 및 마우스 (기본) 모드에도 적용됩니다.";
+"Tap to change" = "탭하여 변경";
+"Typing" = "입력";
+"Remember compose text while switching to Keyboard or NumPad submodes (in-memory only)." = "키보드 또는 숫자 키패드 서브 모드로 전환할 때 편집 텍스트를 기억합니다 (메모리 내 전용).";
+
+/* --- 시작 패널 --- */
+"Welcome to KeyMod" = "KeyMod에 오신 것을 환영합니다";
+"Choose your preferred mode" = "원하는 모드를 선택하세요";
+"Remember this choice and auto-enter this mode" = "이 선택을 기억하고 이 모드로 자동 진입";
+"Skip for now" = "지금은 건너뛰기";
+"Welcome & Guide" = "환영 및 가이드";
+
+/* --- 클립보드 프롬프트 --- */
+"Clipboard Content Detected" = "클립보드 내용 감지됨";
+"Send to target device?" = "대상 기기에 보내시겠습니까?";
+"Preview:" = "미리보기:";
+"Current Clipboard Content" = "현재 클립보드 내용";
+"Clear Clipboard" = "클립보드 지우기";
+"Clipboard Detection:" = "클립보드 감지:";
+"Monitoring Active" = "모니터링 활성";
+"Automatically detects when new text is copied to the clipboard. When new content is detected, a prompt will appear asking if you want to send it to the target device." = "클립보드에 새 텍스트가 복사될 때 자동으로 감지합니다. 새 내용이 감지되면 대상 기기로 보낼지 묻는 메시지가 표시됩니다.";
+"Send Check" = "전송 확인";
+"Long text: Sending may take longer" = "긴 텍스트: 전송에 더 오래 걸릴 수 있음";
+"Non-ASCII characters: Unprintable characters will be dropped" = "비 ASCII 문자: 인쇄할 수 없는 문자는 삭제됩니다";
+"Unicode mode: Send all characters via host HID encoding" = "유니코드 모드: 호스트 HID 인코딩으로 모든 문자 전송";
+"Send to Target" = "대상에 전송";
+
+/* --- 텍스트 편집 --- */
+"Type or paste your text here, edit as needed then tap Send." = "여기에 텍스트를 입력하거나 붙여넣고, 필요에 따라 편집한 다음 보내기를 탭하세요.";
+"Type and edit long text here - tap Send to send it to the connected device" = "여기에 긴 텍스트를 입력하고 편집하세요 - 보내기를 탭하여 연결된 기기로 전송";
+"Type text, then send (ASCII-friendly for HID)." = "텍스트를 입력한 다음 전송하세요 (HID 호환 ASCII).";
+"Save as Macro" = "매크로로 저장";
+
+/* --- AI 설정 --- */
+"Enable AI Refinement" = "AI 정제 활성화";
+"After voice input, AI will check intention and refine text" = "음성 입력 후 AI가 의도를 확인하고 텍스트를 정제합니다";
+"API Configuration" = "API 구성";
+"API Key" = "API 키";
+"API Key Optional" = "API 키 (선택 사항)";
+"API Key Management" = "API 키 관리";
+"Select or manage AI providers" = "AI 제공업체 선택 또는 관리";
+"AI Provider Setting" = "AI 제공업체 설정";
+"Enable for local providers (Ollama, LM Studio, etc.)" = "로컬 제공업체 활성화 (Ollama, LM Studio 등)";
+"Add New Provider" = "새 제공업체 추가";
+"Delete This Provider" = "이 제공업체 삭제";
+"Update API Key" = "API 키 업데이트";
+"Role Management" = "역할 관리";
+"System Prompt Role" = "시스템 프롬프트 역할";
+"Select a predefined role or create a custom prompt" = "미리 정의된 역할을 선택하거나 사용자 정의 프롬프트 만들기";
+"Prompt Management" = "프롬프트 관리";
+"Current System Prompt" = "현재 시스템 프롬프트";
+"Custom System Prompt" = "사용자 정의 시스템 프롬프트";
+"System Prompt" = "시스템 프롬프트";
+"Testing" = "테스트";
+"Testing…" = "테스트 중…";
+"✓ Connection Successful" = "✓ 연결 성공";
+"✗ Connection Failed" = "✗ 연결 실패";
+"Test API Connection" = "API 연결 테스트";
+"Add to My" = "내 항목에 추가";
+"Remove from My" = "내 항목에서 제거";
+
+/* --- 음성/Whisper --- */
+"Speech Recognition Engine" = "음성 인식 엔진";
+"Apple Voice Input" = "Apple 음성 입력";
+"Whisper (Local)" = "Whisper (로컬)";
+"Whisper requires the model to be downloaded. Restart the app after switching to use the new engine." = "Whisper는 모델을 다운로드해야 합니다. 전환 후 앱을 다시 시작하여 새 엔진을 사용하세요.";
+"Please restart the app to apply the speech engine change." = "음성 엔진 변경을 적용하려면 앱을 다시 시작하세요.";
+"Recognition Language" = "인식 언어";
+"Why Whisper?" = "왜 Whisper인가요?";
+"Whisper Model" = "Whisper 모델";
+"Download Model" = "모델 다운로드";
+"Download" = "다운로드";
+"Downloaded" = "다운로드됨";
+"Downloading..." = "다운로드 중...";
+"Not downloaded" = "다운로드되지 않음";
+"Works offline with no internet required" = "인터넷 없이 오프라인으로 작동";
+"Better accuracy for technical terms and accents" = "기술 용어와 억양에 대한 더 나은 정확도";
+"No transcription data sent to servers" = "서버로 전사 데이터가 전송되지 않음";
+"Fast and optimized for Apple devices" = "Apple 기기에 최적화된 빠른 처리";
+"No extra downloads required" = "추가 다운로드 불필요";
+"Uses Apple's advanced speech recognition" = "Apple의 고급 음성 인식 사용";
+"The selected language requires a multilingual Whisper model. Please select the \"Multilingual\" model below." = "선택한 언어에는 다국어 Whisper 모델이 필요합니다. 아래에서 \"다국어\" 모델을 선택하세요.";
+
+/* --- AI 요청 기록 --- */
+"No Request History" = "요청 기록 없음";
+"AI requests will appear here" = "AI 요청이 여기에 표시됩니다";
+"Delete this request?" = "이 요청을 삭제하시겠습니까?";
+"This will delete all request history. This action cannot be undone." = "모든 요청 기록이 삭제됩니다. 이 작업은 취소할 수 없습니다.";
+"Input" = "입력";
+"Output" = "출력";
+"Summary" = "요약";
+"Clear All" = "모두 지우기";
+"Delete All" = "모두 삭제";
+
+/* --- 음성 입력 화면 --- */
+"📝 Awaiting Voice Input" = "📝 음성 입력 대기 중";
+"Listening…" = "듣는 중…";
+"Text marked for refinement" = "정제를 위해 표시된 텍스트";
+"Refinement Failed" = "정제 실패";
+"Macro Name" = "매크로 이름";
+
+/* --- 매크로 --- */
+"Macros" = "매크로";
+"Macro Name (Label)" = "매크로 이름 (레이블)";
+"Macro Data (e.g. ^C, Hello,  A)" = "매크로 데이터 (예: ^C, Hello, A)";
+"Scheduler (Optional)" = "스케줄러 (선택 사항)";
+"Send Char Interval (ms)" = "문자 전송 간격 (밀리초)";
+"Every" = "매";
+"Count Up" = "카운트 업";
+"Countdown" = "카운트다운";
+
+/* --- 단축키 허브 --- */
+"Fixed Strip Layout" = "고정 띠 레이아웃";
+"Viewport Numpad" = "뷰포트 숫자 키패드";
+"No favorites yet" = "즐겨찾기 없음";
+"Add Shortcut" = "단축키 추가";
+"Tap the bookmark icon in a category tab to add shortcuts here, or use + Add Shortcut." = "카테고리 탭의 북마크 아이콘을 탭하여 여기에 단축키를 추가하거나, + 단축키 추가를 사용하세요.";
+"No profiles yet.\nUse Create or Import to add one." = "아직 프로필이 없습니다.\n만들기 또는 가져오기를 사용하여 추가하세요.";
+"Create Profile" = "프로필 만들기";
+
+/* --- 게임패드 --- */
+"Tap to pick key" = "탭하여 키 선택";
+"Background Type" = "배경 유형";
+"Current Background" = "현재 배경";
+"Color" = "색상";
+"Gradient" = "그라데이션";
+"Image" = "이미지";
+"Pattern" = "패턴";
+"Pan & Zoom" = "이동 및 확대/축소";
+"Hold Lock" = "고정 잠금";
+"Key Hold" = "키 고정";
+"Key Turbo" = "키 연타";
+"Turbo" = "연타";
+"None" = "없음";
+"Nothing" = "없음";
+"Enter a name." = "이름을 입력하세요.";
+"Enter a new name for this preset." = "이 프리셋의 새 이름을 입력하세요.";
+"Gap between segments" = "세그먼트 간 간격";
+"Outer reach of segments" = "세그먼트의 외부 범위";
+"Width ratio" = "너비 비율";
+"X Offset" = "X 오프셋";
+"Y Offset" = "Y 오프셋";
+"Zoom" = "확대/축소";
+"Mapped key labels" = "매핑된 키 레이블";
+"Direction icons" = "방향 아이콘";
+"Change Image" = "이미지 변경";
+"Slower — Faster" = "느림 — 빠름";
+"Square — Round" = "사각형 — 원형";
+"No preset available" = "사용 가능한 프리셋 없음";
+
+/* --- 터치패드/마우스 --- */
+"Touch Pad" = "터치패드";
+"TOUCHPAD" = "터치패드";
+"TouchPad" = "터치패드";
+"Touchpad Help" = "터치패드 도움말";
+"Mouse move / click / right-click" = "마우스 이동 / 클릭 / 우클릭";
+"Use these gestures in Pro Keyboard & Mouse mode:" = "프로 키보드 및 마우스 모드에서 이 제스처를 사용하세요:";
+"Tip: While drag mode is active, the touchpad background turns blue." = "팁: 드래그 모드가 활성화된 동안 터치패드 배경이 파란색으로 바뀝니다.";
+"Pointer" = "포인터";
+
+/* --- 타이머 --- */
+"TIMER" = "타이머";
+
+/* --- 콘텐츠 화면 --- */
+"Switch to Basic" = "기본 모드로 전환";
+"Switch to Pro" = "프로 모드로 전환";
+"Unknown Device" = "알 수 없는 기기";
+
+/* --- 복합 키 --- */
+"Composite Keys: <CTRL>A</CTRL> = press Ctrl, press A, release all" = "복합 키: <CTRL>A</CTRL> = Ctrl 누르기, A 누르기, 모두 해제";
+
+/* --- 시작 패널 모드 이름 --- */
+"Keyboard & Mouse" = "키보드 & 마우스";
+"Keyboard & Mouse Pro" = "키보드 & 마우스 프로";
+"Gamepad" = "게임패드";
+"Numpad" = "숫자 키패드";
+"Shortcuts" = "단축키";
+"Presentation" = "프레젠테이션";
+"Compose" = "편집";
+
+/* --- Presentation View --- */
+"Keynote" = "Keynote";
+"PowerPoint" = "PowerPoint";
+"Google Slides" = "Google Slides";
+"Word" = "Word";
+"Adobe Reader" = "Adobe Reader";
+"PRESENT" = "발표";
+"STOP" = "정지";
+"remaining" = "남음";
+"elapsed" = "경과";
+" of " = " / ";
+"◀  PREVIOUS" = "◀  이전";
+"NEXT  ▶" = "다음  ▶";
+"← Left arrow\nLong = First slide" = "← 왼쪽 화살표\n길게 누름 = 첫 슬라이드";
+"→ Right arrow\nLong = Last slide" = "→ 오른쪽 화살표\n길게 누름 = 마지막 슬라이드";
+"HIDE\nSCREEN" = "화면\n숨기기";
+"SHOW\nSCREEN" = "화면\n표시";
+"B" = "B";
+"RELEASE" = "해제";
+"SWITCH APP" = "앱 전환";
+"⌘Tab · tap / cycle · double = confirm" = "⌘Tab · 탭 / 순환 · 더블탭 = 확인";
+"Minutes" = "분";
+"Duration" = "시간";
+"Mode" = "모드";
+"Timer Mode" = "타이머 모드";
+
+/* --- 단축키 편집기 --- */
+"Name" = "이름";
+"Modifiers" = "수정자 키";
+"Keys — Letters" = "키 — 문자";
+"Keys — Special" = "키 — 특수";
+"Edit Shortcut" = "단축키 편집";
+"New Shortcut" = "새 단축키";
+"e.g. Save, Undo, Open Find…" = "예: 저장, 실행 취소, 찾기 열기…";
+"Select a key above." = "위에서 키를 선택하세요.";
+
+/* --- KM 프로 설정 토글 레이블 --- */
+"Alternate Hints" = "대체 힌트";
+"Key Tap Preview" = "키 탭 미리보기";
+"Compose Draft Retention" = "편집 초안 유지";
+"Vertical Scroll Strip" = "수직 스크롤 띠";
+"Gesture Status Line" = "제스처 상태 표시줄";
+"Select Profile" = "프로필 선택";
+
+/* --- KM 프로 간단 설명 --- */
+"Tap once to latch a modifier on; tap again to turn off." = "한 번 탭하여 수정자 키 고정; 다시 탭하면 해제.";
+"Short tap sends modifier once. Long-press to chord with other keys." = "짧게 탭하면 수정자 키를 한 번 전송. 길게 누르면 다른 키와 화음.";
+"Repeat key presses" = "키 반복";
+"Rapid tap cycles while held." = "누르는 동안 빠른 탭 사이클.";
+"Hold key down" = "키 누름 유지";
+"One key-down until release. Better for games." = "해제할 때까지 키 누름 유지. 게임에 더 적합.";
+
+/* --- 터치패드 모드 --- */
+"Gestures only" = "제스처만";
+"Pad + mouse keys" = "패드 + 마우스 키";
+"Hybrid" = "하이브리드";
+"Touchpad gestures control the pointer only." = "터치패드 제스처는 포인터만 제어합니다.";
+"Left/middle/right strip for mouse clicks." = "마우스 클릭을 위한 좌/중/우 띠.";
+"Full touchpad gestures plus L/M/R strip with visual sync." = "완전한 터치패드 제스처와 시각적 동기화가 있는 좌/중/우 띠.";
+
+/* --- 키 표시 모드 --- */
+"Names" = "이름";
+"Icons" = "아이콘";
+"Combo" = "콤보";
+
+/* --- Whisper 다운로드/삭제 대화상자 --- */
+"Download Whisper Model?" = "Whisper 모델을 다운로드하시겠습니까?";
+"Delete Whisper Model?" = "Whisper 모델을 삭제하시겠습니까?";
+
+/* --- 단축키 카테고리 --- */
+"Basic" = "기본";
+"System" = "시스템";
+"File" = "파일";
+"Navigation" = "탐색";
+"Tab" = "Tab";
+"Editing" = "편집";
+
+/* --- 매크로 편집기 --- */
+"e.g. Copy" = "예: 복사";
+"Enable Scheduler" = "스케줄러 활성화";
+"Repeat" = "반복";
+"Repeat Interval" = "반복 간격";
+"Edit Macro" = "매크로 편집";
+"Add Macro" = "매크로 추가";
+
+/* --- 단축키 허브 --- */
+"Profile name" = "프로필 이름";

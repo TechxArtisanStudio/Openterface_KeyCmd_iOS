@@ -216,7 +216,7 @@ struct KmProSettingsView: View {
     }
 
     @ViewBuilder
-    private func longPressRow(value: KmBasicKeyboardPrefs.LongPressBehavior, title: String, description: String) -> some View {
+    private func longPressRow(value: KmBasicKeyboardPrefs.LongPressBehavior, title: LocalizedStringKey, description: LocalizedStringKey) -> some View {
         Button(action: { withAnimation { basicPrefs.longPressBehavior = value } }) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: basicPrefs.longPressBehavior == value ? "largecircle.fill.circle" : "circle")
@@ -257,7 +257,7 @@ struct KmProSettingsView: View {
     }
 
     @ViewBuilder
-    private func modifierRow(value: KmBasicKeyboardPrefs.ModifierBehavior, title: String, description: String) -> some View {
+    private func modifierRow(value: KmBasicKeyboardPrefs.ModifierBehavior, title: LocalizedStringKey, description: LocalizedStringKey) -> some View {
         Button(action: { withAnimation { basicPrefs.modifierBehavior = value } }) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: basicPrefs.modifierBehavior == value ? "largecircle.fill.circle" : "circle")

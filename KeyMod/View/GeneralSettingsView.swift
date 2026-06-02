@@ -13,6 +13,7 @@ struct GeneralSettingsView: View {
     @AppStorage("clipboardMonitoringEnabled") private var clipboardMonitoringEnabled = true
     @ObservedObject private var aiSettings = AISettings.shared
     @ObservedObject private var themeManager = ThemeManager.shared
+    @ObservedObject private var languageManager = LanguageManager.shared
 
     var body: some View {
         // MARK: - Theme (matches Android ThemeManager)
@@ -242,6 +243,18 @@ struct GeneralSettingsView: View {
                 Spacer()
                 Text("\(touchpadSettings.scrollSensitivity, specifier: "%.1f")x")
             }
+        }
+
+        // MARK: - Language
+        Section(header: Text("Language")) {
+            Picker("App Language", selection: $languageManager.selectedLanguageId) {
+                ForEach(LanguageManager.supported) { lang in
+                    Text(lang.displayName).tag(lang.id)
+                }
+            }
+            Text("The selected language takes effect immediately.")
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
     }
 }

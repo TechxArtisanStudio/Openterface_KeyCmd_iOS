@@ -59,6 +59,7 @@ struct KeyModApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var launchPanelManager = LaunchPanelManager()
     @StateObject private var themeManager = ThemeManager.shared
+    @StateObject private var languageManager = LanguageManager.shared
     
     init() {
         // Disable keyboard prediction service XPC calls that cause ~3s
@@ -88,6 +89,7 @@ struct KeyModApp: App {
                 }
             }
             .ignoresSafeArea()
+            .environment(\.locale, languageManager.locale)
             .tint(themeManager.accentColor)
             .onAppear {
                 if launchPanelManager.showLaunchPanel {

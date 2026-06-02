@@ -1,0 +1,392 @@
+/* ============================================================
+   ja.lproj/Localizable.strings — 日本語
+   ============================================================ */
+
+"Done" = "完了";
+"Cancel" = "キャンセル";
+"Save" = "保存";
+"Reset" = "リセット";
+"OK" = "OK";
+"Close" = "閉じる";
+"Delete" = "削除";
+"Edit" = "編集";
+"Create" = "作成";
+"Rename" = "名前を変更";
+"Export" = "エクスポート";
+"Import" = "インポート";
+"Duplicate" = "複製";
+"Remove" = "削除";
+"Clear" = "クリア";
+"Send" = "送信";
+"Dismiss" = "閉じる";
+"Run" = "実行";
+"Undo" = "元に戻す";
+"Check" = "確認";
+"Copy" = "コピー";
+"Preview" = "プレビュー";
+"Refresh" = "更新";
+"Information" = "情報";
+"Notes" = "メモ";
+"Setup" = "設定";
+"Status" = "ステータス";
+"Active" = "アクティブ";
+"Start" = "開始";
+"Read-only" = "読み取り専用";
+"Stop Repeat" = "繰り返しを停止";
+"Send Anyway" = "それでも送信";
+
+"Settings" = "設定";
+"General" = "一般";
+"Keyboard" = "キーボード";
+"Voice Input" = "音声入力";
+"AI Settings" = "AI設定";
+"History" = "履歴";
+
+"Pro Setup" = "プロ設定";
+"ASCII Preview" = "ASCIIプレビュー";
+"Add Module" = "モジュールを追加";
+"Background" = "背景";
+"Clipboard Info" = "クリップボード情報";
+"Layouts" = "レイアウト";
+"Saved Texts" = "保存されたテキスト";
+"Select Key" = "キーを選択";
+"Timer Settings" = "タイマー設定";
+"Shortcut Hub" = "ショートカットハブ";
+"Request History" = "リクエスト履歴";
+
+"Appearance" = "外観";
+"Color Family" = "カラーファミリー";
+"Follow System Appearance" = "システム外観に従う";
+"Theme Mode" = "テーマモード";
+
+"Target System" = "ターゲットシステム";
+"Target OS" = "ターゲットOS";
+"Sets the operating system of the target machine. The AI Command Assistant will use OS-specific shortcuts and key tokens." = "ターゲットマシンのオペレーティングシステムを設定します。AIコマンドアシスタントはOS固有のショートカットとキートークンを使用します。";
+
+"Touchpad Settings" = "タッチパッド設定";
+"Tap Duration Threshold" = "タップ持続時間のしきい値";
+"Maximum time allowed for a tap (shorter = more responsive, longer = more forgiving)" = "タップに許容される最大時間（短いほど応答性が高く、長いほど寛容）";
+"Movement Threshold" = "移動しきい値";
+"Maximum finger movement allowed during a tap" = "タップ中に許容される最大指の移動量";
+"Delay Before Click" = "クリック前の遅延";
+"Delay to distinguish between tap and drag (shorter = faster response)" = "タップとドラッグを区別するための遅延（短いほど応答が速い）";
+"Scroll Sensitivity" = "スクロール感度";
+"Adjusts scroll sensitivity for two-finger scrolling (lower = slower, higher = faster)" = "2本指スクロールのスクロール感度を調整します（低いほど遅く、高いほど速い）";
+
+"Clipboard Monitoring" = "クリップボード監視";
+"Enable Clipboard Monitoring" = "クリップボード監視を有効にする";
+"Detects new clipboard content and asks if you want to send it to the target device" = "新しいクリップボードコンテンツを検出し、ターゲットデバイスに送信するかどうかを確認します";
+
+"BLE Key Delay" = "BLEキー遅延";
+"Inter-key Delay" = "キー間遅延";
+"Delay between each BLE HID key report. Lower values = faster typing but may miss keys on slow targets. Default: 10 ms." = "各BLE HIDキーレポート間の遅延。値が低いほど入力が速くなりますが、遅いターゲットではキーを見逃す可能性があります。デフォルト：10ミリ秒。";
+
+"Haptic Feedback" = "触覚フィードバック";
+"Enable Haptic Feedback" = "触覚フィードバックを有効にする";
+"Provides vibration feedback for all interactions including button presses, key presses, mouse clicks, and touch gestures" = "ボタン押下、キー押下、マウスクリック、タッチジェスチャーなどすべての操作に振動フィードバックを提供します";
+"Test Light Feedback" = "軽い触覚をテスト";
+"Test Medium Feedback" = "中程度の触覚をテスト";
+"Test Strong Feedback" = "強い触覚をテスト";
+
+"Reset to Defaults" = "デフォルトにリセット";
+"Current Values" = "現在の値";
+"Tap Duration:" = "タップ持続時間：";
+"Movement Threshold:" = "移動しきい値：";
+"Click Delay:" = "クリック遅延：";
+"Scroll Sensitivity:" = "スクロール感度：";
+
+"Language" = "言語";
+"App Language" = "アプリの言語";
+"Follow System" = "システムに従う";
+"The selected language takes effect immediately." = "選択した言語はすぐに有効になります。";
+
+"KM Basic Keyboard" = "KM基本キーボード";
+"Full keyboard in Keyboard + Mouse (Basic) mode: how Ctrl, Shift, Alt/Option, and Win/Cmd behave." = "キーボード + マウス（基本）モードのフルキーボード：Ctrl、Shift、Alt/Option、Win/Cmdの動作方法。";
+"Modifier Behavior" = "修飾キーの動作";
+"Sticky modifiers" = "スティッキー修飾キー";
+"Tap once to latch a modifier on; tap again to turn off. Highlighted keys show what is latched." = "一度タップして修飾キーをラッチ；もう一度タップでオフ。ハイライトされたキーがラッチされているものを示します。";
+"Momentary and long-press chord (default)" = "瞬間および長押しコード（デフォルト）";
+"Short tap sends that modifier key once to the target. Long-press a modifier, keep your finger down, then tap other keys to chord (e.g. long-press Shift and tap 1 for !). Release the modifier to stop." = "短いタップでその修飾キーを一度ターゲットに送信します。修飾キーを長押ししながら指を離さずに他のキーをタップしてコードを形成します（例：Shiftを長押しして1をタップで！）。修飾キーを離すと停止します。";
+"Chord Sustain" = "コードサステイン";
+"Hold modifier on target while chording" = "コード中はターゲットで修飾キーを保持";
+"Sends a real modifier-down to the connected device when you long-press, and keeps it applied after each chorded key until you lift your finger. Turn off only if your host misbehaves with sustained modifiers." = "長押し時に接続デバイスに本物の修飾キー押下を送信し、指を離すまで各コードキーの後も適用し続けます。ホストがサステインした修飾キーで誤動作する場合のみオフにしてください。";
+"Long-Press Behavior" = "長押しの動作";
+"Repeat key presses while held (default)" = "保持中にキー押下を繰り返す（デフォルト）";
+"After a short delay, sends many quick press-and-release cycles — similar to auto-repeat when holding a physical key for typing." = "短い遅延の後、多くの素早い押下と離しのサイクルを送信します—物理キーを保持して入力するときの自動繰り返しと同様。";
+"Hold key down on the target" = "ターゲットでキーを押し続ける";
+"Sends one key-down when you press and releases when you lift your finger. Better for games or apps that expect a real held key instead of repeated taps." = "押したときに一つのキー押下を送信し、指を離すと解放します。繰り返しタップではなく、実際に保持されたキーを期待するゲームやアプリに適しています。";
+"KM Basic Touchpad" = "KM基本タッチパッド";
+"Touchpad sub-mode in Keyboard & Mouse (Basic): the vertical strip at the right edge for page scroll." = "キーボードとマウス（基本）のタッチパッドサブモード：ページスクロール用の右端の垂直ストリップ。";
+"Scroll Strip Sensitivity" = "スクロールストリップ感度";
+"Vertical scroll strip sensitivity" = "垂直スクロールストリップ感度";
+"Slow" = "遅い";
+"Fast" = "速い";
+"How fast content scrolls when you drag the strip beside the touchpad. Independent from General → touchpad two-finger scroll sensitivity." = "タッチパッド横のストリップをドラッグしたときのコンテンツのスクロール速度。一般 → タッチパッド2本指スクロール感度とは独立しています。";
+
+"Display" = "表示";
+"Keys Display" = "キー表示";
+"Controls how shortcuts and keys appear on the keyboard strip and QWERTY layout." = "キーボードストリップとQWERTYレイアウトでショートカットとキーの表示方法を制御します。";
+"Touchpad" = "タッチパッド";
+"Touchpad Mode" = "タッチパッドモード";
+"Strip Scroll Sensitivity" = "ストリップスクロール感度";
+"How fast content scrolls when dragging the strip." = "ストリップをドラッグするときのコンテンツのスクロール速度。";
+"Gaming Key Behavior" = "ゲーミングキーの動作";
+"Letter keys show long-press hint glyphs for alternates. Turn off for hold-to-repeat gaming style." = "文字キーには代替文字の長押しヒントグリフが表示されます。押し続けて繰り返すゲームスタイルにはオフにしてください。";
+"Modifiers (shared with Basic)" = "修飾キー（基本と共有）";
+"Sends a real modifier-down to the connected device when long-pressing." = "長押し時に接続デバイスに本物の修飾キー押下を送信します。";
+"Show a floating label above a held key while pressing." = "押している間、保持されたキーの上にフローティングラベルを表示します。";
+"Show compact gesture status line on touchpad (buttons up / touch idle)." = "タッチパッドにコンパクトなジェスチャーステータスラインを表示します（ボタン離し / タッチアイドル）。";
+"Show drag strip beside touchpad for mouse wheel scroll." = "マウスホイールスクロール用にタッチパッド横にドラッグストリップを表示します。";
+"Shortcut Hub Profile" = "ショートカットハブプロファイル";
+"Choose which profile's shortcuts appear on the keyboard strip." = "キーボードストリップに表示するプロファイルのショートカットを選択します。";
+"These settings also apply in Keyboard & Mouse (Basic) mode." = "これらの設定はキーボードとマウス（基本）モードにも適用されます。";
+"Tap to change" = "タップして変更";
+"Typing" = "入力";
+"Remember compose text while switching to Keyboard or NumPad submodes (in-memory only)." = "キーボードまたは数字キーパッドサブモードに切り替える際に作成テキストを記憶します（メモリ内のみ）。";
+
+"Welcome to KeyMod" = "KeyModへようこそ";
+"Choose your preferred mode" = "お好みのモードを選択してください";
+"Remember this choice and auto-enter this mode" = "この選択を記憶してこのモードに自動入力する";
+"Skip for now" = "今はスキップ";
+"Welcome & Guide" = "ようこそ＆ガイド";
+
+"Clipboard Content Detected" = "クリップボードのコンテンツを検出";
+"Send to target device?" = "ターゲットデバイスに送信しますか？";
+"Preview:" = "プレビュー：";
+"Current Clipboard Content" = "現在のクリップボードコンテンツ";
+"Clear Clipboard" = "クリップボードをクリア";
+"Clipboard Detection:" = "クリップボード検出：";
+"Monitoring Active" = "監視アクティブ";
+"Automatically detects when new text is copied to the clipboard. When new content is detected, a prompt will appear asking if you want to send it to the target device." = "クリップボードに新しいテキストがコピーされると自動的に検出します。新しいコンテンツが検出されると、ターゲットデバイスに送信するかどうか確認するプロンプトが表示されます。";
+"Send Check" = "送信確認";
+"Long text: Sending may take longer" = "長いテキスト：送信に時間がかかる場合があります";
+"Non-ASCII characters: Unprintable characters will be dropped" = "非ASCII文字：印刷不可能な文字は削除されます";
+"Unicode mode: Send all characters via host HID encoding" = "Unicodeモード：ホストHIDエンコーディングですべての文字を送信";
+"Send to Target" = "ターゲットに送信";
+
+"Type or paste your text here, edit as needed then tap Send." = "ここにテキストを入力または貼り付け、必要に応じて編集してから送信をタップしてください。";
+"Type and edit long text here - tap Send to send it to the connected device" = "ここに長いテキストを入力・編集 - 送信をタップして接続デバイスに送信";
+"Type text, then send (ASCII-friendly for HID)." = "テキストを入力してから送信（HID用ASCII対応）。";
+"Save as Macro" = "マクロとして保存";
+
+"Enable AI Refinement" = "AI精錬を有効にする";
+"After voice input, AI will check intention and refine text" = "音声入力後、AIが意図を確認してテキストを精錬します";
+"API Configuration" = "API設定";
+"API Key" = "APIキー";
+"API Key Optional" = "APIキー（オプション）";
+"API Key Management" = "APIキー管理";
+"Select or manage AI providers" = "AIプロバイダーを選択または管理";
+"AI Provider Setting" = "AIプロバイダー設定";
+"Enable for local providers (Ollama, LM Studio, etc.)" = "ローカルプロバイダー用に有効にする（Ollama、LM Studioなど）";
+"Add New Provider" = "新しいプロバイダーを追加";
+"Delete This Provider" = "このプロバイダーを削除";
+"Update API Key" = "APIキーを更新";
+"Role Management" = "ロール管理";
+"System Prompt Role" = "システムプロンプトロール";
+"Select a predefined role or create a custom prompt" = "事前定義されたロールを選択するか、カスタムプロンプトを作成する";
+"Prompt Management" = "プロンプト管理";
+"Current System Prompt" = "現在のシステムプロンプト";
+"Custom System Prompt" = "カスタムシステムプロンプト";
+"System Prompt" = "システムプロンプト";
+"Testing" = "テスト";
+"Testing…" = "テスト中…";
+"✓ Connection Successful" = "✓ 接続成功";
+"✗ Connection Failed" = "✗ 接続失敗";
+"Test API Connection" = "API接続をテスト";
+"Add to My" = "マイに追加";
+"Remove from My" = "マイから削除";
+
+"Speech Recognition Engine" = "音声認識エンジン";
+"Apple Voice Input" = "Apple音声入力";
+"Whisper (Local)" = "Whisper（ローカル）";
+"Whisper requires the model to be downloaded. Restart the app after switching to use the new engine." = "Whisperはモデルのダウンロードが必要です。新しいエンジンを使用するには、切り替え後にアプリを再起動してください。";
+"Please restart the app to apply the speech engine change." = "音声エンジンの変更を適用するにはアプリを再起動してください。";
+"Recognition Language" = "認識言語";
+"Why Whisper?" = "なぜWhisper？";
+"Whisper Model" = "Whisperモデル";
+"Download Model" = "モデルをダウンロード";
+"Download" = "ダウンロード";
+"Downloaded" = "ダウンロード済み";
+"Downloading..." = "ダウンロード中...";
+"Not downloaded" = "未ダウンロード";
+"Works offline with no internet required" = "インターネット不要でオフライン動作";
+"Better accuracy for technical terms and accents" = "技術用語やアクセントの精度が高い";
+"No transcription data sent to servers" = "転写データはサーバーに送信されない";
+"Fast and optimized for Apple devices" = "Appleデバイス向けに最適化された高速処理";
+"No extra downloads required" = "追加ダウンロード不要";
+"Uses Apple's advanced speech recognition" = "Appleの高度な音声認識を使用";
+"The selected language requires a multilingual Whisper model. Please select the \"Multilingual\" model below." = "選択した言語には多言語Whisperモデルが必要です。以下で「多言語」モデルを選択してください。";
+
+"No Request History" = "リクエスト履歴なし";
+"AI requests will appear here" = "AIリクエストがここに表示されます";
+"Delete this request?" = "このリクエストを削除しますか？";
+"This will delete all request history. This action cannot be undone." = "すべてのリクエスト履歴が削除されます。この操作は元に戻せません。";
+"Input" = "入力";
+"Output" = "出力";
+"Summary" = "概要";
+"Clear All" = "すべてクリア";
+"Delete All" = "すべて削除";
+
+"📝 Awaiting Voice Input" = "📝 音声入力を待機中";
+"Listening…" = "聞き取り中…";
+"Text marked for refinement" = "精錬のためにマークされたテキスト";
+"Refinement Failed" = "精錬失敗";
+"Macro Name" = "マクロ名";
+
+"Macros" = "マクロ";
+"Macro Name (Label)" = "マクロ名（ラベル）";
+"Macro Data (e.g. ^C, Hello,  A)" = "マクロデータ（例：^C、Hello、A）";
+"Scheduler (Optional)" = "スケジューラー（オプション）";
+"Send Char Interval (ms)" = "文字送信間隔（ミリ秒）";
+"Every" = "毎";
+"Count Up" = "カウントアップ";
+"Countdown" = "カウントダウン";
+
+"Fixed Strip Layout" = "固定ストリップレイアウト";
+"Viewport Numpad" = "ビューポートテンキー";
+"No favorites yet" = "お気に入りなし";
+"Add Shortcut" = "ショートカットを追加";
+"Tap the bookmark icon in a category tab to add shortcuts here, or use + Add Shortcut." = "カテゴリタブのブックマークアイコンをタップしてショートカットをここに追加するか、+ショートカットを追加を使用してください。";
+"No profiles yet.\nUse Create or Import to add one." = "プロファイルなし。\n作成またはインポートを使用して追加してください。";
+"Create Profile" = "プロファイルを作成";
+
+"Tap to pick key" = "タップしてキーを選択";
+"Background Type" = "背景タイプ";
+"Current Background" = "現在の背景";
+"Color" = "カラー";
+"Gradient" = "グラデーション";
+"Image" = "画像";
+"Pattern" = "パターン";
+"Pan & Zoom" = "パン＆ズーム";
+"Hold Lock" = "ホールドロック";
+"Key Hold" = "キーホールド";
+"Key Turbo" = "キーターボ";
+"Turbo" = "ターボ";
+"None" = "なし";
+"Nothing" = "なし";
+"Enter a name." = "名前を入力してください。";
+"Enter a new name for this preset." = "このプリセットの新しい名前を入力してください。";
+"Gap between segments" = "セグメント間の隙間";
+"Outer reach of segments" = "セグメントの外側の範囲";
+"Width ratio" = "幅の比率";
+"X Offset" = "Xオフセット";
+"Y Offset" = "Yオフセット";
+"Zoom" = "ズーム";
+"Mapped key labels" = "マップされたキーラベル";
+"Direction icons" = "方向アイコン";
+"Change Image" = "画像を変更";
+"Slower — Faster" = "遅い — 速い";
+"Square — Round" = "四角 — 丸";
+"No preset available" = "プリセットなし";
+
+"Touch Pad" = "タッチパッド";
+"TOUCHPAD" = "タッチパッド";
+"TouchPad" = "タッチパッド";
+"Touchpad Help" = "タッチパッドヘルプ";
+"Mouse move / click / right-click" = "マウス移動 / クリック / 右クリック";
+"Use these gestures in Pro Keyboard & Mouse mode:" = "プロキーボード＆マウスモードでこれらのジェスチャーを使用します：";
+"Tip: While drag mode is active, the touchpad background turns blue." = "ヒント：ドラッグモードがアクティブな間、タッチパッドの背景が青くなります。";
+"Pointer" = "ポインター";
+
+"TIMER" = "タイマー";
+
+"Switch to Basic" = "基本モードに切り替え";
+"Switch to Pro" = "プロモードに切り替え";
+"Unknown Device" = "不明なデバイス";
+
+"Composite Keys: <CTRL>A</CTRL> = press Ctrl, press A, release all" = "複合キー：<CTRL>A</CTRL> = Ctrlを押す、Aを押す、すべて離す";
+
+/* --- 起動パネルモード名 --- */
+"Keyboard & Mouse" = "キーボード＆マウス";
+"Keyboard & Mouse Pro" = "キーボード＆マウス Pro";
+"Gamepad" = "ゲームパッド";
+"Numpad" = "テンキー";
+"Shortcuts" = "ショートカット";
+"Presentation" = "プレゼンテーション";
+"Compose" = "作成";
+
+/* --- Presentation View --- */
+"Keynote" = "Keynote";
+"PowerPoint" = "PowerPoint";
+"Google Slides" = "Google Slides";
+"Word" = "Word";
+"Adobe Reader" = "Adobe Reader";"PRESENT" = "発表";
+"STOP" = "停止";"remaining" = "残り";
+"elapsed" = "経過";
+" of " = " / ";
+"◀  PREVIOUS" = "◀  前へ";
+"NEXT  ▶" = "次へ  ▶";
+"← Left arrow\nLong = First slide" = "← 左矢印\n長押 = 最初のスライド";
+"→ Right arrow\nLong = Last slide" = "→ 右矢印\n長押 = 最後のスライド";
+"HIDE\nSCREEN" = "画面を\n隠す";
+"SHOW\nSCREEN" = "画面を\n表示";
+"B" = "B";
+"RELEASE" = "解除";
+"SWITCH APP" = "アプリ切替";
+"⌘Tab · tap / cycle · double = confirm" = "⌘Tab · タップ / 循環 · ダブル = 確定";
+"Minutes" = "分";
+"Duration" = "時間";
+"Mode" = "モード";
+"Timer Mode" = "タイマーモード";
+
+/* --- ショートカットエディタ --- */
+"Name" = "名前";
+"Modifiers" = "修飾キー";
+"Keys — Letters" = "キー — 文字";
+"Keys — Special" = "キー — 特殊";
+"Edit Shortcut" = "ショートカットを編集";
+"New Shortcut" = "新しいショートカット";
+"e.g. Save, Undo, Open Find…" = "例: 保存、元に戻す、検索を開く…";
+"Select a key above." = "上からキーを選択してください。";
+
+/* --- KM Pro設定トグルラベル --- */
+"Alternate Hints" = "代替ヒント";
+"Key Tap Preview" = "キータッププレビュー";
+"Compose Draft Retention" = "作成下書きの保持";
+"Vertical Scroll Strip" = "垂直スクロールストリップ";
+"Gesture Status Line" = "ジェスチャーステータスライン";
+"Select Profile" = "プロファイルを選択";
+
+/* --- KM Pro短い説明 --- */
+"Tap once to latch a modifier on; tap again to turn off." = "一度タップして修飾キーをラッチ；もう一度タップでオフ。";
+"Short tap sends modifier once. Long-press to chord with other keys." = "短いタップで修飾キーを一度送信。長押しで他のキーとコードを形成。";
+"Repeat key presses" = "キー押下を繰り返す";
+"Rapid tap cycles while held." = "押し続けている間の速いタップサイクル。";
+"Hold key down" = "キーを押し続ける";
+"One key-down until release. Better for games." = "離すまで一つのキー押下。ゲームに適しています。";
+
+/* --- タッチパッドモード --- */
+"Gestures only" = "ジェスチャーのみ";
+"Pad + mouse keys" = "パッド＋マウスキー";
+"Hybrid" = "ハイブリッド";
+"Touchpad gestures control the pointer only." = "タッチパッドジェスチャーはポインターのみを制御します。";
+"Left/middle/right strip for mouse clicks." = "マウスクリック用の左/中/右ストリップ。";
+"Full touchpad gestures plus L/M/R strip with visual sync." = "完全なタッチパッドジェスチャーと視覚同期付きL/M/Rストリップ。";
+
+/* --- キー表示モード --- */
+"Names" = "名前";
+"Icons" = "アイコン";
+"Combo" = "コンボ";
+
+/* --- Whisperダイアログ --- */
+"Download Whisper Model?" = "Whisperモデルをダウンロード？";
+"Delete Whisper Model?" = "Whisperモデルを削除？";
+
+/* --- ショートカットカテゴリ --- */
+"Basic" = "基本";
+"System" = "システム";
+"File" = "ファイル";
+"Navigation" = "ナビゲーション";
+"Tab" = "Tab";
+"Editing" = "編集";
+
+/* --- マクロエディタ --- */
+"e.g. Copy" = "例: コピー";
+"Enable Scheduler" = "スケジューラーを有効にする";
+"Repeat" = "繰り返し";
+"Repeat Interval" = "繰り返し間隔";
+"Edit Macro" = "マクロを編集";
+"Add Macro" = "マクロを追加";
+
+/* --- ShortcutHub --- */
+"Profile name" = "プロファイル名";
