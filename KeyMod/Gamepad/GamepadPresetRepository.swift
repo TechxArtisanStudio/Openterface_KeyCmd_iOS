@@ -308,8 +308,8 @@ class GamepadPresetRepository: ObservableObject {
             layout.backgroundPattern = "dots"
             modules = defaultPresetModules()
         case "preset_pack_xyab":
-            layout.backgroundFillArgb = -14997448
-            layout.backgroundPattern = "micro_grid"
+            layout.backgroundFillArgb = -12767670
+            layout.backgroundPattern = "diagonal_hatch"
             layout.faceButtonTemplate = "xbox_abxy"
             modules = xyabModules()
         case "preset_pack_xyab_touchpad":
@@ -323,6 +323,9 @@ class GamepadPresetRepository: ObservableObject {
             layout.faceButtonTemplate = "xbox_abxy"
             layout.mouseSensitivity = 1.12
             layout.rightStickMouseGain = 1.18
+            layout.touchpadMouseButtonScale = 1.0
+            layout.stickLayoutTemplate = "offset"
+            layout.gyroEnabled = false
             modules = minecraftJavaModules()
         case "emulator_6":
             layout.backgroundFillArgb = -14997448
@@ -349,74 +352,77 @@ class GamepadPresetRepository: ObservableObject {
     // MARK: - Default Module Definitions (matching Android gamepad/*.json)
 
     private func defaultPresetModules() -> [GamepadModule] {
-        var dpad = GamepadModule(id: "stick_left", type: .dpad, anchorX: 0.2, anchorY: 0.5, zIndex: 0,
+        var dpad = GamepadModule(id: "stick_left", type: .dpad, anchorX: 0.2, anchorY: 0.5, scale: 1.23, zIndex: 0,
                                  dpadVariant: "cross",
-                                 stickUpKey: "Up", stickLeftKey: "Left", stickDownKey: "Down", stickRightKey: "Right")
+                                 stickUpKey: "W", stickLeftKey: "A", stickDownKey: "S", stickRightKey: "D")
         dpad.moduleAccentArgb = -13154481
-        var btnA = GamepadModule(id: "button_a", type: .button, anchorX: 0.716, anchorY: 0.514, scale: 1.01, zIndex: 1,
+        dpad.dpadCrossArmDecoration = "labels"
+        var btnA = GamepadModule(id: "button_a", type: .button, anchorX: 0.7164794, anchorY: 0.51415855, scale: 1.01, zIndex: 1,
                                  hidKey: 40, derivedKey: "Enter", displayLabel: "B")
-        btnA.buttonCornerRadiusNorm = 1.0; btnA.moduleAccentArgb = -43230
-        var btnSelect = GamepadModule(id: "button_select", type: .button, anchorX: 0.43, anchorY: 0.833, scale: 0.53, zIndex: 2,
+        btnA.buttonCornerRadiusNorm = 1.0; btnA.moduleAccentArgb = -43230; btnA.displayLabelColorArgb = -1
+        var btnSelect = GamepadModule(id: "button_select", type: .button, anchorX: 0.43033707, anchorY: 0.8333252, scale: 0.53, zIndex: 2,
                                       hidKey: 20, derivedKey: "Q", displayLabel: "Select")
-        btnSelect.buttonCornerRadiusNorm = 0.51
-        var btnStart = GamepadModule(id: "button_start", type: .button, anchorX: 0.573, anchorY: 0.827, scale: 0.53, zIndex: 3,
+        btnSelect.buttonCornerRadiusNorm = 0.51; btnSelect.buttonWidthRatio = 1.39; btnSelect.buttonHeightRatio = 0.62; btnSelect.buttonRotationDeg = -35
+        var btnStart = GamepadModule(id: "button_start", type: .button, anchorX: 0.57340825, anchorY: 0.8274919, scale: 0.53, zIndex: 3,
                                      hidKey: 8, derivedKey: "E", displayLabel: "Start")
-        btnStart.buttonCornerRadiusNorm = 0.51
-        var btnB = GamepadModule(id: "button_b", type: .button, anchorX: 0.854, anchorY: 0.512, scale: 1.01, zIndex: 4,
+        btnStart.buttonCornerRadiusNorm = 0.51; btnStart.buttonWidthRatio = 1.39; btnStart.buttonHeightRatio = 0.62; btnStart.buttonRotationDeg = -35
+        var btnB = GamepadModule(id: "button_b", type: .button, anchorX: 0.85355806, anchorY: 0.5124919, scale: 1.01, zIndex: 4,
                                  hidKey: 44, derivedKey: "Space", displayLabel: "A")
         btnB.buttonCornerRadiusNorm = 1.0; btnB.moduleAccentArgb = -1499549
         return [dpad, btnA, btnSelect, btnStart, btnB]
     }
 
     private func xyabModules() -> [GamepadModule] {
-        var dpad = GamepadModule(id: "stick_left", type: .dpad, anchorX: 0.2, anchorY: 0.5, zIndex: 0,
+        var dpad = GamepadModule(id: "stick_left", type: .dpad, anchorX: 0.2, anchorY: 0.5, scale: 1.23, zIndex: 0,
                                  dpadVariant: "cross",
-                                 stickUpKey: "Up", stickLeftKey: "Left", stickDownKey: "Down", stickRightKey: "Right")
+                                 stickUpKey: "W", stickLeftKey: "A", stickDownKey: "S", stickRightKey: "D")
         dpad.moduleAccentArgb = -13154481
+        dpad.dpadCrossArmDecoration = "labels"
         var btnY = GamepadModule(id: "button_y", type: .button, anchorX: 0.795, anchorY: 0.388, scale: 0.91, zIndex: 1,
                                  hidKey: 24, derivedKey: "U", displayLabel: "Y")
-        btnY.buttonCornerRadiusNorm = 1.0; btnY.moduleAccentArgb = -20443
+        btnY.buttonCornerRadiusNorm = 1.0; btnY.moduleAccentArgb = -20443; btnY.mappedKeyLabelVisible = false
         var btnX = GamepadModule(id: "button_x", type: .button, anchorX: 0.688, anchorY: 0.515, scale: 0.91, zIndex: 2,
                                  hidKey: 11, derivedKey: "H", displayLabel: "X")
-        btnX.buttonCornerRadiusNorm = 1.0; btnX.moduleAccentArgb = -14575807
+        btnX.buttonCornerRadiusNorm = 1.0; btnX.moduleAccentArgb = -14575807; btnX.mappedKeyLabelVisible = false
         var btnB = GamepadModule(id: "button_b", type: .button, anchorX: 0.902, anchorY: 0.515, scale: 0.91, zIndex: 3,
                                  hidKey: 12, derivedKey: "I", displayLabel: "B")
-        btnB.buttonCornerRadiusNorm = 1.0; btnB.moduleAccentArgb = -43230
+        btnB.buttonCornerRadiusNorm = 1.0; btnB.moduleAccentArgb = -43230; btnB.mappedKeyLabelVisible = false
         var btnA = GamepadModule(id: "button_a", type: .button, anchorX: 0.795, anchorY: 0.642, scale: 0.91, zIndex: 4,
                                  hidKey: 13, derivedKey: "J", displayLabel: "A")
-        btnA.buttonCornerRadiusNorm = 1.0; btnA.moduleAccentArgb = -11684126
-        let btnSelect = GamepadModule(id: "button_select", type: .button, anchorX: 0.43, anchorY: 0.833, scale: 0.53, zIndex: 5,
+        btnA.buttonCornerRadiusNorm = 1.0; btnA.moduleAccentArgb = -11684126; btnA.mappedKeyLabelVisible = false
+        let btnSelect = GamepadModule(id: "button_select", type: .button, anchorX: 0.43033707, anchorY: 0.8333252, scale: 0.53, zIndex: 5,
                                       hidKey: 20, derivedKey: "Q", displayLabel: "Select")
-        let btnStart = GamepadModule(id: "button_start", type: .button, anchorX: 0.573, anchorY: 0.827, scale: 0.53, zIndex: 6,
+        let btnStart = GamepadModule(id: "button_start", type: .button, anchorX: 0.57340825, anchorY: 0.8274919, scale: 0.53, zIndex: 6,
                                      hidKey: 8, derivedKey: "E", displayLabel: "Start")
         return [dpad, btnY, btnX, btnB, btnA, btnSelect, btnStart]
     }
 
     private func xyabTouchpadModules() -> [GamepadModule] {
-        var dpad = GamepadModule(id: "stick_left", type: .dpad, anchorX: 0.205, anchorY: 0.5, scale: 0.82, zIndex: 0,
-                                 displayLabel: "D",
-                                 dpadVariant: "cross",
-                                 stickUpKey: "Down", stickLeftKey: "Right", stickDownKey: "Left", stickRightKey: "Up")
-        dpad.moduleAccentArgb = -13154481
+        var stick = GamepadModule(id: "stick_left", type: .analogStick, anchorX: 0.205, anchorY: 0.5, scale: 0.82, zIndex: 0,
+                                  displayLabel: "D",
+                                  stickUpKey: "Down", stickLeftKey: "Right", stickDownKey: "Left", stickRightKey: "Up")
+        stick.moduleAccentArgb = -13154481
         var btnY = GamepadModule(id: "button_y", type: .button, anchorX: 0.795, anchorY: 0.388, scale: 0.91, zIndex: 1,
                                  hidKey: 24, derivedKey: "U", displayLabel: "Y")
-        btnY.buttonCornerRadiusNorm = 1.0; btnY.moduleAccentArgb = -20443
+        btnY.buttonCornerRadiusNorm = 1.0; btnY.moduleAccentArgb = -20443; btnY.mappedKeyLabelVisible = false
         var btnX = GamepadModule(id: "button_x", type: .button, anchorX: 0.688, anchorY: 0.515, scale: 0.91, zIndex: 2,
                                  hidKey: 11, derivedKey: "H", displayLabel: "X")
-        btnX.buttonCornerRadiusNorm = 1.0; btnX.moduleAccentArgb = -14575807
+        btnX.buttonCornerRadiusNorm = 1.0; btnX.moduleAccentArgb = -14575807; btnX.mappedKeyLabelVisible = false
         var btnB = GamepadModule(id: "button_b", type: .button, anchorX: 0.902, anchorY: 0.515, scale: 0.91, zIndex: 3,
                                  hidKey: 12, derivedKey: "I", displayLabel: "B")
-        btnB.buttonCornerRadiusNorm = 1.0; btnB.moduleAccentArgb = -43230
+        btnB.buttonCornerRadiusNorm = 1.0; btnB.moduleAccentArgb = -43230; btnB.mappedKeyLabelVisible = false
         var btnA = GamepadModule(id: "button_a", type: .button, anchorX: 0.795, anchorY: 0.642, scale: 0.91, zIndex: 4,
                                  hidKey: 13, derivedKey: "J", displayLabel: "A")
-        btnA.buttonCornerRadiusNorm = 1.0; btnA.moduleAccentArgb = -11684126
+        btnA.buttonCornerRadiusNorm = 1.0; btnA.moduleAccentArgb = -11684126; btnA.mappedKeyLabelVisible = false
         var touchpad = GamepadModule(id: "touchpad_1", type: .touchpad, anchorX: 0.5, anchorY: 0.268, scale: 0.71, zIndex: 5,
-                                     displayLabel: "Touchpad")
+                                     widthNorm: 0.214, heightNorm: 0.178)
         touchpad.moduleAccentArgb = -13154481
-        let mouseL = GamepadModule(id: "mouse_btn_l", type: .mouseButton, anchorX: 0.435, anchorY: 0.498, scale: 0.5, zIndex: 6,
+        var mouseL = GamepadModule(id: "mouse_btn_l", type: .mouseButton, anchorX: 0.435, anchorY: 0.498, scale: 0.5, zIndex: 6,
                                    displayLabel: "L", mouseButton: 1)
-        let mouseR = GamepadModule(id: "mouse_btn_r", type: .mouseButton, anchorX: 0.565, anchorY: 0.498, scale: 0.5, zIndex: 7,
+        mouseL.keyboardHoldLock = true
+        var mouseR = GamepadModule(id: "mouse_btn_r", type: .mouseButton, anchorX: 0.565, anchorY: 0.498, scale: 0.5, zIndex: 7,
                                    displayLabel: "R", mouseButton: 3)
+        mouseR.keyboardHoldLock = true
         let btnSelect = GamepadModule(id: "button_select", type: .button, anchorX: 0.418, anchorY: 0.108, scale: 0.53, zIndex: 8,
                                       hidKey: 20, derivedKey: "Q", displayLabel: "Select")
         var btnStart = GamepadModule(id: "button_start", type: .button, anchorX: 0.582, anchorY: 0.108, scale: 0.53, zIndex: 9,
@@ -426,12 +432,14 @@ class GamepadPresetRepository: ObservableObject {
                                   dpadVariant: "cross",
                                   stickUpKey: "Up", stickLeftKey: "Left", stickDownKey: "Down", stickRightKey: "Right")
         dpad2.moduleAccentArgb = -13154481
-        var stick = GamepadModule(id: "stick_left_3", type: .analogStick, anchorX: 0.59, anchorY: 0.792, scale: 0.82, zIndex: 11,
-                                  displayLabel: "M",
-                                  stickUpKey: "Up", stickLeftKey: "Left", stickDownKey: "Down", stickRightKey: "Right",
-                                  stickMouseSensitivity: 1.0)
-        stick.moduleAccentArgb = -13154481
-        return [dpad, btnY, btnX, btnB, btnA, touchpad, mouseL, mouseR, btnSelect, btnStart, dpad2, stick]
+        dpad2.dpadCrossArmDecoration = "labels"
+        var stickMouse = GamepadModule(id: "stick_left_3", type: .analogStick, anchorX: 0.59, anchorY: 0.792, scale: 0.82, zIndex: 11,
+                                       displayLabel: "M",
+                                       stickUpKey: "Up", stickLeftKey: "Left", stickDownKey: "Down", stickRightKey: "Right",
+                                       stickMouseSensitivity: 1.0)
+        stickMouse.moduleAccentArgb = -13154481
+        stickMouse.stickPointerCenterMouseMask = 1
+        return [stick, btnY, btnX, btnB, btnA, touchpad, mouseL, mouseR, btnSelect, btnStart, dpad2, stickMouse]
     }
 
     private func minecraftJavaModules() -> [GamepadModule] {
@@ -447,130 +455,135 @@ class GamepadPresetRepository: ObservableObject {
             downLeft: GestureLockSlotDetail(action: "turbo"),
             downRight: GestureLockSlotDetail(action: "hold_lock")
         )
+        let mouseBtnEmptyGestureLock = GestureLockConfig(
+            upLeft: GestureLockSlotDetail(action: "none"),
+            upRight: GestureLockSlotDetail(action: "none"),
+            downLeft: GestureLockSlotDetail(action: "none"),
+            downRight: GestureLockSlotDetail(action: "none")
+        )
         let btn14GestureLock = GestureLockConfig(
             upLeft: GestureLockSlotDetail(action: "turbo"),
             upRight: GestureLockSlotDetail(action: "hold_lock"),
             downLeft: GestureLockSlotDetail(action: "none"),
             downRight: GestureLockSlotDetail(action: "none")
         )
-        var stick = GamepadModule(id: "stick_left", type: .dpad, anchorX: 0.116, anchorY: 0.739, scale: 1.13, zIndex: 0,
-                                  stickUpKey: "Up", stickLeftKey: "Left", stickDownKey: "Down", stickRightKey: "Right")
+        var stick = GamepadModule(id: "stick_left", type: .analogStick, anchorX: 0.116479404, anchorY: 0.7391585, scale: 1.13, zIndex: 0,
+                                  stickUpKey: "W", stickLeftKey: "A", stickDownKey: "S", stickRightKey: "D")
         stick.moduleAccentArgb = -13154481
-        var btnY = GamepadModule(id: "button_y", type: .button, anchorX: 0.748, anchorY: 0.384, scale: 0.9, zIndex: 1,
-                                 hidKey: 224, derivedKey: "Ctrl", displayLabel: "Run")
-        btnY.buttonCornerRadiusNorm = 1.0; btnY.moduleAccentArgb = -20443
-        var btnX = GamepadModule(id: "button_x", type: .button, anchorX: 0.162, anchorY: 0.435, scale: 1.06, zIndex: 2,
-                                 hidKey: 225, derivedKey: "Shift", displayLabel: "Sneak")
-        btnX.buttonCornerRadiusNorm = 1.0; btnX.keyboardHoldLock = true; btnX.moduleAccentArgb = -14575807
-        var btnB = GamepadModule(id: "button_b", type: .button, anchorX: 0.5, anchorY: 0.387, scale: 0.9, zIndex: 3,
+        var btnY = GamepadModule(id: "button_y", type: .button, anchorX: 0.7483146, anchorY: 0.38415852, scale: 0.9, zIndex: 1,
+                                 hidKey: 224, derivedKey: "Ctrl", displayLabel: "Run", modifierMask: 1)
+        btnY.buttonCornerRadiusNorm = 1.0; btnY.moduleAccentArgb = -20443; btnY.mappedKeyLabelVisible = false
+        var btnX = GamepadModule(id: "button_x", type: .button, anchorX: 0.16217229, anchorY: 0.43499187, scale: 1.06, zIndex: 2,
+                                 hidKey: 225, derivedKey: "Shift", displayLabel: "Sneak", modifierMask: 2)
+        btnX.buttonCornerRadiusNorm = 1.0; btnX.keyboardHoldLock = true; btnX.moduleAccentArgb = -14575807; btnX.mappedKeyLabelVisible = false
+        var btnB = GamepadModule(id: "button_b", type: .button, anchorX: 0.5, anchorY: 0.38689536, scale: 0.9, zIndex: 3,
                                  hidKey: 8, derivedKey: "E", displayLabel: "Inv")
-        btnB.buttonCornerRadiusNorm = 0.57; btnB.moduleAccentArgb = -43230
-        var btnA = GamepadModule(id: "button_a", type: .button, anchorX: 0.928, anchorY: 0.497, scale: 1.08, zIndex: 4,
-                                 hidKey: 44, derivedKey: "Space", displayLabel: "Jump",
-                                 gestureLock: jumpGestureLock)
-        btnA.buttonCornerRadiusNorm = 1.0; btnA.moduleAccentArgb = -11684126
-        var touchpad = GamepadModule(id: "touchpad_1", type: .touchpad, anchorX: 0.85, anchorY: 0.788, scale: 0.71, zIndex: 5,
+        btnB.buttonCornerRadiusNorm = 0.57; btnB.buttonWidthRatio = 1.47; btnB.buttonHeightRatio = 0.87; btnB.displayLabelColorArgb = -1; btnB.moduleAccentArgb = -43230; btnB.mappedKeyLabelVisible = false
+        var btnA = GamepadModule(id: "button_a", type: .button, anchorX: 0.92826325, anchorY: 0.49749187, scale: 1.08, zIndex: 4,
+                                 hidKey: 44, derivedKey: "Space", displayLabel: "Jump", gestureLock: jumpGestureLock)
+        btnA.buttonCornerRadiusNorm = 1.0; btnA.moduleAccentArgb = -11684126; btnA.mappedKeyLabelVisible = false
+        var touchpad = GamepadModule(id: "touchpad_1", type: .touchpad, anchorX: 0.84981275, anchorY: 0.7878239, scale: 0.71, zIndex: 5,
                                      displayLabel: "Look", widthNorm: 0.27, heightNorm: 0.38)
         touchpad.moduleAccentArgb = -13154481
-        var mouseL = GamepadModule(id: "mouse_btn_l", type: .mouseButton, anchorX: 0.699, anchorY: 0.855, scale: 0.77, zIndex: 6,
+        var mouseL = GamepadModule(id: "mouse_btn_l", type: .mouseButton, anchorX: 0.6989945, anchorY: 0.85499185, scale: 0.77, zIndex: 6,
                                    displayLabel: "L", gestureLock: mouseBtnGestureLock, mouseButton: 1)
         mouseL.keyboardHoldLock = true
-        var mouseR = GamepadModule(id: "mouse_btn_r", type: .mouseButton, anchorX: 0.734, anchorY: 0.624, scale: 0.67, zIndex: 7,
-                                   displayLabel: "R", mouseButton: 3)
+        var mouseR = GamepadModule(id: "mouse_btn_r", type: .mouseButton, anchorX: 0.7340824, anchorY: 0.62394613, scale: 0.67, zIndex: 7,
+                                   displayLabel: "R", gestureLock: mouseBtnEmptyGestureLock, mouseButton: 3)
         mouseR.keyboardHoldLock = true
-        var btnSelect = GamepadModule(id: "button_select", type: .button, anchorX: 0.644, anchorY: 0.218, scale: 0.72, zIndex: 8,
+        var btnSelect = GamepadModule(id: "button_select", type: .button, anchorX: 0.644, anchorY: 0.21825, scale: 0.72, zIndex: 8,
                                       hidKey: 43, derivedKey: "Tab", displayLabel: "Tab")
         btnSelect.buttonCornerRadiusNorm = 1.0
-        var btn17 = GamepadModule(id: "button_17", type: .button, anchorX: 0.356, anchorY: 0.218, scale: 0.72, zIndex: 10,
+        var btn17 = GamepadModule(id: "button_17", type: .button, anchorX: 0.356, anchorY: 0.21825, scale: 0.72, zIndex: 10,
                                   hidKey: 58, derivedKey: "F1", displayLabel: "UI")
-        btn17.buttonCornerRadiusNorm = 1.0; btn17.moduleAccentArgb = -8875876
-        var btn18 = GamepadModule(id: "button_18", type: .button, anchorX: 0.428, anchorY: 0.218, scale: 0.72, zIndex: 11,
+        btn17.buttonCornerRadiusNorm = 1.0; btn17.moduleAccentArgb = -8875876; btn17.displayLabelColorArgb = -1
+        var btn18 = GamepadModule(id: "button_18", type: .button, anchorX: 0.428, anchorY: 0.21825, scale: 0.72, zIndex: 11,
                                   hidKey: 59, derivedKey: "F2", displayLabel: "Cap")
-        btn18.buttonCornerRadiusNorm = 1.0; btn18.moduleAccentArgb = -14575885
-        var btn19 = GamepadModule(id: "button_19", type: .button, anchorX: 0.5, anchorY: 0.218, scale: 0.72, zIndex: 12,
+        btn18.buttonCornerRadiusNorm = 1.0; btn18.moduleAccentArgb = -14575885; btn18.displayLabelColorArgb = -1
+        var btn19 = GamepadModule(id: "button_19", type: .button, anchorX: 0.5, anchorY: 0.21825, scale: 0.72, zIndex: 12,
                                   hidKey: 60, derivedKey: "F3", displayLabel: "Dbg")
-        btn19.buttonCornerRadiusNorm = 1.0; btn19.moduleAccentArgb = -10011977
-        var btn16 = GamepadModule(id: "button_16", type: .button, anchorX: 0.572, anchorY: 0.218, scale: 0.72, zIndex: 13,
+        btn19.buttonCornerRadiusNorm = 1.0; btn19.moduleAccentArgb = -10011977; btn19.displayLabelColorArgb = -1
+        var btn16 = GamepadModule(id: "button_16", type: .button, anchorX: 0.572, anchorY: 0.21825, scale: 0.72, zIndex: 13,
                                   hidKey: 62, derivedKey: "F5", displayLabel: "3rd")
-        btn16.buttonCornerRadiusNorm = 1.0; btn16.moduleAccentArgb = -10177034
-        var btnStart = GamepadModule(id: "button_start", type: .button, anchorX: 0.051, anchorY: 0.207, scale: 1.04, zIndex: 9,
+        btn16.buttonCornerRadiusNorm = 1.0; btn16.moduleAccentArgb = -10177034; btn16.displayLabelColorArgb = -1
+        var btnStart = GamepadModule(id: "button_start", type: .button, anchorX: 0.050561797, anchorY: 0.20665853, scale: 1.04, zIndex: 9,
                                      hidKey: 41, derivedKey: "Escape", displayLabel: "Esc")
         btnStart.buttonCornerRadiusNorm = 1.0
-        var btn3 = GamepadModule(id: "button_3", type: .button, anchorX: 0.055, anchorY: 0.425, scale: 1.08, zIndex: 14,
+        var btn3 = GamepadModule(id: "button_3", type: .button, anchorX: 0.054681648, anchorY: 0.42499188, scale: 1.08, zIndex: 14,
                                  hidKey: 44, derivedKey: "Space", displayLabel: "Jump")
         btn3.buttonCornerRadiusNorm = 1.0; btn3.moduleAccentArgb = -11684126
-        var btn4 = GamepadModule(id: "button_4", type: .button, anchorX: 0.928, anchorY: 0.212, scale: 1.08, zIndex: 15,
+        var btn4 = GamepadModule(id: "button_4", type: .button, anchorX: 0.92771536, anchorY: 0.21165852, scale: 1.08, zIndex: 15,
                                  hidKey: 9, derivedKey: "F", displayLabel: "Swap")
-        btn4.buttonCornerRadiusNorm = 1.0
-        var btn5 = GamepadModule(id: "button_5", type: .button, anchorX: 0.147, anchorY: 0.162, scale: 1.08, zIndex: 16,
+        btn4.buttonCornerRadiusNorm = 1.0; btn4.buttonWidthRatio = 0.8; btn4.buttonHeightRatio = 0.49; btn4.displayLabelColorArgb = -1
+        var btn5 = GamepadModule(id: "button_5", type: .button, anchorX: 0.14719102, anchorY: 0.16249186, scale: 1.08, zIndex: 16,
                                  hidKey: 30, derivedKey: "1", displayLabel: "1")
-        btn5.buttonCornerRadiusNorm = 0.88; btn5.moduleAccentArgb = -769226
-        var btn6 = GamepadModule(id: "button_6", type: .button, anchorX: 0.839, anchorY: 0.282, scale: 1.17, zIndex: 17,
+        btn5.buttonCornerRadiusNorm = 0.88; btn5.buttonWidthRatio = 0.8; btn5.buttonHeightRatio = 0.49; btn5.displayLabelColorArgb = -1; btn5.moduleAccentArgb = -769226
+        var btn6 = GamepadModule(id: "button_6", type: .button, anchorX: 0.8389513, anchorY: 0.28165853, scale: 1.17, zIndex: 17,
                                  hidKey: 20, derivedKey: "Q", displayLabel: "Drop")
-        btn6.buttonCornerRadiusNorm = 0.88
-        var btn7 = GamepadModule(id: "button_7", type: .button, anchorX: 0.213, anchorY: 0.207, scale: 1.08, zIndex: 18,
+        btn6.buttonCornerRadiusNorm = 0.88; btn6.buttonWidthRatio = 0.8; btn6.buttonHeightRatio = 0.49
+        var btn7 = GamepadModule(id: "button_7", type: .button, anchorX: 0.21348314, anchorY: 0.20749186, scale: 1.08, zIndex: 18,
                                  hidKey: 31, derivedKey: "2", displayLabel: "2")
-        btn7.buttonCornerRadiusNorm = 0.88; btn7.moduleAccentArgb = -26624
-        var btn8 = GamepadModule(id: "button_8", type: .button, anchorX: 0.26, anchorY: 0.299, scale: 1.08, zIndex: 19,
+        btn7.buttonCornerRadiusNorm = 0.88; btn7.buttonWidthRatio = 0.8; btn7.buttonHeightRatio = 0.49; btn7.displayLabelColorArgb = -1; btn7.moduleAccentArgb = -26624
+        var btn8 = GamepadModule(id: "button_8", type: .button, anchorX: 0.25955057, anchorY: 0.29938966, scale: 1.08, zIndex: 19,
                                  hidKey: 32, derivedKey: "3", displayLabel: "3")
-        btn8.buttonCornerRadiusNorm = 0.88; btn8.moduleAccentArgb = -16121
-        var btn9 = GamepadModule(id: "button_9", type: .button, anchorX: 0.299, anchorY: 0.397, scale: 1.08, zIndex: 20,
+        btn8.buttonCornerRadiusNorm = 0.88; btn8.buttonWidthRatio = 0.8; btn8.buttonHeightRatio = 0.49; btn8.displayLabelColorArgb = -1; btn8.moduleAccentArgb = -16121
+        var btn9 = GamepadModule(id: "button_9", type: .button, anchorX: 0.29850188, anchorY: 0.3973527, scale: 1.08, zIndex: 20,
                                  hidKey: 33, derivedKey: "4", displayLabel: "4")
-        btn9.buttonCornerRadiusNorm = 0.88; btn9.moduleAccentArgb = -11751600
-        var btn10 = GamepadModule(id: "button_10", type: .button, anchorX: 0.346, anchorY: 0.492, scale: 1.08, zIndex: 21,
+        btn9.buttonCornerRadiusNorm = 0.88; btn9.buttonWidthRatio = 0.8; btn9.buttonHeightRatio = 0.49; btn9.displayLabelColorArgb = -1; btn9.moduleAccentArgb = -11751600
+        var btn10 = GamepadModule(id: "button_10", type: .button, anchorX: 0.34569287, anchorY: 0.49165854, scale: 1.08, zIndex: 21,
                                   hidKey: 34, derivedKey: "5", displayLabel: "5")
-        btn10.buttonCornerRadiusNorm = 0.88; btn10.moduleAccentArgb = -16728876
-        var btn11 = GamepadModule(id: "button_11", type: .button, anchorX: 0.366, anchorY: 0.596, scale: 1.08, zIndex: 22,
+        btn10.buttonCornerRadiusNorm = 0.88; btn10.buttonWidthRatio = 0.8; btn10.buttonHeightRatio = 0.49; btn10.displayLabelColorArgb = -1; btn10.moduleAccentArgb = -16728876
+        var btn11 = GamepadModule(id: "button_11", type: .button, anchorX: 0.36610487, anchorY: 0.5962419, scale: 1.08, zIndex: 22,
                                   hidKey: 35, derivedKey: "6", displayLabel: "6")
-        btn11.buttonCornerRadiusNorm = 0.88; btn11.moduleAccentArgb = -14575885
-        var btn12 = GamepadModule(id: "button_12", type: .button, anchorX: 0.377, anchorY: 0.698, scale: 1.08, zIndex: 23,
+        btn11.buttonCornerRadiusNorm = 0.88; btn11.buttonWidthRatio = 0.8; btn11.buttonHeightRatio = 0.49; btn11.displayLabelColorArgb = -1; btn11.moduleAccentArgb = -14575885
+        var btn12 = GamepadModule(id: "button_12", type: .button, anchorX: 0.37677902, anchorY: 0.6979085, scale: 1.08, zIndex: 23,
                                   hidKey: 36, derivedKey: "7", displayLabel: "7")
-        btn12.buttonCornerRadiusNorm = 0.88; btn12.moduleAccentArgb = -10011977
-        var btn13 = GamepadModule(id: "button_13", type: .button, anchorX: 0.368, anchorY: 0.805, scale: 1.08, zIndex: 24,
+        btn12.buttonCornerRadiusNorm = 0.88; btn12.buttonWidthRatio = 0.8; btn12.buttonHeightRatio = 0.49; btn12.displayLabelColorArgb = -1; btn12.moduleAccentArgb = -10011977
+        var btn13 = GamepadModule(id: "button_13", type: .button, anchorX: 0.36835206, anchorY: 0.80499184, scale: 1.08, zIndex: 24,
                                   hidKey: 37, derivedKey: "8", displayLabel: "8")
-        btn13.buttonCornerRadiusNorm = 0.88; btn13.moduleAccentArgb = -1499549
-        var mouseCopy1 = GamepadModule(id: "mouse_btn_copy_1", type: .mouseButton, anchorX: 0.252, anchorY: 0.848, scale: 0.77, zIndex: 25,
-                                       displayLabel: "L", mouseButton: 1)
+        btn13.buttonCornerRadiusNorm = 0.88; btn13.buttonWidthRatio = 0.8; btn13.buttonHeightRatio = 0.49; btn13.displayLabelColorArgb = -1; btn13.moduleAccentArgb = -1499549
+        var mouseCopy1 = GamepadModule(id: "mouse_btn_copy_1", type: .mouseButton, anchorX: 0.25205994, anchorY: 0.8479191, scale: 0.77, zIndex: 25,
+                                       displayLabel: "L", gestureLock: mouseBtnEmptyGestureLock, mouseButton: 1)
         mouseCopy1.keyboardHoldLock = true
-        var mouseCopy2 = GamepadModule(id: "mouse_btn_copy_2", type: .mouseButton, anchorX: 0.241, anchorY: 0.595, scale: 0.67, zIndex: 26,
-                                       displayLabel: "R", mouseButton: 3)
+        var mouseCopy2 = GamepadModule(id: "mouse_btn_copy_2", type: .mouseButton, anchorX: 0.2411985, anchorY: 0.59499186, scale: 0.67, zIndex: 26,
+                                       displayLabel: "R", gestureLock: mouseBtnEmptyGestureLock, mouseButton: 3)
         mouseCopy2.keyboardHoldLock = true
-        var btn14 = GamepadModule(id: "button_14", type: .button, anchorX: 0.825, anchorY: 0.521, scale: 1.06, zIndex: 27,
-                                  hidKey: 225, derivedKey: "Shift", displayLabel: "Sneak",
-                                  gestureLock: btn14GestureLock)
-        btn14.buttonCornerRadiusNorm = 1.0; btn14.keyboardHoldLock = true; btn14.moduleAccentArgb = -14575807
-        var btn15 = GamepadModule(id: "button_15", type: .button, anchorX: 0.355, anchorY: 0.926, scale: 1.08, zIndex: 28,
+        var btn14 = GamepadModule(id: "button_14", type: .button, anchorX: 0.8246661, anchorY: 0.5209424, scale: 1.06, zIndex: 27,
+                                  hidKey: 225, derivedKey: "Shift", displayLabel: "Sneak", modifierMask: 2, gestureLock: btn14GestureLock)
+        btn14.buttonCornerRadiusNorm = 1.0; btn14.keyboardHoldLock = true; btn14.moduleAccentArgb = -14575807; btn14.mappedKeyLabelVisible = false
+        var btn15 = GamepadModule(id: "button_15", type: .button, anchorX: 0.35468164, anchorY: 0.9258252, scale: 1.08, zIndex: 28,
                                   hidKey: 38, derivedKey: "9", displayLabel: "9")
-        btn15.buttonCornerRadiusNorm = 0.88; btn15.moduleAccentArgb = -8825528
-        var scrollStrip = GamepadModule(id: "scroll_strip_1", type: .scrollStrip, anchorX: 0.5, anchorY: 0.711, scale: 1.0, zIndex: 29,
+        btn15.buttonCornerRadiusNorm = 0.88; btn15.buttonWidthRatio = 0.8; btn15.buttonHeightRatio = 0.49; btn15.displayLabelColorArgb = -1; btn15.moduleAccentArgb = -8825528
+        var scrollStrip = GamepadModule(id: "scroll_strip_1", type: .scrollStrip, anchorX: 0.5, anchorY: 0.7108252, scale: 1.0, zIndex: 29,
                                         displayLabel: "Wheel", widthNorm: 0.08, heightNorm: 0.42)
         scrollStrip.moduleAccentArgb = -13154481
         return [stick, btnY, btnX, btnB, btnA, touchpad, mouseL, mouseR, btnSelect, btn17, btn18, btn19, btn16, btnStart, btn3, btn4, btn5, btn6, btn7, btn8, btn9, btn10, btn11, btn12, btn13, mouseCopy1, mouseCopy2, btn14, btn15, scrollStrip]
     }
 
     private func emulator6Modules() -> [GamepadModule] {
-        var dpad = GamepadModule(id: "stick_left", type: .dpad, anchorX: 0.237, anchorY: 0.512, scale: 1.43, zIndex: 0,
+        var dpad = GamepadModule(id: "stick_left", type: .dpad, anchorX: 0.23686524, anchorY: 0.5118918, scale: 1.43, zIndex: 0,
                                  dpadVariant: "cross",
-                                 stickUpKey: "Up", stickLeftKey: "Left", stickDownKey: "Down", stickRightKey: "Right")
+                                 stickUpKey: "W", stickLeftKey: "A", stickDownKey: "S", stickRightKey: "D")
         dpad.moduleAccentArgb = -13154481
-        var btnA = GamepadModule(id: "button_a", type: .button, anchorX: 0.547, anchorY: 0.327, scale: 1.43, zIndex: 1,
+        dpad.dpadCrossArmDecoration = "labels"
+        var btnA = GamepadModule(id: "button_a", type: .button, anchorX: 0.54679525, anchorY: 0.32726818, scale: 1.43, zIndex: 1,
                                  hidKey: 24, derivedKey: "U", displayLabel: "K")
-        btnA.buttonCornerRadiusNorm = 1.0; btnA.moduleAccentArgb = -20443
-        var btnB = GamepadModule(id: "button_b", type: .button, anchorX: 0.721, anchorY: 0.334, scale: 1.43, zIndex: 2,
+        btnA.buttonCornerRadiusNorm = 1.0; btnA.moduleAccentArgb = -20443; btnA.displayLabelColorArgb = -1; btnA.mappedKeyLabelVisible = false
+        var btnB = GamepadModule(id: "button_b", type: .button, anchorX: 0.7205549, anchorY: 0.33389398, scale: 1.43, zIndex: 2,
                                  hidKey: 12, derivedKey: "I", displayLabel: "S")
-        btnB.buttonCornerRadiusNorm = 1.0; btnB.moduleAccentArgb = -43230
-        var btn2 = GamepadModule(id: "button_2", type: .button, anchorX: 0.543, anchorY: 0.717, scale: 1.43, zIndex: 3,
+        btnB.buttonCornerRadiusNorm = 1.0; btnB.moduleAccentArgb = -43230; btnB.displayLabelColorArgb = -1; btnB.mappedKeyLabelVisible = false
+        var btn2 = GamepadModule(id: "button_2", type: .button, anchorX: 0.5425237, anchorY: 0.71703327, scale: 1.43, zIndex: 3,
                                  hidKey: 13, derivedKey: "J", displayLabel: "P")
-        btn2.buttonCornerRadiusNorm = 1.0; btn2.moduleAccentArgb = -11684126
-        var btn3 = GamepadModule(id: "button_3", type: .button, anchorX: 0.909, anchorY: 0.341, scale: 1.43, zIndex: 4,
+        btn2.buttonCornerRadiusNorm = 1.0; btn2.moduleAccentArgb = -11684126; btn2.displayLabelColorArgb = -1; btn2.mappedKeyLabelVisible = false
+        var btn3 = GamepadModule(id: "button_3", type: .button, anchorX: 0.90897244, anchorY: 0.3411618, scale: 1.43, zIndex: 4,
                                  hidKey: 18, derivedKey: "O", displayLabel: "Hs")
-        btn3.buttonCornerRadiusNorm = 1.0; btn3.moduleAccentArgb = -14575807
-        var btn4 = GamepadModule(id: "button_4", type: .button, anchorX: 0.91, anchorY: 0.736, scale: 1.43, zIndex: 5,
+        btn3.buttonCornerRadiusNorm = 1.0; btn3.moduleAccentArgb = -14575807; btn3.displayLabelColorArgb = -1; btn3.mappedKeyLabelVisible = false
+        var btn4 = GamepadModule(id: "button_4", type: .button, anchorX: 0.90971434, anchorY: 0.73552537, scale: 1.43, zIndex: 5,
                                  hidKey: 15, derivedKey: "L", displayLabel: "D")
-        btn4.buttonCornerRadiusNorm = 1.0; btn4.moduleAccentArgb = -1499549
-        var btn5 = GamepadModule(id: "button_5", type: .button, anchorX: 0.724, anchorY: 0.736, scale: 1.43, zIndex: 6,
+        btn4.buttonCornerRadiusNorm = 1.0; btn4.moduleAccentArgb = -1499549; btn4.displayLabelColorArgb = -1; btn4.mappedKeyLabelVisible = false
+        var btn5 = GamepadModule(id: "button_5", type: .button, anchorX: 0.7235675, anchorY: 0.7357726, scale: 1.43, zIndex: 6,
                                  hidKey: 8, derivedKey: "E", displayLabel: "Rc")
-        btn5.buttonCornerRadiusNorm = 1.0; btn5.moduleAccentArgb = -11751600
+        btn5.buttonCornerRadiusNorm = 1.0; btn5.moduleAccentArgb = -11751600; btn5.displayLabelColorArgb = -1; btn5.mappedKeyLabelVisible = false
         return [dpad, btnA, btnB, btn2, btn3, btn4, btn5]
     }
 
