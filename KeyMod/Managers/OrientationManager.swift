@@ -168,6 +168,10 @@ class OrientationManager: ObservableObject {
     }
     
     func lockToLandscape() {
+        // Clear any stale saved orientation from a previous portrait lock
+        // (e.g. coming from Presentation, Compose, or Numpad).
+        savedDeviceOrientation = nil
+
         preferredOrientation = .landscape
         Self.setOrientationLock(.landscape)
         UIViewController.attemptRotationToDeviceOrientation()
@@ -182,6 +186,14 @@ class OrientationManager: ObservableObject {
         // system completes the rotation. Setting it here creates a race condition:
         // the geometry update is async, but updateOrientation() may read the still-
         // portrait interface and flip isLandscape back to false, triggering feedback.
+
+        // Force a second rotation attempt after a short delay — the system may need
+        // time to process the orientation unlock before accepting the landscape lock.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            Self.setOrientationLock(.landscape)
+            UIViewController.attemptRotationToDeviceOrientation()
+            self.updateOrientation()
+        }
     }
 
     func lockToPortrait() {
