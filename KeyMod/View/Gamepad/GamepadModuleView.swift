@@ -294,7 +294,12 @@ struct GamepadModuleView: View {
                     isPressed = true
                     hapticManager.triggerButtonPress()
                     gestureTracker.recordStart()
-                    onModulePress(module.id, nil)
+                    // For gesture-lock modules, hold the button down instead of momentary click
+                    if module.hasGestureLock {
+                        mouseManager.sendButtonDown(buttons: mouseButtonMask(for: mouseButtonActionKey) ?? 0x00)
+                    } else {
+                        onModulePress(module.id, nil)
+                    }
                 }
             },
             onDrag: { translation in
@@ -310,26 +315,25 @@ struct GamepadModuleView: View {
     }
 
     private func handleMouseButtonRelease(wasPressed: Bool) {
-        if module.hasGestureLock {
+        let key = mouseButtonActionKey
+        if module.hasGestureLock && !key.isEmpty {
             let action = gestureTracker.committedAction(for: module)
             gestureTracker.highlightedQuadrant = nil
-            let key = mouseButtonActionKey
-            if !key.isEmpty {
-                // Release the mouse button first
-                mouseManager.sendButtonUp(buttons: mouseButtonMask(for: key) ?? 0x00)
 
-                // Execute gesture action
-                switch action {
-                case PresetConstants.gestureLockActionHoldLock:
-                    gestureLockEngine.handleHoldLock(moduleId: module.id, key: key)
-                case PresetConstants.gestureLockActionTurbo:
-                    let period = module.turboPulsePeriodMs
-                        ?? globalSettings.turboPulsePeriodMs ?? 70
-                    gestureLockEngine.handleTurbo(moduleId: module.id, key: key,
-                        config: TurboConfig(enabled: true, intervalMs: period, initialDelayMs: 0))
-                default:
-                    break
-                }
+            // Release the mouse button (it was held down in onPress)
+            mouseManager.sendButtonUp(buttons: mouseButtonMask(for: key) ?? 0x00)
+
+            // Execute gesture action
+            switch action {
+            case PresetConstants.gestureLockActionHoldLock:
+                gestureLockEngine.handleHoldLock(moduleId: module.id, key: key)
+            case PresetConstants.gestureLockActionTurbo:
+                let period = module.turboPulsePeriodMs
+                    ?? globalSettings.turboPulsePeriodMs ?? 70
+                gestureLockEngine.handleTurbo(moduleId: module.id, key: key,
+                    config: TurboConfig(enabled: true, intervalMs: period, initialDelayMs: 0))
+            default:
+                break
             }
         } else {
             onModuleRelease(module.id, nil)
