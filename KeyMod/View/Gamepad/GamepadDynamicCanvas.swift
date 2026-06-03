@@ -152,8 +152,8 @@ struct GamepadDynamicCanvas: View {
     private func handleModulePress(_ moduleId: String, direction: String?) {
         if let module = document.modules.first(where: { $0.id == moduleId }) {
             if let dir = direction {
-                // D-pad direction press
-                let key = dpadDirectionKey(dir)
+                // D-pad direction press — map direction to the configured key
+                let key = dpadDirectionKey(module, dir)
                 if !key.isEmpty {
                     keyboardManager.handleKeyDown(key)
                 }
@@ -178,7 +178,7 @@ struct GamepadDynamicCanvas: View {
     private func handleModuleRelease(_ moduleId: String, direction: String?) {
         if let module = document.modules.first(where: { $0.id == moduleId }) {
             if let dir = direction {
-                let key = dpadDirectionKey(dir)
+                let key = dpadDirectionKey(module, dir)
                 if !key.isEmpty {
                     keyboardManager.handleKeyUp(key)
                 }
@@ -245,8 +245,14 @@ struct GamepadDynamicCanvas: View {
         return nil
     }
 
-    private func dpadDirectionKey(_ direction: String) -> String {
-        return direction // "Up", "Down", "Left", "Right"
+    private func dpadDirectionKey(_ module: GamepadModule, _ direction: String) -> String {
+        switch direction {
+        case "Up":    return module.stickUpKey ?? "W"
+        case "Down":  return module.stickDownKey ?? "S"
+        case "Left":  return module.stickLeftKey ?? "A"
+        case "Right": return module.stickRightKey ?? "D"
+        default: return ""
+        }
     }
 
     private func isMouseAction(_ action: String) -> Bool {
