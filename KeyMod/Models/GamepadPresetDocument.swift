@@ -166,6 +166,7 @@ struct GamepadModule: Codable, Equatable, Identifiable, Hashable {
         hidKey: Int? = nil,
         derivedKey: String? = nil,
         displayLabel: String? = nil,
+        modifierMask: Int? = nil,
         dpadVariant: String? = nil,
         stickUpKey: String? = nil,
         stickLeftKey: String? = nil,
@@ -194,6 +195,7 @@ struct GamepadModule: Codable, Equatable, Identifiable, Hashable {
         self.hidKey = hidKey
         self.derivedKey = derivedKey
         self.displayLabel = displayLabel
+        self.modifierMask = modifierMask
         self.dpadVariant = dpadVariant
         self.stickUpKey = stickUpKey
         self.stickLeftKey = stickLeftKey
