@@ -1,14 +1,14 @@
 //
-//  KeyModTests.swift
-//  KeyModTests
+//  KeyCmdTests.swift
+//  KeyCmdTests
 //
 //  Created by 彭志坚 on 2025/6/19.
 //
 
 import Testing
-@testable import KeyMod
+@testable import KeyCmd
 
-struct KeyModTests {
+struct KeyCmdTests {
 
     @Test func buildsKeyboardPacket() {
         let packet = Keymod.buildKeyboard(modifiers: KMod.ctrl.union(.shift).rawValue, keys: [0x04, 0x05])

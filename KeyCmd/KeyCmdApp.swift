@@ -1,6 +1,6 @@
 //
-//  KeyModApp.swift
-//  KeyMod
+//  KeyCmdApp.swift
+//  KeyCmd
 //
 //  Created by 彭志坚 on 2025/6/19.
 //
@@ -55,7 +55,7 @@ public class AppDelegate: NSObject, UIApplicationDelegate {
 }
 
 @main
-struct KeyModApp: App {
+struct KeyCmdApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var launchPanelManager = LaunchPanelManager()
     @StateObject private var themeManager = ThemeManager.shared
@@ -75,7 +75,7 @@ struct KeyModApp: App {
 
         // No forced orientation on startup - let the app start in current device orientation
         // Orientation will be managed per-view by OrientationManager
-        print("🚀 KeyModApp initialized - starting in natural device orientation")
+        print("🚀 KeyCmdApp initialized - starting in natural device orientation")
     }
 
     var body: some Scene {

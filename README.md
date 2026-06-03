@@ -1,8 +1,8 @@
-# KeyMod for iOS
+# KeyCmd for iOS
 
 English | [简体中文](README.zh-CN.md)
 
-KeyMod is the companion iOS app for [Openterface](https://openterface.com) hardware -- a USB/Bluetooth KVM-style bridge that lets you control a target computer from your iPhone. The app sends HID keyboard, mouse, and gamepad commands over Bluetooth Low Energy (BLE) to the Openterface KVM device.
+KeyCmd is the companion iOS app for [Openterface](https://openterface.com) hardware -- a USB/Bluetooth KVM-style bridge that lets you control a target computer from your iPhone. The app sends HID keyboard, mouse, and gamepad commands over Bluetooth Low Energy (BLE) to the Openterface KVM device.
 
 **Requirements:** iOS 17.0+, iPhone with BLE, Openterface KVM hardware
 
@@ -138,7 +138,7 @@ KeyMod is the companion iOS app for [Openterface](https://openterface.com) hardw
 
 ## Connection
 
-KeyMod connects to the Openterface KVM device exclusively via **Bluetooth Low Energy (BLE)**:
+KeyCmd connects to the Openterface KVM device exclusively via **Bluetooth Low Energy (BLE)**:
 
 1. Ensure the Openterface KVM device is powered on and broadcasting BLE
 2. The app automatically scans for devices with names starting with "openterface" or "kvm"
@@ -151,7 +151,7 @@ KeyMod connects to the Openterface KVM device exclusively via **Bluetooth Low En
 
 | Item | Detail |
 |------|--------|
-| **Package** | com.openterface.keymod |
+| **Package** | com.openterface.keycmd |
 | **Min OS** | iOS 17.0 |
 | **HID Protocol** | CH9329 UART over BLE |
 | **BLE Characteristic** | FFF2 |
@@ -165,11 +165,11 @@ KeyMod connects to the Openterface KVM device exclusively via **Bluetooth Low En
 ## Building from Source
 
 ```bash
-git clone --recurse-submodules https://github.com/TechxArtisan/Openterface_KeyMod_iOS.git
-cd Openterface_KeyMod_iOS
+git clone --recurse-submodules https://github.com/TechxArtisan/Openterface_KeyCmd_iOS.git
+cd Openterface_KeyCmd_iOS
 ```
 
-1. Open `KeyMod.xcodeproj` in Xcode
+1. Open `KeyCmd.xcodeproj` in Xcode
 2. Select your development team for code signing
 3. Build and run on a physical iPhone (BLE is not available on Simulator)
 

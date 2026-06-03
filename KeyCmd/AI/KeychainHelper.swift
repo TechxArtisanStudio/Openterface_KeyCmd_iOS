@@ -1,6 +1,6 @@
 //
 //  KeychainHelper.swift
-//  KeyMod
+//  KeyCmd
 //
 //  Created on 2026/2/26.
 //
@@ -11,7 +11,7 @@ import Security
 class KeychainHelper {
     static let shared = KeychainHelper()
     
-    private let serviceName = "com.openterface.keymod"
+    private let serviceName = "com.openterface.keycmd"
     
     // MARK: - Save
     func save(key: String, value: String) {

@@ -16,9 +16,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "6BAFF02A2E040AD6004331F6"
-               BuildableName = "KeyMod.app"
-               BlueprintName = "KeyMod"
-               ReferencedContainer = "container:KeyMod.xcodeproj">
+               BuildableName = "KeyCmd.app"
+               BlueprintName = "KeyCmd"
+               ReferencedContainer = "container:KeyCmd.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -46,9 +46,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "6BAFF02A2E040AD6004331F6"
-            BuildableName = "KeyMod.app"
-            BlueprintName = "KeyMod"
-            ReferencedContainer = "container:KeyMod.xcodeproj">
+            BuildableName = "KeyCmd.app"
+            BlueprintName = "KeyCmd"
+            ReferencedContainer = "container:KeyCmd.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -63,9 +63,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "6BAFF02A2E040AD6004331F6"
-            BuildableName = "KeyMod.app"
-            BlueprintName = "KeyMod"
-            ReferencedContainer = "container:KeyMod.xcodeproj">
+            BuildableName = "KeyCmd.app"
+            BlueprintName = "KeyCmd"
+            ReferencedContainer = "container:KeyCmd.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

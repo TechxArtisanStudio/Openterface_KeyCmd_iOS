@@ -1,13 +1,13 @@
 //
-//  KeyModUITestsLaunchTests.swift
-//  KeyModUITests
+//  KeyCmdUITestsLaunchTests.swift
+//  KeyCmdUITests
 //
 //  Created by 彭志坚 on 2025/6/19.
 //
 
 import XCTest
 
-final class KeyModUITestsLaunchTests: XCTestCase {
+final class KeyCmdUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true

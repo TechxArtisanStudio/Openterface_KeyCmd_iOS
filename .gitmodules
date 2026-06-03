@@ -1,3 +1,3 @@
-[submodule "KeyMod/Openterface_Core"]
-	path = KeyMod/Openterface_Core
+[submodule "KeyCmd/Openterface_Core"]
+	path = KeyCmd/Openterface_Core
 	url = https://github.com/TechxArtisanStudio/Openterface_Core.git
