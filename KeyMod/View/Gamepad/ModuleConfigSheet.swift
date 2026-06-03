@@ -34,6 +34,9 @@ struct ModuleConfigSheet: View {
     @State private var gestureLockUpRight: String
     @State private var gestureLockDownLeft: String
     @State private var gestureLockDownRight: String
+    @State private var gestureLockMinPressMs: Int
+    @State private var gestureLockDiagonalRadiusScale: Double
+    @State private var turboPulsePeriodMs: Int
     @State private var buttonCornerRadius: Double
     @State private var buttonWidthRatio: Double
     @State private var buttonHeightRatio: Double
@@ -84,6 +87,12 @@ struct ModuleConfigSheet: View {
         _gestureLockUpRight = State(initialValue: module.gestureLock?.upRight?.action ?? "none")
         _gestureLockDownLeft = State(initialValue: module.gestureLock?.downLeft?.action ?? "none")
         _gestureLockDownRight = State(initialValue: module.gestureLock?.downRight?.action ?? "none")
+        _gestureLockMinPressMs = State(initialValue: module.gestureLockMinPressMs
+            ?? document.wrappedValue.layout.gestureLockMinPressMs ?? 120)
+        _gestureLockDiagonalRadiusScale = State(initialValue: module.gestureLockDiagonalRadiusScale
+            ?? document.wrappedValue.layout.gestureLockDiagonalRadiusScale ?? 1.0)
+        _turboPulsePeriodMs = State(initialValue: module.turboPulsePeriodMs
+            ?? document.wrappedValue.layout.turboPulsePeriodMs ?? 80)
         _buttonCornerRadius = State(initialValue: module.buttonCornerRadiusNorm)
         _buttonWidthRatio = State(initialValue: module.buttonWidthRatio)
         _buttonHeightRatio = State(initialValue: module.buttonHeightRatio)
@@ -499,6 +508,51 @@ struct ModuleConfigSheet: View {
                     gestureLockPicker("Down-Left", selection: $gestureLockDownLeft)
                     gestureLockPicker("Down-Right", selection: $gestureLockDownRight)
                 }
+
+                // Gesture sensitivity hint
+                Text("Swipe diagonally to trigger gesture actions")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 2)
+
+                // Gesture sensitivity section
+                VStack(alignment: .leading, spacing: 8) {
+                    sectionHeader("Gesture Sensitivity")
+
+                    // Min press time
+                    Text("Min hold time")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Slider(value: Binding(
+                        get: { Double(gestureLockMinPressMs) },
+                        set: { gestureLockMinPressMs = Int($0) }
+                    ), in: 50.0...500.0, step: 10.0)
+                    Text(String(format: "%.0f ms", Double(gestureLockMinPressMs)))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    // Diagonal radius scale
+                    Text("Diagonal swipe distance")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Slider(value: $gestureLockDiagonalRadiusScale,
+                           in: 0.5...3.0, step: 0.1)
+                    Text(String(format: "%.1fx", gestureLockDiagonalRadiusScale))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    // Turbo pulse period
+                    Text("Turbo step interval")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Slider(value: Binding(
+                        get: { Double(turboPulsePeriodMs) },
+                        set: { turboPulsePeriodMs = Int($0) }
+                    ), in: 25.0...300.0, step: 5.0)
+                    Text(String(format: "%.0f ms", Double(turboPulsePeriodMs)))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
         }
     }
@@ -793,9 +847,16 @@ struct ModuleConfigSheet: View {
                     downRight: GestureLockSlotDetail(action: gestureLockDownRight)
                 )
                 document.modules[index].keyboardHoldLock = true
+                // Per-module gesture timing overrides
+                document.modules[index].gestureLockMinPressMs = gestureLockMinPressMs
+                document.modules[index].gestureLockDiagonalRadiusScale = gestureLockDiagonalRadiusScale
+                document.modules[index].turboPulsePeriodMs = turboPulsePeriodMs
             } else {
                 document.modules[index].gestureLock = nil
                 document.modules[index].keyboardHoldLock = nil
+                document.modules[index].gestureLockMinPressMs = nil
+                document.modules[index].gestureLockDiagonalRadiusScale = nil
+                document.modules[index].turboPulsePeriodMs = nil
             }
         }
     }
@@ -838,6 +899,9 @@ struct ModuleConfigSheet: View {
         gestureLockUpRight = "none"
         gestureLockDownLeft = "none"
         gestureLockDownRight = "none"
+        gestureLockMinPressMs = 120
+        gestureLockDiagonalRadiusScale = 1.0
+        turboPulsePeriodMs = 80
         buttonCornerRadius = 1.0
         buttonWidthRatio = 1.0
         buttonHeightRatio = 1.0

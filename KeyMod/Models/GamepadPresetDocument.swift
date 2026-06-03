@@ -144,6 +144,11 @@ struct GamepadModule: Codable, Equatable, Identifiable, Hashable {
     var keyboardHoldLock: Bool?
     var gestureLock: GestureLockConfig?
 
+    // Per-module gesture timing overrides (null inherits from LayoutGlobals)
+    var gestureLockMinPressMs: Int?
+    var gestureLockDiagonalRadiusScale: Double?
+    var turboPulsePeriodMs: Int?
+
     // Turbo
     var turboEnabled: Bool = false
     var turboIntervalMs: Int?
@@ -177,6 +182,9 @@ struct GamepadModule: Codable, Equatable, Identifiable, Hashable {
         scrollStripSensitivity: Double? = nil,
         keyboardHoldLock: Bool? = nil,
         gestureLock: GestureLockConfig? = nil,
+        gestureLockMinPressMs: Int? = nil,
+        gestureLockDiagonalRadiusScale: Double? = nil,
+        turboPulsePeriodMs: Int? = nil,
         turboEnabled: Bool = false,
         turboIntervalMs: Int? = nil,
         turboInitialDelayMs: Int? = nil,
@@ -206,6 +214,9 @@ struct GamepadModule: Codable, Equatable, Identifiable, Hashable {
         self.scrollStripSensitivity = scrollStripSensitivity
         self.keyboardHoldLock = keyboardHoldLock
         self.gestureLock = gestureLock
+        self.gestureLockMinPressMs = gestureLockMinPressMs
+        self.gestureLockDiagonalRadiusScale = gestureLockDiagonalRadiusScale
+        self.turboPulsePeriodMs = turboPulsePeriodMs
         self.turboEnabled = turboEnabled
         self.turboIntervalMs = turboIntervalMs
         self.turboInitialDelayMs = turboInitialDelayMs
@@ -246,6 +257,9 @@ struct GamepadModule: Codable, Equatable, Identifiable, Hashable {
         hasher.combine(scrollStripSensitivity)
         hasher.combine(turboEnabled)
         hasher.combine(gestureLock)
+        hasher.combine(gestureLockMinPressMs)
+        hasher.combine(gestureLockDiagonalRadiusScale)
+        hasher.combine(turboPulsePeriodMs)
     }
 
     var hasGestureLock: Bool {
