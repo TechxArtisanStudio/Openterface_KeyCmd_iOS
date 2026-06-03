@@ -313,7 +313,9 @@ private struct DraggableModuleWrapper: View {
     var body: some View {
         Group {
             if let module {
-                let layoutScale = max(0.35, min(1.35, min(canvasSize.width, canvasSize.height) / 800.0))
+                let screenScale = UIScreen.main.scale
+                let minEdgePx = min(canvasSize.width, canvasSize.height) * screenScale
+                let layoutScale = max(0.35, min(1.35, minEdgePx / 800.0))
                 let moduleSize = self.moduleSize(module: module, layoutScale: layoutScale)
                 let baseX = CGFloat(module.anchorX) * canvasSize.width
                 let baseY = CGFloat(module.anchorY) * canvasSize.height
