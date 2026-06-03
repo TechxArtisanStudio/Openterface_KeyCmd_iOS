@@ -467,8 +467,16 @@ struct GamepadModuleView: View {
             return
         }
 
-        // If module has gesture lock, classify the gesture and act
+        // If module has gesture lock, check if it's already latched
         if module.hasGestureLock {
+            // If already latched, a simple tap releases it (no gesture needed)
+            if gestureLockEngine.latchState(for: module.id) != nil {
+                gestureLockEngine.releaseHoldLock(moduleId: module.id, key: key)
+                gestureLockEngine.stopMouseTurbo()
+                gestureTracker.highlightedQuadrant = nil
+                return
+            }
+
             let action = gestureTracker.committedAction(for: module)
             gestureTracker.highlightedQuadrant = nil
 

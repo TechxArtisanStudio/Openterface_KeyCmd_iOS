@@ -94,7 +94,6 @@ struct GamepadDynamicCanvas: View {
         .onDisappear {
             turboEngine.stop()
             _gestureLockEngine.wrappedValue.releaseAll()
-            _gestureLockEngine.wrappedValue.stopMouseTurbo()
             keyboardManager.releaseAllKeys()
             mouseManager.handleDragEnded()
         }

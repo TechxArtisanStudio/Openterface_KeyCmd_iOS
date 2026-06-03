@@ -185,7 +185,7 @@ struct ModuleConfigSheet: View {
         switch module.type {
         case .dpad, .analogStick:
             stickDpadSettings
-        case .button, .shoulder, .trigger:
+        case .shoulder, .trigger, .button:
             buttonSettings
         case .touchpad:
             touchpadSettings
@@ -722,7 +722,7 @@ struct ModuleConfigSheet: View {
 
     // MARK: - Gesture Lock Picker
 
-    private func gestureLockPicker(_ label: String, selection: Binding<String>) -> some View {
+    private func gestureLockPicker(_ label: LocalizedStringKey, selection: Binding<String>) -> some View {
         HStack {
             Text(label)
                 .font(.system(size: 13))
@@ -732,17 +732,15 @@ struct ModuleConfigSheet: View {
                 Text("None").tag(PresetConstants.gestureLockActionNone)
                 Text("Hold Lock").tag(PresetConstants.gestureLockActionHoldLock)
                 Text("Turbo").tag(PresetConstants.gestureLockActionTurbo)
-                Text("Key Hold").tag(PresetConstants.gestureLockActionKeyHold)
-                Text("Key Turbo").tag(PresetConstants.gestureLockActionKeyTurbo)
             }
             .pickerStyle(MenuPickerStyle())
-            .frame(width: 100)
+            .frame(width: 80)
         }
     }
 
     // MARK: - Helpers
 
-    private func labeledSlider(value: Binding<Double>, range: ClosedRange<Double>, format: String, leftLabel: String, rightLabel: String) -> some View {
+    private func labeledSlider(value: Binding<Double>, range: ClosedRange<Double>, format: String, leftLabel: LocalizedStringKey, rightLabel: LocalizedStringKey) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(leftLabel).font(.caption).foregroundColor(.secondary)
@@ -755,7 +753,7 @@ struct ModuleConfigSheet: View {
         }
     }
 
-    private func sectionHeader(_ title: String) -> some View {
+    private func sectionHeader(_ title: LocalizedStringKey) -> some View {
         Text(title)
             .font(.system(size: 14, weight: .semibold))
             .foregroundColor(.primary)

@@ -18,10 +18,10 @@ enum DiagonalDirection: String, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .upLeft: return "Up-Left"
-        case .upRight: return "Up-Right"
-        case .downLeft: return "Down-Left"
-        case .downRight: return "Down-Right"
+        case .upLeft: return String(localized: "Up-Left")
+        case .upRight: return String(localized: "Up-Right")
+        case .downLeft: return String(localized: "Down-Left")
+        case .downRight: return String(localized: "Down-Right")
         }
     }
 }
