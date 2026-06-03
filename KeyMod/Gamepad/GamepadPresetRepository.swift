@@ -249,8 +249,6 @@ class GamepadPresetRepository: ObservableObject {
     // MARK: - Bundled Presets
 
     private func loadBundledPresetsIfNeeded() {
-        let installed = userDefaults.stringArray(forKey: bundledInstalledKey) ?? []
-
         // Bundled preset IDs matching Android's gamepad/*.json files
         let bundledIds = [
             "preset_default",           // default.json
@@ -259,34 +257,35 @@ class GamepadPresetRepository: ObservableObject {
             "preset_pack_minecraft_java", // minecraft_java.json
             "emulator_6"                // emu-6.json
         ]
-        let needsInstall = bundledIds.filter { id in !installed.contains(id) && !presets.contains(where: { $0.id == id }) }
 
-        guard !needsInstall.isEmpty else { return }
-
-        for presetId in needsInstall {
+        for presetId in bundledIds {
             installBundledPreset(id: presetId)
         }
-
-        userDefaults.set(installed + needsInstall, forKey: bundledInstalledKey)
     }
 
     private func installBundledPreset(id: String) {
-        // Create default preset if file doesn't exist
-        let url = fileURL(for: id)
-        guard !FileManager.default.fileExists(atPath: url.path) else { return }
-
+        // Always write bundled presets to disk so code-level definition updates
+        // (e.g. correct mouse button scales, dpad labels, etc.) take effect on
+        // every launch — matching the latest Android gamepad/*.json.
         let document = createDefaultPreset(id: id)
         saveDocument(document)
 
-        // Mark as builtin
+        // Mark as builtin in index
         if let idx = presets.firstIndex(where: { $0.id == id }) {
             presets[idx].isBuiltin = true
+            presets[idx].displayName = document.meta.displayName
+            saveIndex()
+        } else {
+            presets.append(PresetRef(
+                id: id,
+                displayName: document.meta.displayName,
+                isBuiltin: true
+            ))
             saveIndex()
         }
 
         // Set as active if no active preset
         if activePresetId == nil {
-            let id = id
             setActivePresetId(id)
             activeDocument = loadDocument(id: id)
         }

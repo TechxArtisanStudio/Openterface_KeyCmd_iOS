@@ -407,7 +407,8 @@ private struct DraggableModuleWrapper: View {
             )
 
         case .mouseButton:
-            let baseRadius = 52.0 * layoutScale * CGFloat(module.scale)
+            let touchpadMouseButtonScale = document.layout.touchpadMouseButtonScale ?? 1.0
+            let baseRadius = 52.0 * layoutScale * CGFloat(module.scale) * touchpadMouseButtonScale
             return CGSize(width: baseRadius * 2, height: baseRadius * 2)
 
         case .shoulder, .trigger:
