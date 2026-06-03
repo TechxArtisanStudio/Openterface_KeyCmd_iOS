@@ -46,6 +46,7 @@ struct GamepadDynamicCanvas: View {
         _turboEngine = StateObject(wrappedValue: TurboEngine(keyboardManager: keyboardManager))
         _gestureLockEngine = StateObject(wrappedValue: GestureLockEngine(
             keyboardManager: keyboardManager,
+            mouseManager: mouseManager,
             turboEngine: TurboEngine(keyboardManager: keyboardManager)
         ))
     }
@@ -92,7 +93,8 @@ struct GamepadDynamicCanvas: View {
         }
         .onDisappear {
             turboEngine.stop()
-            gestureLockEngine.releaseAll()
+            _gestureLockEngine.wrappedValue.releaseAll()
+            _gestureLockEngine.wrappedValue.stopMouseTurbo()
             keyboardManager.releaseAllKeys()
             mouseManager.handleDragEnded()
         }

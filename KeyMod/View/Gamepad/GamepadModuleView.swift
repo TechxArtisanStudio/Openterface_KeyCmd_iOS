@@ -315,8 +315,9 @@ struct GamepadModuleView: View {
             gestureTracker.highlightedQuadrant = nil
             let key = mouseButtonActionKey
             if !key.isEmpty {
-                // Release first
-                keyboardManager.handleKeyUp(key)
+                // Release the mouse button first
+                mouseManager.sendButtonUp(buttons: mouseButtonMask(for: key) ?? 0x00)
+
                 // Execute gesture action
                 switch action {
                 case PresetConstants.gestureLockActionHoldLock:
@@ -332,6 +333,14 @@ struct GamepadModuleView: View {
             }
         } else {
             onModuleRelease(module.id, nil)
+        }
+    }
+
+    private func mouseButtonMask(for action: String) -> UInt8? {
+        switch action {
+        case "Left Click": return 0x01
+        case "Right Click": return 0x02
+        default: return nil
         }
     }
 
