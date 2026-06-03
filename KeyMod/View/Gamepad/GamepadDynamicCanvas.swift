@@ -14,6 +14,7 @@ struct GamepadDynamicCanvas: View {
     @ObservedObject var mouseManager: MouseManager
     @ObservedObject var backgroundManager: GamepadBackgroundManager
     @StateObject private var turboEngine: TurboEngine
+    @StateObject private var gestureLockEngine: GestureLockEngine
     let isEditMode: Bool
     let isPositionEditMode: Bool
     let isKeyMappingMode: Bool
@@ -43,6 +44,10 @@ struct GamepadDynamicCanvas: View {
         self.isKeyMappingMode = isKeyMappingMode
         self.onSaveDocument = onSaveDocument
         _turboEngine = StateObject(wrappedValue: TurboEngine(keyboardManager: keyboardManager))
+        _gestureLockEngine = StateObject(wrappedValue: GestureLockEngine(
+            keyboardManager: keyboardManager,
+            turboEngine: TurboEngine(keyboardManager: keyboardManager)
+        ))
     }
 
     var body: some View {
@@ -63,6 +68,7 @@ struct GamepadDynamicCanvas: View {
                         keyboardManager: keyboardManager,
                         mouseManager: mouseManager,
                         turboEngine: turboEngine,
+                        gestureLockEngine: gestureLockEngine,
                         onModulePress: handleModulePress,
                         onModuleRelease: handleModuleRelease,
                         onModuleConfig: handleModuleConfig,
@@ -86,6 +92,7 @@ struct GamepadDynamicCanvas: View {
         }
         .onDisappear {
             turboEngine.stop()
+            gestureLockEngine.releaseAll()
             keyboardManager.releaseAllKeys()
             mouseManager.handleDragEnded()
         }
@@ -167,7 +174,13 @@ struct GamepadDynamicCanvas: View {
                         initialDelayMs: module.turboInitialDelayMs ?? 400
                     ))
                 } else if module.hasGestureLock {
-                    keyboardManager.handleKeyDown(key)
+                    // For gesture-lock modules, check if already hold-locked
+                    if _gestureLockEngine.wrappedValue.latchState(for: moduleId) == .hold {
+                        // Release the hold-lock on press
+                        _gestureLockEngine.wrappedValue.releaseHoldLock(moduleId: moduleId, key: key)
+                    } else {
+                        keyboardManager.handleKeyDown(key)
+                    }
                 } else {
                     keyboardManager.handleKeyDown(key)
                 }
@@ -307,6 +320,7 @@ private struct DraggableModuleWrapper: View {
     let keyboardManager: KeyboardManager
     let mouseManager: MouseManager
     let turboEngine: TurboEngine
+    @ObservedObject var gestureLockEngine: GestureLockEngine
     let onModulePress: (String, String?) -> Void
     let onModuleRelease: (String, String?) -> Void
     let onModuleConfig: (String) -> Void
@@ -330,6 +344,7 @@ private struct DraggableModuleWrapper: View {
                     keyboardManager: keyboardManager,
                     mouseManager: mouseManager,
                     turboEngine: turboEngine,
+                    gestureLockEngine: gestureLockEngine,
                     isEditMode: isEditMode,
                     isPositionEditMode: isPositionEditMode,
                     isKeyMappingMode: isKeyMappingMode,
@@ -348,6 +363,12 @@ private struct DraggableModuleWrapper: View {
                             .contentShape(Rectangle())
                     }
                     moduleContent
+
+                    // Latch badge overlay (hold-lock / turbo)
+                    if let state = gestureLockEngine.latchState(for: module.id) {
+                        LatchBadgeView(state: state)
+                            .allowsHitTesting(false)
+                    }
                 }
                 .frame(width: moduleSize.width, height: moduleSize.height)
                 .overlay(alignment: .topTrailing) {

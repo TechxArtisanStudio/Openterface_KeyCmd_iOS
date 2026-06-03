@@ -14,6 +14,7 @@ struct GamepadModuleView: View {
     @ObservedObject var keyboardManager: KeyboardManager
     @ObservedObject var mouseManager: MouseManager
     @ObservedObject var turboEngine: TurboEngine
+    @ObservedObject var gestureLockEngine: GestureLockEngine
     let isEditMode: Bool
     let isPositionEditMode: Bool
     let isKeyMappingMode: Bool
@@ -292,16 +293,55 @@ struct GamepadModuleView: View {
                 if !isPressed {
                     isPressed = true
                     hapticManager.triggerButtonPress()
+                    gestureTracker.recordStart()
                     onModulePress(module.id, nil)
                 }
             },
-            onDrag: { _ in },
+            onDrag: { translation in
+                gestureTracker.recordOffset(dx: translation.width, dy: translation.height)
+            },
             onRelease: {
+                let wasPressed = isPressed
                 isPressed = false
-                onModuleRelease(module.id, nil)
+                handleMouseButtonRelease(wasPressed: wasPressed)
             }
         )
         .frame(width: baseRadius * 2, height: baseRadius * 2)
+    }
+
+    private func handleMouseButtonRelease(wasPressed: Bool) {
+        if module.hasGestureLock {
+            let action = gestureTracker.committedAction(for: module)
+            gestureTracker.highlightedQuadrant = nil
+            let key = mouseButtonActionKey
+            if !key.isEmpty {
+                // Release first
+                keyboardManager.handleKeyUp(key)
+                // Execute gesture action
+                switch action {
+                case PresetConstants.gestureLockActionHoldLock:
+                    gestureLockEngine.handleHoldLock(moduleId: module.id, key: key)
+                case PresetConstants.gestureLockActionTurbo:
+                    let period = module.turboPulsePeriodMs
+                        ?? globalSettings.turboPulsePeriodMs ?? 70
+                    gestureLockEngine.handleTurbo(moduleId: module.id, key: key,
+                        config: TurboConfig(enabled: true, intervalMs: period, initialDelayMs: 0))
+                default:
+                    break
+                }
+            }
+        } else {
+            onModuleRelease(module.id, nil)
+        }
+    }
+
+    /// Returns the mouse action key for this button (used for gesture lock).
+    private var mouseButtonActionKey: String {
+        switch module.mouseButton {
+        case 1: return "Left Click"
+        case 3: return "Right Click"
+        default: return "Left Click"
+        }
     }
 
     private var mouseButtonLabel: String {
@@ -400,41 +440,56 @@ struct GamepadModuleView: View {
     }
 
     private func handleButtonRelease(wasPressed: Bool, key: String) {
-        if wasPressed && !key.isEmpty {
-            if turboEngine.isActive {
-                turboEngine.stop()
-            } else if module.hasGestureLock {
-                let action = gestureTracker.committedAction(for: module)
-                gestureTracker.highlightedQuadrant = nil
-                keyboardManager.handleKeyUp(key)
-                handleGestureLockAction(action, key: key)
-            } else {
+        if key.isEmpty {
+            if !module.hasGestureLock {
                 onModuleRelease(module.id, nil)
             }
+            return
         }
 
-        // Check gesture lock action
+        // If turbo engine is active (non-gesture turbo), stop it
+        if turboEngine.isActive {
+            turboEngine.stop()
+            onModuleRelease(module.id, nil)
+            return
+        }
+
+        // If module has gesture lock, classify the gesture and act
         if module.hasGestureLock {
             let action = gestureTracker.committedAction(for: module)
             gestureTracker.highlightedQuadrant = nil
-            handleGestureLockAction(action, key: key)
+
+            // Release the key first (it was held during press)
+            keyboardManager.handleKeyUp(key)
+
+            // Execute the gesture action
+            switch action {
+            case PresetConstants.gestureLockActionHoldLock:
+                gestureLockEngine.handleHoldLock(moduleId: module.id, key: key)
+            case PresetConstants.gestureLockActionTurbo:
+                let period = module.turboPulsePeriodMs
+                    ?? globalSettings.turboPulsePeriodMs ?? 70
+                gestureLockEngine.handleTurbo(moduleId: module.id, key: key,
+                    config: TurboConfig(enabled: true, intervalMs: period, initialDelayMs: 0))
+            case PresetConstants.gestureLockActionKeyHold:
+                gestureLockEngine.handleHoldLock(moduleId: module.id, key: key)
+            default:
+                break
+            }
+        } else {
+            onModuleRelease(module.id, nil)
         }
     }
 
     private func handleGestureLockAction(_ action: String, key: String) {
         switch action {
         case PresetConstants.gestureLockActionHoldLock:
-            if !key.isEmpty {
-                keyboardManager.handleKeyDown(key)
-            }
+            gestureLockEngine.handleHoldLock(moduleId: module.id, key: key)
         case PresetConstants.gestureLockActionTurbo:
-            if !key.isEmpty {
-                keyboardManager.handleKeyDown(key)
-            }
-        case PresetConstants.gestureLockActionKeyHold:
-            if !key.isEmpty {
-                keyboardManager.handleKeyDown(key)
-            }
+            let period = module.turboPulsePeriodMs
+                ?? globalSettings.turboPulsePeriodMs ?? 70
+            gestureLockEngine.handleTurbo(moduleId: module.id, key: key,
+                config: TurboConfig(enabled: true, intervalMs: period, initialDelayMs: 0))
         default:
             break
         }
