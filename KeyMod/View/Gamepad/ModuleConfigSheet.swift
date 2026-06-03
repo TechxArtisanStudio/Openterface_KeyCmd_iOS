@@ -365,6 +365,15 @@ struct ModuleConfigSheet: View {
                     gestureLockPicker("Down-Left", selection: $gestureLockDownLeft)
                     gestureLockPicker("Down-Right", selection: $gestureLockDownRight)
                 }
+
+                // Gesture sensitivity hint
+                Text("Swipe diagonally to trigger gesture actions")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 2)
+
+                // Gesture sensitivity section
+                gestureSensitivitySection
             }
 
             // Mapped key button
@@ -509,50 +518,7 @@ struct ModuleConfigSheet: View {
                     gestureLockPicker("Down-Right", selection: $gestureLockDownRight)
                 }
 
-                // Gesture sensitivity hint
-                Text("Swipe diagonally to trigger gesture actions")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .padding(.top, 2)
-
-                // Gesture sensitivity section
-                VStack(alignment: .leading, spacing: 8) {
-                    sectionHeader("Gesture Sensitivity")
-
-                    // Min press time
-                    Text("Min hold time")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Slider(value: Binding(
-                        get: { Double(gestureLockMinPressMs) },
-                        set: { gestureLockMinPressMs = Int($0) }
-                    ), in: 50.0...500.0, step: 10.0)
-                    Text(String(format: "%.0f ms", Double(gestureLockMinPressMs)))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    // Diagonal radius scale
-                    Text("Diagonal swipe distance")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Slider(value: $gestureLockDiagonalRadiusScale,
-                           in: 0.5...3.0, step: 0.1)
-                    Text(String(format: "%.1fx", gestureLockDiagonalRadiusScale))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    // Turbo pulse period
-                    Text("Turbo step interval")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Slider(value: Binding(
-                        get: { Double(turboPulsePeriodMs) },
-                        set: { turboPulsePeriodMs = Int($0) }
-                    ), in: 25.0...300.0, step: 5.0)
-                    Text(String(format: "%.0f ms", Double(turboPulsePeriodMs)))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
+                gestureSensitivitySection
             }
         }
     }
@@ -668,6 +634,54 @@ struct ModuleConfigSheet: View {
         // stick_left, stick_right, shoulder_l/r, trigger_l/r are essential
         let essentialIds = ["stick_left", "stick_right", "shoulder_l", "shoulder_r", "trigger_l", "trigger_r"]
         return essentialIds.contains(module.id)
+    }
+
+    // MARK: - Gesture Sensitivity Section
+
+    @ViewBuilder
+    private var gestureSensitivitySection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Swipe diagonally to trigger gesture actions")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .padding(.top, 2)
+
+            sectionHeader("Gesture Sensitivity")
+
+            // Min press time
+            Text("Min hold time")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Slider(value: Binding(
+                get: { Double(gestureLockMinPressMs) },
+                set: { gestureLockMinPressMs = Int($0) }
+            ), in: 50.0...500.0, step: 10.0)
+            Text(String(format: "%.0f ms", Double(gestureLockMinPressMs)))
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            // Diagonal radius scale
+            Text("Diagonal swipe distance")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Slider(value: $gestureLockDiagonalRadiusScale,
+                   in: 0.5...3.0, step: 0.1)
+            Text(String(format: "%.1fx", gestureLockDiagonalRadiusScale))
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            // Turbo pulse period
+            Text("Turbo step interval")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Slider(value: Binding(
+                get: { Double(turboPulsePeriodMs) },
+                set: { turboPulsePeriodMs = Int($0) }
+            ), in: 25.0...300.0, step: 5.0)
+            Text(String(format: "%.0f ms", Double(turboPulsePeriodMs)))
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
     }
 
     // MARK: - Key Button
