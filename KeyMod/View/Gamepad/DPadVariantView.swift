@@ -169,11 +169,6 @@ class DPadUIView: UIView {
         return result
     }
 
-    private func angularDistance(_ a: Double, from target: Double) -> Double {
-        var diff = abs(a - target)
-        if diff > 180 { diff = 360 - diff }
-        return diff
-    }
 
     // MARK: - Touch handling
 
