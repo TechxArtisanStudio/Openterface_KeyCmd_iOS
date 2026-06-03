@@ -159,7 +159,7 @@ struct ModuleConfigSheet: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Remove \(module.id)? This cannot be undone.")
+            Text(String(format: String(localized: "Remove %@? This cannot be undone."), module.id))
         }
         .alert("Duplicate Module", isPresented: $showDuplicateConfirm) {
             Button("Duplicate") {
@@ -167,7 +167,7 @@ struct ModuleConfigSheet: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Create a copy of \(module.id)?")
+            Text(String(format: String(localized: "Create a copy of %@?"), module.id))
         }
         .sheet(isPresented: $showKeyPicker) {
             KeyPickerSheet(
