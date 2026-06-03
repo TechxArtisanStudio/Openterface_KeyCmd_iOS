@@ -258,12 +258,23 @@ class GamepadPresetRepository: ObservableObject {
             "emulator_6"                // emu-6.json
         ]
 
+        var anyWritten = false
         for presetId in bundledIds {
-            installBundledPreset(id: presetId)
+            if installBundledPreset(id: presetId) {
+                anyWritten = true
+            }
+        }
+
+        // If we just overwrote bundled presets AND the active preset is one of them,
+        // reload activeDocument from disk so the new definitions take effect immediately.
+        // Without this, activeDocument was loaded in init() BEFORE the overwrite.
+        if anyWritten, let activeId = activePresetId, bundledIds.contains(activeId) {
+            activeDocument = loadDocument(id: activeId)
         }
     }
 
-    private func installBundledPreset(id: String) {
+    /// Returns true if a fresh bundled preset was written to disk.
+    private func installBundledPreset(id: String) -> Bool {
         // Always write bundled presets to disk so code-level definition updates
         // (e.g. correct mouse button scales, dpad labels, etc.) take effect on
         // every launch — matching the latest Android gamepad/*.json.
@@ -289,6 +300,8 @@ class GamepadPresetRepository: ObservableObject {
             setActivePresetId(id)
             activeDocument = loadDocument(id: id)
         }
+
+        return true
     }
 
     private func createDefaultPreset(id: String) -> GamepadPresetDocument {
