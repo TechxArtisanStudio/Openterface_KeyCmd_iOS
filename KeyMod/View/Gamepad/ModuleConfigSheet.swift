@@ -41,6 +41,8 @@ struct ModuleConfigSheet: View {
     @State private var mappedKeyLabelVisible: Bool
     @State private var accentColorHex: String
     @State private var moduleScale: Double
+    @State private var touchpadMouseButtonScale: Double
+    @State private var hasTouchpad: Bool
     @State private var widthNorm: Double
     @State private var heightNorm: Double
     @State private var crossArmDecoration: String
@@ -89,6 +91,8 @@ struct ModuleConfigSheet: View {
         _mappedKeyLabelVisible = State(initialValue: module.mappedKeyLabelVisible ?? true)
         _accentColorHex = State(initialValue: module.moduleAccentArgb.map { String(format: "#%08X", $0) } ?? "")
         _moduleScale = State(initialValue: module.scale)
+        _touchpadMouseButtonScale = State(initialValue: document.layout.touchpadMouseButtonScale ?? 1.0)
+        _hasTouchpad = State(initialValue: document.modules.contains { $0.type == .touchpad })
         _widthNorm = State(initialValue: module.widthNorm ?? 0.35)
         _heightNorm = State(initialValue: module.heightNorm ?? 0.25)
         _crossArmDecoration = State(initialValue: module.dpadCrossArmDecoration ?? "none")
@@ -423,6 +427,13 @@ struct ModuleConfigSheet: View {
             Text(String(format: "%.0f%%", heightNorm * 100))
                 .font(.caption)
                 .foregroundColor(.secondary)
+
+            // Layout-wide touchpad mouse button scale
+            if hasTouchpad {
+                sectionHeader("All touchpad mouse buttons size")
+                labeledSlider(value: $touchpadMouseButtonScale, range: 0.5...2.0, format: "%.2fx",
+                              leftLabel: "Small", rightLabel: "Large")
+            }
         }
     }
 
@@ -461,13 +472,22 @@ struct ModuleConfigSheet: View {
 
     private var mouseButtonSettings: some View {
         VStack(alignment: .leading, spacing: 16) {
+            // Display name
             sectionHeader("Display Name")
             TextField("Custom label", text: $displayLabel)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
 
+            // Per-button size
             sectionHeader("Button Size")
             labeledSlider(value: $moduleScale, range: 0.5...2.0, format: "%.2fx",
                           leftLabel: "Small", rightLabel: "Large")
+
+            // Layout-wide touchpad mouse button scale (only when touchpad exists)
+            if hasTouchpad {
+                sectionHeader("All touchpad mouse buttons size")
+                labeledSlider(value: $touchpadMouseButtonScale, range: 0.5...2.0, format: "%.2fx",
+                              leftLabel: "Small", rightLabel: "Large")
+            }
 
             // Hold lock gesture
             Toggle("Hold lock gesture", isOn: $gestureLockEnabled)
@@ -693,9 +713,6 @@ struct ModuleConfigSheet: View {
         if let argb = Int(hex: accentColorHex) {
             document.modules[index].moduleAccentArgb = argb
         }
-
-        // Per-type fields — only modify fields relevant to each module type.
-        // Do NOT apply selectedMode to non-stick/dpad modules, or it corrupts the type.
         switch module.type {
         case .analogStick, .dpad:
             switch selectedMode {
@@ -754,6 +771,9 @@ struct ModuleConfigSheet: View {
         case .touchpad:
             document.modules[index].widthNorm = widthNorm
             document.modules[index].heightNorm = heightNorm
+            if hasTouchpad {
+                document.layout.touchpadMouseButtonScale = touchpadMouseButtonScale
+            }
 
         case .scrollStrip:
             document.modules[index].widthNorm = widthNorm
@@ -762,6 +782,9 @@ struct ModuleConfigSheet: View {
             document.modules[index].scrollStripInvertY = scrollStripInvertY
 
         case .mouseButton:
+            if hasTouchpad {
+                document.layout.touchpadMouseButtonScale = touchpadMouseButtonScale
+            }
             if gestureLockEnabled {
                 document.modules[index].gestureLock = GestureLockConfig(
                     upLeft: GestureLockSlotDetail(action: gestureLockUpLeft),
