@@ -107,12 +107,11 @@ class DPadUIView: UIView {
         ]
     }
 
-    /// Returns ALL directions activated by a touch at the given point.
-    /// Uses angle-based detection (not rectangular overlap) so diagonal zones
-    /// between adjacent directions are wide and easy to hit.
-    /// Each direction has a ±70° range from its cardinal axis — this means
-    /// the 45° diagonal between any two directions activates BOTH.
-    /// Center dead zone (8% of radius) prevents accidental center activation.
+    /// Returns direction keys activated by a touch at the given point.
+    /// Uses dominant-axis detection: only the direction closest to the touch
+    /// is activated. Diagonal touches (roughly equal x and y) activate both
+    /// directions for combo movement.
+    /// Center dead zone (15% of radius) prevents accidental activation.
     private func directionsForPoint(_ point: CGPoint) -> Set<String> {
         let cx = bounds.midX
         let cy = bounds.midY
@@ -120,8 +119,8 @@ class DPadUIView: UIView {
         let dy = point.y - cy
         let dist = sqrt(dx * dx + dy * dy)
 
-        // Dead zone at center
-        if dist < baseRadius * 0.08 {
+        // Dead zone at center (15% of radius — larger to prevent accidental activation)
+        if dist < baseRadius * 0.15 {
             return []
         }
 
@@ -130,25 +129,42 @@ class DPadUIView: UIView {
             return []
         }
 
+        let absDx = abs(dx)
+        let absDy = abs(dy)
+
+        // If touch is very close to dead zone edge, require clearer direction
+        if dist < baseRadius * 0.3 {
+            // Require at least 2:1 ratio to activate a direction
+            if absDx > absDy * 2 {
+                return [dx > 0 ? "Right" : "Left"]
+            } else if absDy > absDx * 2 {
+                return [dy > 0 ? "Down" : "Up"]
+            }
+            return []
+        }
+
         var result: Set<String> = []
 
-        // Angle threshold: ±70° from each cardinal direction
-        // At 45° diagonal, distance from both adjacent cardinals = 45° < 70°,
-        // so both directions activate.
-        let thresholdDeg: Double = 70.0
-
-        // Angles: 0° = Up (-Y), measured clockwise in screen coords
-        var angle = atan2(dx, -dy) * 180.0 / .pi
-        if angle < 0 { angle += 360 }
-
-        // Up = 0°
-        if angularDistance(angle, from: 0) <= thresholdDeg { result.insert("Up") }
-        // Right = 90°
-        if angularDistance(angle, from: 90) <= thresholdDeg { result.insert("Right") }
-        // Down = 180°
-        if angularDistance(angle, from: 180) <= thresholdDeg { result.insert("Down") }
-        // Left = 270°
-        if angularDistance(angle, from: 270) <= thresholdDeg { result.insert("Left") }
+        // Dominant axis detection
+        if absDy > absDx {
+            // Vertical dominates
+            result.insert(dy < 0 ? "Up" : "Down")
+            // Check if it's a diagonal (within 30% of each other)
+            if absDx > absDy * 0.7 {
+                result.insert(dx > 0 ? "Right" : "Left")
+            }
+        } else if absDx > absDy {
+            // Horizontal dominates
+            result.insert(dx > 0 ? "Right" : "Left")
+            // Check if it's a diagonal
+            if absDy > absDx * 0.7 {
+                result.insert(dy < 0 ? "Up" : "Down")
+            }
+        } else {
+            // Exactly equal — activate both (diagonal)
+            result.insert(dy < 0 ? "Up" : "Down")
+            result.insert(dx > 0 ? "Right" : "Left")
+        }
 
         return result
     }
