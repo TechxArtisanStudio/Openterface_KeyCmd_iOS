@@ -201,12 +201,7 @@ struct GamepadDynamicCanvas: View {
     // MARK: - Context Menu Helpers
 
     private func canConfigure(_ module: GamepadModule) -> Bool {
-        switch module.type {
-        case .button, .shoulder, .trigger, .dpad, .analogStick:
-            return true
-        case .touchpad, .scrollStrip, .mouseButton:
-            return false
-        }
+        return true
     }
 
     private func canReorderLayers() -> Bool {
