@@ -16,14 +16,14 @@
 			containerPortal = 6BAFF0232E040AD6004331F6 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 6BAFF02A2E040AD6004331F6;
-			remoteInfo = KeyMod;
+			remoteInfo = KeyCmd;
 		};
 		6BAFF0462E040AD8004331F6 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 6BAFF0232E040AD6004331F6 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 6BAFF02A2E040AD6004331F6;
-			remoteInfo = KeyMod;
+			remoteInfo = KeyCmd;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -36,7 +36,7 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		6BAFF02D2E040AD6004331F6 /* KeyCmd */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = KeyMod;
+			path = KeyCmd;
 			sourceTree = "<group>";
 		};
 		6BAFF03E2E040AD8004331F6 /* KeyCmdTests */ = {
@@ -115,11 +115,11 @@
 			fileSystemSynchronizedGroups = (
 				6BAFF02D2E040AD6004331F6 /* KeyCmd */,
 			);
-			name = KeyMod;
+			name = KeyCmd;
 			packageProductDependencies = (
 				6B20A1B12E058000004331F6 /* whisper */,
 			);
-			productName = KeyMod;
+			productName = KeyCmd;
 			productReference = 6BAFF02B2E040AD6004331F6 /* KeyCmd.app */;
 			productType = "com.apple.product-type.application";
 		};
@@ -412,7 +412,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = KeyCmd/KeyMod.entitlements;
+				CODE_SIGN_ENTITLEMENTS = KeyCmd/KeyCmd.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 13;
@@ -443,7 +443,7 @@
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_OBJC_BRIDGING_HEADER = "KeyCmd/KeyMod-Bridging-Header.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "KeyCmd/KeyCmd-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -454,7 +454,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = KeyCmd/KeyMod.entitlements;
+				CODE_SIGN_ENTITLEMENTS = KeyCmd/KeyCmd.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 13;
@@ -485,7 +485,7 @@
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_OBJC_BRIDGING_HEADER = "KeyCmd/KeyMod-Bridging-Header.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "KeyCmd/KeyCmd-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -506,7 +506,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KeyCmd.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/KeyMod";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KeyCmd.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/KeyCmd";
 			};
 			name = Debug;
 		};
@@ -525,7 +525,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KeyCmd.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/KeyMod";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KeyCmd.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/KeyCmd";
 			};
 			name = Release;
 		};
@@ -542,7 +542,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = KeyMod;
+				TEST_TARGET_NAME = KeyCmd;
 			};
 			name = Debug;
 		};
@@ -559,7 +559,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = KeyMod;
+				TEST_TARGET_NAME = KeyCmd;
 			};
 			name = Release;
 		};
