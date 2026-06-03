@@ -259,7 +259,8 @@ struct GamepadModuleView: View {
     private var moduleMouseButtonView: some View {
         let label = mouseButtonLabel
         let touchpadMouseButtonScale = globalSettings.touchpadMouseButtonScale ?? 1.0
-        let baseRadius = 52.0 * layoutScale * CGFloat(module.scale) * touchpadMouseButtonScale
+        let screenScale = UIScreen.main.scale
+        let baseRadius = 52.0 * screenScale * layoutScale * CGFloat(module.scale) * touchpadMouseButtonScale
         MultiTouchDragButton(
             label: label,
             normalColor: UIColor(red: 0.35, green: 0.35, blue: 0.38, alpha: 1.0),
