@@ -27,6 +27,7 @@ struct GamepadModuleView: View {
 
     @State private var isPressed = false
     @State private var gestureTracker = GestureLockTracker()
+    @State private var stickActiveKeys: Set<String> = []
     @StateObject private var hapticManager = HapticFeedbackManager.shared
 
     var effectiveScale: Double {
@@ -213,17 +214,37 @@ struct GamepadModuleView: View {
     private func handleStickKeyboardMove(pos: CGPoint) {
         let activationThreshold: CGFloat = 0.6
         let deadZone: CGFloat = 0.1
+
+        var keysToPress: [String] = []
         if abs(pos.x) < deadZone && abs(pos.y) < deadZone {
+            // Stick returned to center — release all active keys
+            for key in stickActiveKeys {
+                keyboardManager.handleKeyUp(key)
+            }
+            stickActiveKeys.removeAll()
             return
         }
-        var keysToPress: [String] = []
+
         if -pos.y > activationThreshold { keysToPress.append(module.stickUpKey ?? "W") }
         else if -pos.y < -activationThreshold { keysToPress.append(module.stickDownKey ?? "S") }
         if pos.x > activationThreshold { keysToPress.append(module.stickRightKey ?? "D") }
         else if pos.x < -activationThreshold { keysToPress.append(module.stickLeftKey ?? "A") }
-        if !keysToPress.isEmpty {
-            keyboardManager.handleKeysDown(keysToPress)
+
+        // Release keys that are no longer in the new direction
+        let newKeySet = Set(keysToPress)
+        for key in stickActiveKeys where !newKeySet.contains(key) {
+            keyboardManager.handleKeyUp(key)
         }
+
+        // Press new keys that weren't previously active
+        for key in keysToPress where !stickActiveKeys.contains(key) {
+            keyboardManager.handleKeyDown(key)
+            if stickActiveKeys.isEmpty {
+                hapticManager.triggerButtonPress()
+            }
+        }
+
+        stickActiveKeys = newKeySet
     }
 
     // MARK: - Scroll Strip Module
