@@ -79,6 +79,7 @@ struct LaunchPanelView: View {
                             title: "Macros",
                             icon: "square.and.pencil",
                             isSelected: selectedMode == .macros,
+                            isBeta: true,
                             action: { selectedMode = .macros }
                         )
                     }
@@ -89,6 +90,7 @@ struct LaunchPanelView: View {
                             title: "Voice Input",
                             icon: "mic.circle",
                             isSelected: selectedMode == .voiceInput,
+                            isBeta: true,
                             action: { selectedMode = .voiceInput }
                         )
 
@@ -171,25 +173,44 @@ struct ModeCard: View {
     let title: LocalizedStringKey
     let icon: String
     let isSelected: Bool
+    let isBeta: Bool
     let action: () -> Void
+    
+    init(title: LocalizedStringKey, icon: String, isSelected: Bool, isBeta: Bool = false, action: @escaping () -> Void) {
+        self.title = title
+        self.icon = icon
+        self.isSelected = isSelected
+        self.isBeta = isBeta
+        self.action = action
+    }
     
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 12) {
-                Image(systemName: icon)
-                    .font(.system(size: 28))
-                    .foregroundColor(isSelected ? .white : .blue)
-                
-                Text(title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(isSelected ? .white : .primary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
+            ZStack(alignment: .topTrailing) {
+                VStack(spacing: 12) {
+                    Image(systemName: icon)
+                        .font(.system(size: 28))
+                        .foregroundColor(isSelected ? .white : .blue)
+                    
+                    HStack(spacing: 4) {
+                        Text(title)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(isSelected ? .white : .primary)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                        
+                        if isBeta {
+                            Image(systemName: "flask.fill")
+                                .font(.system(size: 11))
+                                .foregroundColor(isSelected ? .white.opacity(0.8) : .secondary)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 110)
+                .background(isSelected ? Color.blue : Color(UIColor.secondarySystemBackground))
+                .cornerRadius(12)
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: 110)
-            .background(isSelected ? Color.blue : Color(UIColor.secondarySystemBackground))
-            .cornerRadius(12)
         }
         .buttonStyle(PlainButtonStyle())
     }

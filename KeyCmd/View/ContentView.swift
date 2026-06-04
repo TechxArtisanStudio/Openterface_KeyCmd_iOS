@@ -173,6 +173,13 @@ struct ContentView: View {
                     Text(viewType.localizedName)
                         .font(.body)
                         .foregroundColor(viewManager.currentView == viewType ? .green : .primary)
+                    // Beta badge for experimental features
+                    if viewType == .macros || viewType == .voiceInput {
+                        Image(systemName: "flask.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(.secondary)
+                            .padding(.leading, 4)
+                    }
                 }
                 .padding(.vertical, 10)
                 .padding(.horizontal, 12)
