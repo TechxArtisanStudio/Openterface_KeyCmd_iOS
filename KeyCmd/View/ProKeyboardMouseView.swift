@@ -76,14 +76,15 @@ private struct SplitPagingView<PageContent: View>: View {
 /// Shared touchpad control background color for Pro mode (scroll strip, LMR buttons).
 private let touchpadControlGray = Color(UIColor.secondarySystemBackground)
 
-/// Button style that flashes blue on press and stays blue when held.
+/// Button style that flashes accent color on press and stays accent when held.
 private struct ProMouseButtonStyle: ButtonStyle {
     var held: Bool = false
+    var accentColor: Color = .blue
     func makeBody(configuration: Configuration) -> some View {
         let active = configuration.isPressed || held
         return configuration.label
             .clipShape(RoundedRectangle(cornerRadius: 8))
-            .background(active ? Color.blue.opacity(held ? 0.7 : 0.5) : touchpadControlGray, in: RoundedRectangle(cornerRadius: 8))
+            .background(active ? accentColor.opacity(held ? 0.7 : 0.5) : touchpadControlGray, in: RoundedRectangle(cornerRadius: 8))
             .foregroundColor(active ? .white : .white.opacity(0.85))
             .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
@@ -123,6 +124,7 @@ struct ProKeyboardMouseView: View {
 
     @ObservedObject private var aiSettings = AISettings.shared
     @ObservedObject private var profileMgr = ShortcutProfileManager.shared
+    @ObservedObject private var themeManager = ThemeManager.shared
 
     @State private var keyboardHeight: CGFloat = 0
     @State private var keyFrames: [String: CGRect] = [:]
@@ -348,7 +350,7 @@ struct ProKeyboardMouseView: View {
                 if showMouseButtons {
                     proTouchpadMouseButtons
                 }
-            }.background(mouseManager.isSelectMode ? Color.blue.opacity(0.3) : Color(UIColor.secondarySystemBackground))
+            }.background(mouseManager.isSelectMode ? themeManager.accentColor.opacity(0.3) : Color(UIColor.secondarySystemBackground))
         }
     }
 
@@ -373,7 +375,7 @@ struct ProKeyboardMouseView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 36)
         }
-        .buttonStyle(ProMouseButtonStyle(held: held))
+        .buttonStyle(ProMouseButtonStyle(held: held, accentColor: themeManager.accentColor))
     }
 
     private var touchpadLabel: some View {
@@ -1057,7 +1059,7 @@ struct ProKeyboardMouseView: View {
 
     private static let functionKeyBg = Color(UIColor.secondarySystemBackground)
     private func keyBackground(for kd: KeyboardManager.KeyDef, pressed: Bool, active: Bool) -> Color {
-        pressed || active ? .blue : Self.functionKeyBg
+        pressed || active ? themeManager.accentColor : Self.functionKeyBg
     }
     /// Build a top-center hint row from the first 4 (cardinal) alternates.
     /// Returns nil if there are no valid cardinal alternates.
@@ -1240,14 +1242,16 @@ private struct ProModifierKey: View {
     let content: AnyView
     let height: CGFloat
 
+    @ObservedObject private var themeManager = ThemeManager.shared
+
     var body: some View {
         ModifierKeyButton(key: kd.label, keyboardManager: keyboardManager, keyPreview: displayText) { physical, locked in
             content
-                .background(locked ? Color.blue : (physical ? Color.blue.opacity(0.7) : Color(UIColor.secondarySystemBackground)))
+                .background(locked ? themeManager.accentColor : (physical ? themeManager.accentColor.opacity(0.7) : Color(UIColor.secondarySystemBackground)))
                 .foregroundColor(locked || physical ? .white : .primary)
         }
         .frame(height: height)
-        
+
     }
 }
 

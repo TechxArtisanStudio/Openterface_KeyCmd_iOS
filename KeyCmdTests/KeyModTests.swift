@@ -1,14 +1,14 @@
 //
-//  KeyCmdTests.swift
-//  KeyCmdTests
+//  KeyModTests.swift
+//  KeyModTests
 //
 //  Created by 彭志坚 on 2025/6/19.
 //
 
 import Testing
-@testable import KeyCmd
+@testable import KeyMod
 
-struct KeyCmdTests {
+struct KeyModTests {
 
     @Test func buildsKeyboardPacket() {
         let packet = Keymod.buildKeyboard(modifiers: KMod.ctrl.union(.shift).rawValue, keys: [0x04, 0x05])
@@ -21,11 +21,10 @@ struct KeyCmdTests {
     }
 
     @Test func parsesNestedModifierToken() {
-        let tokens = Keymod.parseMacro("<CTRL><SHIFT>A</SHIFT></CTRL>")
+        let token = Keymod.parseToken("<CTRL><SHIFT>A</SHIFT></CTRL>")
 
-        #expect(tokens.count == 1)
-        #expect(tokens[0].hidCode == 0x04)
-        #expect(tokens[0].modifiers == KMod.ctrl.union(.shift).rawValue)
+        #expect(token.hidCode == 0x04)
+        #expect(token.modifiers == KMod.ctrl.union(.shift).rawValue)
     }
 
     @Test func parsesMacroAndSkipsDelayTokens() {

@@ -12,6 +12,11 @@ class OrientationManager: ObservableObject {
     @Published var isLandscape: Bool = true
     @Published var preferredOrientation: UIInterfaceOrientationMask = .landscape
 
+    // True when the camera bump/Dynamic Island is on the RIGHT side of the screen
+    // (device rotated so its top edge points to the right — UIDeviceOrientation.landscapeRight).
+    // Used by keyboard view to shift the keyboard away from the camera.
+    @Published var cameraOnRight: Bool = false
+
     // Store the physical orientation before forcing portrait, so we can restore it
     @Published var savedDeviceOrientation: UIDeviceOrientation?
 
@@ -20,9 +25,13 @@ class OrientationManager: ObservableObject {
     @Published var instructionText = ""
     
     init() {
+        // Enable device orientation notifications so UIDevice.current.orientation is accurate
+        // and orientationDidChange fires when the user rotates the device.
+        UIDevice.current.beginGeneratingDeviceOrientationNotifications()
+
         // Check initial orientation
         updateOrientation()
-        
+
         // Listen for orientation changes
         NotificationCenter.default.addObserver(
             self,
@@ -31,9 +40,10 @@ class OrientationManager: ObservableObject {
             object: nil
         )
     }
-    
+
     deinit {
         NotificationCenter.default.removeObserver(self)
+        UIDevice.current.endGeneratingDeviceOrientationNotifications()
     }
     
     @objc private func orientationDidChange() {
@@ -43,6 +53,20 @@ class OrientationManager: ObservableObject {
     }
     
     func updateOrientation() {
+        // Respect the orientation lock when landscape is forced (e.g., keyboard submode).
+        // Even if the device is physically in portrait, keep isLandscape = true.
+        if preferredOrientation == .landscape {
+            // Detect camera side from physical device orientation.
+            // The camera module sits at the top of the phone's back. In landscape,
+            // "top" maps to one side of the screen — use that to pad the keyboard.
+            let deviceOrientation = UIDevice.current.orientation
+            DispatchQueue.main.async {
+                self.isLandscape = true
+                self.cameraOnRight = (deviceOrientation == .landscapeRight)
+            }
+            return
+        }
+
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
             let interfaceOrientation = windowScene.interfaceOrientation
             if interfaceOrientation != .unknown {
@@ -55,6 +79,7 @@ class OrientationManager: ObservableObject {
         switch orientation {
         case .landscapeLeft, .landscapeRight:
             isLandscape = true
+            cameraOnRight = (orientation == .landscapeRight)
         case .portrait, .portraitUpsideDown:
             isLandscape = false
         default:
@@ -173,6 +198,10 @@ class OrientationManager: ObservableObject {
         savedDeviceOrientation = nil
 
         preferredOrientation = .landscape
+        // Set isLandscape immediately so the keyboard renders in landscape on the
+        // very first frame — even if the device is physically held in portrait.
+        // This is safe because updateOrientation() now respects preferredOrientation == .landscape.
+        isLandscape = true
         Self.setOrientationLock(.landscape)
         UIViewController.attemptRotationToDeviceOrientation()
         if #available(iOS 16.0, *) {
@@ -182,17 +211,29 @@ class OrientationManager: ObservableObject {
                 }
             }
         }
-        // isLandscape will be updated naturally by updateOrientation() when the
-        // system completes the rotation. Setting it here creates a race condition:
-        // the geometry update is async, but updateOrientation() may read the still-
-        // portrait interface and flip isLandscape back to false, triggering feedback.
 
         // Force a second rotation attempt after a short delay — the system may need
         // time to process the orientation unlock before accepting the landscape lock.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            // Enable device orientation notifications to detect camera side
+            UIDevice.current.beginGeneratingDeviceOrientationNotifications()
+
+            // Update cameraOnRight based on current device orientation
+            self.updateCameraSide()
+
             Self.setOrientationLock(.landscape)
             UIViewController.attemptRotationToDeviceOrientation()
             self.updateOrientation()
+        }
+    }
+
+    /// Detect which side the camera/Dynamic Island is on based on physical device orientation.
+    /// UIDeviceOrientation.landscapeLeft = top of device on left → camera on LEFT.
+    /// UIDeviceOrientation.landscapeRight = top of device on right → camera on RIGHT.
+    func updateCameraSide() {
+        let deviceOrientation = UIDevice.current.orientation
+        DispatchQueue.main.async {
+            self.cameraOnRight = (deviceOrientation == .landscapeRight)
         }
     }
 

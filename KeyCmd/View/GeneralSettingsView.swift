@@ -7,6 +7,10 @@
 
 import SwiftUI
 
+#if os(iOS)
+import UIKit
+#endif
+
 struct GeneralSettingsView: View {
     @ObservedObject private var touchpadSettings = TouchpadSettings.shared
     @StateObject private var hapticManager = HapticFeedbackManager.shared
@@ -188,6 +192,96 @@ struct GeneralSettingsView: View {
         }
 
         Section(header: Text("Haptic Feedback")) {
+            #if os(iOS)
+            // Device diagnostics
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Device:")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text(hapticManager.deviceModelName)
+                        .font(.caption)
+                        .foregroundColor(.primary)
+                }
+
+                HStack {
+                    Text("Taptic Engine:")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text(hapticManager.hasTapticEngine ? "✅ Available" : "❌ Not Available")
+                        .font(.caption)
+                        .foregroundColor(hapticManager.hasTapticEngine ? .green : .red)
+                }
+
+                HStack {
+                    Text("Low Power Mode:")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text(hapticManager.isLowPowerModeEnabled ? "⚠️ ON (reduces haptics)" : "✅ OFF")
+                        .font(.caption)
+                        .foregroundColor(hapticManager.isLowPowerModeEnabled ? .orange : .green)
+                }
+            }
+
+            // Warning if device doesn't have Taptic Engine
+            if !hapticManager.hasTapticEngine {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.red)
+                        .font(.system(size: 16))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("This device doesn't have a Taptic Engine")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.red)
+                        Text("Haptic feedback is not available on this device.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(12)
+                .background(Color.red.opacity(0.1))
+                .cornerRadius(8)
+            }
+
+            // Warning if haptics might not work (vibration disabled)
+            if hapticManager.hasTapticEngine && hapticManager.isHapticEnabled {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "info.circle.fill")
+                        .foregroundColor(.blue)
+                        .font(.system(size: 16))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Can't feel haptic feedback?")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.blue)
+                        Text("Check that Vibration is enabled:\nSettings → Accessibility → Touch → Vibration")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        Button(action: {
+                            if let url = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(url)
+                            }
+                        }) {
+                            HStack {
+                                Image(systemName: "gear")
+                                Text("Open Settings App")
+                                    .fontWeight(.semibold)
+                            }
+                            .font(.caption)
+                        }
+                        .padding(.top, 4)
+                    }
+                }
+                .padding(12)
+                .background(Color.blue.opacity(0.1))
+                .cornerRadius(8)
+            }
+
             HStack {
                 Text("Enable Haptic Feedback")
                 Spacer()
@@ -196,23 +290,34 @@ struct GeneralSettingsView: View {
             Text("Provides vibration feedback for all interactions including button presses, key presses, mouse clicks, and touch gestures")
                 .font(.caption)
                 .foregroundColor(.secondary)
-            
-            if hapticManager.isHapticEnabled {
+
+            if hapticManager.isHapticEnabled && hapticManager.hasTapticEngine {
                 Button("Test Light Feedback") {
                     hapticManager.triggerButtonPress()
                 }
                 .foregroundColor(.blue)
-                
+
                 Button("Test Medium Feedback") {
                     hapticManager.triggerMediumFeedback()
                 }
                 .foregroundColor(.blue)
-                
+
                 Button("Test Strong Feedback") {
                     hapticManager.triggerStrongFeedback()
                 }
                 .foregroundColor(.blue)
             }
+            #else
+            // Non-iOS platforms
+            HStack {
+                Text("Enable Haptic Feedback")
+                Spacer()
+                Toggle("", isOn: $hapticManager.isHapticEnabled)
+            }
+            Text("Provides vibration feedback for all interactions")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            #endif
         }
         
         Section {

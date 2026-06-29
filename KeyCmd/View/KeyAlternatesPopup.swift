@@ -44,6 +44,8 @@ struct KeyAlternatesPopupView: View {
     let anchorFrame: CGRect
     var pick: AlternatesPick
 
+    @ObservedObject private var themeManager = ThemeManager.shared
+
     private var slotMap: [Int: AlternateOption] {
         Dictionary(uniqueKeysWithValues: options.map { ($0.slot, $0) })
     }
@@ -101,6 +103,7 @@ struct KeyAlternatesPopupView: View {
                 .fill(Color(UIColor.systemBackground))
                 .shadow(color: Color.black.opacity(0.2), radius: 6, y: 2)
         )
+        .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(
             Group {
                 if pick.isCancelled {
@@ -121,7 +124,7 @@ struct KeyAlternatesPopupView: View {
 
         ZStack {
             RoundedRectangle(cornerRadius: 6)
-                .fill(isSelected ? Color.blue : Color(UIColor.secondarySystemBackground))
+                .fill(isSelected ? themeManager.accentColor : Color(UIColor.secondarySystemBackground))
             if let opt = opt {
                 Text(opt.display)
                     .font(.system(size: cellFontSize, weight: isSelected ? .semibold : .regular))

@@ -1,6 +1,12 @@
 import Foundation
 import SwiftUI
 
+#if os(iOS)
+import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
+
 class MouseManager: ObservableObject {
     var bleManager: BLEManager
     @Published var previousPosition: CGPoint? = nil
@@ -112,6 +118,7 @@ class MouseManager: ObservableObject {
 
     func sendButtonDown(buttons: UInt8) {
         heldButtons |= buttons
+        hapticManager.triggerButtonPress()
         let packet = Keymod.buildMouseRel(buttons: heldButtons, dx: 0, dy: 0, wheel: 0)
         bleManager.sendTouchData(data: packet)
     }

@@ -6,6 +6,7 @@
 //  Keyboard | Touchpad | Numpad tabs with a horizontal scrollable tab bar.
 
 import SwiftUI
+import UIKit
 
 struct BasicKeyboardMouseView: View {
     @ObservedObject var mouseManager: MouseManager
@@ -13,6 +14,7 @@ struct BasicKeyboardMouseView: View {
     @ObservedObject var orientationManager: OrientationManager
     @Binding var selectedSubmode: Submode
     @ObservedObject private var aiSettings = AISettings.shared
+    @ObservedObject private var themeManager = ThemeManager.shared
 
     enum Submode: String, CaseIterable {
         case keyboard = "Keyboard"
@@ -26,6 +28,11 @@ struct BasicKeyboardMouseView: View {
         self.orientationManager = orientationManager
         self._selectedSubmode = selectedSubmode
     }
+
+    // Fixed safe-area inset reserved on the camera side in landscape.
+    // Dynamic Island on iPhone 14/15/16 Pro creates ~59pt of safe area in landscape.
+    // Used as a fallback when GeometryReader reports zero safe area insets.
+    static let cameraSafeInset: CGFloat = 60
 
     // Landscape keyboard rows matching Android keyboard_lower_landscape.xml
     let landscapeKeys: [[String]] = [
@@ -64,11 +71,6 @@ struct BasicKeyboardMouseView: View {
     var body: some View {
         GeometryReader { geometry in
             VStack(spacing: 0) {
-                // Tab bar only in portrait — in landscape it moves to ContentView's top bar
-                if !orientationManager.isLandscape {
-                    tabBar
-                }
-
                 // MARK: - Submode content
                 Group {
                     switch selectedSubmode {
@@ -90,7 +92,14 @@ struct BasicKeyboardMouseView: View {
                     }
                 }
             }
-            .padding(.leading, orientationManager.isLandscape ? max(geometry.safeAreaInsets.leading, 45) : 0)
+            // Camera-side-only padding: keyboard extends flush to the non-camera edge;
+            // camera side reserves space for the Dynamic Island / camera bump.
+            // Falls back to a fixed inset if the GeometryReader reports zero safe area
+            // (which happens when the view hierarchy doesn't propagate safe areas).
+            // Only apply for keyboard submode — touchpad/numpad should fill the full
+            // available area with safe area on the physical top (portrait top) instead.
+            .padding(.leading, selectedSubmode == .keyboard && orientationManager.isLandscape && !orientationManager.cameraOnRight ? max(geometry.safeAreaInsets.leading, Self.cameraSafeInset) : 0)
+            .padding(.trailing, selectedSubmode == .keyboard && orientationManager.isLandscape && orientationManager.cameraOnRight ? max(geometry.safeAreaInsets.trailing, Self.cameraSafeInset) : 0)
             .onAppear {
                 if selectedSubmode == .keyboard {
                     lockToLandscape()
@@ -131,13 +140,13 @@ struct BasicKeyboardMouseView: View {
         let isSelected = selectedSubmode == submode
         return Button(action: { withAnimation { selectedSubmode = submode } }) {
             Text(submode.rawValue)
-                .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
-                .foregroundColor(isSelected ? .blue : .secondary)
+                .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
+                .foregroundColor(isSelected ? themeManager.accentColor : .secondary)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 6)
                 .background(
                     Capsule()
-                        .fill(isSelected ? Color.blue.opacity(0.15) : Color.clear)
+                        .fill(isSelected ? themeManager.accentColor.opacity(0.15) : Color.clear)
                 )
         }
         .buttonStyle(PlainButtonStyle())
@@ -147,13 +156,13 @@ struct BasicKeyboardMouseView: View {
         let isSelected = selectedSubmode == submode
         return Button(action: { withAnimation { selectedSubmode = submode } }) {
             Text(submode.rawValue)
-                .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
-                .foregroundColor(isSelected ? .blue : .secondary)
+                .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
+                .foregroundColor(isSelected ? themeManager.accentColor : .secondary)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 4)
                 .background(
                     Capsule()
-                        .fill(isSelected ? Color.blue.opacity(0.15) : Color.clear)
+                        .fill(isSelected ? themeManager.accentColor.opacity(0.15) : Color.clear)
                 )
         }
         .buttonStyle(PlainButtonStyle())
@@ -165,6 +174,10 @@ struct BasicKeyboardMouseView: View {
 
     private var landscapeKeyboardSubmode: some View {
         GeometryReader { innerGeometry in
+            // Align the keyboard away from the camera/Dynamic Island.
+            // cameraOnRight is detected from UIDevice.current.orientation (see OrientationManager).
+            let alignment: Alignment = orientationManager.cameraOnRight ? .leading : .trailing
+
             ZStack {
                 Color.red.opacity(0.05)
                 switch aiSettings.targetOS {
@@ -176,21 +189,28 @@ struct BasicKeyboardMouseView: View {
                     macKeyboardLayout
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
             .coordinateSpace(name: "keyboardLayout")
             .overlayPreferenceValue(KeyCalloutInfoKey.self) { info in
                 if let info = info {
                     Text(info.text)
-                        .font(.system(size: 24, weight: .semibold))
+                        .font(.system(size: 26, weight: .semibold))
                         .foregroundColor(.white)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
-                        .background(RoundedRectangle(cornerRadius: 8).fill(Color.black.opacity(0.82)))
-                        .position(x: info.frame.midX,
-                                  y: info.below ? info.frame.maxY + 36 : info.frame.minY - 36)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(themeManager.accentColor)
+                                .shadow(color: Color.black.opacity(0.3), radius: 4, y: 2)
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .position(
+                            x: info.left ? info.frame.minX - 60 : (info.right ? info.frame.maxX + 60 : info.frame.midX),
+                            y: (info.left || info.right) ? info.frame.midY : (info.below ? info.frame.maxY + 36 : info.frame.minY - 36)
+                        )
                         .allowsHitTesting(false)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .onAppear {
                 print("🔴 LANDSCAPE KEYBOARD APPEARED — \(innerGeometry.size.width)x\(innerGeometry.size.height)")
                 lockToLandscape()
@@ -212,6 +232,7 @@ struct BasicKeyboardMouseView: View {
 
     private func unlockOrientation() {
         AppDelegate.orientationLock = .all
+        orientationManager.preferredOrientation = .all
         if #available(iOS 16.0, *) {
             if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
                 scene.requestGeometryUpdate(.iOS(interfaceOrientations: .all)) { _ in }
@@ -221,172 +242,190 @@ struct BasicKeyboardMouseView: View {
     }
 
     private var linuxKeyboardLayout: some View {
-        VStack(spacing: 1) {
-            // Row 1: Esc + F1-F12
-            HStack(spacing: 1) {
-                ForEach(windowsFRow.indices, id: \.self) { idx in
-                    windowsKeyButton(key: windowsFRow[idx], height: 36)
-                }
-            }
-            .padding(.horizontal, 2)
+        GeometryReader { geo in
+            let remainingHeight = max(0, geo.size.height - 15)
+            let topRowHeight = remainingHeight / 10
 
-            // Row 2: ` 1 2 3 4 5 6 7 8 9 0 - = Backspace
-            HStack(spacing: 1) {
-                ForEach(windowsNumberRow.indices, id: \.self) { idx in
-                    windowsKeyButton(key: windowsNumberRow[idx], height: 38)
-                }
-            }
-            .padding(.horizontal, 2)
-            .padding(.top, 2)
-
-            // Row 3: Tab q w e r t y u i o p [ ] \
-            HStack(spacing: 1) {
-                ForEach(windowsRow3.indices, id: \.self) { idx in
-                    windowsKeyButton(key: windowsRow3[idx], height: 52)
-                }
-            }
-            .padding(.horizontal, 2)
-
-            // Row 4: Caps a s d f g h j k l ; ' Enter
-            HStack(spacing: 1) {
-                ForEach(windowsRow4.indices, id: \.self) { idx in
-                    windowsKeyButton(key: windowsRow4[idx], height: 52)
-                }
-            }
-            .padding(.horizontal, 2)
-
-            // Row 5: Shift z x c v b n m , . / Shift
-            HStack(spacing: 1) {
-                ForEach(windowsRow5.indices, id: \.self) { idx in
-                    windowsKeyButton(key: windowsRow5[idx], height: 52)
-                }
-            }
-            .padding(.horizontal, 2)
-
-            // Row 6: Ctrl Super Alt Space Alt Ctrl + inverted-T arrow cluster
-            HStack(alignment: .center, spacing: 1) {
-                windowsBottomKey("Ctrl")
-                windowsBottomKey("Super")
-                windowsBottomKey("Alt")
-                // Space key — wide
-                KeyPressButton(
-                    onPress: { keyboardManager.handleKeyDown("Space") },
-                    onRelease: { keyboardManager.handleKeyUp("Space") },
-                    keyPreview: "Space"
-                ) { isActive in
-                    Text("Openterface")
-                        .font(.system(size: 11, weight: .medium))
-                        .frame(width: 150)
-                        .frame(maxHeight: .infinity)
-                        .background(Self.functionKeyBg)
-                        .cornerRadius(6)
-                        .foregroundColor(isActive ? .white : .primary)
-                }
-                windowsBottomKey("Alt")
-                windowsBottomKey("Ctrl")
-                Spacer()
-                // Inverted-T: ↑ centered on top, ← ↓ → on bottom
-                VStack(spacing: 1) {
-                    HStack(spacing: 1) {
-                        Color.clear.frame(width: 58, height: 38)
-                        arrowButton("Up", image: "arrow.up", height: 38)
-                        Color.clear.frame(width: 58, height: 38)
-                    }
-                    HStack(spacing: 1) {
-                        arrowButton("Left", image: "arrow.left", height: 38)
-                        arrowButton("Down", image: "arrow.down", height: 38)
-                        arrowButton("Right", image: "arrow.right", height: 38)
+            VStack(spacing: 3) {
+                // Row 1: Esc + F1-F12 (half height)
+                HStack(spacing: 3) {
+                    ForEach(windowsFRow.indices, id: \.self) { idx in
+                        windowsKeyButton(key: windowsFRow[idx])
                     }
                 }
-                .padding(.trailing, 8)
+                .frame(maxWidth: .infinity)
+                .frame(height: topRowHeight)
+
+                // Row 2: ` 1 2 3 4 5 6 7 8 9 0 - = Backspace (half height)
+                HStack(spacing: 3) {
+                    ForEach(windowsNumberRow.indices, id: \.self) { idx in
+                        windowsKeyButton(key: windowsNumberRow[idx])
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: topRowHeight)
+
+                // Row 3: Tab q w e r t y u i o p [ ] \
+                HStack(spacing: 3) {
+                    ForEach(windowsRow3.indices, id: \.self) { idx in
+                        windowsKeyButton(key: windowsRow3[idx])
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .layoutPriority(1)
+
+                // Row 4: Caps a s d f g h j k l ; ' Enter
+                HStack(spacing: 3) {
+                    ForEach(windowsRow4.indices, id: \.self) { idx in
+                        windowsKeyButton(key: windowsRow4[idx])
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .layoutPriority(1)
+
+                // Row 5: Shift z x c v b n m , . / Shift
+                HStack(spacing: 3) {
+                    ForEach(windowsRow5.indices, id: \.self) { idx in
+                        windowsKeyButton(key: windowsRow5[idx])
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .layoutPriority(1)
+
+                // Row 6: Ctrl Super Alt Space Alt Ctrl + inverted-T arrow cluster
+                HStack(alignment: .center, spacing: 3) {
+                    windowsBottomKey("Ctrl")
+                    windowsBottomKey("Super")
+                    windowsBottomKey("Alt")
+                    // Space key — wide
+                    KeyPressButton(
+                        onPress: { keyboardManager.handleKeyDown("Space") },
+                        onRelease: { keyboardManager.handleKeyUp("Space") },
+                        keyPreview: "Space"
+                    ) { isActive in
+                        Image("openterface_wordmark")
+                            .resizable()
+                            .renderingMode(.template)
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 82.5)
+                            .frame(width: 200, alignment: .center)
+                            .frame(maxHeight: .infinity)
+                            .background(Self.functionKeyBg)
+                            .cornerRadius(6)
+                            .foregroundColor(isActive ? Self.keyIconPressed : Self.keyIconIdle)
+                    }
+                    windowsBottomKey("Alt")
+                    windowsBottomKey("Ctrl")
+                    arrowButton("Left", image: "left")
+                    // Inverted-T with arrows matching modifier key height
+                    HStack(spacing: 3) {
+                        VStack(spacing: 0) {
+                            arrowButton("Up", image: "up")
+                                .frame(width: 58)
+                            arrowButton("Down", image: "down")
+                                .frame(width: 58)
+                        }
+                    }
+                    arrowButton("Right", image: "right")
+                    .padding(.trailing, 8)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .layoutPriority(1)
             }
-            .frame(height: 80)
-            .padding(.horizontal, 2)
+            .padding(.leading, 8)
+            .padding(.top, 8)
         }
     }
 
     private var macKeyboardLayout: some View {
-        VStack(spacing: 1) {
-            // Row 1: Esc + F1-F12
-            HStack(spacing: 1) {
-                ForEach(windowsFRow.indices, id: \.self) { idx in
-                    windowsKeyButton(key: windowsFRow[idx], height: 36)
-                }
-            }
-            .padding(.horizontal, 2)
+        GeometryReader { geo in
+            let remainingHeight = max(0, geo.size.height - 15)
+            let topRowHeight = remainingHeight / 10
 
-            // Row 2: ` 1 2 3 4 5 6 7 8 9 0 - = Backspace
-            HStack(spacing: 1) {
-                ForEach(windowsNumberRow.indices, id: \.self) { idx in
-                    windowsKeyButton(key: windowsNumberRow[idx], height: 38)
-                }
-            }
-            .padding(.horizontal, 2)
-            .padding(.top, 2)
-
-            // Row 3: Tab q w e r t y u i o p [ ] \
-            HStack(spacing: 1) {
-                ForEach(windowsRow3.indices, id: \.self) { idx in
-                    windowsKeyButton(key: windowsRow3[idx], height: 52)
-                }
-            }
-            .padding(.horizontal, 2)
-
-            // Row 4: Caps a s d f g h j k l ; ' Enter
-            HStack(spacing: 1) {
-                ForEach(windowsRow4.indices, id: \.self) { idx in
-                    windowsKeyButton(key: windowsRow4[idx], height: 52)
-                }
-            }
-            .padding(.horizontal, 2)
-
-            // Row 5: Shift z x c v b n m , . / Shift
-            HStack(spacing: 1) {
-                ForEach(windowsRow5.indices, id: \.self) { idx in
-                    windowsKeyButton(key: windowsRow5[idx], height: 52)
-                }
-            }
-            .padding(.horizontal, 2)
-
-            // Row 6: Ctrl Option Cmd Space Cmd Option + inverted-T arrow cluster
-            HStack(alignment: .center, spacing: 1) {
-                windowsBottomKey("Ctrl")
-                windowsBottomKey("Option")
-                windowsBottomKey("Cmd")
-                // Space key — wide
-                KeyPressButton(
-                    onPress: { keyboardManager.handleKeyDown("Space") },
-                    onRelease: { keyboardManager.handleKeyUp("Space") },
-                    keyPreview: "Space"
-                ) { isActive in
-                    Text("Openterface")
-                        .font(.system(size: 11, weight: .medium))
-                        .frame(width: 150)
-                        .frame(maxHeight: .infinity)
-                        .background(Self.functionKeyBg)
-                        .cornerRadius(6)
-                        .foregroundColor(isActive ? .white : .primary)
-                }
-                windowsBottomKey("Cmd")
-                windowsBottomKey("Option")
-                Spacer()
-                // Inverted-T: ↑ centered on top, ← ↓ → on bottom
-                VStack(spacing: 1) {
-                    HStack(spacing: 1) {
-                        Color.clear.frame(width: 58, height: 38)
-                        arrowButton("Up", image: "arrow.up", height: 38)
-                        Color.clear.frame(width: 58, height: 38)
-                    }
-                    HStack(spacing: 1) {
-                        arrowButton("Left", image: "arrow.left", height: 38)
-                        arrowButton("Down", image: "arrow.down", height: 38)
-                        arrowButton("Right", image: "arrow.right", height: 38)
+            VStack(spacing: 3) {
+                // Row 1: Esc + F1-F12 (half height)
+                HStack(spacing: 3) {
+                    ForEach(windowsFRow.indices, id: \.self) { idx in
+                        windowsKeyButton(key: windowsFRow[idx])
                     }
                 }
-                .padding(.trailing, 8)
+                .frame(maxWidth: .infinity)
+                .frame(height: topRowHeight)
+
+                // Row 2: ` 1 2 3 4 5 6 7 8 9 0 - = Backspace (half height)
+                HStack(spacing: 3) {
+                    ForEach(windowsNumberRow.indices, id: \.self) { idx in
+                        windowsKeyButton(key: windowsNumberRow[idx])
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: topRowHeight)
+
+                // Row 3: Tab q w e r t y u i o p [ ] \
+                HStack(spacing: 3) {
+                    ForEach(windowsRow3.indices, id: \.self) { idx in
+                        windowsKeyButton(key: windowsRow3[idx])
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .layoutPriority(1)
+
+                // Row 4: Caps a s d f g h j k l ; ' Enter
+                HStack(spacing: 3) {
+                    ForEach(windowsRow4.indices, id: \.self) { idx in
+                        windowsKeyButton(key: windowsRow4[idx])
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .layoutPriority(1)
+
+                // Row 5: Shift z x c v b n m , . / Shift
+                HStack(spacing: 3) {
+                    ForEach(windowsRow5.indices, id: \.self) { idx in
+                        windowsKeyButton(key: windowsRow5[idx])
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .layoutPriority(1)
+
+                // Row 6: Ctrl Option Cmd Space Cmd Option + inverted-T arrow cluster
+                HStack(alignment: .center, spacing: 3) {
+                    windowsBottomKey("Ctrl")
+                    windowsBottomKey("Option")
+                    windowsBottomKey("Cmd")
+                    // Space key — wide
+                    KeyPressButton(
+                        onPress: { keyboardManager.handleKeyDown("Space") },
+                        onRelease: { keyboardManager.handleKeyUp("Space") },
+                        keyPreview: "Space"
+                    ) { isActive in
+                        Image("openterface_wordmark")
+                            .resizable()
+                            .renderingMode(.template)
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 82.5)
+                            .frame(width: 200, alignment: .center)
+                            .frame(maxHeight: .infinity)
+                            .background(Self.functionKeyBg)
+                            .cornerRadius(6)
+                            .foregroundColor(isActive ? Self.keyIconPressed : Self.keyIconIdle)
+                    }
+                    windowsBottomKey("Cmd")
+                    windowsBottomKey("Option")
+                    // Inverted-T: ↑ centered on top, ← ↓ → on bottom
+                    arrowButton("Left", image: "left")
+                    VStack(spacing: 3) {
+                        // Top row: Up arrow centered (same width as single arrow)
+                        arrowButton("Up", image: "up").frame(width: 58)
+                        arrowButton("Down", image: "down")
+                    }
+                    arrowButton("Right", image: "right")
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .layoutPriority(1)
             }
-            .frame(height: 80)
-            .padding(.horizontal, 2)
+            .padding(.leading, 8)
+            .padding(.top, 8)
         }
     }
 
@@ -396,7 +435,11 @@ struct BasicKeyboardMouseView: View {
                 let row = landscapeKeys[rowIdx]
                 HStack(spacing: 0) {
                     ForEach(row.indices, id: \.self) { colIdx in
-                        landscapeKeyButton(key: row[colIdx], previewBelow: rowIdx < 2)
+                        // First two rows: left half popup RIGHT (left hand), right half popup LEFT (right hand)
+                        let midCol = row.count / 2
+                        let previewRight = rowIdx < 2 && colIdx < midCol
+                        let previewLeft = rowIdx < 2 && colIdx >= midCol
+                        landscapeKeyButton(key: row[colIdx], previewLeft: previewLeft, previewRight: previewRight)
                     }
                 }
             }
@@ -404,88 +447,104 @@ struct BasicKeyboardMouseView: View {
     }
 
     private var windowsKeyboardLayout: some View {
-        VStack(spacing: 1) {
-            // Row 1: Esc + F1-F12
-            HStack(spacing: 1) {
-                ForEach(windowsFRow.indices, id: \.self) { idx in
-                    windowsKeyButton(key: windowsFRow[idx], height: 36)
-                }
-            }
-            .padding(.horizontal, 2)
+        GeometryReader { geo in
+            // Top 2 rows at half the height of bottom 4 rows.
+            // Total spacing: 5 gaps × 3pt = 15pt. Remaining: geo.size.height - 15.
+            // 2h + 4(2h) = 10h = remaining → h = remaining / 10, 2h = remaining / 5.
+            let remainingHeight = max(0, geo.size.height - 15)
+            let topRowHeight = remainingHeight / 10
+            let bottomRowHeight = remainingHeight / 5
 
-            // Row 2: ` 1 2 3 4 5 6 7 8 9 0 - = Backspace
-            HStack(spacing: 1) {
-                ForEach(windowsNumberRow.indices, id: \.self) { idx in
-                    windowsKeyButton(key: windowsNumberRow[idx], height: 38)
-                }
-            }
-            .padding(.horizontal, 2)
-            .padding(.top, 2)
-
-            // Row 3: Tab q w e r t y u i o p [ ] \
-            HStack(spacing: 1) {
-                ForEach(windowsRow3.indices, id: \.self) { idx in
-                    windowsKeyButton(key: windowsRow3[idx], height: 52)
-                }
-            }
-            .padding(.horizontal, 2)
-
-            // Row 4: Caps a s d f g h j k l ; ' Enter
-            HStack(spacing: 1) {
-                ForEach(windowsRow4.indices, id: \.self) { idx in
-                    windowsKeyButton(key: windowsRow4[idx], height: 52)
-                }
-            }
-            .padding(.horizontal, 2)
-
-            // Row 5: Shift z x c v b n m , . / Shift
-            HStack(spacing: 1) {
-                ForEach(windowsRow5.indices, id: \.self) { idx in
-                    windowsKeyButton(key: windowsRow5[idx], height: 52)
-                }
-            }
-            .padding(.horizontal, 2)
-
-            // Row 6: Ctrl Win Alt Space Alt Ctrl + inverted-T arrow cluster
-            HStack(alignment: .center, spacing: 1) {
-                // Modifier keys — same width as regular keys
-                windowsBottomKey("Ctrl")
-                windowsBottomKey("Win")
-                windowsBottomKey("Alt")
-                // Space key — wide
-                KeyPressButton(
-                    onPress: { keyboardManager.handleKeyDown("Space") },
-                    onRelease: { keyboardManager.handleKeyUp("Space") },
-                    keyPreview: "Space"
-                ) { isActive in
-                    Text("Openterface")
-                        .font(.system(size: 11, weight: .medium))
-                        .frame(width: 150)
-                        .frame(maxHeight: .infinity)
-                        .background(Self.functionKeyBg)
-                        .cornerRadius(6)
-                        .foregroundColor(isActive ? .white : .primary)
-                }
-                windowsBottomKey("Alt")
-                windowsBottomKey("Ctrl")
-                Spacer()
-                // Inverted-T: ↑ centered on top, ← ↓ → on bottom
-                VStack(spacing: 1) {
-                    HStack(spacing: 1) {
-                        Color.clear.frame(width: 58, height: 38)
-                        arrowButton("Up", image: "arrow.up", height: 38)
-                        Color.clear.frame(width: 58, height: 38)
-                    }
-                    HStack(spacing: 1) {
-                        arrowButton("Left", image: "arrow.left", height: 38)
-                        arrowButton("Down", image: "arrow.down", height: 38)
-                        arrowButton("Right", image: "arrow.right", height: 38)
+            VStack(spacing: 3) {
+                // Row 1: Esc + F1-F12 (half height)
+                HStack(spacing: 3) {
+                    ForEach(windowsFRow.indices, id: \.self) { idx in
+                        windowsKeyButton(key: windowsFRow[idx])
                     }
                 }
-                .padding(.trailing, 8)
+                .frame(maxWidth: .infinity)
+                .frame(height: topRowHeight)
+
+                // Row 2: ` 1 2 3 4 5 6 7 8 9 0 - = Backspace (half height)
+                HStack(spacing: 3) {
+                    ForEach(windowsNumberRow.indices, id: \.self) { idx in
+                        windowsKeyButton(key: windowsNumberRow[idx])
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: topRowHeight)
+
+                // Row 3: Tab q w e r t y u i o p [ ] \
+                HStack(spacing: 3) {
+                    ForEach(windowsRow3.indices, id: \.self) { idx in
+                        windowsKeyButton(key: windowsRow3[idx])
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .layoutPriority(1)
+
+                // Row 4: Caps a s d f g h j k l ; ' Enter
+                HStack(spacing: 3) {
+                    ForEach(windowsRow4.indices, id: \.self) { idx in
+                        windowsKeyButton(key: windowsRow4[idx])
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .layoutPriority(1)
+
+                // Row 5: Shift z x c v b n m , . / Shift
+                HStack(spacing: 3) {
+                    ForEach(windowsRow5.indices, id: \.self) { idx in
+                        windowsKeyButton(key: windowsRow5[idx])
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .layoutPriority(1)
+
+                // Row 6: Ctrl Win Alt Space Alt Ctrl + inverted-T arrow cluster
+                HStack(alignment: .center, spacing: 3) {
+                    // Modifier keys — same width as regular keys
+                    windowsBottomKey("Ctrl")
+                    windowsBottomKey("Win")
+                    windowsBottomKey("Alt")
+                    // Space key — wide
+                    KeyPressButton(
+                        onPress: { keyboardManager.handleKeyDown("Space") },
+                        onRelease: { keyboardManager.handleKeyUp("Space") },
+                        keyPreview: "Space"
+                    ) { isActive in
+                        Image("openterface_wordmark")
+                            .resizable()
+                            .renderingMode(.template)
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 82.5)
+                            .frame(width: 200, alignment: .center)
+                            .frame(maxHeight: .infinity)
+                            .background(Self.functionKeyBg)
+                            .cornerRadius(6)
+                            .foregroundColor(isActive ? Self.keyIconPressed : Self.keyIconIdle)
+                    }
+                    windowsBottomKey("Alt")
+                    windowsBottomKey("Ctrl")
+                    // Inverted-T: ↑ centered on top, ← ↓ → on bottom
+                    VStack(spacing: 3) {
+                        // Top row: Up arrow centered (same width as single arrow)
+                        arrowButton("Up", image: "up")
+                            .frame(width: 58)
+                        // Bottom row: Left, Down, Right (narrower to fit closer to modifiers)
+                        HStack(spacing: 3) {
+                            arrowButton("Left", image: "left")
+                            arrowButton("Down", image: "down")
+                            arrowButton("Right", image: "right")
+                        }
+                    }
+                    .padding(.trailing, 8)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .layoutPriority(1)
             }
-            .frame(height: 80)
-            .padding(.horizontal, 2)
+            .padding(.leading, 8)
+            .padding(.top, 8)
         }
     }
 
@@ -503,104 +562,165 @@ struct BasicKeyboardMouseView: View {
             Group {
                 if isSuperKey && aiSettings.targetOS == .windows {
                     Image("targetos_windows")
+                        .renderingMode(.template)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 28, height: 28)
+                        .foregroundColor(.gray)
                 } else {
                     Text(displayLabel)
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: 17, weight: .bold))
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(isLocked ? Color.blue : (isPhysical ? Color.blue.opacity(0.6) : Self.functionKeyBg))
+            .background(isLocked ? themeManager.accentColor : (isPhysical ? themeManager.accentColor.opacity(0.6) : Self.functionKeyBg))
             .cornerRadius(6)
-            .foregroundColor(isPhysical || isLocked ? .white : .primary)
+            .foregroundColor(isPhysical || isLocked ? Self.keyLabelPressed : Self.keyLabelIdle)
         }
     }
 
     @ViewBuilder
-    private func arrowButton(_ action: String, image: String, height: CGFloat = 52) -> some View {
+    private func arrowButton(_ action: String, image: String) -> some View {
         let repeatMode = KmBasicKeyboardPrefs.shared.isLongPressRepeatMode
-        KeyPressButton(
+        let dir: KeyboardArrow.Direction = {
+            switch image {
+            case "up": return .up
+            case "down": return .down
+            case "left": return .left
+            case "right": return .right
+            default: return .up
+            }
+        }()
+        return KeyPressButton(
             onPress: { repeatMode ? keyboardManager.startKeyRepeat(action) : keyboardManager.handleKeyDown(action) },
             onRelease: { repeatMode ? keyboardManager.stopKeyRepeat() : keyboardManager.handleKeyUp(action) },
             keyPreview: action
         ) { isActive in
-            Image(systemName: image)
-                .font(.system(size: 18, weight: .bold))
-                .frame(width: 58, height: height)
-                .background(isActive ? Color.blue : Self.functionKeyBg)
+            KeyboardArrow(direction: dir)
+                .fill(isActive ? Self.keyIconPressed : Self.keyIconIdle)
+                .frame(width: 24, height: 24)
+                .frame(width: 58)
+                .frame(maxHeight: .infinity)
+                .background(isActive ? themeManager.accentColor : Self.functionKeyBg)
                 .cornerRadius(6)
-                .foregroundColor(isActive ? .white : .primary)
         }
     }
 
     @ViewBuilder
-    private func windowsKeyVisual(key: String, displayText: String, isPressed: Bool) -> some View {
-        let content: AnyView = {
-            if key == "Backspace" {
-                AnyView(Image(systemName: "delete.left").font(.system(size: 14)))
-            } else if key == "Enter" {
-                AnyView(Image(systemName: "return").font(.system(size: 14)))
-            } else if key == "Shift" {
-                AnyView(Image(systemName: "shift").font(.system(size: 14)))
-            } else if key == "Tab" {
-                AnyView(Image(systemName: "arrow.right.to.line.compact").font(.system(size: 11)))
-            } else if key == "Caps" {
-                AnyView(Image(systemName: keyboardManager.capsLockActive ? "lock.fill" : "lock.open").font(.system(size: 12)))
-            } else if ["Ctrl", "Alt", "Win", "Cmd", "Option", "Super"].contains(key) {
-                AnyView(Text(displayText).font(.system(size: 10, weight: .medium)))
-            } else if key == "Space" {
-                AnyView(Text("").frame(maxWidth: .infinity, maxHeight: .infinity))
+    private func windowsKeyContent(key: String, displayText: String) -> some View {
+        if key == "Backspace" {
+            Image(systemName: "delete.left").font(.system(size: 16, weight: .bold))
+        } else if key == "Enter" {
+            Text("Enter").font(.system(size: 12, weight: .bold))
+        } else if key == "Shift" {
+            Text("Shift").font(.system(size: 12, weight: .bold))
+        } else if key == "Tab" {
+            Text("Tab").font(.system(size: 12, weight: .bold))
+        } else if key == "Caps" {
+            Text("Caps").font(.system(size: 12, weight: .bold))
+        } else if ["Ctrl", "Alt", "Win", "Cmd", "Option", "Super"].contains(key) {
+            Text(displayText).font(.system(size: 12, weight: .bold))
+        } else if key == "Space" {
+            Text("").frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            // For number and symbol keys, show dual labels: small symbol in top-right corner, main character centered below
+            let shouldShowDualLabels = ["`", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=", "[", "]", "\\", ";", "'", ",", ".", "/"].contains(key)
+
+            if shouldShowDualLabels {
+                let shiftMap: [String: String] = [
+                    "`": "~", "1": "!", "2": "@", "3": "#", "4": "$", "5": "%",
+                    "6": "^", "7": "&", "8": "*", "9": "(", "0": ")",
+                    "-": "_", "=": "+", "[": "{", "]": "}", "\\": "|",
+                    ";": ":", "'": "\"", ",": "<", ".": ">", "/": "?"
+                ]
+                let symbolLabel = shiftMap[key] ?? ""
+
+                VStack(spacing: 0) {
+                    HStack {
+                        Spacer()
+                        Text(symbolLabel)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.secondary)
+                            .padding(.trailing, 4)
+                    }
+                    .padding(.top, 2)
+
+                    Text(displayText)
+                        .font(.system(size: 14, weight: .bold))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                AnyView(Text(displayText).font(.system(size: 12)))
+                Text(displayText).font(.system(size: 14, weight: .bold))
             }
-        }()
-        content
+        }
+    }
+
+    private func windowsKeyVisual(key: String, displayText: String, isPressed: Bool) -> some View {
+        windowsKeyContent(key: key, displayText: displayText)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(isPressed ? Color.blue : Self.functionKeyBg)
+            .background(isPressed ? themeManager.accentColor : Self.functionKeyBg)
             .cornerRadius(6)
-            .foregroundColor(isPressed ? .white : .primary)
+            .foregroundColor(isPressed ? Self.keyIconPressed : Self.keyIconIdle)
     }
 
     @ViewBuilder
-    private func windowsKeyButton(key: String, height: CGFloat) -> some View {
-        let displayText = windowsDisplayValue(for: key)
+    private func windowsKeyButton(key: String) -> some View {
+        let keyLabel = windowsLabelOnKey(for: key)
+        let previewText = windowsDisplayValue(for: key)
         let modifierKeys: Set<String> = ["Ctrl", "Alt", "Cmd", "Win", "Option", "Super", "Shift"]
         let isCapsActive = key == "Caps" && keyboardManager.capsLockActive
-        // F-row (height 36) and number row (height 38) show preview below; other rows above
-        let previewBelow = height <= 38
+        // First two rows: left-half keys popup RIGHT (left hand), right-half keys popup LEFT (right hand).
+        // Rows 3-6: popup ABOVE.
+        let leftSideFirstTwoRows: Set<String> = ["Esc", "F1", "F2", "F3", "F4", "F5", "`", "1", "2", "3", "4", "5"]
+        let rightSideFirstTwoRows: Set<String> = ["F6", "F7", "F8", "F9", "F10", "F11", "F12", "6", "7", "8", "9", "0", "-", "=", "Backspace"]
+        let previewRight = leftSideFirstTwoRows.contains(key)
+        let previewLeft = rightSideFirstTwoRows.contains(key)
+        let previewBelow = false
 
         if modifierKeys.contains(key) {
-            ModifierKeyButton(key: key, keyboardManager: keyboardManager, keyPreview: displayText, previewBelow: previewBelow) { isPhysical, isLocked in
-                windowsKeyVisual(key: key, displayText: displayText, isPressed: isPhysical || isLocked)
+            ModifierKeyButton(key: key, keyboardManager: keyboardManager, keyPreview: previewText, previewBelow: previewBelow, previewLeft: previewLeft, previewRight: previewRight) { isPhysical, isLocked in
+                windowsKeyVisual(key: key, displayText: keyLabel, isPressed: isPhysical || isLocked)
             }
-            .frame(height: height)
         } else if key == "Caps" {
             KeyPressButton(
                 onPress: { keyboardManager.handleSpecialKey("Caps") },
                 onRelease: { },
                 keyPreview: "⇪",
-                previewBelow: previewBelow
+                previewBelow: previewBelow,
+                previewLeft: previewLeft,
+                previewRight: previewRight
             ) { isActive in
-                windowsKeyVisual(key: key, displayText: displayText, isPressed: isActive || isCapsActive)
+                windowsKeyVisual(key: key, displayText: keyLabel, isPressed: isActive || isCapsActive)
             }
-            .frame(height: height)
         } else {
             let effectiveKey = key == "Esc" ? "Escape" : key
             let repeatMode = KmBasicKeyboardPrefs.shared.isLongPressRepeatMode
             KeyPressButton(
                 onPress: { repeatMode ? keyboardManager.startKeyRepeat(effectiveKey) : keyboardManager.handleKeyDown(effectiveKey) },
                 onRelease: { repeatMode ? keyboardManager.stopKeyRepeat() : keyboardManager.handleKeyUp(effectiveKey) },
-                keyPreview: displayText,
-                previewBelow: previewBelow
+                keyPreview: previewText,
+                previewBelow: previewBelow,
+                previewLeft: previewLeft,
+                previewRight: previewRight
             ) { isActive in
-                windowsKeyVisual(key: key, displayText: displayText, isPressed: isActive)
+                windowsKeyVisual(key: key, displayText: keyLabel, isPressed: isActive)
             }
-            .frame(height: height)
         }
     }
 
+    /// Base label shown ON the key (physical-keyboard style: uppercase letters, raw symbols).
+    private func windowsLabelOnKey(for key: String) -> String {
+        if key == "Cmd" { return "⌘" }
+        if key == "Option" { return "⌥" }
+        if key == "Super" { return "❖" }
+        let specialKeys = ["Esc", "Tab", "Caps", "Shift", "Ctrl", "Alt", "Space", "Backspace", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "Win", "Cmd", "Option", "Super"]
+        if specialKeys.contains(key) { return key }
+        if key.count == 1 && key.first!.isLetter { return key.uppercased() }
+        return key
+    }
+
+    /// Shift-aware value for the preview popup (the actual char sent to target).
     private func windowsDisplayValue(for key: String) -> String {
         if key == "Cmd" { return "⌘" }
         if key == "Option" { return "⌥" }
@@ -628,33 +748,36 @@ struct BasicKeyboardMouseView: View {
     // MARK: - Landscape Key Buttons
 
     @ViewBuilder
-    private func landscapeKeyButton(key: String, previewBelow: Bool = false) -> some View {
-        let displayText = landscapeDisplayValue(for: key)
+    private func landscapeKeyButton(key: String, previewBelow: Bool = false, previewLeft: Bool = false, previewRight: Bool = false) -> some View {
+        let keyLabel = landscapeLabelOnKey(for: key)
+        let previewText = landscapeDisplayValue(for: key)
         let modifierKeys: Set<String> = ["Ctrl", "Alt", "Cmd", "Win", "Option", "Shift"]
         let isCapsActive = key == "Caps" && keyboardManager.capsLockActive
 
         if modifierKeys.contains(key) {
-            ModifierKeyButton(key: key, keyboardManager: keyboardManager, keyPreview: displayText, previewBelow: previewBelow) { isPhysical, isLocked in
-                landscapeKeyContent(for: key, displayText: displayText)
-                    .font(.system(size: 12))
+            ModifierKeyButton(key: key, keyboardManager: keyboardManager, keyPreview: previewText, previewBelow: previewBelow, previewLeft: previewLeft, previewRight: previewRight) { isPhysical, isLocked in
+                landscapeKeyContent(for: key, displayText: keyLabel)
+                    .font(.system(size: 14, weight: .bold))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(isLocked ? Color.blue : (isPhysical ? Color.blue.opacity(0.7) : keyBackground(for: key, pressed: false, active: false)))
+                    .background(isLocked ? themeManager.accentColor : (isPhysical ? themeManager.accentColor.opacity(0.7) : keyBackground(for: key, pressed: false, active: false)))
                     .cornerRadius(9)
-                    .foregroundColor(isPhysical || isLocked ? .white : .primary)
+                    .foregroundColor(isPhysical || isLocked ? Self.keyLabelPressed : Self.keyLabelIdle)
             }
         } else if key == "Caps" {
             KeyPressButton(
                 onPress: { keyboardManager.handleSpecialKey("Caps") },
                 onRelease: { },
                 keyPreview: "⇪",
-                previewBelow: previewBelow
+                previewBelow: previewBelow,
+                previewLeft: previewLeft,
+                previewRight: previewRight
             ) { isActive in
-                landscapeKeyContent(for: key, displayText: displayText)
-                    .font(.system(size: 12))
+                landscapeKeyContent(for: key, displayText: keyLabel)
+                    .font(.system(size: 14, weight: .bold))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(keyBackground(for: key, pressed: isActive, active: isCapsActive))
                     .cornerRadius(9)
-                    .foregroundColor(isActive || isCapsActive ? .white : .primary)
+                    .foregroundColor(isActive || isCapsActive ? Self.keyLabelPressed : Self.keyLabelIdle)
             }
         } else {
             let effectiveKey = key == "Esc" ? "Escape" : key
@@ -662,15 +785,17 @@ struct BasicKeyboardMouseView: View {
             KeyPressButton(
                 onPress: { repeatMode ? keyboardManager.startKeyRepeat(effectiveKey) : keyboardManager.handleKeyDown(effectiveKey) },
                 onRelease: { repeatMode ? keyboardManager.stopKeyRepeat() : keyboardManager.handleKeyUp(effectiveKey) },
-                keyPreview: displayText,
-                previewBelow: previewBelow
+                keyPreview: previewText,
+                previewBelow: previewBelow,
+                previewLeft: previewLeft,
+                previewRight: previewRight
             ) { isActive in
-                landscapeKeyContent(for: key, displayText: displayText)
-                    .font(.system(size: 12))
+                landscapeKeyContent(for: key, displayText: keyLabel)
+                    .font(.system(size: 14, weight: .bold))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(keyBackground(for: key, pressed: isActive, active: false))
                     .cornerRadius(9)
-                    .foregroundColor(isActive ? .white : .primary)
+                    .foregroundColor(isActive ? Self.keyLabelPressed : Self.keyLabelIdle)
             }
         }
     }
@@ -678,14 +803,54 @@ struct BasicKeyboardMouseView: View {
     @ViewBuilder
     private func landscapeKeyContent(for key: String, displayText: String) -> some View {
         if key == "Backspace" {
-            Image(systemName: "delete.left").font(.system(size: 16))
+            Image(systemName: "delete.left").font(.system(size: 20))
         } else if key == "Enter" {
-            Image(systemName: "return").font(.system(size: 16))
+            Image(systemName: "return").font(.system(size: 20))
         } else if key == "Shift" {
-            Image(systemName: "shift").font(.system(size: 16))
+            Image(systemName: "shift").font(.system(size: 20))
         } else {
-            Text(displayText)
+            // For number and symbol keys, show dual labels: small symbol in top-right corner, main character centered below
+            // Check if this is a number/symbol key that should have dual labels
+            let shouldShowDualLabels = ["`", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=", "[", "]", ";", "'", ",", ".", "/"].contains(key)
+
+            if shouldShowDualLabels {
+                // Get the symbol label from the shiftMap or use default
+                let shiftMap: [String: String] = [
+                    "`": "~", "1": "!", "2": "@", "3": "#", "4": "$", "5": "%",
+                    "6": "^", "7": "&", "8": "*", "9": "(", "0": ")",
+                    "-": "_", "=": "+", "[": "{", "]": "}",
+                    ";": ":", "'": "\"", ",": "<", ".": ">", "/": "?"
+                ]
+                let symbolLabel = shiftMap[key] ?? ""
+
+                VStack(spacing: 0) {
+                    // Top-right aligned symbol
+                    HStack {
+                        Spacer()
+                        Text(symbolLabel)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.top, 2)
+
+                    // Centered main character
+                    Text(displayText)
+                        .font(.system(size: 16, weight: .bold))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                Text(displayText)
+                    .font(.system(size: 16, weight: .bold))
+            }
         }
+    }
+
+    private func landscapeLabelOnKey(for key: String) -> String {
+        let specialKeys = ["Esc", "Tab", "Caps", "Shift", "Ctrl", "Alt", "Space", "Backspace"]
+        if specialKeys.contains(key) { return key }
+        if key.count == 1 && key.first!.isLetter { return key.uppercased() }
+        return key
     }
 
     private func landscapeDisplayValue(for key: String) -> String {
@@ -711,8 +876,34 @@ struct BasicKeyboardMouseView: View {
 
     // MARK: - Shared
 
-    private static let functionKeyBg = Color(UIColor.secondarySystemBackground)
-    private static let regularKeyBg = Color(UIColor.systemBackground)
+    private static let functionKeyBg = Color(UIColor { trait in
+        trait.userInterfaceStyle == .dark
+            ? UIColor(red: 74/255, green: 74/255, blue: 78/255, alpha: 1)
+            : UIColor(red: 233/255, green: 233/255, blue: 236/255, alpha: 1)
+    })
+    private static let regularKeyBg = Color(UIColor { trait in
+        trait.userInterfaceStyle == .dark
+            ? UIColor(red: 58/255, green: 58/255, blue: 60/255, alpha: 1)
+            : UIColor(red: 255/255, green: 255/255, blue: 255/255, alpha: 1)
+    })
+    // KM Basic key label colors (matches Android basic_key_label_color.xml)
+    private static let keyLabelIdle = Color(UIColor { trait in
+        trait.userInterfaceStyle == .dark
+            ? UIColor(red: 255/255, green: 255/255, blue: 255/255, alpha: 1)  // #FFFFFFFF
+            : UIColor(red: 33/255, green: 33/255, blue: 33/255, alpha: 1)    // #FF212121
+    })
+    private static let keyLabelPressed = Color.white  // text on accent (blue) background
+    // KM Basic hint colors (matches Android basic_key_hint_color.xml)
+    private static let keyHintIdle = Color(UIColor { trait in
+        trait.userInterfaceStyle == .dark
+            ? UIColor(red: 142/255, green: 142/255, blue: 147/255, alpha: 1) // #FF8E8E93
+            : UIColor(red: 117/255, green: 117/255, blue: 117/255, alpha: 1) // #FF757575
+    })
+    private static let keyHintPressed = Color.white.opacity(0.85)
+    // KM Basic icon tint (matches Android basic_key_icon_tint.xml)
+    private static let keyIconIdle = keyLabelIdle
+    private static let keyIconSelected = Color.blue  // held-lock accent (e.g. Caps Lock)
+    private static let keyIconPressed = Color.white
     private static let touchpadBase = Color(red: 28/255, green: 28/255, blue: 30/255)
     private static let touchpadPanel = Color(red: 44/255, green: 44/255, blue: 46/255)
     private static let touchpadButton = Color(red: 44/255, green: 44/255, blue: 46/255)
@@ -727,7 +918,7 @@ struct BasicKeyboardMouseView: View {
 
     private func keyBackground(for key: String, pressed: Bool, active: Bool) -> Color {
         let functionLabels = ["Esc", "Tab", "Caps", "Shift", "Ctrl", "Alt", "Backspace", "Enter"]
-        if pressed || active { return .blue }
+        if pressed || active { return themeManager.accentColor }
         if functionLabels.contains(key) { return Self.functionKeyBg }
         return Self.regularKeyBg
     }
@@ -818,27 +1009,6 @@ struct BasicKeyboardMouseView: View {
                                 .transition(.opacity)
                         }
 
-                        // Centered status overlay
-                        VStack(spacing: 4) {
-                            Text("TouchPad")
-                                .font(.system(size: 16, weight: .bold))
-                                .foregroundColor(Self.touchpadText)
-                            Text("Buttons: \(touchpadButtonsText)")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(Self.touchpadText.opacity(0.8))
-                            Text("Touch: \(touchpadTouchText)")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(Self.touchpadText.opacity(0.8))
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(Self.touchpadPanel.opacity(0.92))
-                                .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 0)
-                        )
-                        .allowsHitTesting(false)
-
                         // Openterface logo in the touchpad surface.
                         VStack {
                             Spacer()
@@ -868,7 +1038,7 @@ struct BasicKeyboardMouseView: View {
                             .transition(.scale.combined(with: .opacity))
                         }
                     }
-                    let stripWidth = max(28, stripGeo.size.width / 6)
+                    let stripWidth = max(28, (stripGeo.size.width / 6) * 0.9)
                     BasicTouchpadScrollStripView(mouseManager: mouseManager, labelFontSize: scrollFontSize)
                         .frame(width: stripWidth)
                 }
@@ -876,24 +1046,34 @@ struct BasicKeyboardMouseView: View {
                 .background(Self.touchpadBase)
 
                 // Mouse buttons row
-                HStack(spacing: 8) {
-                    mouseButton(label: "L", icon: "cursorarrow", button: .left, onStateChange: { held in
-                        withAnimation(.spring(response: 0.2, dampingFraction: 0.6)) {
-                            isLeftButtonHeld = held
-                        }
-                    })
+                GeometryReader { buttonGeo in
+                    let totalSpacing = 16.0 + 24.0  // 8*2 between buttons + 12*2 padding
+                    let availableWidth = buttonGeo.size.width - totalSpacing
+                    let unitWidth = availableWidth / 5.0  // 2:1:2 ratio = 5 units
+                    let sideWidth = unitWidth * 2.0
+                    let middleWidth = unitWidth
+
+                    HStack(spacing: 8) {
+                        mouseButton(label: "L", icon: "cursorarrow", button: .left, onStateChange: { held in
+                            withAnimation(.spring(response: 0.2, dampingFraction: 0.6)) {
+                                isLeftButtonHeld = held
+                            }
+                        })
+                        .frame(width: sideWidth)
+                        mouseButton(label: "M", icon: "cursorarrow", button: .middle, onStateChange: { held in
+                            withAnimation(.spring(response: 0.2, dampingFraction: 0.6)) {
+                                isMiddleButtonHeld = held
+                            }
+                        })
+                        .frame(width: middleWidth)
+                        mouseButton(label: "R", icon: "cursorarrow", button: .right, onStateChange: { held in
+                            withAnimation(.spring(response: 0.2, dampingFraction: 0.6)) {
+                                isRightButtonHeld = held
+                            }
+                        })
+                        .frame(width: sideWidth)
+                    }
                     .frame(maxWidth: .infinity)
-                    mouseButton(label: "M", icon: "cursorarrow", button: .middle, onStateChange: { held in
-                        withAnimation(.spring(response: 0.2, dampingFraction: 0.6)) {
-                            isMiddleButtonHeld = held
-                        }
-                    })
-                    .frame(maxWidth: .infinity)
-                    mouseButton(label: "R", icon: "cursorarrow", button: .right, onStateChange: { held in
-                        withAnimation(.spring(response: 0.2, dampingFraction: 0.6)) {
-                            isRightButtonHeld = held
-                        }
-                    })
                 }
                 .frame(height: buttonRowHeight)
                 .padding(.horizontal, 12)
@@ -907,7 +1087,6 @@ struct BasicKeyboardMouseView: View {
         let bits: UInt8 = button == .left ? 0x01 : button == .right ? 0x02 : 0x04
         return MouseLockButton(
             onDown: {
-                HapticFeedbackManager.shared.triggerButtonPress()
                 onStateChange?(true)
                 mouseManager.sendButtonDown(buttons: bits)
             },
@@ -920,7 +1099,7 @@ struct BasicKeyboardMouseView: View {
             } : nil
         ) { isPressed, isLocked in
             Text(label)
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(isPressed || isLocked ? .white : Self.touchpadText)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(
@@ -963,6 +1142,8 @@ private struct KeyCalloutInfo: Equatable {
     let text: String
     let frame: CGRect
     let below: Bool
+    let left: Bool
+    let right: Bool
 }
 
 private struct KeyCalloutInfoKey: PreferenceKey {
@@ -991,6 +1172,8 @@ struct ModifierKeyButton<Label: View>: View {
     let keyboardManager: KeyboardManager
     var keyPreview: String? = nil
     var previewBelow: Bool = false
+    var previewLeft: Bool = false
+    var previewRight: Bool = false
     let label: (Bool, Bool) -> Label
 
     @ObservedObject private var prefs = KmBasicKeyboardPrefs.shared
@@ -1008,11 +1191,13 @@ struct ModifierKeyButton<Label: View>: View {
     /// Tap radius to register the lock icon as hit (pt)
     private let lockIconRadius: CGFloat = 30
 
-    init(key: String, keyboardManager: KeyboardManager, keyPreview: String? = nil, previewBelow: Bool = false, @ViewBuilder label: @escaping (Bool, Bool) -> Label) {
+    init(key: String, keyboardManager: KeyboardManager, keyPreview: String? = nil, previewBelow: Bool = false, previewLeft: Bool = false, previewRight: Bool = false, @ViewBuilder label: @escaping (Bool, Bool) -> Label) {
         self.key = key
         self.keyboardManager = keyboardManager
         self.keyPreview = keyPreview
         self.previewBelow = previewBelow
+        self.previewLeft = previewLeft
+        self.previewRight = previewRight
         self.label = label
     }
 
@@ -1025,7 +1210,7 @@ struct ModifierKeyButton<Label: View>: View {
                 // Lock hint only shown in momentary-chord mode
                 if showLockHint && prefs.modifierBehavior == .momentaryChord {
                     Image(systemName: "lock.fill")
-                        .font(.system(size: 22, weight: .bold))
+                        .font(.system(size: 24, weight: .bold))
                         .foregroundColor(.white)
                         .padding(12)
                         .background(Circle().fill(Color.orange))
@@ -1048,7 +1233,7 @@ struct ModifierKeyButton<Label: View>: View {
             .preference(
                 key: KeyCalloutInfoKey.self,
                 value: isPressed && keyPreview != nil ?
-                    KeyCalloutInfo(text: keyPreview!, frame: geo.frame(in: .named("keyboardLayout")), below: previewBelow)
+                    KeyCalloutInfo(text: keyPreview!, frame: geo.frame(in: .named("keyboardLayout")), below: previewBelow, left: previewLeft, right: previewRight)
                     : nil
             )
         }
@@ -1149,15 +1334,19 @@ struct KeyPressButton<Label: View>: View {
     let onRelease: () -> Void
     var keyPreview: String? = nil
     var previewBelow: Bool = false
+    var previewLeft: Bool = false
+    var previewRight: Bool = false
     let label: (Bool) -> Label
 
     @State private var isPressed = false
 
-    init(onPress: @escaping () -> Void, onRelease: @escaping () -> Void, keyPreview: String? = nil, previewBelow: Bool = false, @ViewBuilder label: @escaping (Bool) -> Label) {
+    init(onPress: @escaping () -> Void, onRelease: @escaping () -> Void, keyPreview: String? = nil, previewBelow: Bool = false, previewLeft: Bool = false, previewRight: Bool = false, @ViewBuilder label: @escaping (Bool) -> Label) {
         self.onPress = onPress
         self.onRelease = onRelease
         self.keyPreview = keyPreview
         self.previewBelow = previewBelow
+        self.previewLeft = previewLeft
+        self.previewRight = previewRight
         self.label = label
     }
 
@@ -1167,7 +1356,7 @@ struct KeyPressButton<Label: View>: View {
                 Color.clear.preference(
                     key: KeyCalloutInfoKey.self,
                     value: isPressed && keyPreview != nil ?
-                        KeyCalloutInfo(text: keyPreview!, frame: geo.frame(in: .named("keyboardLayout")), below: previewBelow)
+                        KeyCalloutInfo(text: keyPreview!, frame: geo.frame(in: .named("keyboardLayout")), below: previewBelow, left: previewLeft, right: previewRight)
                         : nil
                 )
             })
@@ -1271,7 +1460,7 @@ struct MouseLockButton<Label: View>: View {
 
                 if showLockHint {
                     Image(systemName: "lock.fill")
-                        .font(.system(size: 22, weight: .bold))
+                        .font(.system(size: 24, weight: .bold))
                         .foregroundColor(.white)
                         .padding(12)
                         .background(Circle().fill(Color.orange))

@@ -19,6 +19,7 @@ struct ContentView: View {
     @StateObject private var viewManager: ViewManager
     @StateObject private var clipboardManager: ClipboardManager
     @ObservedObject private var aiSettings = AISettings.shared
+    @ObservedObject private var themeManager = ThemeManager.shared
     @State private var showPopup = false
     @State private var sidebarVisible = false
     @State private var showSettings = false
@@ -81,10 +82,10 @@ struct ContentView: View {
                         sidebarVisible.toggle()
                     }
                 }) {
-                    Image(systemName: "ellipsis")
-                        .rotationEffect(.degrees(90))
-                        .font(.title2)
-                        .foregroundColor(.primary)
+                    Image(systemName: "line.3.horizontal")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundColor(.gray)
+                        .scaleEffect(x: 0.65, y: 1, anchor: .center)
                 }
                 .buttonStyle(PlainButtonStyle())
                 Text("KeyMod")
@@ -174,7 +175,7 @@ struct ContentView: View {
                         .font(.body)
                         .foregroundColor(viewManager.currentView == viewType ? .green : .primary)
                     // Beta badge for experimental features
-                    if viewType == .macros || viewType == .voiceInput {
+                    if viewType == .macros || viewType == .voiceInput || viewType == .terminal {
                         Image(systemName: "flask.fill")
                             .font(.system(size: 14))
                             .foregroundColor(.secondary)
@@ -192,20 +193,27 @@ struct ContentView: View {
     }
     
     // MARK: - Main Content View
+    private var topSafeAreaInset: CGFloat {
+        #if os(iOS)
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first else { return 0 }
+        return window.safeAreaInsets.top
+        #else
+        return 0
+        #endif
+    }
+
     private var mainContentView: some View {
         VStack(spacing: 0) {
+            // Top bar: positioned below Dynamic Island
             topBar
-                .onAppear {
-                    print("🔝 TopBar appeared")
-                }
+                .padding(.top, max(0, topSafeAreaInset - 24))
+
+            // Touch pad/numpad: fills remaining space below top bar
             mainContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .ignoresSafeArea(.all, edges: [.bottom, .leading, .trailing])
-                .onAppear {
-                    print("📱 MainContent appeared")
-                }
+                .ignoresSafeArea(edges: [.bottom, .leading, .trailing])
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             print("📦 MainContentView frame: maxWidth=.infinity, maxHeight=.infinity")
         }
@@ -222,16 +230,16 @@ struct ContentView: View {
                             sidebarVisible.toggle()
                         }
                     }) {
-                        Image(systemName: "ellipsis")
-                            .rotationEffect(.degrees(90))
-                            .font(.title2)
-                            .foregroundColor(.primary)
-                            .frame(width: 44, height: 44)
+                        Image(systemName: "line.3.horizontal")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(.gray)
+                            .scaleEffect(x: 0.65, y: 1, anchor: .center)
+                            .frame(width: 22, height: 44)
                     }
                     .buttonStyle(.plain)
                     .contentShape(Rectangle())
                     .padding(.leading, 12)
-                    if orientationManager.isLandscape && viewManager.currentView == .keyboardMouseBasic {
+                    if viewManager.currentView == .keyboardMouseBasic {
                         BasicKeyboardMouseView(
                             mouseManager: mouseManager,
                             keyboardManager: keyboardManager,
@@ -254,19 +262,9 @@ struct ContentView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .frame(height: 50)
-        .background(
-            GeometryReader { geo in
-                Color(UIColor.secondarySystemBackground)
-                    .onAppear {
-                        let globalFrame = geo.frame(in: .global)
-                        print("🔝 TopBar global frame: origin=\(globalFrame.origin) size=\(globalFrame.size)")
-                    }
-            }
-        )
         .zIndex(100)
         .onAppear {
-            print("🔝 TopBar rendered with height: 50")
+            print("🔝 TopBar rendered")
         }
     }
 
@@ -360,64 +358,58 @@ struct ContentView: View {
     }
 
     private var kmBasicSetupButton: some View {
-        VStack(spacing: 2) {
-            Button(action: { showSetupSheet = true }) {
-                Image(systemName: "gearshape")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 20, height: 20)
-                    .foregroundColor(.gray)
-            }
-            .frame(width: 34, height: 34)
-            .popover(isPresented: $showSetupSheet, arrowEdge: .top) {
-                NavigationView {
-                    Form {
-                        KmBasicSettingsView()
-                    }
-                    .navigationTitle("Setup")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .navigationBarTrailing) {
-                            Button("Done") { showSetupSheet = false }
-                        }
+        Button(action: { showSetupSheet = true }) {
+            Image(systemName: "gearshape")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 20, height: 20)
+                .foregroundColor(.gray)
+        }
+        .frame(width: 34, height: 34)
+        .background(Color.clear)
+        .buttonStyle(.plain)
+        .popover(isPresented: $showSetupSheet, arrowEdge: .top) {
+            NavigationView {
+                Form {
+                    KmBasicSettingsView()
+                }
+                .navigationTitle("Setup")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Done") { showSetupSheet = false }
                     }
                 }
-                .frame(minWidth: 320, idealWidth: 380, minHeight: 450)
             }
-            Text("Setup")
-                .font(.caption2)
-                .foregroundColor(.secondary)
+            .frame(minWidth: 320, idealWidth: 380, minHeight: 450)
         }
     }
 
     private var kmProSetupButton: some View {
-        VStack(spacing: 2) {
-            Button(action: { showProSetupSheet = true }) {
-                Image(systemName: "gearshape")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 20, height: 20)
-                    .foregroundColor(.gray)
-            }
-            .frame(width: 34, height: 34)
-            .popover(isPresented: $showProSetupSheet, arrowEdge: .top) {
-                NavigationView {
-                    Form {
-                        KmProSettingsView(keyboardManager: keyboardManager)
-                    }
-                    .navigationTitle("Pro Setup")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .navigationBarTrailing) {
-                            Button("Done") { showProSetupSheet = false }
-                        }
+        Button(action: { showProSetupSheet = true }) {
+            Image(systemName: "gearshape")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 20, height: 20)
+                .foregroundColor(.gray)
+        }
+        .frame(width: 34, height: 34)
+        .background(Color.clear)
+        .buttonStyle(.plain)
+        .popover(isPresented: $showProSetupSheet, arrowEdge: .top) {
+            NavigationView {
+                Form {
+                    KmProSettingsView(keyboardManager: keyboardManager)
+                }
+                .navigationTitle("Pro Setup")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Done") { showProSetupSheet = false }
                     }
                 }
-                .frame(minWidth: 320, idealWidth: 380, minHeight: 500)
             }
-            Text("Setup")
-                .font(.caption2)
-                .foregroundColor(.secondary)
+            .frame(minWidth: 320, idealWidth: 380, minHeight: 500)
         }
     }
 
@@ -433,7 +425,7 @@ struct ContentView: View {
         } label: {
             Image(systemName: "line.3.horizontal")
                 .font(.system(size: 16, weight: .medium))
-                .foregroundColor(.primary)
+                .foregroundColor(.gray)
                 .frame(width: 36, height: 36)
         }
         .buttonStyle(.plain)
@@ -522,23 +514,19 @@ struct ContentView: View {
     }
 
     private var targetOSButton: some View {
-        VStack(spacing: 2) {
-            Button(action: {
-                showTargetOSDialog = true
-            }) {
-                Image(aiSettings.targetOS.imageName)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 20, height: 20)
-                    .foregroundColor(.purple)
-            }
-            .frame(width: 34, height: 34)
-            .background(Color.clear)
-            .buttonStyle(.plain)
-            Text(aiSettings.targetOS.shortName)
-                .font(.caption2)
-                .foregroundColor(.secondary)
+        Button(action: {
+            showTargetOSDialog = true
+        }) {
+            Image(aiSettings.targetOS.imageName)
+                .renderingMode(.template)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 20, height: 20)
+                .foregroundColor(.gray)
         }
+        .frame(width: 34, height: 34)
+        .background(Color.clear)
+        .buttonStyle(.plain)
     }
 
     private var targetOSSelectionSheet: some View {
@@ -604,30 +592,24 @@ struct ContentView: View {
     }
 
     private var bleButton: some View {
-        VStack(spacing: 2) {
-            Button(action: {
-                if bleManager.checkBluetoothPermission() {
-                    bleManager.startScanning()
-                    showPopup = true
-                    print("Scanning for Bluetooth devices...")
-                } else {
-                    print("Bluetooth permission not granted")
-                }
-            }) {
-                Image(systemName: "antenna.radiowaves.left.and.right")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 20, height: 20)
-                    .foregroundColor(bleManager.connectedDevices.isEmpty ? .blue : .green)
+        Button(action: {
+            if bleManager.checkBluetoothPermission() {
+                bleManager.startScanning()
+                showPopup = true
+                print("Scanning for Bluetooth devices...")
+            } else {
+                print("Bluetooth permission not granted")
             }
-            .frame(width: 34, height: 34)
-            .background(Color.clear)
-            if let rssi = bleManager.currentRSSI {
-                Text("\(rssi.intValue) dBm")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
+        }) {
+            Image(systemName: "antenna.radiowaves.left.and.right")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 20, height: 20)
+                .foregroundColor(bleManager.connectedDevices.isEmpty ? .gray : themeManager.accentColor)
         }
+        .frame(width: 34, height: 34)
+        .background(Color.clear)
+        .buttonStyle(.plain)
         .onAppear {
             print("📡 BLEButton rendered")
         }
@@ -841,6 +823,9 @@ struct ContentView: View {
                     orientationManager: orientationManager
                 )
                 .id(viewManager.currentView)
+            case .terminal:
+                TerminalContainerView(bleManager: bleManager)
+                    .id(viewManager.currentView)
             }
         }
         .onAppear {
@@ -922,27 +907,36 @@ struct ContentView: View {
                 )
             )
             .sheet(isPresented: $showPopup) {
-                List(bleManager.discoveredDevices, id: \.0.identifier) { device, rssi in
-                    VStack(alignment: .leading) {
-                        Text(device.name ?? "Unknown Device")
-                            .font(.headline)
-                            .foregroundColor(bleManager.connectedDevices.contains(device.identifier) ? .green : .primary)
-                        Text("RSSI: \(rssi.stringValue)")
-                            .font(.footnote)
-                            .foregroundColor(.blue)
-                        Text("UUID: \(device.identifier.uuidString)")
-                            .font(.footnote)
-                            .foregroundColor(.gray)
+                NavigationView {
+                    List(bleManager.discoveredDevices, id: \.0.identifier) { device, rssi in
+                        VStack(alignment: .leading) {
+                            Text(device.name ?? "Unknown Device")
+                                .font(.headline)
+                                .foregroundColor(bleManager.connectedDevices.contains(device.identifier) ? .green : .primary)
+                            Text("RSSI: \(rssi.stringValue)")
+                                .font(.footnote)
+                                .foregroundColor(.blue)
+                            Text("UUID: \(device.identifier.uuidString)")
+                                .font(.footnote)
+                                .foregroundColor(.gray)
+                        }
+                        .onTapGesture {
+                            bleManager.connectToDevice(device)
+                        }
                     }
-                    .onTapGesture {
-                        bleManager.connectToDevice(device)
+                    .navigationTitle("Connecting Bluetooth")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("Done") { showPopup = false }
+                        }
                     }
-                }
-                .onAppear {
-                    if viewManager.currentView == .gamepad {
-                        orientationManager.lockToLandscape()
-                        if !orientationManager.isLandscape {
-                            orientationManager.toggleOrientationWithInstruction()
+                    .onAppear {
+                        if viewManager.currentView == .gamepad {
+                            orientationManager.lockToLandscape()
+                            if !orientationManager.isLandscape {
+                                orientationManager.toggleOrientationWithInstruction()
+                            }
                         }
                     }
                 }

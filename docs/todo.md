@@ -1,7 +1,7 @@
 # Keyboard & Mouse Layout TODO
 
 > Feature parity checklist: port Android keyboard/mouse capabilities into iOS.
-> Reference Android project: `../Openterface_KeyCmd_Android/`
+> Reference Android project: `../Openterface_KeyMod_Android/`
 
 ---
 

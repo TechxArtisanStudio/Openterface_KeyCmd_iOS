@@ -1,0 +1,179 @@
+import UIKit
+import SwiftTerm
+
+/// Bridge between SwiftTerm (UIKit) and SSHClient.
+/// Handles terminal emulation and bidirectional data flow between:
+///   - SSH output → terminal.feed() → rendered on screen
+///   - User keystrokes → terminalViewDelegate.send() → SSHClient.write()
+class TerminalEmulator: NSObject, TerminalViewDelegate {
+
+    // MARK: - Properties
+
+    private weak var terminalView: TerminalView?
+    let sshClient: SSHClient
+    private let localProxy: LocalTCPProxy
+
+    /// Callback for connection status changes
+    var onStatusChanged: ((ConnectionStatus) -> Void)?
+
+    /// Current connection status
+    private(set) var status: ConnectionStatus = .disconnected {
+        didSet {
+            onStatusChanged?(status)
+        }
+    }
+
+    // MARK: - Connection Profile
+
+    struct ConnectionProfile {
+        let host: String
+        let port: Int
+        let username: String
+        let password: String
+    }
+
+    enum ConnectionStatus {
+        case disconnected
+        case connecting
+        case connected
+        case error(String)
+    }
+
+    // MARK: - Init
+
+    override init() {
+        self.localProxy = LocalTCPProxy(port: 12345)
+        self.sshClient = SSHClient(host: "127.0.0.1", port: 12345, username: "", password: "")
+        super.init()
+
+        // Wire SSHClient output → terminal.feed()
+        sshClient.onOutput = { [weak self] data in
+            self?.feedTerminal(data: data)
+        }
+
+        sshClient.onError = { [weak self] error in
+            self?.status = .error(error)
+        }
+    }
+
+    /// Attach to a SwiftTerm TerminalView
+    func attach(to terminalView: TerminalView) {
+        self.terminalView = terminalView
+        terminalView.terminalDelegate = self
+
+        // Set up terminal appearance
+        terminalView.backgroundColor = .black
+        terminalView.font = UIFont(name: "Menlo", size: 14) ?? UIFont.monospacedSystemFont(ofSize: 14, weight: .regular)
+
+        // Set initial terminal size
+        let frameSize = terminalView.getOptimalFrameSize()
+        let cols = max(Int(frameSize.width / 8.4), 80)
+        let rows = max(Int(frameSize.height / 18), 24)
+        sshClient.resizeTerminal(width: cols, height: rows)
+    }
+
+    /// Connect to remote host via BLE-Eth transport
+    func connect(profile: ConnectionProfile, transport: BleEthTransport) async throws {
+        status = .connecting
+
+        // Start local TCP proxy
+        try localProxy.start(transport: transport)
+
+        // Update SSHClient with credentials
+        // Note: We reconnect to local proxy with new credentials
+        // For now, we'll pass credentials through a modified approach
+
+        // Connect SSH to local proxy (which bridges to BLE)
+        // The transport handles the actual remote connection
+
+        // Start SSH session
+        sshClient.connect(transport: transport)
+
+        // Wait for connection (with timeout)
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            Task {
+                // Check every 100ms for up to 30 seconds
+                for _ in 0..<300 {
+                    try await Task.sleep(nanoseconds: 100_000_000) // 100ms
+
+                    if self.sshClient.isConnected {
+                        self.status = .connected
+                        continuation.resume()
+                        return
+                    }
+
+                    if case .error(let msg) = self.status {
+                        continuation.resume(throwing: NSError(domain: "SSH", code: -1, userInfo: [NSLocalizedDescriptionKey: msg]))
+                        return
+                    }
+                }
+                continuation.resume(throwing: NSError(domain: "SSH", code: -1, userInfo: [NSLocalizedDescriptionKey: "Connection timeout"]))
+            }
+        }
+    }
+
+    /// Disconnect SSH session
+    func disconnect() {
+        sshClient.disconnect()
+        localProxy.stop()
+        status = .disconnected
+    }
+
+    /// Feed data from SSH to terminal
+    private func feedTerminal(data: Data) {
+        DispatchQueue.main.async { [weak self] in
+            let bytes = ArraySlice<UInt8>(data)
+            self?.terminalView?.feed(byteArray: bytes)
+        }
+    }
+
+    // MARK: - TerminalViewDelegate
+
+    public func sizeChanged(source: TerminalView, newCols: Int, newRows: Int) {
+        // Terminal size changed - inform SSH
+        sshClient.resizeTerminal(width: newCols, height: newRows)
+    }
+
+    public func setTerminalTitle(source: TerminalView, title: String) {
+        // Could update UI title bar
+    }
+
+    public func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {
+        // Handle cwd change
+    }
+
+    public func send(source: TerminalView, data: ArraySlice<UInt8>) {
+        // User typed something → forward to SSH
+        let data = Data(data)
+        sshClient.write(data)
+    }
+
+    public func scrolled(source: TerminalView, position: Double) {
+        // Handle scroll
+    }
+
+    public func requestOpenLink(source: TerminalView, link: String, params: [String : String]) {
+        // Open URL if tapped
+    }
+
+    public func bell(source: TerminalView) {
+        // Play bell sound / haptic
+    }
+
+    public func clipboardCopy(source: TerminalView, content: Data) {
+        // Copy to clipboard
+    }
+
+    public func clipboardRead(source: TerminalView) -> Data? {
+        // Read from clipboard
+        return nil
+    }
+
+    public func iTermContent(source: TerminalView, content: ArraySlice<UInt8>) {
+        // Handle iTerm2 specific features
+    }
+
+    public func rangeChanged(source: TerminalView, startY: Int, endY: Int) {
+        // Visual update range
+    }
+}

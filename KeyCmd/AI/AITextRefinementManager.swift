@@ -41,8 +41,8 @@ enum AIRefinementError: LocalizedError {
 struct TextRefinementRequest: Codable {
     let model: String
     let messages: [Message]
-    let temperature: Double = 0.7
-    let max_tokens: Int = 500
+    var temperature: Double = 0.7
+    var max_tokens: Int = 500
     
     struct Message: Codable {
         let role: String

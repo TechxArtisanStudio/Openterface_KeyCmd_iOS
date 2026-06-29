@@ -18,6 +18,18 @@ public class AppDelegate: NSObject, UIApplicationDelegate {
     }
 
     public func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        // Pre-warm haptic engine at launch so first press feedback is reliable
+        // iOS needs time to initialize the Taptic Engine; warming at launch avoids
+        // the first-tap silence that users were reporting.
+        DispatchQueue.main.async {
+            // Force-initialize the haptic manager singleton
+            _ = HapticFeedbackManager.shared
+            // Trigger a test haptic after a short delay to ensure the engine is ready
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                HapticFeedbackManager.shared.testHaptic()
+            }
+        }
+
         // Pre-warm the keyboard prediction XPC connection at launch time
         // (outside of any gesture pipeline) so the first tap on a UITextView
         // doesn't trigger the ~3 s "gesture gate timeout".
@@ -82,7 +94,7 @@ struct KeyCmdApp: App {
         WindowGroup {
             ZStack {
                 ContentView(launchPanelManager: launchPanelManager)
-                
+
                 if launchPanelManager.showLaunchPanel {
                     LaunchPanelView(launchPanelManager: launchPanelManager)
                         .transition(.opacity)

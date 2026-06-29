@@ -6,6 +6,19 @@
 //
 
 import Foundation
+import SwiftUI
+
+#if os(iOS)
+import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
+
+#if os(iOS)
+import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 
 class KeyboardManager: ObservableObject {
     var bleManager: BLEManager

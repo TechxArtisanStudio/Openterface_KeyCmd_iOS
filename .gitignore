@@ -3,3 +3,4 @@ xcuserdata/
 *.xcuserstate
 KeyCmd.xcodeproj/project.xcworkspace/xcuserdata/*
 .claude/*
+build/*

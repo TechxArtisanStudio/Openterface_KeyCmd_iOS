@@ -6,6 +6,7 @@
 //  Matches Android's BasicPortraitScrollStripView.
 
 import SwiftUI
+import Foundation
 
 struct BasicTouchpadScrollStripView: View {
     let mouseManager: MouseManager
@@ -15,7 +16,7 @@ struct BasicTouchpadScrollStripView: View {
     @State private var isScrolling: Bool = false
 
     /// Pixels per wheel unit (matches Android STRIP_PIXELS_PER_WHEEL_UNIT = 5f)
-    private let pixelsPerWheelUnit: CGFloat = 5.0
+    private let pixelsPerWheelUnit: CGFloat = 3.0
 
     private var sensitivity: Double { KmBasicKeyboardPrefs.shared.stripScrollSensitivity }
 
@@ -71,6 +72,8 @@ struct BasicTouchpadScrollStripView: View {
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
+                        print("🖱️ Scroll strip gesture at y: \(value.location.y)")
+
                         if lastScrollY == nil {
                             lastScrollY = value.location.y
                             isScrolling = true
@@ -79,13 +82,19 @@ struct BasicTouchpadScrollStripView: View {
                         guard let prevY = lastScrollY else { return }
                         let deltaY = value.location.y - prevY
 
+                        print("📏 deltaY: \(deltaY), threshold: \(pixelsPerWheelUnit)")
+
                         // Only send scroll after moving past threshold
                         if abs(deltaY) > pixelsPerWheelUnit {
+                            print("✅ Threshold exceeded, triggering haptic")
+                            // Trigger haptic feedback on any significant movement
+                            HapticFeedbackManager.shared.triggerScrollTick()
+
                             let wheelUnits = Int(deltaY / pixelsPerWheelUnit * sensitivity)
+                            print("📊 wheelUnits: \(wheelUnits), sensitivity: \(sensitivity)")
                             if wheelUnits != 0 {
                                 mouseManager.handleScroll(deltaX: 0, deltaY: -wheelUnits)
                                 lastScrollY = value.location.y
-                                HapticFeedbackManager.shared.triggerScrollTick()
                             }
                         }
                     }
