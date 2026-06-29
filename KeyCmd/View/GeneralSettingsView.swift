@@ -258,11 +258,17 @@ struct GeneralSettingsView: View {
                             .font(.caption)
                             .fontWeight(.semibold)
                             .foregroundColor(.blue)
-                        Text("Check that Vibration is enabled:\nSettings → Accessibility → Touch → Vibration")
+                        Text("Check that Vibration is enabled:")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.secondary)
+                        Text("1. Open Settings app\n2. Go to Accessibility\n3. Tap Touch\n4. Enable Vibration")
                             .font(.caption)
                             .foregroundColor(.secondary)
 
                         Button(action: {
+                            // Try to open system Settings main page (best we can do — iOS doesn't
+                            // allow deep-linking to Accessibility → Touch → Vibration from third-party apps)
                             if let url = URL(string: UIApplication.openSettingsURLString) {
                                 UIApplication.shared.open(url)
                             }
