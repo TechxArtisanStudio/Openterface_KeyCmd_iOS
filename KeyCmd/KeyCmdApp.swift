@@ -11,7 +11,8 @@ import UIKit
 // AppDelegate to handle orientation
 public class AppDelegate: NSObject, UIApplicationDelegate {
     // Static so any caller can read/write without needing an instance
-    public static var orientationLock: UIInterfaceOrientationMask = .all
+    // Default to portrait since touchpad is the default submode
+    public static var orientationLock: UIInterfaceOrientationMask = .portrait
 
     public func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
         return AppDelegate.orientationLock

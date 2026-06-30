@@ -44,7 +44,7 @@ class GamepadPresetRepository: ObservableObject {
                 at: presetsDirectory, withIntermediateDirectories: true
             )
         } catch {
-            print("⚠️ Failed to create presets directory: \(error)")
+            LogManager.shared.log("Failed to create presets directory: \(error)", category: "Gamepad", level: .warning)
         }
 
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -125,7 +125,7 @@ class GamepadPresetRepository: ObservableObject {
         do {
             try data.write(to: url, options: .atomic)
         } catch {
-            print("⚠️ Failed to save preset: \(error)")
+            LogManager.shared.log("Failed to save preset: \(error)", category: "Gamepad", level: .warning)
             return
         }
 
@@ -215,7 +215,7 @@ class GamepadPresetRepository: ObservableObject {
             try data.write(to: fileURL, options: .atomic)
             return fileURL
         } catch {
-            print("⚠️ Failed to export preset: \(error)")
+            LogManager.shared.log("Failed to export preset: \(error)", category: "Gamepad", level: .warning)
             return nil
         }
     }

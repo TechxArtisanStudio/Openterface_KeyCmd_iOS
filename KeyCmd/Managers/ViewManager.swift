@@ -30,7 +30,7 @@ enum ViewType: String, CaseIterable {
     case keyboardMousePro = "Keyboard & Mouse Pro"
     case gamepad = "Gamepad"
     case numpad = "Numpad"
-    case shortcutHub = "Shortcuts"
+    case shortcutHub = "Shortcut Hub"
     case macros = "Macros"
     case voiceInput = "Voice Input"
     case terminal = "Terminal"
@@ -54,6 +54,21 @@ enum ViewType: String, CaseIterable {
             return "terminal"
         case .presentation:
             return "play.rectangle"
+        }
+    }
+
+    /// Asset-catalog image name matching Android's nav_menu.xml icons.
+    var iconAssetName: String {
+        switch self {
+        case .keyboardMouseBasic: return "keyboard_mouse"
+        case .keyboardMousePro:   return "keyboard_mouse_pro"
+        case .gamepad:            return "gamepad"
+        case .numpad:             return "grid.circle"
+        case .shortcutHub:        return "three_dots"
+        case .macros:             return "macros"
+        case .voiceInput:         return "ic_voice"
+        case .terminal:           return "ic_terminal"
+        case .presentation:       return "ic_presentation"
         }
     }
 

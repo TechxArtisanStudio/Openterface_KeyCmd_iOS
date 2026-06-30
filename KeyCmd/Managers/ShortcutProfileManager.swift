@@ -75,7 +75,7 @@ class ShortcutProfileManager: ObservableObject {
             let url = Bundle.main.url(forResource: name, withExtension: "json", subdirectory: "Profiles")
                    ?? Bundle.main.url(forResource: name, withExtension: "json")
             guard let url else {
-                print("⚠️ ShortcutProfileManager: Could not find \(name).json in bundle")
+                LogManager.shared.log("ShortcutProfileManager: Could not find \(name).json in bundle", category: "Profile", level: .warning)
                 return nil
             }
             return loadProfile(from: url)
@@ -99,7 +99,7 @@ class ShortcutProfileManager: ObservableObject {
                 .sorted { $0.lastPathComponent < $1.lastPathComponent }
             userProfiles = files.compactMap { loadProfile(from: $0) }
         } catch {
-            print("⚠️ ShortcutProfileManager: Failed to list user profiles – \(error)")
+            LogManager.shared.log("ShortcutProfileManager: Failed to list user profiles – \(error)", category: "Profile", level: .warning)
         }
     }
 
@@ -108,7 +108,7 @@ class ShortcutProfileManager: ObservableObject {
             let data = try Data(contentsOf: url)
             return try decoder.decode(ShortcutProfileData.self, from: data)
         } catch {
-            print("⚠️ ShortcutProfileManager: Failed to decode \(url.lastPathComponent) – \(error)")
+            LogManager.shared.log("ShortcutProfileManager: Failed to decode \(url.lastPathComponent) – \(error)", category: "Profile", level: .warning)
             return nil
         }
     }

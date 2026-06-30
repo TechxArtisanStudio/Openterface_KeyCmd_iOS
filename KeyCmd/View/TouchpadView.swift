@@ -106,58 +106,58 @@ class TouchpadUIView: UIView {
         tapDurationThreshold = UserDefaults.standard.object(forKey: "tapDurationThreshold") as? TimeInterval ?? 0.4
         tapMovementThreshold = CGFloat(UserDefaults.standard.object(forKey: "tapMovementThreshold") as? Double ?? 10.0)
         tapDelayThreshold = UserDefaults.standard.object(forKey: "tapDelayThreshold") as? TimeInterval ?? 0.15
-        print("🔧 Loaded settings - Duration: \(tapDurationThreshold)s, Movement: \(tapMovementThreshold)pts, Delay: \(tapDelayThreshold)s")
+        LogManager.shared.log("Loaded settings - Duration: \(tapDurationThreshold)s, Movement: \(tapMovementThreshold)pts, Delay: \(tapDelayThreshold)s", category: "Touchpad")
     }
 
     func updateSettings(_ settings: TouchpadSettings) {
         tapDurationThreshold = settings.tapDurationThreshold
         tapMovementThreshold = CGFloat(settings.tapMovementThreshold)
         tapDelayThreshold = settings.tapDelayThreshold
-        print("🔧 Updated settings - Duration: \(tapDurationThreshold)s, Movement: \(tapMovementThreshold)pts, Delay: \(tapDelayThreshold)s")
+        LogManager.shared.log("Updated settings - Duration: \(tapDurationThreshold)s, Movement: \(tapMovementThreshold)pts, Delay: \(tapDelayThreshold)s", category: "Touchpad")
     }
 
     private func setupGestures() {
-        print("🎯 Setting up gestures...")
+        LogManager.shared.log("Setting up gestures...", category: "Touchpad")
 
         // Two-finger tap gesture for right click
         let twoFingerTap = UITapGestureRecognizer(target: self, action: #selector(handleTwoFingerTap))
         twoFingerTap.numberOfTouchesRequired = 2
         twoFingerTap.numberOfTapsRequired = 1
         addGestureRecognizer(twoFingerTap)
-        print("✅ Added two-finger tap gesture")
+        LogManager.shared.log("Added two-finger tap gesture", category: "Touchpad", level: .success)
 
         // Long press gesture for drag mode toggle
         let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
         longPress.minimumPressDuration = 0.5 // 500ms for long press
         longPress.numberOfTouchesRequired = 1
         addGestureRecognizer(longPress)
-        print("✅ Added long press gesture")
+        LogManager.shared.log("Added long press gesture", category: "Touchpad", level: .success)
 
         // Double tap gesture for double click (changed from triple tap)
         let doubleTap = UITapGestureRecognizer(target: self, action: #selector(handleDoubleTap))
         doubleTap.numberOfTouchesRequired = 1
         doubleTap.numberOfTapsRequired = 2
         addGestureRecognizer(doubleTap)
-        print("✅ Added double tap gesture")
+        LogManager.shared.log("Added double tap gesture", category: "Touchpad", level: .success)
 
         // Pan gesture for mouse movement
         let panGesture = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
         panGesture.minimumNumberOfTouches = 1
         panGesture.maximumNumberOfTouches = 1
         addGestureRecognizer(panGesture)
-        print("✅ Added pan gesture")
+        LogManager.shared.log("Added pan gesture", category: "Touchpad", level: .success)
 
         // Two-finger pan gesture for scrolling
         let twoFingerPan = UIPanGestureRecognizer(target: self, action: #selector(handleTwoFingerPan(_:)))
         twoFingerPan.minimumNumberOfTouches = 2
         twoFingerPan.maximumNumberOfTouches = 2
         addGestureRecognizer(twoFingerPan)
-        print("✅ Added two-finger pan gesture for scrolling")
+        LogManager.shared.log("Added two-finger pan gesture for scrolling", category: "Touchpad", level: .success)
 
         // Enable multiple touches
         isMultipleTouchEnabled = true
-        print("✅ Enabled multiple touches")
-        print("🎯 Gesture setup complete")
+        LogManager.shared.log("Enabled multiple touches", category: "Touchpad", level: .success)
+        LogManager.shared.log("Gesture setup complete", category: "Touchpad")
     }
 
     @objc private func handleTwoFingerTap() {
@@ -287,10 +287,10 @@ class TouchpadUIView: UIView {
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         super.touchesBegan(touches, with: event)
 
-        print("🟢 touchesBegan - touches.count: \(touches.count), allTouches: \(event?.allTouches?.count ?? 0)")
+        LogManager.shared.log("touchesBegan - touches.count: \(touches.count), allTouches: \(event?.allTouches?.count ?? 0)", category: "Touchpad")
 
         guard let touch = touches.first else {
-            print("❌ touchesBegan - no first touch")
+            LogManager.shared.log("touchesBegan - no first touch", category: "Touchpad", level: .warning)
             return
         }
         let location = touch.location(in: self)
@@ -301,16 +301,16 @@ class TouchpadUIView: UIView {
                 tapStartTime = Date()
                 pendingTapLocation = location
             }
-            print("✅ touchesBegan - single finger detected at \(location), starting tap detection")
+            LogManager.shared.log("touchesBegan - single finger detected at \(location), starting tap detection", category: "Touchpad", level: .success)
         } else {
-            print("⚠️ touchesBegan - multi-finger touch detected, ignoring tap")
+            LogManager.shared.log("touchesBegan - multi-finger touch detected, ignoring tap", category: "Touchpad")
         }
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         super.touchesMoved(touches, with: event)
 
-        print("🔄 touchesMoved - touches.count: \(touches.count), allTouches: \(event?.allTouches?.count ?? 0)")
+        LogManager.shared.log("touchesMoved - touches.count: \(touches.count), allTouches: \(event?.allTouches?.count ?? 0)", category: "Touchpad")
 
         // If there's movement during a potential tap, check if it exceeds threshold
         if let startLocation = pendingTapLocation,
@@ -320,27 +320,27 @@ class TouchpadUIView: UIView {
             let distance = sqrt(pow(currentLocation.x - startLocation.x, 2) +
                               pow(currentLocation.y - startLocation.y, 2))
 
-            print("📏 touchesMoved - distance moved: \(distance), threshold: \(tapMovementThreshold)")
+            LogManager.shared.log("touchesMoved - distance moved: \(distance), threshold: \(tapMovementThreshold)", category: "Touchpad")
 
             // If movement exceeds threshold, cancel pending tap
             if distance > tapMovementThreshold {
-                print("❌ touchesMoved - movement exceeds threshold, cancelling tap")
+                LogManager.shared.log("touchesMoved - movement exceeds threshold, cancelling tap", category: "Touchpad", level: .warning)
                 cancelPendingTap()
             }
         } else if pendingTapLocation != nil {
-            print("⚠️ touchesMoved - conditions not met for tap tracking")
+            LogManager.shared.log("touchesMoved - conditions not met for tap tracking", category: "Touchpad")
         }
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         super.touchesEnded(touches, with: event)
 
-        print("🔴 touchesEnded - touches.count: \(touches.count), allTouches: \(event?.allTouches?.count ?? 0)")
+        LogManager.shared.log("touchesEnded - touches.count: \(touches.count), allTouches: \(event?.allTouches?.count ?? 0)", category: "Touchpad")
 
         guard let touch = touches.first,
               let startTime = tapStartTime,
               let tapLocation = pendingTapLocation else {
-            print("❌ touchesEnded - missing required data (touch/startTime/tapLocation)")
+            LogManager.shared.log("touchesEnded - missing required data (touch/startTime/tapLocation)", category: "Touchpad", level: .warning)
             sendTouchRelease()
             return
         }
@@ -348,7 +348,7 @@ class TouchpadUIView: UIView {
         let currentLocation = touch.location(in: self)
         let tapDuration = Date().timeIntervalSince(startTime)
 
-        print("⏱️ touchesEnded - tap duration: \(tapDuration)s, max allowed: \(tapDurationThreshold)s")
+        LogManager.shared.log("touchesEnded - tap duration: \(tapDuration)s, max allowed: \(tapDurationThreshold)s", category: "Touchpad")
 
         // Check if it's a valid single tap
         if padClickDragGesturesEnabled &&
@@ -359,29 +359,29 @@ class TouchpadUIView: UIView {
             let distance = sqrt(pow(currentLocation.x - tapLocation.x, 2) +
                               pow(currentLocation.y - tapLocation.y, 2))
 
-            print("📏 touchesEnded - total distance moved: \(distance), threshold: \(tapMovementThreshold)")
+            LogManager.shared.log("touchesEnded - total distance moved: \(distance), threshold: \(tapMovementThreshold)", category: "Touchpad")
 
             // If finger didn't move much, schedule a delayed tap
             if distance <= tapMovementThreshold {
-                print("✅ touchesEnded - valid tap detected, scheduling pending tap")
+                LogManager.shared.log("touchesEnded - valid tap detected, scheduling pending tap", category: "Touchpad", level: .success)
                 schedulePendingTap()
             } else {
-                print("❌ touchesEnded - movement too large for tap")
+                LogManager.shared.log("touchesEnded - movement too large for tap", category: "Touchpad", level: .warning)
             }
         } else {
-            print("❌ touchesEnded - invalid tap conditions (multi-finger: \(touches.count != 1), duration too long: \(tapDuration >= tapDurationThreshold))")
+            LogManager.shared.log("touchesEnded - invalid tap conditions (multi-finger: \(touches.count != 1), duration too long: \(tapDuration >= tapDurationThreshold))", category: "Touchpad", level: .warning)
         }
 
         // Clean up
         tapStartTime = nil
         pendingTapLocation = nil
         sendTouchRelease()
-        print("🧹 touchesEnded - cleaned up tap tracking variables")
+        LogManager.shared.log("touchesEnded - cleaned up tap tracking variables", category: "Touchpad")
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
         super.touchesCancelled(touches, with: event)
-        print("🚫 touchesCancelled - cleaning up")
+        LogManager.shared.log("touchesCancelled - cleaning up", category: "Touchpad", level: .warning)
         cancelPendingTap()
         tapStartTime = nil
         pendingTapLocation = nil
@@ -401,7 +401,7 @@ class TouchpadUIView: UIView {
             // Check double-tap suppression (matches Android suppressSingleTapFromDoubleTap)
             if self.suppressSingleTapFromDoubleTap {
                 self.suppressSingleTapFromDoubleTap = false
-                print("🚫 Pending tap suppressed due to double-tap")
+                LogManager.shared.log("Pending tap suppressed due to double-tap", category: "Touchpad", level: .warning)
             } else {
                 self.executePendingTap()
             }
@@ -409,11 +409,11 @@ class TouchpadUIView: UIView {
     }
 
     private func executePendingTap() {
-        print("🎯 executePendingTap - isDragging: \(isDragging), isSelectMode: \(mouseManager?.isSelectMode ?? false)")
+        LogManager.shared.log("executePendingTap - isDragging: \(isDragging), isSelectMode: \(mouseManager?.isSelectMode ?? false)", category: "Touchpad")
 
         // In drag mode, single tap exits drag mode instead of sending click
         if mouseManager?.isSelectMode == true {
-            print("🔓 Single tap in drag mode — exiting drag mode")
+            LogManager.shared.log("Single tap in drag mode — exiting drag mode", category: "Touchpad")
             mouseManager?.handleDragModeToggle()
             tapTimer = nil
             return
@@ -421,17 +421,17 @@ class TouchpadUIView: UIView {
 
         // Only execute if we're not currently dragging
         if !isDragging {
-            print("✅ Single tap confirmed - performing click")
+            LogManager.shared.log("Single tap confirmed - performing click", category: "Touchpad", level: .success)
             mouseManager?.handleClick()
         } else {
-            print("❌ Drag in progress - cancelling click")
+            LogManager.shared.log("Drag in progress - cancelling click", category: "Touchpad", level: .warning)
         }
         tapTimer = nil
     }
 
     private func cancelPendingTap() {
         if tapTimer != nil {
-            print("🚫 cancelPendingTap - cancelling pending tap timer")
+            LogManager.shared.log("cancelPendingTap - cancelling pending tap timer", category: "Touchpad", level: .warning)
         }
         tapTimer?.invalidate()
         tapTimer = nil

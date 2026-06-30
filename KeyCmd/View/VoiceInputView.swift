@@ -94,7 +94,7 @@ private final class BoundedTextViewContainer: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         textView.frame = bounds
-        print("📦 BoundedTextViewContainer.layoutSubviews: bounds=\(bounds), textView.frame=\(textView.frame)")
+        LogManager.shared.log("BoundedTextViewContainer.layoutSubviews: bounds=\(bounds), textView.frame=\(textView.frame)", category: "VoiceInput")
     }
 }
 

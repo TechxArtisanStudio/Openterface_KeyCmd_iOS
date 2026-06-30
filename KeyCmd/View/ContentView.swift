@@ -35,7 +35,7 @@ struct ContentView: View {
     @StateObject private var gyroMouseManager: GyroMouseManager
     @AppStorage("gyroMouseEnabled") private var gyroMouseEnabled = false
     @AppStorage("gyroMouseSensitivity") private var gyroMouseSensitivity: Double = 1.0
-    @State private var basicSubmode: BasicKeyboardMouseView.Submode = .keyboard
+    @State private var basicSubmode: BasicKeyboardMouseView.Submode = .touchpad
     @AppStorage("km_pro_submode") private var proSubmodeRaw: Int = 0
     
     init(launchPanelManager: LaunchPanelManager) {
@@ -55,7 +55,7 @@ struct ContentView: View {
     }
     
     // MARK: - Sidebar View
-    private var sidebarView: some View {
+    private func sidebarView(width: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             sidebarHeader
             modifiersDisplay
@@ -63,15 +63,26 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     sidebarNavigation
                     sidebarSettingsButton
+                    sidebarReportBugButton
                     sidebarWelcomeGuideButton
                     sidebarSidebarLogo
                     sidebarVersionDisplay
                 }
             }
         }
-        .frame(width: 180)
+        .frame(width: width)
         .background(Color(UIColor.secondarySystemBackground))
         .transition(.move(edge: .leading))
+        .gesture(
+            DragGesture(minimumDistance: 20)
+                .onEnded { value in
+                    if value.translation.width < -50 {
+                        withAnimation {
+                            sidebarVisible = false
+                        }
+                    }
+                }
+        )
     }
     
     private var sidebarHeader: some View {
@@ -88,9 +99,13 @@ struct ContentView: View {
                         .scaleEffect(x: 0.65, y: 1, anchor: .center)
                 }
                 .buttonStyle(PlainButtonStyle())
-                Text("KeyMod")
-                    .font(.headline)
+                Image("keycmd_wordmark")
+                    .resizable()
+                    .renderingMode(.template)
+                    .scaledToFit()
+                    .frame(height: 18)
                     .foregroundColor(.primary)
+                    .accessibilityLabel(Text("KeyCmd"))
                     .onTapGesture {
                         withAnimation {
                             sidebarVisible.toggle()
@@ -114,7 +129,7 @@ struct ContentView: View {
                 }) {
                     Image(systemName: "arrow.left.arrow.right")
                         .font(.system(size: 12))
-                        .foregroundColor(.blue)
+                        .foregroundColor(themeManager.accentColor)
                 }
             }
             .padding(.leading, 16)
@@ -166,14 +181,15 @@ struct ContentView: View {
                 }
             }) {
                 HStack {
-                    Image(systemName: viewType.iconName)
+                    Image(viewType.iconAssetName)
+                        .renderingMode(.template)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 20, height: 20)
-                        .foregroundColor(viewManager.currentView == viewType ? .green : .blue)
+                        .foregroundColor(themeManager.accentColor)
                     Text(viewType.localizedName)
-                        .font(.body)
-                        .foregroundColor(viewManager.currentView == viewType ? .green : .primary)
+                        .font(.headline)
+                        .foregroundColor(.primary)
                     // Beta badge for experimental features
                     if viewType == .macros || viewType == .voiceInput || viewType == .terminal {
                         Image(systemName: "flask.fill")
@@ -182,9 +198,9 @@ struct ContentView: View {
                             .padding(.leading, 4)
                     }
                 }
-                .padding(.vertical, 10)
+                .padding(.vertical, 14)
                 .padding(.horizontal, 12)
-                .background(viewManager.currentView == viewType ? Color.green.opacity(0.15) : Color.clear)
+                .background(viewManager.currentView == viewType ? themeManager.accentColor.opacity(0.15) : Color.clear)
                 .cornerRadius(8)
             }
             .buttonStyle(PlainButtonStyle())
@@ -215,7 +231,7 @@ struct ContentView: View {
                 .ignoresSafeArea(edges: [.bottom, .leading, .trailing])
         }
         .onAppear {
-            print("📦 MainContentView frame: maxWidth=.infinity, maxHeight=.infinity")
+            LogManager.shared.log("MainContentView frame: maxWidth=.infinity, maxHeight=.infinity", category: "UI")
         }
     }
     
@@ -264,7 +280,7 @@ struct ContentView: View {
         .padding(.vertical, 8)
         .zIndex(100)
         .onAppear {
-            print("🔝 TopBar rendered")
+            LogManager.shared.log("TopBar rendered", category: "UI")
         }
     }
 
@@ -273,20 +289,26 @@ struct ContentView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 0) {
                 Button { proSubmodeRaw = ProKeyboardMouseView.ProSubmode.keyboard.rawValue } label: {
-                    Image(systemName: "keyboard")
-                        .font(.system(size: 16, weight: .medium))
+                    Image("ic_km_pro_submode_keyboard")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 20, height: 20)
                         .foregroundColor(current == .keyboard ? .purple : .secondary)
                         .frame(width: 34, height: 34)
                 }
                 Button { proSubmodeRaw = ProKeyboardMouseView.ProSubmode.compose.rawValue } label: {
-                    Image(systemName: "pencil.and.outline")
-                        .font(.system(size: 16, weight: .medium))
+                    Image("ic_km_pro_submode_compose")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 20, height: 20)
                         .foregroundColor(current == .compose ? .purple : .secondary)
                         .frame(width: 34, height: 34)
                 }
                 Button { proSubmodeRaw = ProKeyboardMouseView.ProSubmode.numpad.rawValue } label: {
-                    Image(systemName: "0.square")
-                        .font(.system(size: 16, weight: .medium))
+                    Image("ic_km_pro_submode_numpad")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 20, height: 20)
                         .foregroundColor(current == .numpad ? .purple : .secondary)
                         .frame(width: 34, height: 34)
                 }
@@ -353,7 +375,7 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            print("🎯 TopBarButtons appeared - Current view: \(viewManager.currentView.rawValue)")
+            LogManager.shared.log("TopBarButtons appeared - Current view: \(viewManager.currentView.rawValue)", category: "UI")
         }
     }
 
@@ -593,25 +615,24 @@ struct ContentView: View {
 
     private var bleButton: some View {
         Button(action: {
-            if bleManager.checkBluetoothPermission() {
-                bleManager.startScanning()
-                showPopup = true
-                print("Scanning for Bluetooth devices...")
-            } else {
-                print("Bluetooth permission not granted")
-            }
+            showPopup = true
         }) {
-            Image(systemName: "antenna.radiowaves.left.and.right")
+            Image(systemName: bleIconName)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 20, height: 20)
-                .foregroundColor(bleManager.connectedDevices.isEmpty ? .gray : themeManager.accentColor)
+                .foregroundColor(bleManager.connectionState == .connected ? themeManager.accentColor : .gray)
         }
         .frame(width: 34, height: 34)
         .background(Color.clear)
         .buttonStyle(.plain)
-        .onAppear {
-            print("📡 BLEButton rendered")
+    }
+
+    private var bleIconName: String {
+        switch bleManager.connectionState {
+        case .connected: return "antenna.radiowaves.left.and.right"
+        case .connecting, .reconnecting: return "antenna.radiowaves.left.and.right"
+        case .disconnected: return "antenna.radiowaves.left.and.right"
         }
     }
     
@@ -623,16 +644,17 @@ struct ContentView: View {
             }
         }) {
             HStack {
-                Image(systemName: "gearshape.fill")
+                Image("ic_settings")
+                    .renderingMode(.template)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 20, height: 20)
-                    .foregroundColor(.gray)
+                    .foregroundColor(themeManager.accentColor)
                 Text("Settings")
-                    .font(.body)
+                    .font(.headline)
                     .foregroundColor(.primary)
             }
-            .padding(.vertical, 10)
+            .padding(.vertical, 14)
             .padding(.horizontal, 12)
             .background(Color.clear)
             .cornerRadius(8)
@@ -648,16 +670,38 @@ struct ContentView: View {
             launchPanelManager.showLaunchPanelAgain()
         }) {
             HStack {
-                Image(systemName: "book.fill")
+                Text("WELCOME & GUIDE")
+                    .font(.headline)
+                    .foregroundColor(themeManager.accentColor)
+            }
+            .padding(.vertical, 14)
+            .padding(.horizontal, 12)
+            .background(Color.clear)
+            .cornerRadius(8)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+
+    private var sidebarReportBugButton: some View {
+        let url = URL(string: "https://docs.google.com/forms/d/e/1FAIpQLScTnJF_Pj_iIMvu8tBPaY_-n45-ffADUFAr8Ws-f6_TckWVTQ/viewform?usp=publish-editor")!
+        return Button(action: {
+            withAnimation {
+                sidebarVisible = false
+            }
+            UIApplication.shared.open(url)
+        }) {
+            HStack {
+                Image("chat_error")
+                    .renderingMode(.template)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 20, height: 20)
-                    .foregroundColor(.blue)
-                Text("Welcome & Guide")
-                    .font(.body)
+                    .foregroundColor(themeManager.accentColor)
+                Text("Report a Bug")
+                    .font(.headline)
                     .foregroundColor(.primary)
             }
-            .padding(.vertical, 10)
+            .padding(.vertical, 14)
             .padding(.horizontal, 12)
             .background(Color.clear)
             .cornerRadius(8)
@@ -699,12 +743,12 @@ struct ContentView: View {
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 20, height: 20)
-                    .foregroundColor(.blue)
+                    .foregroundColor(themeManager.accentColor)
                 Text(viewManager.currentMode == .basic ? "Switch to Pro" : "Switch to Basic")
-                    .font(.body)
+                    .font(.headline)
                     .foregroundColor(.primary)
             }
-            .padding(.vertical, 10)
+            .padding(.vertical, 14)
             .padding(.horizontal, 12)
             .background(Color.clear)
             .cornerRadius(8)
@@ -723,7 +767,7 @@ struct ContentView: View {
                     selectedSubmode: $basicSubmode
                 )
                 .id(viewManager.currentView)
-                .onAppear { print("🟢 [ContentView] BasicKeyboardMouseView appeared") }
+                .onAppear { LogManager.shared.log("[ContentView] BasicKeyboardMouseView appeared", category: "UI", level: .success) }
             case .keyboardMousePro:
                 ProKeyboardMouseView(
                     mouseManager: mouseManager,
@@ -766,14 +810,14 @@ struct ContentView: View {
                 }
                 .id(viewManager.currentView)
                 .onAppear {
-                    print("🎮 Gamepad view appeared, locking landscape orientation")
+                    LogManager.shared.log("Gamepad view appeared, locking landscape orientation", category: "UI")
                     orientationManager.lockToLandscape()
                     if !orientationManager.isLandscape {
                         orientationManager.toggleOrientationWithInstruction()
                     }
                 }
                 .onChange(of: presetRepository.activePresetId) { newId in
-                    print("🔄 Active preset changed to: \(newId ?? "none")")
+                    LogManager.shared.log("Active preset changed to: \(newId ?? "none")", category: "Gamepad")
                 }
                 .fullScreenCover(isPresented: $showPresetPicker) {
                     PresetPickerView(
@@ -829,13 +873,13 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            print("🎮 MainContent view type: \(viewManager.currentView.rawValue)")
-            print("   Frame: maxWidth=.infinity, maxHeight=.infinity")
+            LogManager.shared.log("MainContent view type: \(viewManager.currentView.rawValue)", category: "UI")
+            LogManager.shared.log("Frame: maxWidth=.infinity, maxHeight=.infinity", category: "UI")
         }
         .onTapGesture {
         }
         .onChange(of: viewManager.currentView) { newView in
-            print("🔄 View switched to: \(newView.rawValue)")
+            LogManager.shared.log("View switched to: \(newView.rawValue)", category: "UI")
             if newView == .gamepad {
                 // Entering gamepad: enable game mode and clear stale key state
                 // from any previous view (keyboard/mouse could leave modifiers or
@@ -856,27 +900,48 @@ struct ContentView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            HStack(spacing: 0) {
-                if sidebarVisible {
-                    sidebarView
-                }
+            ZStack(alignment: .leading) {
                 mainContentView
+                if sidebarVisible {
+                    Color.black.opacity(0.25)
+                        .ignoresSafeArea()
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            withAnimation {
+                                sidebarVisible = false
+                            }
+                        }
+                        .accessibilityHidden(true)
+                    sidebarView(width: geometry.size.width * 2 / 3)
+                }
             }
+            .gesture(
+                DragGesture(minimumDistance: 10)
+                    .onEnded { value in
+                        let startedAtLeftEdge = value.startLocation.x < 20
+                        let movedRight = value.translation.width > 50
+                        if startedAtLeftEdge && movedRight && !sidebarVisible {
+                            withAnimation {
+                                sidebarVisible = true
+                            }
+                        }
+                    }
+            )
             .background(Color(UIColor.systemBackground))
             .statusBarHidden(true)
             .onAppear {
-                print("📐 GEOMETRY DEBUG:")
-                print("  Screen size: \(geometry.size.width) x \(geometry.size.height)")
-                print("  Safe area: top=\(geometry.safeAreaInsets.top), bottom=\(geometry.safeAreaInsets.bottom), leading=\(geometry.safeAreaInsets.leading), trailing=\(geometry.safeAreaInsets.trailing)")
-                print("  Window scene: \(UIApplication.shared.connectedScenes.first)")
+                LogManager.shared.log("GEOMETRY DEBUG:", category: "UI")
+                LogManager.shared.log("Screen size: \(geometry.size.width) x \(geometry.size.height)", category: "UI")
+                LogManager.shared.log("Safe area: top=\(geometry.safeAreaInsets.top), bottom=\(geometry.safeAreaInsets.bottom), leading=\(geometry.safeAreaInsets.leading), trailing=\(geometry.safeAreaInsets.trailing)", category: "UI")
+                LogManager.shared.log("Window scene: \(UIApplication.shared.connectedScenes.first)", category: "UI")
                 if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-                    print("  Window size: \(windowScene.windows.first?.bounds.size ?? .zero)")
-                    print("  Screen bounds: \(UIScreen.main.bounds.size)")
-                    print("  Screen scale: \(UIScreen.main.scale)")
+                    LogManager.shared.log("Window size: \(windowScene.windows.first?.bounds.size ?? .zero)", category: "UI")
+                    LogManager.shared.log("Screen bounds: \(UIScreen.main.bounds.size)", category: "UI")
+                    LogManager.shared.log("Screen scale: \(UIScreen.main.scale)", category: "UI")
                 }
             }
             .onChange(of: geometry.size) { newSize in
-                print("🔄 Geometry changed: \(newSize.width) x \(newSize.height)")
+                LogManager.shared.log("Geometry changed: \(newSize.width) x \(newSize.height)", category: "UI")
             }
             .overlay(
                 // Orientation instruction overlay
@@ -907,30 +972,7 @@ struct ContentView: View {
                 )
             )
             .sheet(isPresented: $showPopup) {
-                NavigationView {
-                    List(bleManager.discoveredDevices, id: \.0.identifier) { device, rssi in
-                        VStack(alignment: .leading) {
-                            Text(device.name ?? "Unknown Device")
-                                .font(.headline)
-                                .foregroundColor(bleManager.connectedDevices.contains(device.identifier) ? .green : .primary)
-                            Text("RSSI: \(rssi.stringValue)")
-                                .font(.footnote)
-                                .foregroundColor(.blue)
-                            Text("UUID: \(device.identifier.uuidString)")
-                                .font(.footnote)
-                                .foregroundColor(.gray)
-                        }
-                        .onTapGesture {
-                            bleManager.connectToDevice(device)
-                        }
-                    }
-                    .navigationTitle("Connecting Bluetooth")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .navigationBarTrailing) {
-                            Button("Done") { showPopup = false }
-                        }
-                    }
+                ConnectionDialogView(bleManager: bleManager)
                     .onAppear {
                         if viewManager.currentView == .gamepad {
                             orientationManager.lockToLandscape()
@@ -939,7 +981,6 @@ struct ContentView: View {
                             }
                         }
                     }
-                }
             }
             .sheet(isPresented: $showSettings) {
                 SettingsView()
@@ -964,7 +1005,7 @@ struct ContentView: View {
                 mouseManager.bleManager = bleManager
                 keyboardManager.bleManager = bleManager
                 viewManager.setKeyboardManager(keyboardManager) // Set keyboard manager reference
-                
+
                 // Start clipboard monitoring
                 clipboardManager.startMonitoring()
                 
@@ -973,9 +1014,9 @@ struct ContentView: View {
                     if bleManager.checkBluetoothPermission() {
                         bleManager.startScanning()
                         showPopup = true
-                        print("🔵 Auto-starting Bluetooth scan on app launch")
+                        LogManager.shared.log("Auto-starting Bluetooth scan on app launch", category: "BLE")
                     } else {
-                        print("⚠️ Bluetooth permission not granted")
+                        LogManager.shared.log("Bluetooth permission not granted", category: "BLE", level: .warning)
                     }
                 }
                 

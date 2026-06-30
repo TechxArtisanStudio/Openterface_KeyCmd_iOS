@@ -82,16 +82,16 @@ struct BasicTouchpadScrollStripView: View {
                         guard let prevY = lastScrollY else { return }
                         let deltaY = value.location.y - prevY
 
-                        print("📏 deltaY: \(deltaY), threshold: \(pixelsPerWheelUnit)")
+                        LogManager.shared.log("deltaY: \(deltaY), threshold: \(pixelsPerWheelUnit)", category: "Scroll")
 
                         // Only send scroll after moving past threshold
                         if abs(deltaY) > pixelsPerWheelUnit {
-                            print("✅ Threshold exceeded, triggering haptic")
+                            LogManager.shared.log("Threshold exceeded, triggering haptic", category: "Scroll", level: .success)
                             // Trigger haptic feedback on any significant movement
                             HapticFeedbackManager.shared.triggerScrollTick()
 
                             let wheelUnits = Int(deltaY / pixelsPerWheelUnit * sensitivity)
-                            print("📊 wheelUnits: \(wheelUnits), sensitivity: \(sensitivity)")
+                            LogManager.shared.log("wheelUnits: \(wheelUnits), sensitivity: \(sensitivity)", category: "Scroll")
                             if wheelUnits != 0 {
                                 mouseManager.handleScroll(deltaX: 0, deltaY: -wheelUnits)
                                 lastScrollY = value.location.y

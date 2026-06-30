@@ -134,7 +134,7 @@ class GamepadBackgroundManager: ObservableObject {
             bgOffsetY = 0
             saveConfig()
         } catch {
-            print("⚠️ Failed to save background image: \(error)")
+            LogManager.shared.log("Failed to save background image: \(error)", category: "Gamepad", level: .warning)
         }
     }
 

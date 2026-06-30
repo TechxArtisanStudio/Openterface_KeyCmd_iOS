@@ -57,7 +57,7 @@ class GyroMouseManager: ObservableObject {
     func start() {
         guard !isRunning else { return }
         guard motionManager.isGyroAvailable || motionManager.isDeviceMotionAvailable else {
-            print("⚠️ GyroMouseManager: No motion sensors available")
+            LogManager.shared.log("GyroMouseManager: No motion sensors available", category: "Gyro", level: .warning)
             return
         }
 
@@ -70,7 +70,7 @@ class GyroMouseManager: ObservableObject {
                                                    to: .main) { [weak self] motion, error in
                 guard let self = self, self.isEnabled else { return }
                 if let error = error {
-                    print("⚠️ GyroMouseManager: Device motion error: \(error.localizedDescription)")
+                    LogManager.shared.log("GyroMouseManager: Device motion error: \(error.localizedDescription)", category: "Gyro", level: .warning)
                     return
                 }
                 guard let motion = motion else { return }
@@ -81,7 +81,7 @@ class GyroMouseManager: ObservableObject {
             motionManager.startGyroUpdates(to: .main) { [weak self] gyroData, error in
                 guard let self = self, self.isEnabled else { return }
                 if let error = error {
-                    print("⚠️ GyroMouseManager: Gyro error: \(error.localizedDescription)")
+                    LogManager.shared.log("GyroMouseManager: Gyro error: \(error.localizedDescription)", category: "Gyro", level: .warning)
                     return
                 }
                 guard let gyroData = gyroData else { return }
@@ -126,7 +126,7 @@ class GyroMouseManager: ObservableObject {
             self?.baselineGyroY = motion.rotationRate.y
             self?.motionManager.stopDeviceMotionUpdates()
             self?.isCalibrating = false
-            print("🎯 GyroMouseManager: Calibrated baseline X=\(self?.baselineGyroX ?? 0) Y=\(self?.baselineGyroY ?? 0)")
+            LogManager.shared.log("GyroMouseManager: Calibrated baseline X=\(self?.baselineGyroX ?? 0) Y=\(self?.baselineGyroY ?? 0)", category: "Gyro")
         }
     }
 

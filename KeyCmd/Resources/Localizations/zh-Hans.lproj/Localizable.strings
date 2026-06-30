@@ -162,7 +162,7 @@
 "Choose your preferred mode" = "选择您偏好的模式";
 "Remember this choice and auto-enter this mode" = "记住此选择并自动进入此模式";
 "Skip for now" = "暂时跳过";
-"Welcome & Guide" = "欢迎和指南";
+"WELCOME & GUIDE" = "欢迎和指南";
 
 /* --- 剪贴板提示 --- */
 "Clipboard Content Detected" = "检测到剪贴板内容";
@@ -382,7 +382,7 @@
 "Keyboard & Mouse Pro" = "键盘和鼠标专业版";
 "Gamepad" = "游戏手柄";
 "Numpad" = "数字键盘";
-"Shortcuts" = "快捷键";
+"Shortcut Hub" = "快捷键中心";
 "Presentation" = "演示";
 "Compose" = "编辑";
 

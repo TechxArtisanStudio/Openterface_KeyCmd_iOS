@@ -667,7 +667,7 @@ struct GamepadButton: View {
         .scaleEffect(isPressed ? 0.95 : 1.0)
         .onTapGesture {
             if isKeyMappingMode {
-                print("🔧 Tap detected on button: \(label)")
+                LogManager.shared.log("Tap detected on button: \(label)", category: "Gamepad")
                 onLongPress?()
             }
         }

@@ -17,8 +17,8 @@ struct BasicKeyboardMouseView: View {
     @ObservedObject private var themeManager = ThemeManager.shared
 
     enum Submode: String, CaseIterable {
-        case keyboard = "Keyboard"
         case touchpad = "Touchpad"
+        case keyboard = "Keyboard"
         case numpad = "Numpad"
     }
 
@@ -87,6 +87,8 @@ struct BasicKeyboardMouseView: View {
                 .onChange(of: selectedSubmode) { newSubmode in
                     if newSubmode == .keyboard {
                         lockToLandscape()
+                    } else if newSubmode == .touchpad {
+                        lockToPortrait()
                     } else {
                         unlockOrientation()
                     }
@@ -103,6 +105,8 @@ struct BasicKeyboardMouseView: View {
             .onAppear {
                 if selectedSubmode == .keyboard {
                     lockToLandscape()
+                } else if selectedSubmode == .touchpad {
+                    lockToPortrait()
                 } else {
                     unlockOrientation()
                 }
@@ -138,15 +142,25 @@ struct BasicKeyboardMouseView: View {
 
     private func tabButton(for submode: Submode) -> some View {
         let isSelected = selectedSubmode == submode
-        return Button(action: { withAnimation { selectedSubmode = submode } }) {
+        return Button(action: {
+            // Lock orientation BEFORE switching view to prevent flash
+            if submode == .keyboard {
+                lockToLandscape()
+            } else if submode == .touchpad {
+                lockToPortrait()
+            } else {
+                unlockOrientation()
+            }
+            withAnimation { selectedSubmode = submode }
+        }) {
             Text(submode.rawValue)
                 .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
-                .foregroundColor(isSelected ? themeManager.accentColor : .secondary)
+                .foregroundColor(isSelected ? .white : .secondary)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 6)
                 .background(
                     Capsule()
-                        .fill(isSelected ? themeManager.accentColor.opacity(0.15) : Color.clear)
+                        .fill(isSelected ? themeManager.accentColor.opacity(0.10) : Color.clear)
                 )
         }
         .buttonStyle(PlainButtonStyle())
@@ -154,15 +168,25 @@ struct BasicKeyboardMouseView: View {
 
     private func landscapeTabButton(for submode: Submode) -> some View {
         let isSelected = selectedSubmode == submode
-        return Button(action: { withAnimation { selectedSubmode = submode } }) {
+        return Button(action: {
+            // Lock orientation BEFORE switching view to prevent flash
+            if submode == .keyboard {
+                lockToLandscape()
+            } else if submode == .touchpad {
+                lockToPortrait()
+            } else {
+                unlockOrientation()
+            }
+            withAnimation { selectedSubmode = submode }
+        }) {
             Text(submode.rawValue)
                 .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
-                .foregroundColor(isSelected ? themeManager.accentColor : .secondary)
+                .foregroundColor(isSelected ? .white : .secondary)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 4)
                 .background(
                     Capsule()
-                        .fill(isSelected ? themeManager.accentColor.opacity(0.15) : Color.clear)
+                        .fill(isSelected ? themeManager.accentColor.opacity(0.10) : Color.clear)
                 )
         }
         .buttonStyle(PlainButtonStyle())
@@ -212,7 +236,7 @@ struct BasicKeyboardMouseView: View {
                 }
             }
             .onAppear {
-                print("🔴 LANDSCAPE KEYBOARD APPEARED — \(innerGeometry.size.width)x\(innerGeometry.size.height)")
+                LogManager.shared.log("LANDSCAPE KEYBOARD APPEARED — \(innerGeometry.size.width)x\(innerGeometry.size.height)", category: "Keyboard")
                 lockToLandscape()
             }
             // NOTE: No .onDisappear here — it fires during rotation and would unlock prematurely.
@@ -230,6 +254,18 @@ struct BasicKeyboardMouseView: View {
         }
     }
 
+    private func lockToPortrait() {
+        guard !OrientationManager.launchPanelVisible else { return }
+        orientationManager.lockToPortrait()
+        if #available(iOS 16.0, *) {
+            if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                DispatchQueue.main.async {
+                    scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait)) { _ in }
+                }
+            }
+        }
+    }
+
     private func unlockOrientation() {
         AppDelegate.orientationLock = .all
         orientationManager.preferredOrientation = .all
@@ -239,6 +275,12 @@ struct BasicKeyboardMouseView: View {
             }
         }
         UIViewController.attemptRotationToDeviceOrientation()
+        // Refresh isLandscape from actual device orientation — without this the
+        // stale value from the previous landscape-locked submode persists and
+        // numpad/touchpad render their landscape layout in portrait.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            self.orientationManager.updateOrientation()
+        }
     }
 
     private var linuxKeyboardLayout: some View {

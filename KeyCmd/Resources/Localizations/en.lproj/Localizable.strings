@@ -162,7 +162,7 @@
 "Choose your preferred mode" = "Choose your preferred mode";
 "Remember this choice and auto-enter this mode" = "Remember this choice and auto-enter this mode";
 "Skip for now" = "Skip for now";
-"Welcome & Guide" = "Welcome & Guide";
+"WELCOME & GUIDE" = "WELCOME & GUIDE";
 
 /* --- Clipboard Prompt --- */
 "Clipboard Content Detected" = "Clipboard Content Detected";
@@ -382,7 +382,7 @@
 "Keyboard & Mouse Pro" = "Keyboard & Mouse Pro";
 "Gamepad" = "Gamepad";
 "Numpad" = "Numpad";
-"Shortcuts" = "Shortcuts";
+"Shortcut Hub" = "Shortcut Hub";
 "Presentation" = "Presentation";
 "Compose" = "Compose";
 

@@ -156,7 +156,7 @@ struct ProKeyboardMouseView: View {
 
     enum ProSubmode: Int, CaseIterable {
         case keyboard, compose, numpad
-        var icon: String { switch self { case .keyboard: return "keyboard"; case .compose: return "pencil.and.outline"; case .numpad: return "0.square" } }
+        var icon: String { switch self { case .keyboard: return "ic_km_pro_submode_keyboard"; case .compose: return "ic_km_pro_submode_compose"; case .numpad: return "ic_km_pro_submode_numpad" } }
         var label: String { switch self { case .keyboard: return "Keyboard"; case .compose: return "Compose"; case .numpad: return "Numpad" } }
     }
 

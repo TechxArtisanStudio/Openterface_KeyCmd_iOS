@@ -118,12 +118,12 @@ class HapticFeedbackManager: ObservableObject {
 
     // Diagnostic: check if haptics are actually available
     private func checkHapticAvailability() {
-        print("🔍 Checking haptic availability...")
+        LogManager.shared.log("Checking haptic availability...", category: "Haptic")
         let generator = UIImpactFeedbackGenerator(style: .heavy)
         generator.prepare()
-        print("✅ Haptic generator created and prepared")
-        print("📱 Device: \(deviceModelName)")
-        print("📱 Has Taptic Engine: \(hasTapticEngine)")
+        LogManager.shared.log("Haptic generator created and prepared", category: "Haptic", level: .success)
+        LogManager.shared.log("Device: \(deviceModelName)", category: "Haptic")
+        LogManager.shared.log("Has Taptic Engine: \(hasTapticEngine)", category: "Haptic")
         // Note: iOS doesn't provide a direct API to check if haptics are disabled in Settings
         // If you can't feel haptics, check:
         // 1. Settings > Accessibility > Touch > Haptics (must be ON)
@@ -170,13 +170,13 @@ class HapticFeedbackManager: ObservableObject {
         }
 
         #if os(iOS)
-        print("🔘 triggerButtonPress() called - using UISelectionFeedbackGenerator")
+        LogManager.shared.log("triggerButtonPress() called - using UISelectionFeedbackGenerator", category: "Haptic")
         let selectionFeedback = UISelectionFeedbackGenerator()
         selectionFeedback.prepare()
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
             selectionFeedback.selectionChanged()
-            print("✅ Selection feedback triggered")
+            LogManager.shared.log("Selection feedback triggered", category: "Haptic", level: .success)
         }
         #elseif os(macOS)
         NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
@@ -192,7 +192,7 @@ class HapticFeedbackManager: ObservableObject {
         let now = Date()
         let timeSinceLastHaptic = now.timeIntervalSince(lastHapticTime)
         guard timeSinceLastHaptic >= 0.1 else {
-            print("⚠️ Haptic throttled (only \(String(format: "%.1f", timeSinceLastHaptic * 1000))ms since last)")
+            LogManager.shared.log("Haptic throttled (only \(String(format: "%.1f", timeSinceLastHaptic * 1000))ms since last)", category: "Haptic", level: .warning)
             return
         }
         lastHapticTime = now
@@ -200,12 +200,12 @@ class HapticFeedbackManager: ObservableObject {
         // Create a fresh generator for maximum reliability
         let generator = UIImpactFeedbackGenerator(style: .light)
         generator.prepare()
-        print("🔔 Preparing haptic...")
+        LogManager.shared.log("Preparing haptic...", category: "Haptic")
 
         // Small delay to ensure preparation completes, then trigger
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
             generator.impactOccurred()
-            print("✅ Haptic triggered (.light)")
+            LogManager.shared.log("Haptic triggered (.light)", category: "Haptic", level: .success)
         }
         #elseif os(macOS)
         NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
@@ -250,12 +250,12 @@ class HapticFeedbackManager: ObservableObject {
     /// Test method to verify haptics are working - triggers the strongest possible haptic
     func testHaptic() {
         #if os(iOS)
-        print("🧪 Testing haptic feedback...")
+        LogManager.shared.log("Testing haptic feedback...", category: "Haptic")
         let generator = UIImpactFeedbackGenerator(style: .heavy)
         generator.prepare()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             generator.impactOccurred()
-            print("✅ Test haptic triggered")
+            LogManager.shared.log("Test haptic triggered", category: "Haptic", level: .success)
         }
         #endif
     }

@@ -148,7 +148,7 @@
 "Choose your preferred mode" = "選擇您偏好的模式";
 "Remember this choice and auto-enter this mode" = "記住此選擇並自動進入此模式";
 "Skip for now" = "暫時略過";
-"Welcome & Guide" = "歡迎和指南";
+"WELCOME & GUIDE" = "歡迎和指南";
 
 "Clipboard Content Detected" = "偵測到剪貼簿內容";
 "Send to target device?" = "傳送到目標裝置？";
@@ -301,7 +301,7 @@
 "Keyboard & Mouse Pro" = "鍵盤和滑鼠專業版";
 "Gamepad" = "遊戲控制器";
 "Numpad" = "數字鍵盤";
-"Shortcuts" = "快捷鍵";
+"Shortcut Hub" = "快捷鍵";
 "Presentation" = "簡報";
 "Compose" = "編輯";
 

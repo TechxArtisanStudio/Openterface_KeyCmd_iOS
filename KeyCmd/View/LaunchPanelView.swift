@@ -69,7 +69,7 @@ struct LaunchPanelView: View {
                     // Third row
                     HStack(spacing: 12) {
                         ModeCard(
-                            title: "Shortcuts",
+                            title: "Shortcut Hub",
                             icon: "square.grid.2x2",
                             isSelected: selectedMode == .shortcutHub,
                             action: { selectedMode = .shortcutHub }

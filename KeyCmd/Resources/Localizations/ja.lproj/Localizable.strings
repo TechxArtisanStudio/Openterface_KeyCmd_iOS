@@ -148,7 +148,7 @@
 "Choose your preferred mode" = "お好みのモードを選択してください";
 "Remember this choice and auto-enter this mode" = "この選択を記憶してこのモードに自動入力する";
 "Skip for now" = "今はスキップ";
-"Welcome & Guide" = "ようこそ＆ガイド";
+"WELCOME & GUIDE" = "ようこそ＆ガイド";
 
 "Clipboard Content Detected" = "クリップボードのコンテンツを検出";
 "Send to target device?" = "ターゲットデバイスに送信しますか？";
@@ -301,7 +301,7 @@
 "Keyboard & Mouse Pro" = "キーボード＆マウス Pro";
 "Gamepad" = "ゲームパッド";
 "Numpad" = "テンキー";
-"Shortcuts" = "ショートカット";
+"Shortcut Hub" = "ショートカットセンター";
 "Presentation" = "プレゼンテーション";
 "Compose" = "作成";
 

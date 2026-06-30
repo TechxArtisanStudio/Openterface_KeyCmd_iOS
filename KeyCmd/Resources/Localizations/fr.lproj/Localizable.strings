@@ -148,7 +148,7 @@
 "Choose your preferred mode" = "Choisissez votre mode préféré";
 "Remember this choice and auto-enter this mode" = "Mémoriser ce choix et entrer automatiquement dans ce mode";
 "Skip for now" = "Ignorer pour l'instant";
-"Welcome & Guide" = "Bienvenue et guide";
+"WELCOME & GUIDE" = "Bienvenue et guide";
 
 "Clipboard Content Detected" = "Contenu du presse-papiers détecté";
 "Send to target device?" = "Envoyer à l'appareil cible ?";
@@ -301,7 +301,7 @@
 "Keyboard & Mouse Pro" = "Clavier et souris Pro";
 "Gamepad" = "Manette";
 "Numpad" = "Pavé numérique";
-"Shortcuts" = "Raccourcis";
+"Shortcut Hub" = "Centre de raccourcis";
 "Presentation" = "Présentation";
 "Compose" = "Composer";
 

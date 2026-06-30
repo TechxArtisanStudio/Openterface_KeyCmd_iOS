@@ -1,0 +1,14 @@
+{
+  "images" : [
+    {
+      "idiom" : "universal",
+      "filename" : "gamepad.svg",
+      "scale" : "1x"
+    }
+  ],
+  "info" : { "version" : 1, "author" : "xcode" },
+  "properties" : {
+    "preserves-vector-data" : true,
+    "template-rendering-intent" : "template"
+  }
+}

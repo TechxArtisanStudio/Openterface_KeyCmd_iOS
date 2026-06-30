@@ -71,6 +71,14 @@ class OrientationManager: ObservableObject {
             let interfaceOrientation = windowScene.interfaceOrientation
             if interfaceOrientation != .unknown {
                 isLandscape = interfaceOrientation.isLandscape
+                // Interface orientation and camera side are inverse:
+                // landscapeLeft = rotated clockwise = camera on RIGHT
+                // landscapeRight = rotated counter-clockwise = camera on LEFT
+                if interfaceOrientation == .landscapeLeft {
+                    cameraOnRight = true
+                } else if interfaceOrientation == .landscapeRight {
+                    cameraOnRight = false
+                }
                 return
             }
         }

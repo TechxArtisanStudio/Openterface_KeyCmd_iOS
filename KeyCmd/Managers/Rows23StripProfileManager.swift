@@ -138,7 +138,7 @@ final class Rows23StripProfileManager: ObservableObject {
             profiles.append(p)
             save()
         } catch {
-            print("⚠️ Rows23StripProfileManager: import failed – \(error)")
+            LogManager.shared.log("Rows23StripProfileManager: import failed – \(error)", category: "Profile", level: .warning)
         }
     }
 
