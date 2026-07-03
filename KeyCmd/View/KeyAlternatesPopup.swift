@@ -2,13 +2,13 @@
 //  KeyAlternatesPopup.swift
 //  KeyMod
 //
-//  Long-press → compact 3×3 grid popup above the anchor key.
+//  Long-press → horizontal 3-cell popup above the anchor key.
 //  Slide finger to pick a slot; lift to commit.
 //
 
 import SwiftUI
 
-/// A single alternate option mapped to a 3×3 grid slot.
+/// A single alternate option mapped to a horizontal slot (left/center/right).
 struct AlternateOption: Identifiable {
     let id = UUID()
     let display: String
@@ -43,6 +43,8 @@ struct KeyAlternatesPopupView: View {
     let options: [AlternateOption]
     let anchorFrame: CGRect
     var pick: AlternatesPick
+    var isVertical: Bool = false
+    var isTwoCell: Bool = false
 
     @ObservedObject private var themeManager = ThemeManager.shared
 
@@ -50,26 +52,41 @@ struct KeyAlternatesPopupView: View {
         Dictionary(uniqueKeysWithValues: options.map { ($0.slot, $0) })
     }
 
-    private static let gridLayout = [
-        [AlternatePopupGeometry.slotUpLeft,   AlternatePopupGeometry.slotUp,   AlternatePopupGeometry.slotUpRight],
-        [AlternatePopupGeometry.slotLeft,     AlternatePopupGeometry.slotCenter, AlternatePopupGeometry.slotRight],
-        [AlternatePopupGeometry.slotDownLeft, AlternatePopupGeometry.slotDown, AlternatePopupGeometry.slotDownRight],
+    // Horizontal 3-cell layout: [Left, Center, Right]
+    private static let horizontalLayout = [
+        [AlternatePopupGeometry.slotLeft, AlternatePopupGeometry.slotCenter, AlternatePopupGeometry.slotRight],
     ]
 
-    // Only render rows/cols that have content (Android bounding-box shrink)
-    private var visibleBounds: (minRow: Int, maxRow: Int, minCol: Int, maxCol: Int) {
-        var minR = 2, maxR = 0, minC = 2, maxC = 0
-        for r in 0..<3 {
-            for c in 0..<3 {
-                if slotMap[Self.gridLayout[r][c]] != nil {
-                    if r < minR { minR = r }
-                    if r > maxR { maxR = r }
-                    if c < minC { minC = c }
-                    if c > maxC { maxC = c }
-                }
-            }
+    // Horizontal 2-cell layout: [Left, Center]
+    private static let twoCellLayout = [
+        [AlternatePopupGeometry.slotLeft, AlternatePopupGeometry.slotCenter],
+    ]
+
+    // Vertical layout: 3 rows with Up/Center/Down
+    private static let verticalLayout = [
+        [AlternatePopupGeometry.slotUp],
+        [AlternatePopupGeometry.slotCenter],
+        [AlternatePopupGeometry.slotDown],
+    ]
+
+    private var gridLayout: [[Int]] {
+        if isVertical {
+            return Self.verticalLayout
+        } else if isTwoCell {
+            return Self.twoCellLayout
+        } else {
+            return Self.horizontalLayout
         }
-        return (minR, maxR, minC, maxC)
+    }
+
+    private var visibleBounds: (minRow: Int, maxRow: Int, minCol: Int, maxCol: Int) {
+        if isVertical {
+            return (0, 2, 0, 0)  // 3 rows, 1 column
+        } else if isTwoCell {
+            return (0, 0, 0, 1)  // 1 row, 2 columns
+        } else {
+            return (0, 0, 0, 2)  // 1 row, 3 columns
+        }
     }
 
     private let cellSize: CGFloat = 44
@@ -91,7 +108,7 @@ struct KeyAlternatesPopupView: View {
             ForEach(bounds.minRow...bounds.maxRow, id: \.self) { row in
                 HStack(spacing: cellSpacing) {
                     ForEach(bounds.minCol...bounds.maxCol, id: \.self) { col in
-                        cell(for: Self.gridLayout[row][col])
+                        cell(for: gridLayout[row][col])
                             .frame(width: cellSize, height: cellSize)
                     }
                 }

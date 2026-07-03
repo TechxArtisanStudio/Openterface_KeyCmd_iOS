@@ -33,10 +33,15 @@ struct KmProSettingsView: View {
 
         // MARK: - Typing section
         Section(header: Text("Typing")) {
+            Toggle("Alternate Hints", isOn: $prefs.alternateHintsEnabled)
+            Text("Letter keys show long-press hint glyphs for alternates. Turn off to hide hints and disable alternate popup.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
             Toggle("Key Tap Preview", isOn: $prefs.keyTapPreviewEnabled)
             Text("Show a floating label above a held key while pressing.")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(.secondarJJHy)
 
             Toggle("Compose Draft Retention", isOn: $prefs.composeDraftRetentionEnabled)
             Text("Remember compose text while switching to Keyboard or NumPad submodes (in-memory only).")

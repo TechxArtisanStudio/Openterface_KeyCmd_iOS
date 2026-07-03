@@ -135,7 +135,7 @@ struct ShortcutStripPager: View {
                         ForEach(pages.indices, id: \.self) { idx in
                             ShortcutStripRowView(
                                 entries: pages[idx].entries,
-                                background: Color.orange.opacity(0.18)
+                                background: ThemeManager.shared.accentColor.opacity(0.15)
                             )
                             .frame(width: w)
                         }

@@ -125,7 +125,7 @@ struct ProKeyboardMouseView: View {
 
     @StateObject private var pointerTipState = PointerTipState()
 
-    @State private var alternatesPopup: (options: [AlternateOption], anchor: CGRect, keyDef: KeyboardManager.KeyDef)? = nil
+    @State private var alternatesPopup: (options: [AlternateOption], anchor: CGRect, keyDef: KeyboardManager.KeyDef, isVertical: Bool, isTwoCell: Bool)? = nil
     @State private var alternatesGestureStart: CGPoint? = nil
     @State private var alternatesPick: AlternatesPick = .none
     @State private var currentDragLocation: CGPoint? = nil
@@ -540,7 +540,7 @@ struct ProKeyboardMouseView: View {
             }
                 .coordinateSpace(name: "proKMView")
                 .coordinateSpace(name: "keyboardLayout")
-                .overlay { if proSubmode == .keyboard, let p = alternatesPopup { KeyAlternatesPopupView(options: p.options, anchorFrame: p.anchor, pick: alternatesPick).allowsHitTesting(false) } }
+                .overlay { if proSubmode == .keyboard, let p = alternatesPopup { KeyAlternatesPopupView(options: p.options, anchorFrame: p.anchor, pick: alternatesPick, isVertical: p.isVertical, isTwoCell: p.isTwoCell).allowsHitTesting(false) } }
                 .overlayPreferenceValue(KeyCalloutInfoKey.self) { info in
                     if let info = info {
                         Text(info.text)
@@ -971,7 +971,7 @@ struct ProKeyboardMouseView: View {
             let previewBg = GeometryReader { geo in
                 Color.clear.preference(
                     key: KeyCalloutInfoKey.self,
-                    value: prefs.keyTapPreviewEnabled && keyPressInProgress && currentlyPressedKey == kd.label
+                    value: prefs.keyTapPreviewEnabled && alternatesPopup == nil && keyPressInProgress && currentlyPressedKey == kd.label
                         ? KeyCalloutInfo(text: displayText, frame: geo.frame(in: .named("keyboardLayout")), below: false, left: false, right: false)
                         : nil
                 )
@@ -1031,7 +1031,7 @@ struct ProKeyboardMouseView: View {
                                 dismissAlternatesPopup()
                             }
                         } else {
-                            // Short tap — popup never appeared
+                            // Short tap — popup never appearedHKNLMNZX
                             dismissAlternatesPopup()
                             if isRepeatable {
                                 // Stop repeat and send one final key tap.
@@ -1049,7 +1049,7 @@ struct ProKeyboardMouseView: View {
         }
     }
 
-    private func commitAlternate(from popup: (options: [AlternateOption], anchor: CGRect, keyDef: KeyboardManager.KeyDef)) {
+    private func commitAlternate(from popup: (options: [AlternateOption], anchor: CGRect, keyDef: KeyboardManager.KeyDef, isVertical: Bool, isTwoCell: Bool)) {
         let option: AlternateOption?
         if case .slot(let s) = alternatesPick { option = popup.options.first(where: { $0.slot == s }) }
         else if case .defaultSlot = alternatesPick { option = popup.options.first(where: { $0.slot == AlternatePopupGeometry.slotCenter }) }
@@ -1246,20 +1246,22 @@ struct ProKeyboardMouseView: View {
     }
 
     @ViewBuilder private func keyHints(for kd: KeyboardManager.KeyDef) -> some View {
-        if let hint = cardinalAlternatesHint(for: kd) {
-            // Multi-symbol row at top-center (matching Android keycap hint row)
-            Text(hint)
-                .font(.system(size: 9, weight: .bold, design: .monospaced))
-                .foregroundColor(.secondary.opacity(0.5))
-                .allowsHitTesting(false)
-        } else if !kd.cornerHint.isEmpty {
-            // Fallback: single corner hint when no cardinal alternates exist
-            Text(kd.cornerHint)
-                .font(.system(size: 9, weight: .bold))
-                .foregroundColor(.secondary.opacity(0.6))
-                .padding(.trailing, 6)
-                .padding(.top, 2)
-                .allowsHitTesting(false)
+        if prefs.alternateHintsEnabled {
+            if let hint = cardinalAlternatesHint(for: kd) {
+                // Multi-symbol row at top-center (matching Android keycap hint row)
+                Text(hint)
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundColor(.secondary.opacity(0.5))
+                    .allowsHitTesting(false)
+            } else if !kd.cornerHint.isEmpty {
+                // Fallback: single corner hint when no cardinal alternates exist
+                Text(kd.cornerHint)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(.secondary.opacity(0.6))
+                    .padding(.trailing, 6)
+                    .padding(.top, 2)
+                    .allowsHitTesting(false)
+            }
         }
     }
 
@@ -1267,6 +1269,7 @@ struct ProKeyboardMouseView: View {
 
     private func showAlternatesPopup(for kd: KeyboardManager.KeyDef) {
         alternatesShownThisPress = true
+        guard prefs.alternateHintsEnabled else { return }
         guard keyboardManager.shouldShowAlternates(for: kd.label) else { return }
         var slotMap: [Int: AlternateOption] = [:], seen: Set<String> = []
         func addOpt(_ slot: Int, _ alt: String) {
@@ -1275,11 +1278,27 @@ struct ProKeyboardMouseView: View {
             seen.insert(m.display)
         }
         if let c = centerAlternateOption(for: kd), !seen.contains(c.display) { slotMap[AlternatePopupGeometry.slotCenter] = c; seen.insert(c.display) }
-        let allSlots = [AlternatePopupGeometry.slotUp, AlternatePopupGeometry.slotDown, AlternatePopupGeometry.slotLeft, AlternatePopupGeometry.slotRight, AlternatePopupGeometry.slotUpLeft, AlternatePopupGeometry.slotUpRight, AlternatePopupGeometry.slotDownLeft, AlternatePopupGeometry.slotDownRight]
-        for (i, slot) in allSlots.enumerated() where i < kd.alternates.count { addOpt(slot, kd.alternates[i]) }
+
+        // Filter out empty strings from alternates before mapping to slots
+        let validAlternates = kd.alternates.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+
+        // p and q use vertical layout (top/center/bottom), others use horizontal (left/center/right)
+        // Keys with only 1 alternate (x, c, v, b, n, m, /) use 2-cell layout
+        let isVertical = (kd.label == "p" || kd.label == "q")
+        let isTwoCell = (validAlternates.count == 1)
+        let allSlots: [Int]
+        if isVertical {
+            allSlots = [AlternatePopupGeometry.slotUp, AlternatePopupGeometry.slotDown]
+        } else if isTwoCell {
+            // 2-cell horizontal: alternate on left, center key on right
+            allSlots = [AlternatePopupGeometry.slotLeft]
+        } else {
+            allSlots = [AlternatePopupGeometry.slotLeft, AlternatePopupGeometry.slotRight]
+        }
+        for (i, slot) in allSlots.enumerated() where i < validAlternates.count { addOpt(slot, validAlternates[i]) }
         let options = Array(slotMap.values)
         guard options.count >= 2 else { return }
-        alternatesPopup = (options, keyFrames[kd.label] ?? .zero, kd)
+        alternatesPopup = (options, keyFrames[kd.label] ?? .zero, kd, isVertical, isTwoCell)
         alternatesGestureStart = currentDragLocation; alternatesPick = .defaultSlot
     }
     private func centerAlternateOption(for kd: KeyboardManager.KeyDef) -> AlternateOption? {
