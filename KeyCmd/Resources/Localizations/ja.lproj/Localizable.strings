@@ -42,7 +42,7 @@
 "AI Settings" = "AI設定";
 "History" = "履歴";
 
-"Pro Setup" = "プロ設定";
+"Keyboard & Mouse Pro setup" = "プロ設定";
 "ASCII Preview" = "ASCIIプレビュー";
 "Add Module" = "モジュールを追加";
 "Background" = "背景";
@@ -123,9 +123,8 @@
 "Fast" = "速い";
 "How fast content scrolls when you drag the strip beside the touchpad. Independent from General → touchpad two-finger scroll sensitivity." = "タッチパッド横のストリップをドラッグしたときのコンテンツのスクロール速度。一般 → タッチパッド2本指スクロール感度とは独立しています。";
 
-"Display" = "表示";
-"Keys Display" = "キー表示";
-"Controls how shortcuts and keys appear on the keyboard strip and QWERTY layout." = "キーボードストリップとQWERTYレイアウトでショートカットとキーの表示方法を制御します。";
+"Keys display" = "キー表示";
+"Same as the DISPLAY key at the end of row 1: how shortcuts on the strip look (names, icons, or combo text), and how Tab and the modifier keys on the main keyboard look." = "キーボードストリップとQWERTYレイアウトでショートカットとキーの表示方法を制御します。";
 "Touchpad" = "タッチパッド";
 "Touchpad Mode" = "タッチパッドモード";
 "Strip Scroll Sensitivity" = "ストリップスクロール感度";

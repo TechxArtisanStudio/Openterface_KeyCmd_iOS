@@ -17,6 +17,10 @@ struct KmBasicSettingsView: View {
             Text("Full keyboard in Keyboard + Mouse (Basic) mode: how Ctrl, Shift, Alt/Option, and Win/Cmd behave.")
                 .font(.caption)
                 .foregroundColor(.secondary)
+            Toggle("Key Tap Preview", isOn: $prefs.keyTapPreviewEnabled)
+            Text("Show a preview popup when you tap a key.")
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
 
         // MARK: - Modifier behaviour card

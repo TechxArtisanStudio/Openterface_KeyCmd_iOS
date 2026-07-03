@@ -15,6 +15,7 @@ struct BasicKeyboardMouseView: View {
     @Binding var selectedSubmode: Submode
     @ObservedObject private var aiSettings = AISettings.shared
     @ObservedObject private var themeManager = ThemeManager.shared
+    @ObservedObject private var prefs = KmBasicKeyboardPrefs.shared
 
     enum Submode: String, CaseIterable {
         case touchpad = "Touchpad"
@@ -203,7 +204,6 @@ struct BasicKeyboardMouseView: View {
             let alignment: Alignment = orientationManager.cameraOnRight ? .leading : .trailing
 
             ZStack {
-                Color.red.opacity(0.05)
                 switch aiSettings.targetOS {
                 case .windows:
                     windowsKeyboardLayout
@@ -288,7 +288,7 @@ struct BasicKeyboardMouseView: View {
             let remainingHeight = max(0, geo.size.height - 15)
             let topRowHeight = remainingHeight / 10
 
-            VStack(spacing: 3) {
+            VStack(spacing: 6) {
                 // Row 1: Esc + F1-F12 (half height)
                 HStack(spacing: 3) {
                     ForEach(windowsFRow.indices, id: \.self) { idx in
@@ -384,7 +384,7 @@ struct BasicKeyboardMouseView: View {
             let remainingHeight = max(0, geo.size.height - 15)
             let topRowHeight = remainingHeight / 10
 
-            VStack(spacing: 3) {
+            VStack(spacing: 6) {
                 // Row 1: Esc + F1-F12 (half height)
                 HStack(spacing: 3) {
                     ForEach(windowsFRow.indices, id: \.self) { idx in
@@ -472,7 +472,7 @@ struct BasicKeyboardMouseView: View {
     }
 
     private var originalKeyboardLayout: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 6) {
             ForEach(landscapeKeys.indices, id: \.self) { rowIdx in
                 let row = landscapeKeys[rowIdx]
                 HStack(spacing: 0) {
@@ -491,13 +491,13 @@ struct BasicKeyboardMouseView: View {
     private var windowsKeyboardLayout: some View {
         GeometryReader { geo in
             // Top 2 rows at half the height of bottom 4 rows.
-            // Total spacing: 5 gaps × 3pt = 15pt. Remaining: geo.size.height - 15.
+            // Total spacing: 5 gaps × 6pt = 30pt. Remaining: geo.size.height - 30.
             // 2h + 4(2h) = 10h = remaining → h = remaining / 10, 2h = remaining / 5.
-            let remainingHeight = max(0, geo.size.height - 15)
+            let remainingHeight = max(0, geo.size.height - 30)
             let topRowHeight = remainingHeight / 10
             let bottomRowHeight = remainingHeight / 5
 
-            VStack(spacing: 3) {
+            VStack(spacing: 6) {
                 // Row 1: Esc + F1-F12 (half height)
                 HStack(spacing: 3) {
                     ForEach(windowsFRow.indices, id: \.self) { idx in
@@ -609,6 +609,13 @@ struct BasicKeyboardMouseView: View {
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 28, height: 28)
                         .foregroundColor(.gray)
+                } else if isSuperKey && aiSettings.targetOS == .linux {
+                    Image("targetos_linux")
+                        .renderingMode(.template)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 28, height: 28)
+                        .foregroundColor(.gray)
                 } else {
                     Text(displayLabel)
                         .font(.system(size: 17, weight: .bold))
@@ -651,7 +658,11 @@ struct BasicKeyboardMouseView: View {
     @ViewBuilder
     private func windowsKeyContent(key: String, displayText: String) -> some View {
         if key == "Backspace" {
-            Image(systemName: "delete.left").font(.system(size: 16, weight: .bold))
+            Image("backspace_24")
+                .renderingMode(.template)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 10, height: 10)
         } else if key == "Enter" {
             Text("Enter").font(.system(size: 12, weight: .bold))
         } else if key == "Shift" {
@@ -845,11 +856,23 @@ struct BasicKeyboardMouseView: View {
     @ViewBuilder
     private func landscapeKeyContent(for key: String, displayText: String) -> some View {
         if key == "Backspace" {
-            Image(systemName: "delete.left").font(.system(size: 20))
+            Image("backspace_24")
+                .renderingMode(.template)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 14, height: 14)
         } else if key == "Enter" {
-            Image(systemName: "return").font(.system(size: 20))
+            Image("keyboard_return_24px")
+                .renderingMode(.template)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 14, height: 14)
         } else if key == "Shift" {
-            Image(systemName: "shift").font(.system(size: 20))
+            Image("shift_24px")
+                .renderingMode(.template)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 14, height: 14)
         } else {
             // For number and symbol keys, show dual labels: small symbol in top-right corner, main character centered below
             // Check if this is a number/symbol key that should have dual labels
@@ -1053,7 +1076,6 @@ struct BasicKeyboardMouseView: View {
 
                         // Openterface logo in the touchpad surface.
                         VStack {
-                            Spacer()
                             HStack {
                                 Spacer()
                                 Image("openterface_wordmark")
@@ -1063,7 +1085,8 @@ struct BasicKeyboardMouseView: View {
                                     .opacity(0.50)
                                 Spacer()
                             }
-                            .padding(.bottom, 12)
+                            .padding(.top, 12)
+                            Spacer()
                         }
                         .allowsHitTesting(false)
 
@@ -1180,7 +1203,7 @@ struct BasicKeyboardMouseView: View {
 
 // MARK: - Key Callout Preview
 
-private struct KeyCalloutInfo: Equatable {
+struct KeyCalloutInfo: Equatable {
     let text: String
     let frame: CGRect
     let below: Bool
@@ -1188,7 +1211,7 @@ private struct KeyCalloutInfo: Equatable {
     let right: Bool
 }
 
-private struct KeyCalloutInfoKey: PreferenceKey {
+struct KeyCalloutInfoKey: PreferenceKey {
     static var defaultValue: KeyCalloutInfo? = nil
     static func reduce(value: inout KeyCalloutInfo?, nextValue: () -> KeyCalloutInfo?) {
         if let next = nextValue() { value = next }
@@ -1274,7 +1297,7 @@ struct ModifierKeyButton<Label: View>: View {
             )
             .preference(
                 key: KeyCalloutInfoKey.self,
-                value: isPressed && keyPreview != nil ?
+                value: prefs.keyTapPreviewEnabled && isPressed && keyPreview != nil ?
                     KeyCalloutInfo(text: keyPreview!, frame: geo.frame(in: .named("keyboardLayout")), below: previewBelow, left: previewLeft, right: previewRight)
                     : nil
             )
@@ -1380,6 +1403,7 @@ struct KeyPressButton<Label: View>: View {
     var previewRight: Bool = false
     let label: (Bool) -> Label
 
+    @ObservedObject private var prefs = KmBasicKeyboardPrefs.shared
     @State private var isPressed = false
 
     init(onPress: @escaping () -> Void, onRelease: @escaping () -> Void, keyPreview: String? = nil, previewBelow: Bool = false, previewLeft: Bool = false, previewRight: Bool = false, @ViewBuilder label: @escaping (Bool) -> Label) {
@@ -1397,7 +1421,7 @@ struct KeyPressButton<Label: View>: View {
             .background(GeometryReader { geo in
                 Color.clear.preference(
                     key: KeyCalloutInfoKey.self,
-                    value: isPressed && keyPreview != nil ?
+                    value: prefs.keyTapPreviewEnabled && isPressed && keyPreview != nil ?
                         KeyCalloutInfo(text: keyPreview!, frame: geo.frame(in: .named("keyboardLayout")), below: previewBelow, left: previewLeft, right: previewRight)
                         : nil
                 )

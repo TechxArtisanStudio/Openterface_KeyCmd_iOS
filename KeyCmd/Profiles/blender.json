@@ -152,28 +152,28 @@
   ],
   "numpad": [
     [
-      { "display": "7", "description": "Top",          "keyCode": "Numpad7",        "colorHex": "#FF9500" },
-      { "display": "8", "description": "↑",            "keyCode": "Numpad8",        "colorHex": "#007AFF" },
-      { "display": "9", "description": "Opposite",     "keyCode": "Numpad9",        "colorHex": "#FF9500" },
-      { "display": "+", "description": "Zoom In",      "keyCode": "NumpadPlus",     "colorHex": "#34C759" }
+      { "Keys display": "7", "description": "Top",          "keyCode": "Numpad7",        "colorHex": "#FF9500" },
+      { "Keys display": "8", "description": "↑",            "keyCode": "Numpad8",        "colorHex": "#007AFF" },
+      { "Keys display": "9", "description": "Opposite",     "keyCode": "Numpad9",        "colorHex": "#FF9500" },
+      { "Keys display": "+", "description": "Zoom In",      "keyCode": "NumpadPlus",     "colorHex": "#34C759" }
     ],
     [
-      { "display": "4", "description": "←",            "keyCode": "Numpad4",        "colorHex": "#007AFF" },
-      { "display": "5", "description": "Ortho",        "keyCode": "Numpad5",        "colorHex": "#8E8E93" },
-      { "display": "6", "description": "→",            "keyCode": "Numpad6",        "colorHex": "#007AFF" },
-      { "display": "-", "description": "Zoom Out",     "keyCode": "NumpadMinus",    "colorHex": "#34C759" }
+      { "Keys display": "4", "description": "←",            "keyCode": "Numpad4",        "colorHex": "#007AFF" },
+      { "Keys display": "5", "description": "Ortho",        "keyCode": "Numpad5",        "colorHex": "#8E8E93" },
+      { "Keys display": "6", "description": "→",            "keyCode": "Numpad6",        "colorHex": "#007AFF" },
+      { "Keys display": "-", "description": "Zoom Out",     "keyCode": "NumpadMinus",    "colorHex": "#34C759" }
     ],
     [
-      { "display": "1", "description": "Front",        "keyCode": "Numpad1",        "colorHex": "#FF9500" },
-      { "display": "2", "description": "↓",            "keyCode": "Numpad2",        "colorHex": "#007AFF" },
-      { "display": "3", "description": "Right View",   "keyCode": "Numpad3",        "colorHex": "#FF9500" },
-      { "display": "G", "description": "Move",         "keyCode": "G",              "colorHex": "#32ADE6" }
+      { "Keys display": "1", "description": "Front",        "keyCode": "Numpad1",        "colorHex": "#FF9500" },
+      { "Keys display": "2", "description": "↓",            "keyCode": "Numpad2",        "colorHex": "#007AFF" },
+      { "Keys display": "3", "description": "Right View",   "keyCode": "Numpad3",        "colorHex": "#FF9500" },
+      { "Keys display": "G", "description": "Move",         "keyCode": "G",              "colorHex": "#32ADE6" }
     ],
     [
-      { "display": "0", "description": "Camera",       "keyCode": "Numpad0",        "colorHex": "#FF3B30" },
-      { "display": ".", "description": "Focus",        "keyCode": "NumpadDot",      "colorHex": "#8E8E93" },
-      { "display": "/", "description": "Isolate",      "keyCode": "NumpadSlash",    "colorHex": "#AF52DE" },
-      { "display": "*", "description": "Global",       "keyCode": "NumpadAsterisk", "colorHex": "#8E8E93" }
+      { "Keys display": "0", "description": "Camera",       "keyCode": "Numpad0",        "colorHex": "#FF3B30" },
+      { "Keys display": ".", "description": "Focus",        "keyCode": "NumpadDot",      "colorHex": "#8E8E93" },
+      { "Keys display": "/", "description": "Isolate",      "keyCode": "NumpadSlash",    "colorHex": "#AF52DE" },
+      { "Keys display": "*", "description": "Global",       "keyCode": "NumpadAsterisk", "colorHex": "#8E8E93" }
     ]
   ]
 }

@@ -224,6 +224,13 @@ struct NumPadView: View {
     /// Arrow icon key — uses SF Symbols to match Android's drawable icon cells.
     @ViewBuilder
     private func arrowIcon(_ key: String, icon: String, w: CGFloat, h: CGFloat) -> some View {
+        // ponytail: map SF Symbol → Material icon asset, one place for all callers
+        let assetName: String = [
+            "arrow.up": "keyboard_arrow_up_24",
+            "arrow.down": "keyboard_arrow_down_24",
+            "arrow.left": "keyboard_arrow_left_24",
+            "arrow.right": "keyboard_arrow_right_24",
+        ][icon] ?? icon
         KeyPressButton(
             onPress: {
                 HapticFeedbackManager.shared.triggerButtonPress()
@@ -231,7 +238,8 @@ struct NumPadView: View {
             },
             onRelease: { keyboardManager.handleKeyUp(key) }
         ) { isPressed in
-            Image(systemName: icon)
+            Image(assetName)
+                .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
                 .frame(width: w * 0.45, height: h * 0.45)

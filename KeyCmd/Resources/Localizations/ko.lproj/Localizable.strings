@@ -45,7 +45,7 @@
 "History" = "기록";
 
 /* --- 탐색 제목 --- */
-"Pro Setup" = "프로 설정";
+"Keyboard & Mouse Pro setup" = "프로 설정";
 "ASCII Preview" = "ASCII 미리보기";
 "Add Module" = "모듈 추가";
 "Background" = "배경";
@@ -136,9 +136,8 @@
 "How fast content scrolls when you drag the strip beside the touchpad. Independent from General → touchpad two-finger scroll sensitivity." = "터치패드 옆의 띠를 드래그할 때 콘텐츠가 스크롤되는 속도. 일반 → 터치패드 두 손가락 스크롤 감도와 독립적입니다.";
 
 /* --- KM 프로 설정 --- */
-"Display" = "표시";
-"Keys Display" = "키 표시";
-"Controls how shortcuts and keys appear on the keyboard strip and QWERTY layout." = "단축키와 키가 키보드 띠 및 QWERTY 레이아웃에 표시되는 방식을 제어합니다.";
+"Keys display" = "키 표시";
+"Same as the DISPLAY key at the end of row 1: how shortcuts on the strip look (names, icons, or combo text), and how Tab and the modifier keys on the main keyboard look." = "단축키와 키가 키보드 띠 및 QWERTY 레이아웃에 표시되는 방식을 제어합니다.";
 "Touchpad" = "터치패드";
 "Touchpad Mode" = "터치패드 모드";
 "Strip Scroll Sensitivity" = "띠 스크롤 감도";

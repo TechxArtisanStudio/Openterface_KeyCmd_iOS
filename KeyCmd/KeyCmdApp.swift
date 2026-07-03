@@ -19,14 +19,27 @@ public class AppDelegate: NSObject, UIApplicationDelegate {
     }
 
     public func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        print("🚀 [AppDelegate.didFinishLaunchingWithOptions] START")
+
+        // Override app language BEFORE any String(localized:) or Bundle lookups
+        // This must happen early to affect Foundation's localization system
+        let appLang = UserDefaults.standard.string(forKey: "app_language") ?? "system"
+        if appLang != "system" {
+            UserDefaults.standard.set([appLang], forKey: "AppleLanguages")
+        }
+        
         // Pre-warm haptic engine at launch so first press feedback is reliable
         // iOS needs time to initialize the Taptic Engine; warming at launch avoids
         // the first-tap silence that users were reporting.
         DispatchQueue.main.async {
-            // Force-initialize the haptic manager singleton
+            print("⏱️ [AppDelegate.haptic] Main queue async: Starting HapticFeedbackManager init")
+            let startTime = Date()
             _ = HapticFeedbackManager.shared
+            print("✅ [AppDelegate.haptic] HapticFeedbackManager initialized in \(String(format: "%.3f", Date().timeIntervalSince(startTime)))s")
+            
             // Trigger a test haptic after a short delay to ensure the engine is ready
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                print("⏱️ [AppDelegate.haptic] testHaptic() scheduled")
                 HapticFeedbackManager.shared.testHaptic()
             }
         }
@@ -34,7 +47,10 @@ public class AppDelegate: NSObject, UIApplicationDelegate {
         // Pre-warm the keyboard prediction XPC connection at launch time
         // (outside of any gesture pipeline) so the first tap on a UITextView
         // doesn't trigger the ~3 s "gesture gate timeout".
+        print("⏱️ [AppDelegate.keyboard] Scheduling keyboard prediction warmup at +0.5s")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            print("⏱️ [AppDelegate.keyboard] Keyboard prediction warmup STARTED")
+            let warmupStartTime = Date()
             let warmupTV = UITextView()
             warmupTV.frame = CGRect(x: -1000, y: -1000, width: 1, height: 1)
             warmupTV.alpha = 0
@@ -54,15 +70,27 @@ public class AppDelegate: NSObject, UIApplicationDelegate {
 
             guard let window = UIApplication.shared.connectedScenes
                 .compactMap({ $0 as? UIWindowScene })
-                .first?.windows.first else { return }
+                .first?.windows.first else { 
+                print("⚠️ [AppDelegate.keyboard] No window found")
+                return 
+            }
+            print("⏱️ [AppDelegate.keyboard] Adding UITextView to window")
             window.addSubview(warmupTV)
+            print("⏱️ [AppDelegate.keyboard] Calling becomeFirstResponder()...")
+            let beforeResponder = Date()
             _ = warmupTV.becomeFirstResponder()
+            let responderTime = Date().timeIntervalSince(beforeResponder)
+            print("⏱️ [AppDelegate.keyboard] becomeFirstResponder() took \(String(format: "%.3f", responderTime))s")
+            
             // Dispose after 2 s — XPC connection has been established.
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                print("⏱️ [AppDelegate.keyboard] Cleanup: Total warmup time \(String(format: "%.3f", Date().timeIntervalSince(warmupStartTime)))s")
                 warmupTV.resignFirstResponder()
                 warmupTV.removeFromSuperview()
+                print("✅ [AppDelegate.keyboard] Keyboard warmup complete")
             }
         }
+        print("🚀 [AppDelegate.didFinishLaunchingWithOptions] END (returning true)")
         return true
     }
 }

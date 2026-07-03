@@ -75,6 +75,7 @@ class TouchpadUIView: UIView {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
+        clipsToBounds = true  // ponytail: prevent UIKit touch capture from leaking outside frame
         loadSettings()
         setupGestures()
         setupPointerIndicator()
@@ -82,6 +83,7 @@ class TouchpadUIView: UIView {
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
+        clipsToBounds = true
         loadSettings()
         setupGestures()
         setupPointerIndicator()
@@ -110,9 +112,14 @@ class TouchpadUIView: UIView {
     }
 
     func updateSettings(_ settings: TouchpadSettings) {
-        tapDurationThreshold = settings.tapDurationThreshold
-        tapMovementThreshold = CGFloat(settings.tapMovementThreshold)
-        tapDelayThreshold = settings.tapDelayThreshold
+        // ponytail: only propagate + log when values actually changed
+        let newDuration = settings.tapDurationThreshold
+        let newMovement = CGFloat(settings.tapMovementThreshold)
+        let newDelay = settings.tapDelayThreshold
+        guard newDuration != tapDurationThreshold || newMovement != tapMovementThreshold || newDelay != tapDelayThreshold else { return }
+        tapDurationThreshold = newDuration
+        tapMovementThreshold = newMovement
+        tapDelayThreshold = newDelay
         LogManager.shared.log("Updated settings - Duration: \(tapDurationThreshold)s, Movement: \(tapMovementThreshold)pts, Delay: \(tapDelayThreshold)s", category: "Touchpad")
     }
 
@@ -435,5 +442,13 @@ class TouchpadUIView: UIView {
         }
         tapTimer?.invalidate()
         tapTimer = nil
+    }
+
+    // ponytail: Override hitTest to ensure touches outside bounds pass through
+    // This prevents the UIKit view from intercepting touches meant for the top bar
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        // Only accept touches within our bounds
+        guard bounds.contains(point) else { return nil }
+        return super.hitTest(point, with: event)
     }
 }

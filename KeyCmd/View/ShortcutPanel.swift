@@ -12,6 +12,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 // MARK: - Data models
 
@@ -19,10 +20,14 @@ import SwiftUI
 struct ShortcutEntry: Identifiable {
     let id = UUID()
     let label: String
-    let icon: String?  // SF Symbol name, nil for text-only
+    let icon: String?  // Asset catalog name, or SF Symbol name as fallback
     var badge: String? = nil  // optional badge shown bottom-right (e.g. "A"/"B")
     /// When true the button renders with a highlighted (tinted) background
     var isActive: Bool = false
+    /// Optional custom font for the label (e.g. larger/bolder for F-keys)
+    var font: Font? = nil
+    /// Optional rotation for the icon in degrees (e.g. 180 for forward-delete)
+    var iconRotation: Double = 0
     let action: () -> Void
 }
 
@@ -38,37 +43,71 @@ struct FixedRowsPage {
     let row2: [ShortcutEntry]  // row 3 (bottom)
 }
 
+// MARK: - Icon helper
+
+/// Renders an icon from the asset catalog (template-tinted Material icons from Android),
+/// falling back to an SF Symbol when no matching asset exists.
+@ViewBuilder
+func iconImage(_ name: String, size: CGFloat = 18) -> some View {
+    if !name.isEmpty, UIImage(named: name) != nil {
+        Image(name)
+            .renderingMode(.template)
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(width: size, height: size)
+    } else if !name.isEmpty {
+        Image(systemName: name)
+            .font(.system(size: size + 2))
+    }
+}
+
 // MARK: - ShortcutButton (shared primitive)
 
 struct ShortcutButton: View {
     let entry: ShortcutEntry
     var background: Color = Color(UIColor.tertiarySystemBackground)
+    @ObservedObject private var prefs = KmProPrefs.shared
+    @ObservedObject private var themeManager = ThemeManager.shared
 
     var body: some View {
+        let mode = prefs.keysDisplayMode
+        let wantsIcon = mode == .icons || mode == .combo
+        let wantsLabel = mode == .names || mode == .combo
+        // ponytail: Check asset catalog first, then SF Symbol availability.
+        // If neither resolves, fall back to label text so the button isn't blank.
+        let hasIcon: Bool = {
+            guard let name = entry.icon, !name.isEmpty else { return false }
+            if UIImage(named: name) != nil { return true }
+            // SF Symbol fallback — check if the name produces a non-empty image
+            return UIImage(systemName: name) != nil
+        }()
+        let showIcon = wantsIcon && hasIcon
+        let showLabel = wantsLabel || (wantsIcon && !hasIcon)
         Button(action: entry.action) {
             ZStack(alignment: .topTrailing) {
                 VStack(spacing: 1) {
-                    if let icon = entry.icon {
-                        Image(systemName: icon)
-                            .font(.system(size: 12))
+                    if showIcon, let icon = entry.icon {
+                        iconImage(icon, size: 22)
+                            .rotationEffect(.degrees(entry.iconRotation))
                     }
-                    if !entry.label.isEmpty {
+                    if showLabel, !entry.label.isEmpty {
                         Text(entry.label)
-                            .font(.system(size: 8))
+                            .font(entry.font ?? .system(size: 8))
                             .lineLimit(1)
                     }
                 }
-                .foregroundColor(entry.isActive ? .white : .white)
+                .foregroundColor(entry.isActive ? .white : .primary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(entry.isActive ? Color.blue : background)
-                .cornerRadius(4)
+                .background(entry.isActive ? themeManager.accentColor : background)
+                .cornerRadius(8)
 
                 if let badge = entry.badge {
                     Text(badge)
                         .font(.system(size: 9, weight: .bold))
                         .foregroundColor(.secondary)
-                        .padding(1)
-                        .offset(x: 2, y: -1)
+                        .padding(.horizontal, 3)
+                        .padding(.top, 3)
+                        .offset(x: -3, y: 0)
                 }
             }
         }
@@ -140,6 +179,8 @@ struct ShortcutStripPager: View {
 struct FixedRowsPager: View {
     let pages: [FixedRowsPage]
     var defaultPageIndex: Int = 1
+    /// ponytail: external key to force row refresh when content changes (e.g. Fn toggle)
+    var refreshKey: AnyHashable? = nil
 
     @State private var currentPage: Int = -1
     @State private var dragOffset: CGFloat = 0
@@ -157,11 +198,13 @@ struct FixedRowsPager: View {
                     let w = geo.size.width
                     HStack(spacing: 0) {
                         ForEach(0..<pages.count, id: \.self) { idx in
-                            VStack(spacing: 2) {
+                            VStack(spacing: 4) {
                                 ShortcutStripRowView(entries: pages[idx].row1,
                                                     background: rowBackground)
+                                    .id(refreshKey.map { "\($0)-\(idx)-r1" } ?? "\(idx)-r1")
                                 ShortcutStripRowView(entries: pages[idx].row2,
                                                     background: rowBackground)
+                                    .id(refreshKey.map { "\($0)-\(idx)-r2" } ?? "\(idx)-r2")
                             }
                             .padding(.horizontal, 0)
                             .frame(width: w)
@@ -192,7 +235,7 @@ struct FixedRowsPager: View {
                             }
                     )
                 }
-                .frame(height: 86)
+                .frame(height: 88)
                 .onAppear {
                     if currentPage < 0 {
                         currentPage = min(defaultPageIndex, pages.count - 1)
@@ -213,11 +256,11 @@ struct ShortcutFixedRowsView: View {
     private let rowBackground = Color(UIColor.tertiarySystemBackground)
 
     var body: some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 4) {
             ShortcutStripRowView(entries: row1, background: rowBackground)
             ShortcutStripRowView(entries: row2, background: rowBackground)
         }
-        .frame(height: 86)
+        .frame(height: 88)
     }
 }
 
@@ -228,10 +271,11 @@ struct ShortcutStripRowView: View {
     var background: Color = Color(UIColor.tertiarySystemBackground)
 
     var body: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: 4) {
             ForEach(0..<7, id: \.self) { colIndex in
                 if colIndex < entries.count {
                     ShortcutButton(entry: entries[colIndex], background: background)
+                        .id(entries[colIndex].id)
                 } else {
                     ShortcutButton(entry: ShortcutEntry(label: "", icon: nil) {}, background: background)
                         .disabled(true)
@@ -241,4 +285,21 @@ struct ShortcutStripRowView: View {
         }
         .padding(.horizontal, 2)
     }
+}
+
+// MARK: - Punctuation page data (shared between ProKeyboardMouseView and ComposeTextView)
+
+enum PunctuationPageData {
+    static let unlockedRow1: [(String, String)] = [
+        ("(","`"),(")","~"),("[","'"),("]","\""),(":","%"),("#","^"),("@","|"),
+    ]
+    static let unlockedRow2: [(String, String)] = [
+        ("/","<"),("\\",">"),("|","*"),("?","&"),("-","/"),("_","."),
+    ]
+    static let lockedRow1: [(String, String)] = [
+        ("`","("),("~",")"),("'","["),("\"","]"),("%",":"),("^","#"),("|","@")
+    ]
+    static let lockedRow2: [(String, String)] = [
+        ("<","/"),(">","\\"),("*","|"),("&","?"),(",","-"),(".","_")
+    ]
 }

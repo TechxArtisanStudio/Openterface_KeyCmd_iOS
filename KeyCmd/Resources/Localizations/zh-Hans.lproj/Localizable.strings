@@ -45,7 +45,7 @@
 "History" = "历史记录";
 
 /* --- 导航标题 --- */
-"Pro Setup" = "专业设置";
+"Keyboard & Mouse Pro setup" = "专业设置";
 "ASCII Preview" = "ASCII 预览";
 "Add Module" = "添加模块";
 "Background" = "背景";
@@ -136,9 +136,8 @@
 "How fast content scrolls when you drag the strip beside the touchpad. Independent from General → touchpad two-finger scroll sensitivity." = "拖动触控板旁边滚动条时内容的滚动速度。与通用 → 触控板双指滚动灵敏度无关。";
 
 /* --- KM 专业设置 --- */
-"Display" = "显示";
-"Keys Display" = "按键显示";
-"Controls how shortcuts and keys appear on the keyboard strip and QWERTY layout." = "控制快捷键和按键在键盘条和 QWERTY 布局上的显示方式。";
+"Keys display" = "按键显示";
+"Same as the DISPLAY key at the end of row 1: how shortcuts on the strip look (names, icons, or combo text), and how Tab and the modifier keys on the main keyboard look." = "控制快捷键和按键在键盘条和 QWERTY 布局上的显示方式。";
 "Touchpad" = "触控板";
 "Touchpad Mode" = "触控板模式";
 "Strip Scroll Sensitivity" = "条形滚动灵敏度";

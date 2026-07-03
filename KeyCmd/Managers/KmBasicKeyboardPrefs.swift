@@ -17,6 +17,7 @@ class KmBasicKeyboardPrefs: ObservableObject {
     static let kChordSustainHid        = "km_basic_chord_sustain_hid"
     static let kLongPressBehavior      = "km_basic_long_press_behavior"
     static let kStripScrollSensitivity = "basic_touchpad_strip_scroll_sensitivity"
+    static let kKeyTapPreview          = "km_basic_key_tap_preview_enabled"
 
     // MARK: - Modifier behaviour
 
@@ -72,6 +73,13 @@ class KmBasicKeyboardPrefs: ObservableObject {
         }
     }
 
+    /// Default: true (matching Android default)
+    @Published var keyTapPreviewEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(keyTapPreviewEnabled, forKey: Self.kKeyTapPreview)
+        }
+    }
+
     // MARK: - Convenience read-only accessors
 
     var isMomentaryChordMode: Bool { modifierBehavior == .momentaryChord }
@@ -93,5 +101,7 @@ class KmBasicKeyboardPrefs: ObservableObject {
         let sensitivityPct = ud.object(forKey: Self.kStripScrollSensitivity) as? Int ?? 100
         let clamped = max(20, min(200, sensitivityPct))
         self.stripScrollSensitivity = Double(clamped) / 100.0
+
+        self.keyTapPreviewEnabled = ud.object(forKey: Self.kKeyTapPreview) as? Bool ?? true
     }
 }

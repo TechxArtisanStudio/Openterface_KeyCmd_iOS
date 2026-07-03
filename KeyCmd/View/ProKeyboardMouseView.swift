@@ -9,6 +9,25 @@
 import SwiftUI
 import UIKit
 
+extension Color {
+    func darker(by amount: CGFloat = 0.2) -> Color {
+        Color(UIColor(self).mixed(with: .black, by: amount))
+    }
+}
+
+extension UIColor {
+    func mixed(with other: UIColor, by t: CGFloat) -> UIColor {
+        var r1: CGFloat = 0, g1: CGFloat = 0, b1: CGFloat = 0, a1: CGFloat = 0
+        var r2: CGFloat = 0, g2: CGFloat = 0, b2: CGFloat = 0, a2: CGFloat = 0
+        getRed(&r1, green: &g1, blue: &b1, alpha: &a1)
+        other.getRed(&r2, green: &g2, blue: &b2, alpha: &a2)
+        return UIColor(red: r1 * (1 - t) + r2 * t,
+                       green: g1 * (1 - t) + g2 * t,
+                       blue: b1 * (1 - t) + b2 * t,
+                       alpha: a1 * (1 - t) + a2 * t)
+    }
+}
+
 /// Transparent UITextField that captures system-keyboard (IME) input in portrait B mode.
 private struct ImeCaptureTextField: UIViewRepresentable {
     @Binding var text: String; var isActive: Bool
@@ -22,7 +41,13 @@ private struct ImeCaptureTextField: UIViewRepresentable {
         tf.delegate = context.coordinator; return tf
     }
     func updateUIView(_ tf: UITextField, context: Context) {
-        if isActive && !tf.isFirstResponder { DispatchQueue.main.async { tf.becomeFirstResponder() } }
+        // ponytail: delay keyboard presentation to avoid blocking UI during view transitions
+        // (system input method initialization can hang the main thread for seconds)
+        if isActive && !tf.isFirstResponder {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                if !tf.isFirstResponder { tf.becomeFirstResponder() }
+            }
+        }
         else if !isActive && tf.isFirstResponder { tf.resignFirstResponder() }
         if tf.text != text { tf.text = text }
     }
@@ -139,14 +164,15 @@ struct ProKeyboardMouseView: View {
     private var isLHeld: Bool { (mouseManager.heldButtons & 0x01) != 0 || mouseManager.isSelectMode || (mouseManager.clickFlash & 0x01) != 0 }
     private var isMHeld: Bool { (mouseManager.heldButtons & 0x04) != 0 || (mouseManager.clickFlash & 0x04) != 0 }
     private var isRHeld: Bool { (mouseManager.heldButtons & 0x02) != 0 || (mouseManager.clickFlash & 0x02) != 0 }
-    private var touchpadStatusText: String {
-        var parts: [String] = []
-        if mouseManager.isSelectMode { parts.append("drag") }
-        if (mouseManager.heldButtons & 0x01) != 0 { parts.append("L held") }
-        if (mouseManager.heldButtons & 0x04) != 0 { parts.append("M held") }
-        if (mouseManager.heldButtons & 0x02) != 0 { parts.append("R held") }
-        let buttons = parts.isEmpty ? "buttons up" : parts.joined(separator: " + ")
-        return "\(buttons) · \(pointerMoving ? "moving" : "idle")"
+    private var buttonStateText: String {
+        let drag = mouseManager.isSelectMode
+        if drag {
+            return "Buttons: left held (drag)"
+        }
+        return "Button: up (no drag)"
+    }
+    private var touchStateText: String {
+        pointerMoving ? "Touch: moving pointer" : "Touch: idle"
     }
 
     // MARK: - Landscape full/split layout & portrait BI/IME persistence
@@ -188,6 +214,8 @@ struct ProKeyboardMouseView: View {
     @State private var splitShortcutBottomDragOffset: CGFloat = 0
     @State private var splitShortcutBottomIsDragging: Bool = false
 
+    @State private var fixedRowsCurrentPage: Int = 1  // Track current page for fixed rows pager
+
 
     // MARK: - Shortcut strip data
 
@@ -214,18 +242,18 @@ struct ProKeyboardMouseView: View {
 
     private func standardShortcuts(_ combo: @escaping ([String], String) -> Void, _ pm: String) -> ShortcutPage {
         ShortcutPage(title: "Standard", entries: [
-            ShortcutEntry(label: "ALL",   icon: "text.badge.checkmark") { combo([pm], "A") },
-            ShortcutEntry(label: "COPY",  icon: "doc.on.doc")           { combo([pm], "C") },
-            ShortcutEntry(label: "CUT",   icon: "scissors")             { combo([pm], "X") },
-            ShortcutEntry(label: "PASTE", icon: "clipboard")            { combo([pm], "V") },
-            ShortcutEntry(label: "SAVE",  icon: "externaldrive")        { combo([pm], "S") },
-            ShortcutEntry(label: "UNDO",  icon: "arrow.uturn.backward") { combo([pm], "Z") },
-            ShortcutEntry(label: "FIND",  icon: "magnifyingglass")      { combo(["Ctrl"], "F") },
+            ShortcutEntry(label: "ALL",   icon: "select_all_24")   { combo([pm], "A") },
+            ShortcutEntry(label: "COPY",  icon: "content_copy_24") { combo([pm], "C") },
+            ShortcutEntry(label: "CUT",   icon: "content_cut_24")  { combo([pm], "X") },
+            ShortcutEntry(label: "PASTE", icon: "content_paste_24"){ combo([pm], "V") },
+            ShortcutEntry(label: "SAVE",  icon: "save_24")         { combo([pm], "S") },
+            ShortcutEntry(label: "UNDO",  icon: "undo_24")         { combo([pm], "Z") },
+            ShortcutEntry(label: "FIND",  icon: "magnifyingglass") { combo(["Ctrl"], "F") },
         ])
     }
 
     private var fixedRowsToggleEntry: ShortcutEntry {
-        ShortcutEntry(label: "", icon: "arrow.left.arrow.right", isActive: fixedRowsLocalFnLocked) {
+        ShortcutEntry(label: "Sw", icon: "ic_swap_horiz_24", isActive: fixedRowsLocalFnLocked) {
             withAnimation(.easeInOut(duration: 0.15)) { fixedRowsLocalFnLocked.toggle() }
         }
     }
@@ -252,49 +280,106 @@ struct ProKeyboardMouseView: View {
         let km = keyboardManager
         let lock = fixedRowsLocalFnLocked
         let te = { Self.textEntry(km, label: $0) }
-        let keKey = { (label: String, key: String) in Self.keyEntry(km, label: label, icon: "", key: key) }
+        let fKeyFont: Font = .system(size: 11, weight: .bold)
+        let keKey = { (label: String, key: String) in
+            // ponytail: Material icon assets for keys that have them; SF Symbol
+            // fallbacks for keys Android shows as text-only (Home, End, etc.).
+            // iconImage() picks asset first, falls back to Image(systemName:).
+            let iconMap: [String: String] = [
+                "Tab": "keyboard_tab_24", "Up": "keyboard_arrow_up_24",
+                "Enter": "keyboard_return_24px", "Delete": "backspace_24",
+                "Left": "keyboard_arrow_left_24", "Down": "keyboard_arrow_down_24",
+                "Right": "keyboard_arrow_right_24", "Backspace": "backspace_24",
+                "Space": "space_bar_24px",
+                // ponytail: Nav/lock keys always show text names, not icons
+            ]
+            var entry = Self.keyEntry(km, label: label, icon: iconMap[key] ?? "", key: key)
+            entry.font = fKeyFont
+            if key == "Delete" { entry.iconRotation = 180 }
+            return entry
+        }
         let tog = fixedRowsToggleEntry
         let kbdTog = keyboardToggleEntry
 
         // Page 0 — F-keys / number-symbol
         let p0Fkeys = [("F1","1"),("F2","2"),("F3","3"),("F4","4"),("F5","5"),("F6","6")]
-            .map { Self.keyEntry(km, label: $0.0, icon: "", badge: $0.1) }
+            .map { (pair) -> ShortcutEntry in
+                var entry = Self.keyEntry(km, label: pair.0, icon: "", badge: pair.1)
+                entry.font = fKeyFont
+                return entry
+            }
         let p0FnKeys = [("F7","7"),("F8","8"),("F9","9"),("F10","0"),("F11","+"),("F12","-")]
-            .map { Self.keyEntry(km, label: $0.0, icon: "", badge: $0.1) }
+            .map { (pair) -> ShortcutEntry in
+                var entry = Self.keyEntry(km, label: pair.0, icon: "", badge: pair.1)
+                entry.font = fKeyFont
+                return entry
+            }
+        let p0NumKeysTop = [("7","&"),("8","*"),("9","("),("0",")"),("+","="),("-","_"),("*","=")]
+            .map { (pair) -> ShortcutEntry in
+                var entry = Self.textEntry(km, label: pair.0, badge: pair.1)
+                entry.font = fKeyFont
+                return entry
+            }
+        let p0NumKeysBottom = [("1","!"),("2","@"),("3","£"),("4","¥"),("5","%"),("6","^")]
+            .map { (pair) -> ShortcutEntry in
+                var entry = Self.textEntry(km, label: pair.0, badge: pair.1)
+                entry.font = fKeyFont
+                return entry
+            }
+        let p0EqKey: ShortcutEntry = {
+            var entry = Self.textEntry(km, label: "=", badge: "*")
+            entry.font = fKeyFont
+            return entry
+        }()
         let p0 = FixedRowsPage(
-            row1: lock ? ["7","8","9","0","+","-","*"].map { te($0) } : p0FnKeys + [Self.textEntry(km, label: "#", badge: "*")],
-            row2: lock ? ["1","2","3","4","5","6"].map { te($0) } + [tog] : p0Fkeys + [tog]
+            row1: lock ? p0NumKeysTop : p0FnKeys + [p0EqKey],
+            row2: lock ? p0NumKeysBottom + [tog] : p0Fkeys + [tog]
         )
 
         // Page 1 — Modifiers + Navigation
         let isMacOS = aiSettings.targetOS == .macOS
         let isWindows = aiSettings.targetOS == .windows
+        let winIcon = aiSettings.targetOS == .windows ? "targetos_windows" : "targetos_linux"
         let modCfg: [(String, String, String)] = isMacOS
-            ? [("Ctrl","","control"),("Alt","","option"),("Cmd","","command")]
-            : isWindows ? [("Ctrl","CTRL",""),("Alt","ALT",""),("Cmd","WIN","")]
-                        : [("Ctrl","CTRL",""),("Alt","ALT",""),("Cmd","SUP","")]
-        let modEntries = modCfg.map { cfg in ShortcutEntry(label: cfg.1, icon: cfg.2.isEmpty ? nil : cfg.2, isActive: keyboardManager.activeModifiers.contains(cfg.0)) { km.handleModifierToggle(cfg.0) } }
+            ? [("Ctrl","","keyboard_control_key_24px"),("Alt","","keyboard_option_key_24px"),("Cmd","","keyboard_command_key_24px")]
+            : isWindows ? [("Ctrl","Ctrl",""),("Alt","Alt",""),("Win","Win",winIcon)]
+                        : [("Ctrl","Ctrl",""),("Alt","Alt",""),("Win","Super",winIcon)]
+        let modEntries = modCfg.map { cfg -> ShortcutEntry in
+            var entry = ShortcutEntry(label: cfg.1, icon: cfg.2.isEmpty ? nil : cfg.2, isActive: keyboardManager.activeModifiers.contains(cfg.0)) { km.handleModifierToggle(cfg.0) }
+            entry.font = fKeyFont
+            return entry
+        }
         let p1Locked = FixedRowsPage(
-            row1: [keKey("SCR","Scroll Lock"),keKey("PRT","PrtSc"),keKey("CAPS","Caps"),keKey("PAUSE","Pause"),keKey("HOME","Home"),keKey("PGUP","PgUp"),kbdTog],
+            row1: [keKey("SCR LK","Scroll Lock"),keKey("PRT SC","PrtSc"),keKey("CAPS","Caps"),keKey("PAUSE","Pause"),keKey("HOME","Home"),keKey("PGUP","PgUp"),kbdTog],
             row2: [keKey("SPACE","Space"),keKey("BKSP","Backspace"),keKey("DEL","Delete"),keKey("INS","Insert"),keKey("END","End"),keKey("PGDN","PgDn"),tog]
         )
         let p1Unlocked = FixedRowsPage(
-            row1: modEntries + [keKey("TAB","Tab"),keKey("UP","Up"),keKey("ENTER","Enter"),kbdTog],
-            row2: [keKey("ESC","Escape"),Self.modifierEntry(km,label:"SHIFT",icon:"shift",key:"Shift"),keKey("DEL","Delete"),keKey("LEFT","Left"),keKey("DOWN","Down"),keKey("RIGHT","Right"),tog]
+            row1: modEntries + [keKey("Tab","Tab"),keKey("UP","Up"),keKey("ENTER","Enter"),kbdTog],
+            row2: [keKey("ESC","Escape"),Self.modifierEntry(km,label:"SHIFT",icon:"shift_24px",key:"Shift",font:fKeyFont),keKey("DEL","Delete"),keKey("LEFT","Left"),keKey("DOWN","Down"),keKey("RIGHT","Right"),tog]
         )
 
         // Page 2 — Punctuation
-        let p2Row1: [(String, String)] = [
-            ("(","`"),(")","~"),("[","'"),("]","\""),(":",":"),("#","#"),("@","@"),
-        ]
-        let p2Row2: [(String, String)] = [
-            ("/","<"),("\\",">"),("|","*"),("?","&"),("-","/"),("_","."),
-        ]
         let p2 = FixedRowsPage(
-            row1: lock ? ["`","~","'","\"","%","^","|"].map { te($0) }
-                       : p2Row1.map { Self.textEntry(km, label: $0.0, badge: $0.1) },
-            row2: lock ? ["<",">","*","&",",","."].map { te($0) } + [tog]
-                       : p2Row2.map { Self.textEntry(km, label: $0.0, badge: $0.1) } + [tog]
+            row1: lock ? PunctuationPageData.lockedRow1.map { (pair) -> ShortcutEntry in
+                            var entry = Self.textEntry(km, label: pair.0, badge: pair.1)
+                            entry.font = fKeyFont
+                            return entry
+                        }
+                       : PunctuationPageData.unlockedRow1.map { (pair) -> ShortcutEntry in
+                            var entry = Self.textEntry(km, label: pair.0, badge: pair.1)
+                            entry.font = fKeyFont
+                            return entry
+                        },
+            row2: lock ? PunctuationPageData.lockedRow2.map { (pair) -> ShortcutEntry in
+                            var entry = Self.textEntry(km, label: pair.0, badge: pair.1)
+                            entry.font = fKeyFont
+                            return entry
+                        } + [tog]
+                       : PunctuationPageData.unlockedRow2.map { (pair) -> ShortcutEntry in
+                            var entry = Self.textEntry(km, label: pair.0, badge: pair.1)
+                            entry.font = fKeyFont
+                            return entry
+                        } + [tog]
         )
 
         return [p0, lock ? p1Locked : p1Unlocked, p2]
@@ -302,9 +387,11 @@ struct ProKeyboardMouseView: View {
 
     // MARK: - Shortcut helpers
 
-    private static func modifierEntry(_ km: KeyboardManager, label: String, icon: String, key: String? = nil) -> ShortcutEntry {
+    private static func modifierEntry(_ km: KeyboardManager, label: String, icon: String, key: String? = nil, font: Font? = nil) -> ShortcutEntry {
         let k = key ?? label
-        return ShortcutEntry(label: label, icon: icon, isActive: km.activeModifiers.contains(k)) { km.handleModifierToggle(k) }
+        var entry = ShortcutEntry(label: label, icon: icon, isActive: km.activeModifiers.contains(k)) { km.handleModifierToggle(k) }
+        entry.font = font
+        return entry
     }
     private static func keyEntry(_ km: KeyboardManager, label: String, icon: String, key: String? = nil, badge: String? = nil) -> ShortcutEntry {
         let k = key ?? label
@@ -322,35 +409,74 @@ struct ProKeyboardMouseView: View {
 
     private func touchpadOverlay(showLabel: Bool = true) -> some View {
         GeometryReader { geo in
-            let stripWidth = max(28, geo.size.width * 0.30)
+            let stripWidth = max(14, geo.size.width * 0.165)
             let showMouseButtons = prefs.showsMouseKeyStrip
             let padGesturesEnabled = prefs.padClickDragGesturesEnabled
             VStack(spacing: 0) {
                 HStack(spacing: 0) {
-                    ZStack(alignment: .topTrailing) {
+                    ZStack(alignment: .topLeading) {
                         TouchpadView(mouseManager: mouseManager, pointerTipState: pointerTipState, padClickDragGesturesEnabled: padGesturesEnabled, onPointerMoving: { moving in pointerMoving = moving })
                         Button(action: { showTouchpadHelp = true }) {
-                            Image(systemName: "questionmark.circle.fill").font(.system(size: 18, weight: .semibold)).foregroundColor(.secondary)
+                            Image("ic_touchpad_info_24")
+                                .renderingMode(.template)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 18, height: 18)
+                                .foregroundColor(.secondary)
                                 .padding(8).background(Color(UIColor.secondarySystemBackground).opacity(0.9)).clipShape(Circle())
-                        }.padding(8)
-                        if showLabel { touchpadLabel.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center).allowsHitTesting(false) }
-                        Text(touchpadStatusText)
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color(UIColor.secondarySystemBackground).opacity(0.85))
-                            .cornerRadius(5)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-                            .padding(4)
+                        }
+                        .alert("Gestures", isPresented: $showTouchpadHelp) {
+                            Button("OK", role: .cancel) { }
+                        } message: {
+                            Text("One finger: move, tap, double-tap; long-press starts drag (tap again to release).\n\nTwo fingers: scroll; lift both without sliding for right-click.")
+                        }
+                        if showLabel {
+                            VStack(spacing: 2) {
+                                Text("TouchPad")
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundColor(.white.opacity(0.85))
+                                Text(buttonStateText)
+                                    .font(.system(size: 9.45, weight: .light))
+                                    .foregroundColor(mouseManager.isSelectMode ? themeManager.accentColor.darker(by: 0.15) : .secondary.opacity(0.7))
+                                Text(touchStateText)
+                                    .font(.system(size: 9.45, weight: .light))
+                                    .foregroundColor(.secondary.opacity(0.7))
+                            }
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.top, 8)
                             .allowsHitTesting(false)
-                    }.frame(width: max(0, geo.size.width - stripWidth))
+                        }
+                    }
+                    .overlay(alignment: .bottomTrailing) {
+                        // ponytail: floating keyboard-toggle so the user can exit
+                        // touchpad-only mode — without it there's no way to get back
+                        // when the shortcut panel is hidden (displayMode == .touchpad).
+                        Button {
+                            withAnimation { displayMode = .both }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "keyboard")
+                                    .font(.system(size: 11, weight: .semibold))
+                                Text(orientationManager.isLandscape
+                                     ? (isSplitLayout ? "Split Layout" : "Full Layout")
+                                     : (isImeSurface ? "Input Method" : "Built-in"))
+                                    .font(.system(size: 10, weight: .medium))
+                            }
+                            .foregroundColor(.primary.opacity(0.6))
+                            .padding(.horizontal, 8).padding(.vertical, 5)
+                            .background(Color(UIColor.secondarySystemBackground).opacity(0.9))
+                            .cornerRadius(6)
+                        }
+                        .padding(6)
+                    }
+                    .frame(width: max(0, geo.size.width - stripWidth))
+                    Rectangle().fill(Color.gray.opacity(0.2)).frame(width: 0.5)
                     ProTouchpadScrollStripView(mouseManager: mouseManager, labelFontSize: orientationManager.isLandscape ? 10 : 7).frame(width: stripWidth)
                 }
                 if showMouseButtons {
                     proTouchpadMouseButtons
                 }
-            }.background(mouseManager.isSelectMode ? themeManager.accentColor.opacity(0.3) : Color(UIColor.secondarySystemBackground))
+            }.background(Color(UIColor.secondarySystemBackground))
         }
     }
 
@@ -376,29 +502,6 @@ struct ProKeyboardMouseView: View {
                 .frame(height: 36)
         }
         .buttonStyle(ProMouseButtonStyle(held: held, accentColor: themeManager.accentColor))
-    }
-
-    private var touchpadLabel: some View {
-        VStack(spacing: 4) {
-            Text("Touch Pad").font(.caption).foregroundColor(.secondary)
-            Text("Openterface").font(.caption2).foregroundColor(.secondary.opacity(0.7))
-        }
-    }
-    private var touchpadHelpSheet: some View {
-        VStack(spacing: 0) {
-            HStack { Text("Touchpad Help").font(.headline); Spacer(); Button("Done") { showTouchpadHelp = false }.font(.subheadline) }
-                .padding(.horizontal, 16).padding(.vertical, 12).background(Color(UIColor.secondarySystemBackground))
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Use these gestures in Pro Keyboard & Mouse mode:").font(.subheadline).foregroundColor(.secondary)
-                    ForEach(["1. One finger drag: move pointer", "2. Single tap: left click", "3. Double tap: double click",
-                             "4. Two-finger tap: right click", "5. Two-finger drag: wheel scrolling", "6. Long press: toggle drag mode",
-                             "7. Right vertical strip: quick page scroll"], id: \.self) { Text($0).font(.body) }
-                    Text("Tip: While drag mode is active, the touchpad background turns blue.")
-                        .font(.footnote).foregroundColor(.secondary).padding(.top, 4)
-                }.frame(maxWidth: .infinity, alignment: .leading).padding(16)
-            }
-        }.background(Color(UIColor.systemBackground))
     }
 
     enum DisplayMode: Int, CaseIterable {
@@ -436,8 +539,28 @@ struct ProKeyboardMouseView: View {
                 if orientationManager.isLandscape { landscapeContent(g) } else { portraitContent(g) }
             }
                 .coordinateSpace(name: "proKMView")
+                .coordinateSpace(name: "keyboardLayout")
                 .overlay { if proSubmode == .keyboard, let p = alternatesPopup { KeyAlternatesPopupView(options: p.options, anchorFrame: p.anchor, pick: alternatesPick).allowsHitTesting(false) } }
-                .sheet(isPresented: $showTouchpadHelp) { touchpadHelpSheet }
+                .overlayPreferenceValue(KeyCalloutInfoKey.self) { info in
+                    if let info = info {
+                        Text(info.text)
+                            .font(.system(size: 26, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(themeManager.accentColor)
+                                    .shadow(color: Color.black.opacity(0.3), radius: 4, y: 2)
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .position(
+                                x: info.left ? info.frame.minX - 60 : (info.right ? info.frame.maxX + 60 : info.frame.midX),
+                                y: (info.left || info.right) ? info.frame.midY : (info.below ? info.frame.maxY + 36 : info.frame.minY - 36)
+                            )
+                            .allowsHitTesting(false)
+                    }
+                }
                 .offset(y: isTextInputMode ? (keyboardHeight > 0 ? -keyboardHeight * 0.65 : 30) : 0)
                 .animation(.easeOut(duration: 0.3), value: keyboardHeight).animation(.easeOut(duration: 0.3), value: isTextInputMode)
                 .onAppear {
@@ -510,7 +633,7 @@ struct ProKeyboardMouseView: View {
                     Color(UIColor.secondarySystemBackground).frame(width: barWidth)
                     VStack(spacing: 0) {
                         if displayMode == .touchpad {
-                            VStack(spacing: 0) { landscapeShortcutPanel; ZStack { touchpadOverlay(); landscapeHandleButton } }
+                            VStack(spacing: 0) { landscapeShortcutPanel; touchpadOverlay() }
                         } else if isSplitLayout {
                             let cw = geometry.size.width - barWidth, tw = cw * 0.33, sw = max(0, (cw - tw) / 2)
                             HStack(spacing: 0) {
@@ -519,6 +642,11 @@ struct ProKeyboardMouseView: View {
                         } else {
                             VStack(spacing: 0) { landscapeShortcutPanel; keyboardRows.layoutPriority(1) }
                         }
+                    }
+                    .overlay(alignment: .bottomTrailing) {
+                        // ponytail: handle button must be visible in every displayMode
+                        // (touchpad-only, split, keyboard-only), not just when touchpad shows.
+                        landscapeHandleButton.padding(8)
                     }
                 }.background(Color(UIColor.secondarySystemBackground))
             }
@@ -593,13 +721,13 @@ struct ProKeyboardMouseView: View {
                     .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 1)
                 Text(isSplitLayout ? "Split" : "Full").font(.caption2).foregroundColor(.secondary)
             }
-        }.buttonStyle(PlainButtonStyle()).padding(.top, 8).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }.buttonStyle(PlainButtonStyle())
     }
 
     private var landscapeShortcutPanel: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 6) {
             ShortcutStripPager(pages: shortcutPages).id(profileMgr.activeProfileId)
-            FixedRowsPager(pages: fixedRowsPages, defaultPageIndex: 1)
+            FixedRowsPager(pages: fixedRowsPages, defaultPageIndex: 1, refreshKey: fixedRowsLocalFnLocked)
         }.background(Color(UIColor.secondarySystemBackground))
     }
     @ViewBuilder private var landscapeSplitShortcutPanel: some View {
@@ -650,7 +778,7 @@ struct ProKeyboardMouseView: View {
     }
 
     private var keyboardRows: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 6) {
             ForEach(currentKeys.indices, id: \.self) { r in
                 let row = currentKeys[r]
                 GeometryReader { rowGeo in
@@ -697,7 +825,7 @@ struct ProKeyboardMouseView: View {
                 .background(Color(UIColor.secondarySystemBackground))
                 .overlay(alignment: .bottom) {
                     if !isImeSurface {
-                        portraitLogoOverlay.padding(.bottom, 10)
+                        portraitLogoOverlay.padding(.bottom, 44)
                     }
                 }
                 if isTextInputMode && isTextInputExpanded { expandedTextInputView(g) }
@@ -719,21 +847,28 @@ struct ProKeyboardMouseView: View {
         while lcp < min(oldC.count, newC.count) && oldC[lcp] == newC[lcp] { lcp += 1 }
         let deleteCount = oldC.count - lcp; let insertStr = String(newC.dropFirst(lcp))
         imeLastSent = newText
+        // ponytail: process all keys on a background queue — sendKeyPressAndRelease
+        // and sendASCIICharInline are thread-safe (build HID packets, no UI access).
+        // Running them on the main thread (via DispatchQueue.main.sync) blocks the
+        // main thread for ~100ms per character due to usleep(commitDelayUs) inside
+        // sendKeyPressAndRelease, causing a 20s+ hang for long text inputs.
         DispatchQueue.global(qos: .userInteractive).async {
             for _ in 0..<deleteCount { self.keyboardManager.sendKeyPressSynchronous("Backspace") }
             for char in insertStr {
                 let s = char.unicodeScalars.first?.value ?? 0
                 if s > 0x7E { UnicodeManager.shared.sendChar(char, keyboardManager: self.keyboardManager); usleep(50_000); continue }
-                DispatchQueue.main.sync { self.keyboardManager.sendASCIICharInline(char) }
+                // ponytail: call directly from background thread (thread-safe); avoids
+                // blocking the main thread for the duration of sendKeyPressAndRelease
+                self.keyboardManager.sendASCIICharInline(char)
                 usleep(50_000)
             }
         }
     }
 
     private var shortcutPanelContent: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 6) {
             ShortcutStripPager(pages: shortcutPages).id(profileMgr.activeProfileId).padding(.horizontal, 4)
-            FixedRowsPager(pages: fixedRowsPages, defaultPageIndex: 1).padding(.horizontal, 4)
+            FixedRowsPager(pages: fixedRowsPages, defaultPageIndex: 1, refreshKey: fixedRowsLocalFnLocked).padding(.horizontal, 4)
             if !isImeSurface { keyboardRows.frame(height: 360).padding(.top, -40).padding(.bottom, 10) }
         }
     }
@@ -772,8 +907,9 @@ struct ProKeyboardMouseView: View {
     private func keyWeight(for kd: KeyboardManager.KeyDef, row: [KeyboardManager.KeyDef]) -> CGFloat {
         if !orientationManager.isLandscape {
             switch kd.label {
-            case "Shift": return 16; case "Enter": return 12; case "Fn": return 9.5
-            case "Space": return 47; case "Win": return 19; case "Del": return 11.5
+            case "Shift": return 16; case "Enter": return 12; case "Fn": return 11
+            case "Space": return 47; case "Win": return 12; case "Del": return 11.5
+            case "Alt", "Ctrl": return 7.5
             default: return 100 / CGFloat(row.count)
             }
         }
@@ -814,12 +950,15 @@ struct ProKeyboardMouseView: View {
     private func keyButton(for kd: KeyboardManager.KeyDef, width: CGFloat) -> AnyView {
         let displayText = displayLabel(for: kd)
         let isModifier = ["Ctrl", "Alt", "Cmd", "Win", "Shift", "Option"].contains(kd.label)
-        let isPressed = isModifier && keyboardManager.activeModifiers.contains(kd.label)
+        let visualOnlyModifier = ["Ctrl", "Alt", "Win"].contains(kd.label)
+        let isPressed = (isModifier && !visualOnlyModifier && keyboardManager.activeModifiers.contains(kd.label)) ||
+                        ((visualOnlyModifier || !isModifier) && keyPressInProgress && currentlyPressedKey == kd.label)
         let isActive = (kd.label == "Caps" && keyboardManager.capsLockActive) || (kd.label == "Fn" && keyboardManager.isFnLocked)
         let h = orientationManager.isLandscape ? 56.0 : 72.0
         let bg = GeometryReader { g in DispatchQueue.main.async { keyFrames[kd.label] = g.frame(in: .named("proKMView")) }; return Color.clear }
         let content = keyContent(for: kd, displayText: displayText)
-            .frame(maxWidth: .infinity, maxHeight: h).background(keyBackground(for: kd, pressed: isPressed, active: isActive))
+            .frame(maxWidth: .infinity, maxHeight: h)
+            .background(isModifier ? Color.clear : keyBackground(for: kd, pressed: isPressed, active: isActive))
             .cornerRadius(9).foregroundColor(isPressed || isActive ? .white : .primary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .overlay(alignment: .top) { self.keyHints(for: kd) }
@@ -829,7 +968,16 @@ struct ProKeyboardMouseView: View {
         } else {
             let ek = keyboardManager.resolveFnKey(kd.keyCode) ?? kd.keyCode
             let isRepeatable = KeyRepeatController.repeatableKeys.contains(kd.label)
+            let previewBg = GeometryReader { geo in
+                Color.clear.preference(
+                    key: KeyCalloutInfoKey.self,
+                    value: prefs.keyTapPreviewEnabled && keyPressInProgress && currentlyPressedKey == kd.label
+                        ? KeyCalloutInfo(text: displayText, frame: geo.frame(in: .named("keyboardLayout")), below: false, left: false, right: false)
+                        : nil
+                )
+            }
             return AnyView(content
+                .background(previewBg)
                 .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .named("proKMView"))
                     .onChanged { v in
                         if !keyPressInProgress {
@@ -928,15 +1076,42 @@ struct ProKeyboardMouseView: View {
         }
     }
 
+    /// Returns icon/text/both based on the KeysDisplayMode setting.
+    @ViewBuilder
+    private func keyDisplay(icon: String, text: String, fallbackText: String? = nil, font: Font? = nil) -> some View {
+        let mode = prefs.keysDisplayMode
+        let hasIcon = !icon.isEmpty
+        let showIcon = (mode == .icons || mode == .combo) && hasIcon
+        let showText = mode == .names || mode == .combo || !hasIcon
+        let label = fallbackText ?? text
+        VStack(spacing: 1) {
+            if showIcon {
+                Image(icon)
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 18, height: 18)
+            }
+            if showText {
+                Text(label).font(font ?? .system(size: mode == .combo ? 7 : 11))
+                    .lineLimit(1)
+            }
+        }
+    }
+
     @ViewBuilder
     private func keyContent(for kd: KeyboardManager.KeyDef, displayText: String) -> some View {
         switch kd.label {
         case "Backspace":
-            Image(systemName: "delete.left").font(.system(size: 16))
+            keyDisplay(icon: "backspace_24", text: "⌫")
                 .rotationEffect(kd.symbolLabel.isEmpty && keyboardManager.activeModifiers.contains("Shift") ? .degrees(180) : .degrees(0))
-        case "Enter": Image(systemName: "return").font(.system(size: 16))
-        case "Shift": Image(systemName: "shift").font(.system(size: 16))
-        case "Del", "Delete", "FwdDel": Image(systemName: "delete.forward").font(.system(size: 16))
+        case "Enter":
+            keyDisplay(icon: "keyboard_return_24px", text: "↵")
+        case "Shift":
+            keyDisplay(icon: "shift_24px", text: "⇧")
+        case "Del", "Delete", "FwdDel":
+            keyDisplay(icon: "backspace_24", text: "Del")
+                .rotationEffect(.degrees(180))
         case "Space":
             if orientationManager.isLandscape && !isSplitLayout {
                 Image("openterface_wordmark")
@@ -950,9 +1125,16 @@ struct ProKeyboardMouseView: View {
             }
         case "Cmd": cmdKeyLabel
         case "Option": optionKeyLabel
-        case "App": Image(systemName: "app").font(.system(size: 14))
-        case "Tab": Image(systemName: "arrow.right.to.line.compact").font(.system(size: 14))
-        case "Ctrl", "Alt", "Win": Text(getDisplayValue(for: kd.label)).font(.system(size: 12))
+        case "App":
+            keyDisplay(icon: "ic_list_alt_24", text: "App")
+        case "Tab":
+            keyDisplay(icon: "keyboard_tab_24", text: "Tab")
+        case "Ctrl":
+            keyDisplay(icon: aiSettings.targetOS == .macOS ? "keyboard_control_key_24px" : "", text: "Ctrl", font: aiSettings.targetOS == .macOS ? nil : .system(size: 11, weight: .bold))
+        case "Alt":
+            keyDisplay(icon: aiSettings.targetOS == .macOS ? "keyboard_option_key_24px" : "", text: "Alt", font: aiSettings.targetOS == .macOS ? nil : .system(size: 11, weight: .bold))
+        case "Win":
+            keyDisplay(icon: aiSettings.targetOS == .windows ? "targetos_windows" : aiSettings.targetOS == .linux ? "targetos_linux" : "keyboard_command_key_24px", text: "Win")
         case "Caps": Text("Caps").font(.system(size: 11))
         case "Fn": Text("Fn").font(.system(size: 12, weight: .bold))
         default:
@@ -962,18 +1144,10 @@ struct ProKeyboardMouseView: View {
     }
 
     private var cmdKeyLabel: some View {
-        let t: String
-        switch aiSettings.targetOS {
-        case .windows: t = "Win"; case .linux: t = "Super"; default: t = "Cmd"
-        }
-        return Text(t).font(.system(size: aiSettings.targetOS == .linux ? 10 : 12))
+        keyDisplay(icon: "keyboard_command_key_24px", text: "Cmd")
     }
     private var optionKeyLabel: some View {
-        let t: String
-        switch aiSettings.targetOS {
-        case .windows: t = "Alt"; case .linux: t = "AltGr"; default: t = "Opt"
-        }
-        return Text(t).font(.system(size: aiSettings.targetOS == .linux ? 11 : 12))
+        keyDisplay(icon: "keyboard_option_key_24px", text: "Opt")
     }
 
     // MARK: - Pro Key Repeat (deferred — never holds key-down)
@@ -1187,15 +1361,16 @@ struct ProTouchpadScrollStripView: View {
                 Color(UIColor.secondarySystemBackground)
                 VStack(spacing: 0) {
                     let chevronSize = min(24, max(14, geometry.size.width * 0.85))
+                    let chevronHeight = chevronSize * 0.6
                     Image(systemName: "chevron.up")
-                        .font(.system(size: labelFontSize))
+                        .font(.system(size: labelFontSize * 3))
                         .foregroundColor(.secondary)
-                        .frame(width: chevronSize, height: chevronSize)
+                        .frame(width: chevronSize, height: chevronHeight)
                     Spacer()
                     Image(systemName: "chevron.down")
-                        .font(.system(size: labelFontSize))
+                        .font(.system(size: labelFontSize * 3))
                         .foregroundColor(.secondary)
-                        .frame(width: chevronSize, height: chevronSize)
+                        .frame(width: chevronSize, height: chevronHeight)
                 }
                 .padding(.vertical, 6)
             }
@@ -1242,13 +1417,19 @@ private struct ProModifierKey: View {
     let content: AnyView
     let height: CGFloat
 
+    @ObservedObject private var prefs = KmProPrefs.shared
     @ObservedObject private var themeManager = ThemeManager.shared
 
     var body: some View {
         ModifierKeyButton(key: kd.label, keyboardManager: keyboardManager, keyPreview: displayText) { physical, locked in
+            let isModActive = keyboardManager.activeModifiers.contains(kd.label)
+            let isActive = locked || physical || isModActive
             content
-                .background(locked ? themeManager.accentColor : (physical ? themeManager.accentColor.opacity(0.7) : Color(UIColor.secondarySystemBackground)))
-                .foregroundColor(locked || physical ? .white : .primary)
+                .background(
+                    isModActive ? themeManager.accentColor : (physical ? themeManager.accentColor.opacity(0.7) : Color(UIColor.secondarySystemBackground)),
+                    in: RoundedRectangle(cornerRadius: 9)
+                )
+                .foregroundColor(isActive ? .white : .primary)
         }
         .frame(height: height)
 

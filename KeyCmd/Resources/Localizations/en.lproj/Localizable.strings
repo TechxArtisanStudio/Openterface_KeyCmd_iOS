@@ -45,7 +45,7 @@
 "History" = "History";
 
 /* --- Navigation Titles --- */
-"Pro Setup" = "Pro Setup";
+"Keyboard & Mouse Pro setup" = "Keyboard & Mouse Pro setup";
 "ASCII Preview" = "ASCII Preview";
 "Add Module" = "Add Module";
 "Background" = "Background";
@@ -136,9 +136,8 @@
 "How fast content scrolls when you drag the strip beside the touchpad. Independent from General → touchpad two-finger scroll sensitivity." = "How fast content scrolls when you drag the strip beside the touchpad. Independent from General → touchpad two-finger scroll sensitivity.";
 
 /* --- KM Pro Settings --- */
-"Display" = "Display";
-"Keys Display" = "Keys Display";
-"Controls how shortcuts and keys appear on the keyboard strip and QWERTY layout." = "Controls how shortcuts and keys appear on the keyboard strip and QWERTY layout.";
+"Keys display" = "Keys display";
+"Same as the DISPLAY key at the end of row 1: how shortcuts on the strip look (names, icons, or combo text), and how Tab and the modifier keys on the main keyboard look." = "Same as the DISPLAY key at the end of row 1: how shortcuts on the strip look (names, icons, or combo text), and how Tab and the modifier keys on the main keyboard look.";
 "Touchpad" = "Touchpad";
 "Touchpad Mode" = "Touchpad Mode";
 "Strip Scroll Sensitivity" = "Strip Scroll Sensitivity";

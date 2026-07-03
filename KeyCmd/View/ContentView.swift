@@ -247,13 +247,12 @@ struct ContentView: View {
                         }
                     }) {
                         Image(systemName: "line.3.horizontal")
-                            .font(.system(size: 18, weight: .medium))
+                            .font(.system(size: 16, weight: .medium))
                             .foregroundColor(.gray)
-                            .scaleEffect(x: 0.65, y: 1, anchor: .center)
-                            .frame(width: 22, height: 44)
+                            .frame(width: 36, height: 36)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .contentShape(Rectangle())
                     .padding(.leading, 12)
                     if viewManager.currentView == .keyboardMouseBasic {
                         BasicKeyboardMouseView(
@@ -265,11 +264,6 @@ struct ContentView: View {
                     }
                     if viewManager.currentView == .keyboardMousePro {
                         proSubmodeSelector
-                        let currentSubmode = ProKeyboardMouseView.ProSubmode(rawValue: proSubmodeRaw) ?? .keyboard
-                        if currentSubmode == .keyboard {
-                            orientationToggleDivider
-                            orientationToggleButton
-                        }
                     }
                 }
             }
@@ -278,6 +272,8 @@ struct ContentView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        .background(Color(UIColor.systemBackground))  // ponytail: opaque bg so touchpad doesn't show through
+        .contentShape(Rectangle())  // ponytail: ensure entire topBar area captures taps
         .zIndex(100)
         .onAppear {
             LogManager.shared.log("TopBar rendered", category: "UI")
@@ -287,41 +283,41 @@ struct ContentView: View {
     @ViewBuilder private var proSubmodeSelector: some View {
         let current = ProKeyboardMouseView.ProSubmode(rawValue: proSubmodeRaw) ?? .keyboard
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 0) {
+            HStack(spacing: 4) {
                 Button { proSubmodeRaw = ProKeyboardMouseView.ProSubmode.keyboard.rawValue } label: {
                     Image("ic_km_pro_submode_keyboard")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 20, height: 20)
-                        .foregroundColor(current == .keyboard ? .purple : .secondary)
-                        .frame(width: 34, height: 34)
+                        .frame(width: 27, height: 27)
+                        .foregroundColor(current == .keyboard ? themeManager.accentColor : .secondary)
+                        .frame(width: 38, height: 38)
                 }
                 Button { proSubmodeRaw = ProKeyboardMouseView.ProSubmode.compose.rawValue } label: {
                     Image("ic_km_pro_submode_compose")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 20, height: 20)
-                        .foregroundColor(current == .compose ? .purple : .secondary)
-                        .frame(width: 34, height: 34)
+                        .frame(width: 27, height: 27)
+                        .foregroundColor(current == .compose ? themeManager.accentColor : .secondary)
+                        .frame(width: 38, height: 38)
                 }
                 Button { proSubmodeRaw = ProKeyboardMouseView.ProSubmode.numpad.rawValue } label: {
                     Image("ic_km_pro_submode_numpad")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 20, height: 20)
-                        .foregroundColor(current == .numpad ? .purple : .secondary)
-                        .frame(width: 34, height: 34)
+                        .frame(width: 27, height: 27)
+                        .foregroundColor(current == .numpad ? themeManager.accentColor : .secondary)
+                        .frame(width: 38, height: 38)
                 }
             }
         }
-        .frame(width: 68)
+        .frame(width: 80)
         .clipped()
     }
 
     private var orientationToggleDivider: some View {
         Divider()
             .frame(height: 24)
-            .padding(.horizontal, 4)
+            .padding(.horizontal, 16)
     }
 
     @ViewBuilder private var orientationToggleButton: some View {
@@ -367,7 +363,7 @@ struct ContentView: View {
                 if viewManager.currentView == .keyboardMouseBasic {
                     kmBasicSetupButton
                 }
-                // Show KM Pro setup button between targetOS and BLE
+                // Show KM Keyboard & Mouse Pro setup button between targetOS and BLE
                 if viewManager.currentView == .keyboardMousePro {
                     kmProSetupButton
                 }
@@ -423,7 +419,7 @@ struct ContentView: View {
                 Form {
                     KmProSettingsView(keyboardManager: keyboardManager)
                 }
-                .navigationTitle("Pro Setup")
+                .navigationTitle("Keyboard & Mouse Pro setup")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .navigationBarTrailing) {
@@ -537,7 +533,10 @@ struct ContentView: View {
 
     private var targetOSButton: some View {
         Button(action: {
+            print("🎯 Target OS button tapped! Current: \(aiSettings.targetOS)")
+            LogManager.shared.log("Target OS button tapped", category: "UI")
             showTargetOSDialog = true
+            print("🎯 showTargetOSDialog set to: \(showTargetOSDialog)")
         }) {
             Image(aiSettings.targetOS.imageName)
                 .renderingMode(.template)
@@ -545,15 +544,18 @@ struct ContentView: View {
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 20, height: 20)
                 .foregroundColor(.gray)
+                .contentShape(Rectangle())
         }
         .frame(width: 34, height: 34)
         .background(Color.clear)
+        .contentShape(Rectangle())
         .buttonStyle(.plain)
     }
 
     private var targetOSSelectionSheet: some View {
         ZStack {
-            Color.black.opacity(0.36)
+            // Semi-transparent dimming background
+            Color.black.opacity(0.4)
                 .ignoresSafeArea()
                 .onTapGesture {
                     showTargetOSDialog = false
@@ -902,6 +904,7 @@ struct ContentView: View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
                 mainContentView
+                    .zIndex(0)
                 if sidebarVisible {
                     Color.black.opacity(0.25)
                         .ignoresSafeArea()
@@ -912,9 +915,12 @@ struct ContentView: View {
                             }
                         }
                         .accessibilityHidden(true)
+                        .zIndex(101)
                     sidebarView(width: geometry.size.width * 2 / 3)
+                        .zIndex(102)
                 }
             }
+            .compositingGroup()
             .gesture(
                 DragGesture(minimumDistance: 10)
                     .onEnded { value in
@@ -970,7 +976,14 @@ struct ContentView: View {
                     clipboardManager: clipboardManager,
                     keyboardManager: keyboardManager
                 )
+                .allowsHitTesting(clipboardManager.showClipboardPrompt)
             )
+            .onChange(of: showTargetOSDialog) { newValue in
+                print("🎯 showTargetOSDialog changed to: \(newValue)")
+            }
+            .sheet(isPresented: $showTargetOSDialog) {
+                targetOSSelectionSheet
+            }
             .sheet(isPresented: $showPopup) {
                 ConnectionDialogView(bleManager: bleManager)
                     .onAppear {
@@ -985,13 +998,6 @@ struct ContentView: View {
             .sheet(isPresented: $showSettings) {
                 SettingsView()
             }
-            .overlay(
-                Group {
-                    if showTargetOSDialog {
-                        targetOSSelectionSheet
-                    }
-                }
-            )
             .onChange(of: showPopup) { isPresented in
                 if isPresented && viewManager.currentView == .gamepad {
                     orientationManager.lockToLandscape()
@@ -1013,8 +1019,13 @@ struct ContentView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
                     if bleManager.checkBluetoothPermission() {
                         bleManager.startScanning()
-                        showPopup = true
-                        LogManager.shared.log("Auto-starting Bluetooth scan on app launch", category: "BLE")
+                        if bleManager.autoConnectEnabled {
+                            showPopup = false
+                            LogManager.shared.log("Auto-starting Bluetooth scan on app launch (silent auto-connect)", category: "BLE")
+                        } else {
+                            showPopup = true
+                            LogManager.shared.log("Auto-starting Bluetooth scan on app launch", category: "BLE")
+                        }
                     } else {
                         LogManager.shared.log("Bluetooth permission not granted", category: "BLE", level: .warning)
                     }

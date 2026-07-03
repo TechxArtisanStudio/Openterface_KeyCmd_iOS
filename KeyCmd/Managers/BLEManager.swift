@@ -36,6 +36,7 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     // MARK: - Private State
 
     private var centralManager: CBCentralManager!
+    private let bleQueue = DispatchQueue(label: "com.keycmd.ble", qos: .userInitiated)
     private let logger = LogManager.shared
 
     private var connectedPeripheral: CBPeripheral?
@@ -47,6 +48,7 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     private let maxReconnectAttempts = 3
     private var reconnectWorkItem: DispatchWorkItem?
     private var rssiTimer: Timer?
+    private var pendingConnectionStartedAt: Date?
 
     /// Raw data publish/subscribe for BLE-Eth transport (bypasses HID parsing).
     let rawDataSubject = PassthroughSubject<Data, Never>()
@@ -58,7 +60,7 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     override init() {
         super.init()
         lastConnectedDeviceName = UserDefaults.standard.string(forKey: Keys.lastConnectedName)
-        centralManager = CBCentralManager(delegate: self, queue: nil)
+        centralManager = CBCentralManager(delegate: self, queue: bleQueue)
     }
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
@@ -71,7 +73,7 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             }
         case .poweredOff:
             logger.log("Bluetooth is powered off", category: "BLE", level: .warning)
-            connectionState = .disconnected
+            DispatchQueue.main.async { self.connectionState = .disconnected }
         case .unsupported:
             logger.log("Bluetooth is unsupported", category: "BLE", level: .error)
         case .unauthorized:
@@ -90,10 +92,59 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         let peripherals = centralManager.retrievePeripherals(withIdentifiers: [uuid])
         if let peripheral = peripherals.first {
             logger.log("Auto-restoring connection to \(peripheral.name ?? "Unknown")", category: "BLE")
-            connectionState = .connecting
-            isReconnecting = true
-            centralManager.connect(peripheral, options: nil)
+            beginConnecting(to: peripheral, isReconnecting: true)
         }
+    }
+
+    private func normalizedDeviceName(_ name: String?) -> String {
+        guard let name else { return "" }
+        let lowered = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let filtered = lowered.filter { $0.isLetter || $0.isNumber }
+        return filtered
+    }
+
+    private func shouldAutoConnect(to peripheral: CBPeripheral, advertisementName: String?) -> Bool {
+        guard autoConnectEnabled else { return false }
+
+        if let uuidString = UserDefaults.standard.string(forKey: Keys.lastConnectedUUID),
+           let uuid = UUID(uuidString: uuidString),
+           peripheral.identifier == uuid {
+            return true
+        }
+
+        let lastConnectedNameRaw = UserDefaults.standard.string(forKey: Keys.lastConnectedName)
+        let lastConnectedName = normalizedDeviceName(lastConnectedNameRaw)
+
+        let discoveredName = normalizedDeviceName(peripheral.name ?? advertisementName)
+        guard !discoveredName.isEmpty else { return false }
+
+        // If we don't have a usable saved name (e.g. "Unknown"), fall back to first compatible
+        // discovery so startup doesn't remain in endless scan mode.
+        if lastConnectedName.isEmpty || lastConnectedName == "unknown" {
+            logger.log("No usable saved device name, auto-connecting to compatible discovery", category: "BLE", level: .warning)
+            return true
+        }
+
+        if discoveredName == lastConnectedName ||
+            discoveredName.contains(lastConnectedName) ||
+            lastConnectedName.contains(discoveredName) {
+            logger.log("Auto-connect matched by name fallback: \(discoveredName)", category: "BLE")
+            return true
+        }
+        return false
+    }
+
+    private func beginConnecting(to peripheral: CBPeripheral, isReconnecting: Bool = false) {
+        connectedPeripheral = peripheral
+        peripheral.delegate = self
+        pendingConnectionStartedAt = Date()
+        DispatchQueue.main.async {
+            self.connectionState = .connecting
+            self.isReconnecting = isReconnecting
+        }
+        centralManager.stopScan()
+        centralManager.connect(peripheral, options: nil)
+        startConnectionTimeout(for: peripheral)
     }
 
     func checkBluetoothPermission() -> Bool {
@@ -111,23 +162,60 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             if let serviceUUIDs = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] {
                 logger.log("Service UUIDs from advertisement: \(serviceUUIDs)", category: "BLE")
             }
-            peripheral.delegate = self
-            connectionState = .connecting
-            centralManager.connect(peripheral, options: nil)
-            discoveredDevices.append((peripheral, RSSI))
+
+            DispatchQueue.main.async {
+                if let existingIndex = self.discoveredDevices.firstIndex(where: { $0.0.identifier == peripheral.identifier }) {
+                    self.discoveredDevices[existingIndex] = (peripheral, RSSI)
+                } else {
+                    self.discoveredDevices.append((peripheral, RSSI))
+                }
+            }
+
+            guard shouldAutoConnect(to: peripheral, advertisementName: advName) else { return }
+
+            if connectionState == .connected {
+                logger.log("Already connected, skipping auto-connect", category: "BLE")
+                return
+            }
+
+            // When connection state is stale (connecting to another peripheral for too long),
+            // recover by switching to the discovered auto-connect target.
+            if connectionState == .connected || connectionState == .connecting || connectionState == .reconnecting {
+                let isSamePeripheral = connectedPeripheral?.identifier == peripheral.identifier
+                if isSamePeripheral {
+                    logger.log("Already connecting to auto-connect target, skipping", category: "BLE")
+                    return
+                }
+
+                if let startedAt = pendingConnectionStartedAt,
+                   Date().timeIntervalSince(startedAt) < 3.0 {
+                    logger.log("Connection in progress to another peripheral, waiting...", category: "BLE")
+                    return
+                }
+
+                logger.log("Stale connecting state detected, switching auto-connect target", category: "BLE", level: .warning)
+                if let current = connectedPeripheral, current.identifier != peripheral.identifier {
+                    centralManager.cancelPeripheralConnection(current)
+                }
+                cancelConnectionTimeout()
+            }
+
+            logger.log("Auto-connect target discovered, connecting...", category: "BLE")
+            beginConnecting(to: peripheral, isReconnecting: false)
         }
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        logger.log("Connected to \(peripheral.name ?? "Unknown")", category: "BLE", level: .success)
+        logger.log("Connected to \(peripheral.name ?? "Unknown") (id=\(peripheral.identifier.uuidString.prefix(8))...)", category: "BLE", level: .success)
+        cancelConnectionTimeout()
+        central.stopScan()
+        pendingConnectionStartedAt = nil
         connectedPeripheral = peripheral
-        connectedDevices.insert(peripheral.identifier)
-        connectionState = .connected
-        isReconnecting = false
         reconnectAttempts = 0
         reconnectWorkItem?.cancel()
         reconnectWorkItem = nil
-        peripheral.discoverServices(nil)
+        logger.log("Starting service discovery (FFF0 only)...", category: "BLE")
+        peripheral.discoverServices([CBUUID(string: "FFF0")])
         startRSSIMonitoring()
 
         // Persist last connected device for auto-reconnect
@@ -135,15 +223,22 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         let deviceName = peripheral.name ?? "Unknown"
         UserDefaults.standard.set(deviceName, forKey: Keys.lastConnectedName)
         DispatchQueue.main.async {
+            self.connectedDevices.insert(peripheral.identifier)
+            self.connectionState = .connected
+            self.isReconnecting = false
             self.lastConnectedDeviceName = deviceName
             self.showPopupBinding?.wrappedValue = false
         }
     }
 
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
+        cancelConnectionTimeout()
+        pendingConnectionStartedAt = nil
         logger.log("Failed to connect to \(peripheral.name ?? "Unknown"): \(error?.localizedDescription ?? "Unknown error")", category: "BLE", level: .error)
-        connectionState = .disconnected
-        isReconnecting = false
+        DispatchQueue.main.async {
+            self.connectionState = .disconnected
+            self.isReconnecting = false
+        }
         scheduleReconnect(for: peripheral)
     }
 
@@ -158,9 +253,10 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             return
         }
 
+        logger.log("Discovered \(services.count) services", category: "BLE")
         for service in services {
             logger.log("Service UUID: \(service.uuid)", category: "BLE")
-            peripheral.discoverCharacteristics(nil, for: service)
+            peripheral.discoverCharacteristics([CBUUID(string: "FFF1"), CBUUID(string: "FFF2")], for: service)
         }
     }
 
@@ -175,9 +271,9 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             return
         }
 
-        logger.log("Characteristics for service \(service.uuid):", category: "BLE")
+        logger.log("Characteristics for service \(service.uuid) (\(characteristics.count) found):", category: "BLE")
         for characteristic in characteristics {
-            logger.log("Characteristic UUID: \(characteristic.uuid)", category: "BLE")
+            logger.log("Characteristic UUID: \(characteristic.uuid) properties=\(characteristic.properties.rawValue)", category: "BLE")
             if characteristic.uuid == CBUUID(string: "FFF2") {
                 fff2Characteristic = characteristic
                 logger.log("FFF2 characteristic found!", category: "BLE", level: .success)
@@ -188,7 +284,9 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
                 // Enable notifications for incoming BLE-Eth data
                 if characteristic.properties.contains(.notify) {
                     peripheral.setNotifyValue(true, for: characteristic)
-                    logger.log("FFF1 notifications enabled", category: "BLE", level: .success)
+                    logger.log("FFF1 notifications enabling...", category: "BLE", level: .success)
+                } else {
+                    logger.log("FFF1 does NOT support notify", category: "BLE", level: .warning)
                 }
             }
         }
@@ -196,21 +294,22 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
 
     func connectToDevice(_ peripheral: CBPeripheral) {
         logger.log("Connecting to \(peripheral.name ?? "Unknown")", category: "BLE")
-        connectionState = .connecting
         cancelReconnect()
-        centralManager.connect(peripheral, options: nil)
+        beginConnecting(to: peripheral, isReconnecting: false)
     }
 
     func disconnectDevice(_ peripheral: CBPeripheral) {
         logger.log("Disconnecting from device", category: "BLE")
+        cancelConnectionTimeout()
+        pendingConnectionStartedAt = nil
         cancelReconnect()
         // Clear persisted last device (user explicitly disconnected)
         UserDefaults.standard.removeObject(forKey: Keys.lastConnectedUUID)
         UserDefaults.standard.removeObject(forKey: Keys.lastConnectedName)
         DispatchQueue.main.async {
             self.lastConnectedDeviceName = nil
+            self.connectionState = .disconnected
         }
-        connectionState = .disconnected
         centralManager.cancelPeripheralConnection(peripheral)
     }
 
@@ -286,9 +385,18 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         guard let data = characteristic.value else { return }
 
         if characteristic.uuid == CBUUID(string: "FFF1") {
+            logger.log("FFF1 notification: \(data.count) bytes", category: "BLE")
             // Raw data from BLE-Eth tunnel — publish to subscribers
             rawDataSubject.send(data)
         }
+    }
+
+    func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
+        if let error = error {
+            logger.log("Notification state update failed for \(characteristic.uuid): \(error.localizedDescription)", category: "BLE", level: .error)
+            return
+        }
+        logger.log("Notification state for \(characteristic.uuid): \(characteristic.isNotifying ? "enabled" : "disabled")", category: "BLE", level: .success)
     }
 
     func sendMouseMove(dx: Int, dy: Int) {
@@ -330,24 +438,36 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
-        logger.log("Disconnected from \(peripheral.name ?? "Unknown")", category: "BLE", level: .warning)
-        connectedDevices.remove(peripheral.identifier)
+        let nsError = error as NSError?
+        let domain = nsError?.domain ?? "nil"
+        let code = nsError?.code ?? -1
+        let desc = error?.localizedDescription ?? "nil"
+        logger.log("Disconnected from \(peripheral.name ?? "Unknown") | error domain=\(domain) code=\(code) desc=\(desc)", category: "BLE", level: .warning)
         stopRSSIMonitoring()
 
         if peripheral.identifier == connectedPeripheral?.identifier {
             connectedPeripheral = nil
             fff2Characteristic = nil
             fff1Characteristic = nil
-            currentRSSI = nil
         }
 
         // ponytail: auto-reconnect on unexpected disconnect (error != nil means not user-initiated)
         if error != nil && autoConnectEnabled {
-            connectionState = .reconnecting
+            DispatchQueue.main.async {
+                self.connectedDevices.remove(peripheral.identifier)
+                self.connectionState = .reconnecting
+            }
             scheduleReconnect(for: peripheral)
         } else {
-            connectionState = .disconnected
+            DispatchQueue.main.async {
+                self.connectedDevices.remove(peripheral.identifier)
+                self.connectionState = .disconnected
+            }
         }
+    }
+
+    func centralManager(_ central: CBCentralManager, connectionEventDidOccur event: CBConnectionEvent, for peripheral: CBPeripheral) {
+        logger.log("Connection event: \(event.rawValue) for \(peripheral.name ?? "Unknown")", category: "BLE")
     }
 
     // MARK: - Reconnect Logic
@@ -355,30 +475,72 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     private func scheduleReconnect(for peripheral: CBPeripheral) {
         guard reconnectAttempts < maxReconnectAttempts else {
             logger.log("Max reconnect attempts reached, giving up", category: "BLE", level: .warning)
-            connectionState = .disconnected
-            isReconnecting = false
+            DispatchQueue.main.async {
+                self.connectionState = .disconnected
+                self.isReconnecting = false
+            }
+            // ponytail: reset counter only after giving up so next disconnect cycle
+            // starts fresh (but consecutive attempts use proper backoff)
+            reconnectAttempts = 0
             return
         }
 
-        cancelReconnect()
+        // ponytail: cancel any pending reconnect work item but DON'T reset counter
+        // — counter must accumulate across attempts for exponential backoff to work
+        reconnectWorkItem?.cancel()
+        reconnectWorkItem = nil
         reconnectAttempts += 1
-        isReconnecting = true
+        DispatchQueue.main.async { self.isReconnecting = true }
 
         // ponytail: exponential backoff 1s, 2s, 4s (Android uses fixed 5s)
         let delay = pow(2.0, Double(reconnectAttempts - 1))
         let workItem = DispatchWorkItem { [weak self] in
             guard let self = self else { return }
             self.logger.log("Reconnect attempt \(self.reconnectAttempts)/\(self.maxReconnectAttempts)", category: "BLE")
-            self.centralManager.connect(peripheral, options: nil)
+            // ponytail: connect on BLE queue for consistency with centralManager delegate
+            self.bleQueue.async {
+                self.beginConnecting(to: peripheral, isReconnecting: true)
+            }
         }
         reconnectWorkItem = workItem
+        // ponytail: schedule delay on main queue, but actual connect runs on BLE queue
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
     }
 
+    /// Cancel any pending reconnect and reset the attempt counter.
+    /// Called when user explicitly connects/disconnects — fresh start.
     private func cancelReconnect() {
         reconnectWorkItem?.cancel()
         reconnectWorkItem = nil
-        isReconnecting = false
+        DispatchQueue.main.async { self.isReconnecting = false }
         reconnectAttempts = 0
+    }
+
+    // MARK: - Connection Timeout
+
+    /// Start a 10-second timeout for a pending connection.
+    /// If the connection doesn't complete (didConnect/didFailToConnect) within that window,
+    /// reset the state to disconnected so the next scan cycle can try again.
+    private var connectionTimeoutWorkItem: DispatchWorkItem?
+
+    private func startConnectionTimeout(for peripheral: CBPeripheral) {
+        cancelConnectionTimeout()
+        let name = peripheral.name ?? "Unknown"
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            self.logger.log("Connection timeout for \(name), resetting state", category: "BLE", level: .warning)
+            self.pendingConnectionStartedAt = nil
+            DispatchQueue.main.async {
+                self.connectionState = .disconnected
+                self.isReconnecting = false
+            }
+        }
+        connectionTimeoutWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10.0, execute: workItem)
+    }
+
+    private func cancelConnectionTimeout() {
+        connectionTimeoutWorkItem?.cancel()
+        connectionTimeoutWorkItem = nil
     }
 }

@@ -110,8 +110,8 @@
       ]
     },
     {
-      "id": "display",
-      "name": "Display",
+      "id": "Keys display",
+      "name": "Keys display",
       "icon": "eye",
       "colorHex": "#64D2FF",
       "shortcuts": [

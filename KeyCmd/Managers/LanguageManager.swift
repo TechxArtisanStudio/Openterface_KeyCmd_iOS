@@ -48,6 +48,13 @@ final class LanguageManager: ObservableObject {
         didSet {
             locale = _locale(for: selectedLanguageId)
             UserDefaults.standard.set(selectedLanguageId, forKey: "app_language")
+            // Also override AppleLanguages so String(localized:) and Bundle
+            // lookups pick up the new language on next launch
+            if selectedLanguageId == LanguageManager.followSystem {
+                UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+            } else {
+                UserDefaults.standard.set([selectedLanguageId], forKey: "AppleLanguages")
+            }
         }
     }
 
@@ -71,5 +78,19 @@ final class LanguageManager: ObservableObject {
 
     private func _locale(for id: String) -> Locale {
         id == LanguageManager.followSystem ? .current : Locale(identifier: id)
+    }
+
+    // MARK: - Runtime localization helper
+
+    /// Loads a localized string from the currently selected language's .lproj bundle.
+    /// Use this instead of `String(localized:)` when you need the string to update
+    /// immediately when the user changes the in-app language (no restart required).
+    func localizedString(_ key: String) -> String {
+        guard selectedLanguageId != LanguageManager.followSystem,
+              let path = Bundle.main.path(forResource: selectedLanguageId, ofType: "lproj"),
+              let bundle = Bundle(path: path) else {
+            return String(localized: String.LocalizationValue(key))
+        }
+        return bundle.localizedString(forKey: key, value: key, table: nil)
     }
 }

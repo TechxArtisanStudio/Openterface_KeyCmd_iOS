@@ -760,7 +760,9 @@ class KeyboardManager: ObservableObject {
     }
     
     /// Send a single printable ASCII character, handling case, space, enter, tab,
-    /// and shift-symbols correctly. Must be called on the **main thread**.
+    /// and shift-symbols correctly. Thread-safe — calls sendKeyPressAndRelease
+    /// which builds HID packets without touching UI. Blocking via usleep only
+    /// affects the calling thread.
     func sendASCIICharInline(_ char: Character) {
         if char.isLetter {
             let key = String(char).uppercased()
@@ -1185,10 +1187,11 @@ class KeyboardManager: ObservableObject {
                     if let char = token.first, char.unicodeScalars.first.map({ $0.value }) ?? 0 > 0x7E {
                         UnicodeManager.shared.sendChar(char, keyboardManager: self)
                     } else if activeModifiers.isEmpty {
-                        DispatchQueue.main.sync {
-                            if let char = token.first {
-                                self.sendASCIICharInline(char)
-                            }
+                        // ponytail: thread-safe, runs on background thread directly.
+                        // Using DispatchQueue.main.sync here would block the main thread
+                        // for ~100ms per character (due to usleep in sendKeyPressAndRelease).
+                        if let char = token.first {
+                            self.sendASCIICharInline(char)
                         }
                     } else {
                         // sendKeyPressSynchronous already reads activeModifiers for both
@@ -1204,9 +1207,8 @@ class KeyboardManager: ObservableObject {
                         if char.unicodeScalars.first.map({ $0.value }) ?? 0 > 0x7E {
                             UnicodeManager.shared.sendChar(char, keyboardManager: self)
                         } else if activeModifiers.isEmpty {
-                            DispatchQueue.main.sync {
-                                self.sendASCIICharInline(char)
-                            }
+                            // ponytail: thread-safe, runs on background thread directly.
+                            self.sendASCIICharInline(char)
                         } else {
                             // Pass charStr as-is so sendKeyPressSynchronous can detect case.
                             self.sendKeyPressSynchronous(charStr)

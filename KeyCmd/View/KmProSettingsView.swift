@@ -16,15 +16,12 @@ struct KmProSettingsView: View {
 
     var body: some View {
         // MARK: - Display section
-        Section(header: Text("Display")) {
-            Text("Controls how shortcuts and keys appear on the keyboard strip and QWERTY layout.")
+        Section(header: Text("Keys display")) {
+            Text("Same as the DISPLAY key at the end of row 1: how shortcuts on the strip look (names, icons, or combo text), and how Tab and the modifier keys on the main keyboard look.")
                 .font(.caption)
                 .foregroundColor(.secondary)
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Keys Display")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
                 HStack(spacing: 12) {
                     ForEach(KmProPrefs.KeysDisplayMode.allCases, id: \.self) { mode in
                         keysDisplayButton(mode: mode)
@@ -36,16 +33,6 @@ struct KmProSettingsView: View {
 
         // MARK: - Typing section
         Section(header: Text("Typing")) {
-            Toggle("Alternate Hints", isOn: $prefs.alternateHintsEnabled)
-            Text("Letter keys show long-press hint glyphs for alternates. Turn off for hold-to-repeat gaming style.")
-                .font(.caption)
-                .foregroundColor(.secondary)
-
-            if !prefs.alternateHintsEnabled {
-                gamingKeyBehaviorSection
-                    .transition(.move(edge: .top).combined(with: .opacity))
-            }
-
             Toggle("Key Tap Preview", isOn: $prefs.keyTapPreviewEnabled)
             Text("Show a floating label above a held key while pressing.")
                 .font(.caption)
@@ -190,41 +177,6 @@ struct KmProSettingsView: View {
                     Text(mode.label)
                         .foregroundColor(.primary)
                     Text(mode.description)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .padding(.vertical, 4)
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-
-    private var gamingKeyBehaviorSection: some View {
-        Group {
-            Divider()
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Gaming Key Behavior")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(.secondary)
-                longPressRow(value: .repeat, title: "Repeat key presses", description: "Rapid tap cycles while held.")
-                longPressRow(value: .hold, title: "Hold key down", description: "One key-down until release. Better for games.")
-            }
-            .padding(.vertical, 4)
-        }
-    }
-
-    @ViewBuilder
-    private func longPressRow(value: KmBasicKeyboardPrefs.LongPressBehavior, title: LocalizedStringKey, description: LocalizedStringKey) -> some View {
-        Button(action: { withAnimation { basicPrefs.longPressBehavior = value } }) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: basicPrefs.longPressBehavior == value ? "largecircle.fill.circle" : "circle")
-                    .foregroundColor(basicPrefs.longPressBehavior == value ? .accentColor : .secondary)
-                    .font(.system(size: 20))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title).foregroundColor(.primary)
-                    Text(description)
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

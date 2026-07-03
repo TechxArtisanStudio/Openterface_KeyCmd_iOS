@@ -42,7 +42,7 @@
 "AI Settings" = "AI 設定";
 "History" = "歷史記錄";
 
-"Pro Setup" = "專業設定";
+"Keyboard & Mouse Pro setup" = "專業設定";
 "ASCII Preview" = "ASCII 預覽";
 "Add Module" = "新增模組";
 "Background" = "背景";
@@ -123,9 +123,8 @@
 "Fast" = "快";
 "How fast content scrolls when you drag the strip beside the touchpad. Independent from General → touchpad two-finger scroll sensitivity." = "拖曳觸控板旁邊捲動條時內容的捲動速度。與一般 → 觸控板雙指捲動靈敏度無關。";
 
-"Display" = "顯示";
-"Keys Display" = "按鍵顯示";
-"Controls how shortcuts and keys appear on the keyboard strip and QWERTY layout." = "控制快捷鍵和按鍵在鍵盤條和 QWERTY 版面配置上的顯示方式。";
+"Keys display" = "按鍵顯示";
+"Same as the DISPLAY key at the end of row 1: how shortcuts on the strip look (names, icons, or combo text), and how Tab and the modifier keys on the main keyboard look." = "控制快捷鍵和按鍵在鍵盤條和 QWERTY 版面配置上的顯示方式。";
 "Touchpad" = "觸控板";
 "Touchpad Mode" = "觸控板模式";
 "Strip Scroll Sensitivity" = "條形捲動靈敏度";

@@ -367,7 +367,12 @@ struct ComposeTextView: View {
         let lock = fixedRowsLocalFnLocked
         let te = { Self.textEntry(km, label: $0) }
         let ke = { Self.keyEntry(km, label: $0, icon: "") }
-        let keKey = { (label: String, key: String) in Self.keyEntry(km, label: label, icon: "", key: key) }
+        let keKeyFont: Font = .system(size: 11, weight: .bold)
+        let keKey = { (label: String, key: String) -> ShortcutEntry in
+            var entry = Self.keyEntry(km, label: label, icon: "", key: key)
+            entry.font = keKeyFont
+            return entry
+        }
         let tog = fixedRowsToggleEntry
 
         // Page 0 — F-keys / number-symbol
@@ -385,35 +390,48 @@ struct ComposeTextView: View {
         // Page 1 — Modifiers + Navigation
         let isMacOS = aiSettings.targetOS == .macOS
         let isWindows = aiSettings.targetOS == .windows
+        let winIcon = aiSettings.targetOS == .windows ? "targetos_windows" : "targetos_linux"
         let modCfg: [(String, String, String)] = isMacOS
             ? [("Ctrl", "", "control"), ("Alt", "", "option"), ("Cmd", "", "command")]
-            : isWindows ? [("Ctrl", "CTRL", ""), ("Alt", "ALT", ""), ("Cmd", "WIN", "")]
-                        : [("Ctrl", "CTRL", ""), ("Alt", "ALT", ""), ("Cmd", "SUP", "")]
-        let modEntries = modCfg.map { cfg in ShortcutEntry(label: cfg.1, icon: cfg.2.isEmpty ? nil : cfg.2, isActive: keyboardManager.activeModifiers.contains(cfg.0)) { km.handleModifierToggle(cfg.0) } }
+            : isWindows ? [("Ctrl", "Ctrl", ""), ("Alt", "Alt", ""), ("Cmd", "Win", winIcon)]
+                        : [("Ctrl", "Ctrl", ""), ("Alt", "Alt", ""), ("Cmd", "Super", winIcon)]
+        let modEntries = modCfg.map { cfg -> ShortcutEntry in
+            var entry = ShortcutEntry(label: cfg.1, icon: cfg.2.isEmpty ? nil : cfg.2, isActive: keyboardManager.activeModifiers.contains(cfg.0)) { km.handleModifierToggle(cfg.0) }
+            entry.font = .system(size: 11, weight: .bold)
+            return entry
+        }
         let imeIndicator = ShortcutEntry(label: "IME", icon: nil, isActive: true) {}
         let p1Locked = FixedRowsPage(
-            row1: [keKey("SCR","Scroll Lock"),keKey("PRT","PrtSc"),keKey("CAPS","Caps"),keKey("PAUSE","Pause"),keKey("HOME","Home"),keKey("PGUP","PgUp"),imeIndicator],
+            row1: [keKey("SCR LK","Scroll Lock"),keKey("PRT SC","PrtSc"),keKey("CAPS","Caps"),keKey("PAUSE","Pause"),keKey("HOME","Home"),keKey("PGUP","PgUp"),imeIndicator],
             row2: [keKey("SPACE","Space"),keKey("BKSP","Backspace"),keKey("DEL","Delete"),keKey("INS","Insert"),keKey("END","End"),keKey("PGDN","PgDn"),tog]
         )
         let p1Unlocked = FixedRowsPage(
-            row1: modEntries + [keKey("TAB","Tab"),keKey("UP","Up"),keKey("ENTER","Enter"),imeIndicator],
-            row2: [keKey("ESC","Escape"),Self.modifierEntry(km,label:"SHIFT",icon:"shift",key:"Shift"),keKey("DEL","Delete"),keKey("LEFT","Left"),keKey("DOWN","Down"),keKey("RIGHT","Right"),tog]
+            row1: modEntries + [keKey("Tab","Tab"),keKey("UP","Up"),keKey("ENTER","Enter"),imeIndicator],
+            row2: [keKey("ESC","Escape"),Self.modifierEntry(km,label:"SHIFT",icon:"shift",key:"Shift",font:.system(size: 11, weight: .bold)),keKey("DEL","Delete"),keKey("LEFT","Left"),keKey("DOWN","Down"),keKey("RIGHT","Right"),tog]
         )
 
         // Page 2 — Punctuation
-        // unlock row1: ( ) [ ] : # @  → badge shows lock mode: ` ~ ' " % ^ |
-        // unlock row2: / \ | ? - _     → badge shows lock mode: < > * & , .
-        let p2Row1: [(String, String)] = [
-            ("(","`"),(")","~"),("[","'"),("]","\""),(":",":"),("#","#"),("@","@"),
-        ]
-        let p2Row2: [(String, String)] = [
-            ("/","<"),("\\",">"),("|","*"),("?","&"),("-","/"),("_","."),
-        ]
         let p2 = FixedRowsPage(
-            row1: lock ? ["`","~","'","\"","%","^","|"].map { te($0) }
-                       : p2Row1.map { Self.textEntryWithBadge(km, label: $0.0, badge: $0.1) },
-            row2: lock ? ["<",">","*","&",",","."].map { te($0) } + [tog]
-                       : p2Row2.map { Self.textEntryWithBadge(km, label: $0.0, badge: $0.1) } + [tog]
+            row1: lock ? PunctuationPageData.lockedRow1.map { (pair) -> ShortcutEntry in
+                            var entry = Self.textEntryWithBadge(km, label: pair.0, badge: pair.1)
+                            entry.font = keKeyFont
+                            return entry
+                        }
+                       : PunctuationPageData.unlockedRow1.map { (pair) -> ShortcutEntry in
+                            var entry = Self.textEntryWithBadge(km, label: pair.0, badge: pair.1)
+                            entry.font = keKeyFont
+                            return entry
+                        },
+            row2: lock ? PunctuationPageData.lockedRow2.map { (pair) -> ShortcutEntry in
+                            var entry = Self.textEntryWithBadge(km, label: pair.0, badge: pair.1)
+                            entry.font = keKeyFont
+                            return entry
+                        } + [tog]
+                       : PunctuationPageData.unlockedRow2.map { (pair) -> ShortcutEntry in
+                            var entry = Self.textEntryWithBadge(km, label: pair.0, badge: pair.1)
+                            entry.font = keKeyFont
+                            return entry
+                        } + [tog]
         )
 
         return [p0, lock ? p1Locked : p1Unlocked, p2]
@@ -425,9 +443,11 @@ struct ComposeTextView: View {
         }
     }
 
-    private static func modifierEntry(_ km: KeyboardManager, label: String, icon: String, key: String? = nil) -> ShortcutEntry {
+    private static func modifierEntry(_ km: KeyboardManager, label: String, icon: String, key: String? = nil, font: Font? = nil) -> ShortcutEntry {
         let k = key ?? label
-        return ShortcutEntry(label: label, icon: icon, isActive: km.activeModifiers.contains(k)) { km.handleModifierToggle(k) }
+        var entry = ShortcutEntry(label: label, icon: icon, isActive: km.activeModifiers.contains(k)) { km.handleModifierToggle(k) }
+        entry.font = font
+        return entry
     }
     private static func keyEntry(_ km: KeyboardManager, label: String, icon: String, key: String? = nil, badge: String? = nil) -> ShortcutEntry {
         let k = key ?? label
@@ -524,7 +544,7 @@ struct ComposeTextView: View {
                     .background(Color(UIColor.secondarySystemBackground))
 
                     // Shortcut panel
-                    VStack(spacing: 0) {
+                    VStack(spacing: 6) {
                         ShortcutStripPager(pages: shortcutPages).id(profileMgr.activeProfileId).padding(.horizontal, 4)
                         FixedRowsPager(pages: fixedRowsPages, defaultPageIndex: 1).padding(.horizontal, 4)
                     }

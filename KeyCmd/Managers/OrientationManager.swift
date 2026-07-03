@@ -116,10 +116,13 @@ class OrientationManager: ObservableObject {
         print("Attempted rotation to device orientation")
 
         // Use window scene geometry update on iOS 16+ if available.
+        // ponytail: delay to let the orientation lock propagate
         if #available(iOS 16.0, *) {
-            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-                windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: preferredOrientation)) { error in
-                    print("Geometry update result: \(error.localizedDescription)")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                    windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: self.preferredOrientation)) { error in
+                        print("Geometry update result: \(error.localizedDescription)")
+                    }
                 }
             }
         }
@@ -251,10 +254,15 @@ class OrientationManager: ObservableObject {
         preferredOrientation = .portrait
         Self.setOrientationLock(.portrait)
         UIViewController.attemptRotationToDeviceOrientation()
-        if #available(iOS 16.0, *) {
-            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-                windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait)) { error in
-                    print("Portrait geometry update rejected: \(error.localizedDescription)")
+
+        // ponytail: delay geometry update to let the orientation lock propagate
+        // (BSActionErrorDomain error 1 occurs when update is called too quickly)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            if #available(iOS 16.0, *) {
+                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                    windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait)) { error in
+                        print("Portrait geometry update rejected: \(error.localizedDescription)")
+                    }
                 }
             }
         }

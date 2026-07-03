@@ -17,6 +17,10 @@ struct ClipboardPromptView: View {
                 // Semi-transparent background
                 Color.black.opacity(0.3)
                     .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        // Tap outside dialog does nothing (buttons handle dismiss)
+                    }
                 
                 // Alert dialog
                 VStack(spacing: 16) {

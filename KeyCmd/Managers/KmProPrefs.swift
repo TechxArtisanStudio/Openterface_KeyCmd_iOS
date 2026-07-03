@@ -28,9 +28,9 @@ class KmProPrefs: ObservableObject {
         case names = 0, icons, combo
         var label: String {
             switch self {
-            case .names: return String(localized: "Names")
-            case .icons: return String(localized: "Icons")
-            case .combo: return String(localized: "Combo")
+            case .names: return LanguageManager.shared.localizedString("Names")
+            case .icons: return LanguageManager.shared.localizedString("Icons")
+            case .combo: return LanguageManager.shared.localizedString("Combo")
             }
         }
     }
