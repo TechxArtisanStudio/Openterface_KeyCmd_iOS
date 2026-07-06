@@ -41,7 +41,7 @@ struct KmProSettingsView: View {
             Toggle("Key Tap Preview", isOn: $prefs.keyTapPreviewEnabled)
             Text("Show a floating label above a held key while pressing.")
                 .font(.caption)
-                .foregroundColor(.secondarJJHy)
+                .foregroundColor(.secondary)
 
             Toggle("Compose Draft Retention", isOn: $prefs.composeDraftRetentionEnabled)
             Text("Remember compose text while switching to Keyboard or NumPad submodes (in-memory only).")

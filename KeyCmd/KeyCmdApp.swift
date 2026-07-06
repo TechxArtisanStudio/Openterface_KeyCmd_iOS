@@ -20,13 +20,6 @@ public class AppDelegate: NSObject, UIApplicationDelegate {
 
     public func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         print("🚀 [AppDelegate.didFinishLaunchingWithOptions] START")
-
-        // Override app language BEFORE any String(localized:) or Bundle lookups
-        // This must happen early to affect Foundation's localization system
-        let appLang = UserDefaults.standard.string(forKey: "app_language") ?? "system"
-        if appLang != "system" {
-            UserDefaults.standard.set([appLang], forKey: "AppleLanguages")
-        }
         
         // Pre-warm haptic engine at launch so first press feedback is reliable
         // iOS needs time to initialize the Taptic Engine; warming at launch avoids
@@ -103,6 +96,7 @@ struct KeyCmdApp: App {
     @StateObject private var languageManager = LanguageManager.shared
     
     init() {
+        print("🚀 [KeyCmdApp.init] START")
         // Disable keyboard prediction service XPC calls that cause ~3s
         // "gesture gate timeout" on iPad. UITextView's becomeFirstResponder()
         // makes a synchronous XPC to the keyboard prediction daemon which
@@ -116,7 +110,8 @@ struct KeyCmdApp: App {
 
         // No forced orientation on startup - let the app start in current device orientation
         // Orientation will be managed per-view by OrientationManager
-        print("🚀 KeyCmdApp initialized - starting in natural device orientation")
+        print("✅ [KeyCmdApp.init] UserDefaults configured")
+        print("🚀 [KeyCmdApp.init] Starting in natural device orientation")
     }
 
     var body: some Scene {
