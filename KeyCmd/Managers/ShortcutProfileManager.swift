@@ -19,6 +19,8 @@ class ShortcutProfileManager: ObservableObject {
 
     @Published var builtInProfiles: [ShortcutProfileData] = []
     @Published var userProfiles: [ShortcutProfileData] = []
+    // ponytail: bump on every updateMyShortcuts call so @ObservedObject views re-read favorites.
+    @Published var myShortcutsVersion = 0
 
     /// Combined list: built-in first, then user-created.
     var allProfiles: [ShortcutProfileData] { builtInProfiles + userProfiles }
@@ -173,6 +175,7 @@ class ShortcutProfileManager: ObservableObject {
     func updateMyShortcuts(for profileId: String, items: [ShortcutItem]) {
         guard let data = try? encoder.encode(items) else { return }
         userDefaults.set(data, forKey: myShortcutsKey(for: profileId))
+        myShortcutsVersion += 1
     }
 
     // MARK: - Shortcut mutation (user profiles only)

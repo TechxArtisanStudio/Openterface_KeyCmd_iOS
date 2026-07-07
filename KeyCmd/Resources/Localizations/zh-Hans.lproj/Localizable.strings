@@ -147,14 +147,12 @@
 "Modifiers (shared with Basic)" = "修饰键（与基础模式共享）";
 "Sends a real modifier-down to the connected device when long-pressing." = "长按时向已连接设备发送真实的修饰键按下信号。";
 "Show a floating label above a held key while pressing." = "按住按键时显示浮动标签。";
-"Show compact gesture status line on touchpad (buttons up / touch idle)." = "在触控板上显示紧凑手势状态行（按钮松开 / 触摸空闲）。";
 "Show drag strip beside touchpad for mouse wheel scroll." = "在触控板旁边显示拖动条用于鼠标滚轮滚动。";
 "Shortcut Hub Profile" = "快捷键中心配置文件";
 "Choose which profile's shortcuts appear on the keyboard strip." = "选择哪个配置文件的快捷键显示在键盘条上。";
 "These settings also apply in Keyboard & Mouse (Basic) mode." = "这些设置也适用于键盘和鼠标（基础）模式。";
 "Tap to change" = "点击更改";
 "Typing" = "打字";
-"Remember compose text while switching to Keyboard or NumPad submodes (in-memory only)." = "切换到键盘或数字键盘子模式时记住编辑文本（仅在内存中）。";
 
 /* --- 启动面板 --- */
 "Welcome to KeyMod" = "欢迎使用 KeyMod";
@@ -422,9 +420,7 @@
 /* --- KM Pro设置切换标签 --- */
 "Alternate Hints" = "备选提示";
 "Key Tap Preview" = "按键点击预览";
-"Compose Draft Retention" = "保留编辑草稿";
 "Vertical Scroll Strip" = "垂直滚动条";
-"Gesture Status Line" = "手势状态栏";
 "Select Profile" = "选择配置文件";
 
 /* --- KM Pro简短描述 --- */

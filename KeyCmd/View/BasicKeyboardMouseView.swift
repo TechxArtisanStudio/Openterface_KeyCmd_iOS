@@ -1295,12 +1295,6 @@ struct ModifierKeyButton<Label: View>: View {
                     onMoved: { pt in handleMoved(pt, size: geo.size) }
                 )
             )
-            .preference(
-                key: KeyCalloutInfoKey.self,
-                value: prefs.keyTapPreviewEnabled && isPressed && keyPreview != nil ?
-                    KeyCalloutInfo(text: keyPreview!, frame: geo.frame(in: .named("keyboardLayout")), below: previewBelow, left: previewLeft, right: previewRight)
-                    : nil
-            )
         }
         .onDisappear { cleanup() }
     }

@@ -147,14 +147,12 @@
 "Modifiers (shared with Basic)" = "수정자 키 (기본과 공유)";
 "Sends a real modifier-down to the connected device when long-pressing." = "길게 누를 때 연결된 기기에 실제 수정자 키 누름을 전송합니다.";
 "Show a floating label above a held key while pressing." = "누르는 동안 누른 키 위에 부동 레이블을 표시합니다.";
-"Show compact gesture status line on touchpad (buttons up / touch idle)." = "터치패드에 컴팩트한 제스처 상태 표시줄을 표시합니다 (버튼 해제 / 터치 유휴).";
 "Show drag strip beside touchpad for mouse wheel scroll." = "마우스 휠 스크롤을 위해 터치패드 옆에 드래그 띠를 표시합니다.";
 "Shortcut Hub Profile" = "단축키 허브 프로필";
 "Choose which profile's shortcuts appear on the keyboard strip." = "키보드 띠에 표시할 프로필의 단축키를 선택합니다.";
 "These settings also apply in Keyboard & Mouse (Basic) mode." = "이 설정은 키보드 및 마우스 (기본) 모드에도 적용됩니다.";
 "Tap to change" = "탭하여 변경";
 "Typing" = "입력";
-"Remember compose text while switching to Keyboard or NumPad submodes (in-memory only)." = "키보드 또는 숫자 키패드 서브 모드로 전환할 때 편집 텍스트를 기억합니다 (메모리 내 전용).";
 
 /* --- 시작 패널 --- */
 "Welcome to KeyMod" = "KeyMod에 오신 것을 환영합니다";
@@ -370,9 +368,7 @@
 /* --- KM 프로 설정 토글 레이블 --- */
 "Alternate Hints" = "대체 힌트";
 "Key Tap Preview" = "키 탭 미리보기";
-"Compose Draft Retention" = "편집 초안 유지";
 "Vertical Scroll Strip" = "수직 스크롤 띠";
-"Gesture Status Line" = "제스처 상태 표시줄";
 "Select Profile" = "프로필 선택";
 
 /* --- KM 프로 간단 설명 --- */

@@ -21,6 +21,8 @@ struct ShortcutEntry: Identifiable {
     let id = UUID()
     let label: String
     let icon: String?  // Asset catalog name, or SF Symbol name as fallback
+    /// Chord display text for combo mode (e.g. "⌘S", "Ctrl+Alt+L")
+    var comboText: String? = nil
     var badge: String? = nil  // optional badge shown bottom-right (e.g. "A"/"B")
     /// When true the button renders with a highlighted (tinted) background
     var isActive: Bool = false
@@ -28,7 +30,11 @@ struct ShortcutEntry: Identifiable {
     var font: Font? = nil
     /// Optional rotation for the icon in degrees (e.g. 180 for forward-delete)
     var iconRotation: Double = 0
+    /// When true, always show label regardless of display mode (for modifier keys like Ctrl/Alt/Cmd)
+    var forceNameOnly: Bool = false
     let action: () -> Void
+    /// Optional long-press action (e.g. open favorites editor). Powers .contextMenu on ShortcutButton.
+    var onLongPress: (() -> Void)? = nil
 }
 
 /// A page of shortcuts (7 entries = 1 row of 7 columns)
@@ -71,18 +77,29 @@ struct ShortcutButton: View {
 
     var body: some View {
         let mode = prefs.keysDisplayMode
-        let wantsIcon = mode == .icons || mode == .combo
-        let wantsLabel = mode == .names || mode == .combo
-        // ponytail: Check asset catalog first, then SF Symbol availability.
-        // If neither resolves, fall back to label text so the button isn't blank.
+        // ponytail: Three display modes — names (label), icons (icon), combo (chord text).
+        // Matches Android TopShortcutDisplayModePrefs.
+        // forceNameOnly entries (modifier keys) always show label regardless of mode.
         let hasIcon: Bool = {
             guard let name = entry.icon, !name.isEmpty else { return false }
             if UIImage(named: name) != nil { return true }
-            // SF Symbol fallback — check if the name produces a non-empty image
             return UIImage(systemName: name) != nil
         }()
-        let showIcon = wantsIcon && hasIcon
-        let showLabel = wantsLabel || (wantsIcon && !hasIcon)
+        let (displayText, showIcon): (String, Bool) = {
+            if entry.forceNameOnly {
+                return (entry.label, false)
+            }
+            switch mode {
+            case .names:
+                return (entry.label, false)
+            case .icons:
+                // Icon mode — show icon if available, else fall back to label
+                return hasIcon ? (entry.label, true) : (entry.label, false)
+            case .combo:
+                // Combo mode — show chord text (e.g. "⌘S"), fall back to label
+                return (entry.comboText ?? entry.label, false)
+            }
+        }()
         Button(action: entry.action) {
             ZStack(alignment: .topTrailing) {
                 VStack(spacing: 1) {
@@ -90,9 +107,9 @@ struct ShortcutButton: View {
                         iconImage(icon, size: 22)
                             .rotationEffect(.degrees(entry.iconRotation))
                     }
-                    if showLabel, !entry.label.isEmpty {
-                        Text(entry.label)
-                            .font(entry.font ?? .system(size: 8))
+                    if !displayText.isEmpty {
+                        Text(displayText)
+                            .font(entry.font ?? .system(size: mode == .combo ? 10 : 8, weight: mode == .combo ? .semibold : .regular))
                             .lineLimit(1)
                     }
                 }
@@ -111,6 +128,16 @@ struct ShortcutButton: View {
                 }
             }
         }
+        .simultaneousGesture(
+            // ponytail: long-press directly opens favorites editor (Android parity)
+            LongPressGesture(minimumDuration: 0.4)
+                .onEnded { _ in
+                    if entry.onLongPress != nil {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        entry.onLongPress?()
+                    }
+                }
+        )
     }
 }
 
@@ -302,4 +329,209 @@ enum PunctuationPageData {
     static let lockedRow2: [(String, String)] = [
         ("<","/"),(">","\\"),("*","|"),("&","?"),(",","-"),(".","_")
     ]
+}
+
+// MARK: - Shared shortcut panel builder
+// ponytail: single source of truth for fixedRowsPages / shortcutPages / standardShortcuts
+// so ProKeyboardMouseView and ComposeTextView render identical keys, icons, and fonts.
+
+enum SharedShortcutPanel {
+    static let keyFont: Font = .system(size: 11, weight: .bold)
+
+    // MARK: Entry factories
+
+    static func modifierEntry(_ km: KeyboardManager, label: String, icon: String, key: String? = nil, font: Font? = nil) -> ShortcutEntry {
+        let k = key ?? label
+        var entry = ShortcutEntry(label: label, icon: icon, isActive: km.activeModifiers.contains(k)) { km.handleModifierToggle(k) }
+        entry.font = font
+        entry.forceNameOnly = true
+        return entry
+    }
+
+    static func keyEntry(_ km: KeyboardManager, label: String, icon: String, key: String? = nil, badge: String? = nil) -> ShortcutEntry {
+        let k = key ?? label
+        var entry = ShortcutEntry(label: label, icon: icon.isEmpty ? nil : icon) { km.handleKeyPress(k) }
+        entry.badge = badge
+        return entry
+    }
+
+    static func textEntry(_ km: KeyboardManager, label: String, badge: String? = nil) -> ShortcutEntry {
+        var entry = ShortcutEntry(label: label, icon: nil) { km.handleTextInput(label) }
+        entry.badge = badge
+        return entry
+    }
+
+    // MARK: Combo text formatting
+
+    static func formatComboText(modifiers: [String], key: String, targetOS: TargetOS) -> String {
+        guard !modifiers.isEmpty else { return key }
+        if targetOS == .macOS {
+            let glyphMap: [String: String] = [
+                "Ctrl": "⌃", "Control": "⌃",
+                "Alt": "⌥", "Option": "⌥",
+                "Shift": "⇧",
+                "Cmd": "⌘", "Command": "⌘", "Win": "⌘", "Super": "⌘", "Meta": "⌘"
+            ]
+            let modGlyphs = modifiers.map { glyphMap[$0] ?? $0 }
+            return modGlyphs.joined() + key
+        } else {
+            return modifiers.joined(separator: "+") + "+" + key
+        }
+    }
+
+    // MARK: Profile entries
+
+    static func profileEntries(km: KeyboardManager, profileMgr: ShortcutProfileManager, targetOS: TargetOS, onLongPress: (() -> Void)? = nil) -> [ShortcutEntry] {
+        guard let active = profileMgr.activeProfile else { return [] }
+        let items = !profileMgr.myShortcuts(for: active.id).isEmpty
+            ? profileMgr.myShortcuts(for: active.id)
+            : Array(active.categories.first?.shortcuts.prefix(7) ?? [])
+        return items.map { item in
+            let mods = (item.modifier ?? "").split(separator: "+").map(String.init)
+            let comboText = formatComboText(modifiers: mods, key: item.key, targetOS: targetOS)
+            var entry = ShortcutEntry(label: String(item.description.prefix(8)), icon: item.icon, comboText: comboText) {
+                mods.isEmpty ? km.handleSpecialKey(item.keyCode) : km.handleKeyCombo(modifiers: mods, key: item.keyCode)
+            }
+            entry.onLongPress = onLongPress
+            return entry
+        }
+    }
+
+    // MARK: Standard shortcuts (fallback when no profile)
+
+    static func standardShortcuts(combo: @escaping ([String], String) -> Void, pm: String, targetOS: TargetOS) -> ShortcutPage {
+        func stdEntry(_ label: String, _ icon: String, _ mods: [String], _ key: String) -> ShortcutEntry {
+            let comboText = formatComboText(modifiers: mods, key: key, targetOS: targetOS)
+            return ShortcutEntry(label: label, icon: icon, comboText: comboText) { combo(mods, key) }
+        }
+        return ShortcutPage(title: "Standard", entries: [
+            stdEntry("ALL",   "select_all_24",    [pm], "A"),
+            stdEntry("COPY",  "content_copy_24",  [pm], "C"),
+            stdEntry("CUT",   "content_cut_24",   [pm], "X"),
+            stdEntry("PASTE", "content_paste_24", [pm], "V"),
+            stdEntry("SAVE",  "save_24",          [pm], "S"),
+            stdEntry("UNDO",  "undo_24",          [pm], "Z"),
+            stdEntry("FIND",  "magnifyingglass",  ["Ctrl"], "F"),
+        ])
+    }
+
+    // MARK: Shortcut pages (row 1 — pageable favorites)
+
+    static func shortcutPages(km: KeyboardManager, profileMgr: ShortcutProfileManager, targetOS: TargetOS, onLongPress: (() -> Void)? = nil) -> [ShortcutPage] {
+        let pm = targetOS == .macOS ? "Cmd" : "Ctrl"
+        let combo: ([String], String) -> Void = { km.handleKeyCombo(modifiers: $0, key: $1) }
+        let source = profileEntries(km: km, profileMgr: profileMgr, targetOS: targetOS, onLongPress: onLongPress)
+        guard !source.isEmpty else { return [standardShortcuts(combo: combo, pm: pm, targetOS: targetOS)] }
+        let chunks = stride(from: 0, to: source.count, by: 7).map { Array(source[$0..<min($0 + 7, source.count)]) }
+        let name = profileMgr.activeProfile?.name ?? ""
+        return chunks.enumerated().map { (i, c) in ShortcutPage(title: c.count > 1 ? "\(name) \(i + 1)/\(c.count)" : name, entries: c) }
+    }
+
+    // MARK: Fixed rows pages (rows 2–3)
+
+    /// Build the 3-page fixed rows strip.
+    /// - trailingEntry: optional 7th-column entry for row1 (e.g. keyboard toggle or IME indicator)
+    static func fixedRowsPages(km: KeyboardManager, lock: Bool, tog: ShortcutEntry, trailingEntry: ShortcutEntry? = nil, targetOS: TargetOS) -> [FixedRowsPage] {
+        let f = keyFont
+        let te = { textEntry(km, label: $0) }
+        let keKey: (String, String) -> ShortcutEntry = { label, key in
+            let iconMap: [String: String] = [
+                "Tab": "keyboard_tab_24", "Up": "keyboard_arrow_up_24",
+                "Enter": "keyboard_return_24px", "Delete": "backspace_24",
+                "Left": "keyboard_arrow_left_24", "Down": "keyboard_arrow_down_24",
+                "Right": "keyboard_arrow_right_24", "Backspace": "backspace_24",
+                "Space": "space_bar_24px",
+            ]
+            var entry = keyEntry(km, label: label, icon: iconMap[key] ?? "", key: key)
+            entry.font = f
+            if key == "Delete" { entry.iconRotation = 180 }
+            return entry
+        }
+
+        // Page 0 — F-keys / number-symbol
+        let p0Fkeys = [("F1","1"),("F2","2"),("F3","3"),("F4","4"),("F5","5"),("F6","6")]
+            .map { (pair) -> ShortcutEntry in
+                var entry = keyEntry(km, label: pair.0, icon: "", badge: pair.1)
+                entry.font = f
+                return entry
+            }
+        let p0FnKeys = [("F7","7"),("F8","8"),("F9","9"),("F10","0"),("F11","+"),("F12","-")]
+            .map { (pair) -> ShortcutEntry in
+                var entry = keyEntry(km, label: pair.0, icon: "", badge: pair.1)
+                entry.font = f
+                return entry
+            }
+        let p0NumKeysTop = [("7","&"),("8","*"),("9","("),("0",")"),("+","="),("-","_"),("*","=")]
+            .map { (pair) -> ShortcutEntry in
+                var entry = textEntry(km, label: pair.0, badge: pair.1)
+                entry.font = f
+                return entry
+            }
+        let p0NumKeysBottom = [("1","!"),("2","@"),("3","£"),("4","¥"),("5","%"),("6","^")]
+            .map { (pair) -> ShortcutEntry in
+                var entry = textEntry(km, label: pair.0, badge: pair.1)
+                entry.font = f
+                return entry
+            }
+        let p0EqKey: ShortcutEntry = {
+            var entry = textEntry(km, label: "=", badge: "*")
+            entry.font = f
+            return entry
+        }()
+        let p0 = FixedRowsPage(
+            row1: lock ? p0NumKeysTop : p0FnKeys + [p0EqKey],
+            row2: lock ? p0NumKeysBottom + [tog] : p0Fkeys + [tog]
+        )
+
+        // Page 1 — Modifiers + Navigation
+        let isMacOS = targetOS == .macOS
+        let isWindows = targetOS == .windows
+        let winIcon = targetOS == .windows ? "targetos_windows" : "targetos_linux"
+        let modCfg: [(String, String, String)] = isMacOS
+            ? [("Ctrl","Ctrl","keyboard_control_key_24px"),("Alt","Opt","keyboard_option_key_24px"),("Cmd","Cmd","keyboard_command_key_24px")]
+            : isWindows ? [("Ctrl","Ctrl",""),("Alt","Alt",""),("Win","Win",winIcon)]
+                        : [("Ctrl","Ctrl",""),("Alt","Alt",""),("Win","Super",winIcon)]
+        let modEntries = modCfg.map { cfg -> ShortcutEntry in
+            var entry = ShortcutEntry(label: cfg.1, icon: cfg.2.isEmpty ? nil : cfg.2, isActive: km.activeModifiers.contains(cfg.0)) { km.handleModifierToggle(cfg.0) }
+            entry.font = f
+            entry.forceNameOnly = true
+            return entry
+        }
+
+        let trailing = trailingEntry ?? tog
+        let p1Locked = FixedRowsPage(
+            row1: [keKey("SCR LK","Scroll Lock"),keKey("PRT SC","PrtSc"),keKey("CAPS","Caps"),keKey("PAUSE","Pause"),keKey("HOME","Home"),keKey("PGUP","PgUp"),trailing],
+            row2: [keKey("SPACE","Space"),keKey("BKSP","Backspace"),keKey("DEL","Delete"),keKey("INS","Insert"),keKey("END","End"),keKey("PGDN","PgDn"),tog]
+        )
+        let p1Unlocked = FixedRowsPage(
+            row1: modEntries + [keKey("Tab","Tab"),keKey("UP","Up"),keKey("ENTER","Enter"),trailing],
+            row2: [keKey("ESC","Escape"),modifierEntry(km,label:"SHIFT",icon:"shift_24px",key:"Shift",font:f),keKey("DEL","Delete"),keKey("LEFT","Left"),keKey("DOWN","Down"),keKey("RIGHT","Right"),tog]
+        )
+
+        // Page 2 — Punctuation
+        let p2 = FixedRowsPage(
+            row1: lock ? PunctuationPageData.lockedRow1.map { (pair) -> ShortcutEntry in
+                            var entry = textEntry(km, label: pair.0, badge: pair.1)
+                            entry.font = f
+                            return entry
+                        }
+                       : PunctuationPageData.unlockedRow1.map { (pair) -> ShortcutEntry in
+                            var entry = textEntry(km, label: pair.0, badge: pair.1)
+                            entry.font = f
+                            return entry
+                        },
+            row2: lock ? PunctuationPageData.lockedRow2.map { (pair) -> ShortcutEntry in
+                            var entry = textEntry(km, label: pair.0, badge: pair.1)
+                            entry.font = f
+                            return entry
+                        } + [tog]
+                       : PunctuationPageData.unlockedRow2.map { (pair) -> ShortcutEntry in
+                            var entry = textEntry(km, label: pair.0, badge: pair.1)
+                            entry.font = f
+                            return entry
+                        } + [tog]
+        )
+
+        return [p0, lock ? p1Locked : p1Unlocked, p2]
+    }
 }

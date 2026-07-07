@@ -138,9 +138,12 @@ struct PresentationView: View {
         }
     }
 
-    /// Overtime = countdown went below zero
-    private var isOvertime: Bool {
-        timerMode == .countdown && timerElapsed > timerDurationSecs
+    /// Timer exceeded its limit — countdown past zero OR countup reached defined duration.
+    private var timerExceeded: Bool {
+        switch timerMode {
+        case .countdown: return timerElapsed > timerDurationSecs
+        case .countup:   return timerElapsed >= timerDurationSecs && timerDurationSecs > 0
+        }
     }
 
     private var timerFraction: CGFloat {
@@ -275,16 +278,15 @@ struct PresentationView: View {
     // MARK: - Timer Card
 
     private var timerCard: some View {
-        let running = timerRunning
         let fraction = min(timerFraction, 1.0)
-        let overtime = isOvertime
+        let exceeded = timerExceeded
         let absSeconds = abs(displaySeconds)
         let mins = absSeconds / 60
         let secs = absSeconds % 60
-        let label = overtime ? String(format: "+%d:%02d", mins, secs) : String(format: "%d:%02d", mins, secs)
+        let label = (exceeded && timerMode == .countdown) ? String(format: "+%d:%02d", mins, secs) : String(format: "%d:%02d", mins, secs)
         let fromLeading = timerFillFromLeading
-        let progressColor: Color = running ? .blue : .gray
-        let progressOpacity: Double = running ? 0.18 : 0.10
+        let progressColor: Color = ThemeManager.shared.accentColor
+        let progressOpacity: Double = 0.5
 
         return GeometryReader { geo in
             ZStack {
@@ -322,13 +324,13 @@ struct PresentationView: View {
                     }
                     Text(label)
                         .font(.system(size: 42, weight: .bold, design: .monospaced))
-                        .foregroundColor(overtime ? .red : .primary)
+                        .foregroundColor(exceeded ? .red : .primary)
                 }
                 .padding(16)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             }
             .frame(height: 90)
-            .background(Color(UIColor.secondarySystemBackground))
+            .background(Color.gray.opacity(0.1))
             .cornerRadius(12)
         }
         .frame(height: 90)
@@ -406,9 +408,9 @@ struct PresentationView: View {
                     } label: {
                         Text("◀  PREVIOUS")
                             .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(.white)
+                            .foregroundColor(.primary)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .background(Color.gray.opacity(0.7))
+                            .background(ThemeManager.shared.accentColor.opacity(0.2))
                             .cornerRadius(10)
                     }
                     .simultaneousGesture(
@@ -434,9 +436,9 @@ struct PresentationView: View {
                     } label: {
                         Text("NEXT  ▶")
                             .font(.system(size: 22, weight: .bold))
-                            .foregroundColor(.white)
+                            .foregroundColor(.primary)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .background(Color.blue)
+                            .background(ThemeManager.shared.accentColor.opacity(0.2))
                             .cornerRadius(10)
                     }
                     .simultaneousGesture(
@@ -472,9 +474,9 @@ struct PresentationView: View {
                         Text(playActive ? "STOP" : "PRESENT")
                             .font(.system(size: 15, weight: .semibold))
                     }
-                    .foregroundColor(.white)
+                    .foregroundColor(.primary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(playActive ? Color.red : Color.green)
+                    .background(ThemeManager.shared.accentColor.opacity(0.2))
                     .cornerRadius(10)
                 }
                 .frame(maxHeight: .infinity)
@@ -500,9 +502,9 @@ struct PresentationView: View {
                             .font(.system(size: 15, weight: .semibold))
                             .multilineTextAlignment(.center)
                     }
-                    .foregroundColor(.white)
+                    .foregroundColor(.primary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(playActive ? Color.indigo : Color.gray.opacity(0.5))
+                    .background(Color.gray.opacity(0.1))
                     .cornerRadius(10)
                 }
                 .disabled(!playActive)
@@ -525,7 +527,7 @@ struct PresentationView: View {
             VStack(spacing: 3) {
                 Color.clear
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(switcherState == .open ? Color.green : Color.orange)
+                    .background(ThemeManager.shared.accentColor.opacity(0.2))
                     .cornerRadius(10)
                     .overlay(
                         HStack(spacing: 6) {
@@ -533,7 +535,7 @@ struct PresentationView: View {
                             Text(switcherState == .open ? "RELEASE" : "SWITCH APP")
                                 .font(.system(size: 15, weight: .semibold))
                         }
-                        .foregroundColor(.white)
+                        .foregroundColor(.primary)
                     )
                     .gesture(
                         TapGesture(count: 2).onEnded {
@@ -569,9 +571,9 @@ struct PresentationView: View {
                         Text("TOUCHPAD")
                             .font(.system(size: 15, weight: .semibold))
                     }
-                    .foregroundColor(.white)
+                    .foregroundColor(.primary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.teal)
+                    .background(ThemeManager.shared.accentColor.opacity(0.2))
                     .cornerRadius(10)
                 }
                 .frame(maxHeight: .infinity)

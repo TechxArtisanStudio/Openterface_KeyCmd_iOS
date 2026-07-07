@@ -299,7 +299,6 @@ struct ComposeTextView: View {
 
     @ObservedObject private var aiSettings = AISettings.shared
     @ObservedObject private var profileMgr = ShortcutProfileManager.shared
-    @ObservedObject private var prefs = KmProPrefs.shared
     @ObservedObject private var store: SavedTextStore = SavedTextStore.shared
 
     @State private var text: String = ""
@@ -307,6 +306,7 @@ struct ComposeTextView: View {
     @State private var undoSnapshot: String = ""
     @State private var undoClearEligible = false
     @State private var fixedRowsLocalFnLocked = false
+    @State private var showingFavEditor = false
     @State private var cachedText: String = UserDefaults.standard.string(forKey: "compose_cached_text") ?? ""
 
     @State private var keyboardHeight: CGFloat = 0
@@ -328,140 +328,22 @@ struct ComposeTextView: View {
     // MARK: - Shortcut strip data
 
     private var shortcutPages: [ShortcutPage] {
-        let pm = aiSettings.targetOS == .macOS ? "Cmd" : "Ctrl"
-        let combo: ([String], String) -> Void = { keyboardManager.handleKeyCombo(modifiers: $0, key: $1) }
-        let source = profileEntries()
-        guard !source.isEmpty else { return [standardShortcuts(combo, pm)] }
-        let chunks = stride(from: 0, to: source.count, by: 7).map { Array(source[$0..<min($0 + 7, source.count)]) }
-        let name = profileMgr.activeProfile?.name ?? ""
-        return chunks.enumerated().map { (i, c) in ShortcutPage(title: c.count > 1 ? "\(name) \(i + 1)/\(c.count)" : name, entries: c) }
-    }
-
-    // MARK: - Fixed rows pages
-
-    private func profileEntries() -> [ShortcutEntry] {
-        guard let active = profileMgr.activeProfile else { return [] }
-        let items = !profileMgr.myShortcuts(for: active.id).isEmpty ? profileMgr.myShortcuts(for: active.id) : Array(active.categories.first?.shortcuts.prefix(7) ?? [])
-        return items.map { item in
-            let mods = (item.modifier ?? "").split(separator: "+").map(String.init)
-            return ShortcutEntry(label: String(item.description.prefix(8)), icon: nil) {
-                mods.isEmpty ? keyboardManager.handleSpecialKey(item.keyCode) : keyboardManager.handleKeyCombo(modifiers: mods, key: item.keyCode)
-            }
-        }
-    }
-
-    private func standardShortcuts(_ combo: @escaping ([String], String) -> Void, _ pm: String) -> ShortcutPage {
-        ShortcutPage(title: "Standard", entries: [
-            ShortcutEntry(label: "ALL",   icon: "text.badge.checkmark") { combo([pm], "A") },
-            ShortcutEntry(label: "COPY",  icon: "doc.on.doc")           { combo([pm], "C") },
-            ShortcutEntry(label: "CUT",   icon: "scissors")             { combo([pm], "X") },
-            ShortcutEntry(label: "PASTE", icon: "clipboard")            { combo([pm], "V") },
-            ShortcutEntry(label: "SAVE",  icon: "externaldrive")        { combo([pm], "S") },
-            ShortcutEntry(label: "UNDO",  icon: "arrow.uturn.backward") { combo([pm], "Z") },
-            ShortcutEntry(label: "FIND",  icon: "magnifyingglass")      { combo(["Ctrl"], "F") },
-        ])
+        SharedShortcutPanel.shortcutPages(km: keyboardManager, profileMgr: profileMgr, targetOS: aiSettings.targetOS, onLongPress: { showingFavEditor = true })
     }
 
     private var fixedRowsPages: [FixedRowsPage] {
-        let km = keyboardManager
-        let lock = fixedRowsLocalFnLocked
-        let te = { Self.textEntry(km, label: $0) }
-        let ke = { Self.keyEntry(km, label: $0, icon: "") }
-        let keKeyFont: Font = .system(size: 11, weight: .bold)
-        let keKey = { (label: String, key: String) -> ShortcutEntry in
-            var entry = Self.keyEntry(km, label: label, icon: "", key: key)
-            entry.font = keKeyFont
-            return entry
-        }
-        let tog = fixedRowsToggleEntry
-
-        // Page 0 — F-keys / number-symbol
-        let p0Fkeys: [ShortcutEntry] = [
-            ("F1","1"),("F2","2"),("F3","3"),("F4","4"),("F5","5"),("F6","6"),
-        ].map { Self.keyEntry(km, label: $0.0, icon: "", badge: $0.1) }
-        let p0FnKeys: [ShortcutEntry] = [
-            ("F7","7"),("F8","8"),("F9","9"),("F10","0"),("F11","+"),("F12","-"),
-        ].map { Self.keyEntry(km, label: $0.0, icon: "", badge: $0.1) }
-        let p0 = FixedRowsPage(
-            row1: lock ? ["7","8","9","0","+","-","*"].map { te($0) } : p0FnKeys + [te("#")],
-            row2: lock ? ["1","2","3","4","5","6"].map { te($0) } + [tog] : p0Fkeys + [tog]
+        SharedShortcutPanel.fixedRowsPages(
+            km: keyboardManager,
+            lock: fixedRowsLocalFnLocked,
+            tog: fixedRowsToggleEntry,
+            targetOS: aiSettings.targetOS
         )
-
-        // Page 1 — Modifiers + Navigation
-        let isMacOS = aiSettings.targetOS == .macOS
-        let isWindows = aiSettings.targetOS == .windows
-        let winIcon = aiSettings.targetOS == .windows ? "targetos_windows" : "targetos_linux"
-        let modCfg: [(String, String, String)] = isMacOS
-            ? [("Ctrl", "", "control"), ("Alt", "", "option"), ("Cmd", "", "command")]
-            : isWindows ? [("Ctrl", "Ctrl", ""), ("Alt", "Alt", ""), ("Cmd", "Win", winIcon)]
-                        : [("Ctrl", "Ctrl", ""), ("Alt", "Alt", ""), ("Cmd", "Super", winIcon)]
-        let modEntries = modCfg.map { cfg -> ShortcutEntry in
-            var entry = ShortcutEntry(label: cfg.1, icon: cfg.2.isEmpty ? nil : cfg.2, isActive: keyboardManager.activeModifiers.contains(cfg.0)) { km.handleModifierToggle(cfg.0) }
-            entry.font = .system(size: 11, weight: .bold)
-            return entry
-        }
-        let imeIndicator = ShortcutEntry(label: "IME", icon: nil, isActive: true) {}
-        let p1Locked = FixedRowsPage(
-            row1: [keKey("SCR LK","Scroll Lock"),keKey("PRT SC","PrtSc"),keKey("CAPS","Caps"),keKey("PAUSE","Pause"),keKey("HOME","Home"),keKey("PGUP","PgUp"),imeIndicator],
-            row2: [keKey("SPACE","Space"),keKey("BKSP","Backspace"),keKey("DEL","Delete"),keKey("INS","Insert"),keKey("END","End"),keKey("PGDN","PgDn"),tog]
-        )
-        let p1Unlocked = FixedRowsPage(
-            row1: modEntries + [keKey("Tab","Tab"),keKey("UP","Up"),keKey("ENTER","Enter"),imeIndicator],
-            row2: [keKey("ESC","Escape"),Self.modifierEntry(km,label:"SHIFT",icon:"shift",key:"Shift",font:.system(size: 11, weight: .bold)),keKey("DEL","Delete"),keKey("LEFT","Left"),keKey("DOWN","Down"),keKey("RIGHT","Right"),tog]
-        )
-
-        // Page 2 — Punctuation
-        let p2 = FixedRowsPage(
-            row1: lock ? PunctuationPageData.lockedRow1.map { (pair) -> ShortcutEntry in
-                            var entry = Self.textEntryWithBadge(km, label: pair.0, badge: pair.1)
-                            entry.font = keKeyFont
-                            return entry
-                        }
-                       : PunctuationPageData.unlockedRow1.map { (pair) -> ShortcutEntry in
-                            var entry = Self.textEntryWithBadge(km, label: pair.0, badge: pair.1)
-                            entry.font = keKeyFont
-                            return entry
-                        },
-            row2: lock ? PunctuationPageData.lockedRow2.map { (pair) -> ShortcutEntry in
-                            var entry = Self.textEntryWithBadge(km, label: pair.0, badge: pair.1)
-                            entry.font = keKeyFont
-                            return entry
-                        } + [tog]
-                       : PunctuationPageData.unlockedRow2.map { (pair) -> ShortcutEntry in
-                            var entry = Self.textEntryWithBadge(km, label: pair.0, badge: pair.1)
-                            entry.font = keKeyFont
-                            return entry
-                        } + [tog]
-        )
-
-        return [p0, lock ? p1Locked : p1Unlocked, p2]
     }
 
     private var fixedRowsToggleEntry: ShortcutEntry {
-        ShortcutEntry(label: "", icon: "arrow.left.arrow.right", isActive: fixedRowsLocalFnLocked) {
+        ShortcutEntry(label: "Sw", icon: "ic_swap_horiz_24", isActive: fixedRowsLocalFnLocked) {
             withAnimation(.easeInOut(duration: 0.15)) { fixedRowsLocalFnLocked.toggle() }
         }
-    }
-
-    private static func modifierEntry(_ km: KeyboardManager, label: String, icon: String, key: String? = nil, font: Font? = nil) -> ShortcutEntry {
-        let k = key ?? label
-        var entry = ShortcutEntry(label: label, icon: icon, isActive: km.activeModifiers.contains(k)) { km.handleModifierToggle(k) }
-        entry.font = font
-        return entry
-    }
-    private static func keyEntry(_ km: KeyboardManager, label: String, icon: String, key: String? = nil, badge: String? = nil) -> ShortcutEntry {
-        let k = key ?? label
-        var entry = ShortcutEntry(label: label, icon: icon.isEmpty ? nil : icon) { km.handleKeyPress(k) }
-        entry.badge = badge
-        return entry
-    }
-    private static func textEntry(_ km: KeyboardManager, label: String) -> ShortcutEntry {
-        ShortcutEntry(label: label, icon: nil) { km.handleTextInput(label) }
-    }
-    private static func textEntryWithBadge(_ km: KeyboardManager, label: String, badge: String?) -> ShortcutEntry {
-        var entry = Self.textEntry(km, label: label)
-        entry.badge = badge
-        return entry
     }
 
     // MARK: - Body
@@ -483,7 +365,7 @@ struct ComposeTextView: View {
                             .padding(8)
                             .background(Color(UIColor.systemBackground))
                             .cornerRadius(8)
-                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(UIColor.separator), lineWidth: 1))
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(ThemeManager.shared.accentColor, lineWidth: 2))
                             .frame(minHeight: 220)
                             .onChange(of: text) { newValue in
                                 if !newValue.isEmpty && undoClearEligible {
@@ -491,9 +373,7 @@ struct ComposeTextView: View {
                                     undoSnapshot = ""
                                 }
                                 // Cache text for recovery when navigating away
-                                if prefs.composeDraftRetentionEnabled {
-                                    UserDefaults.standard.set(newValue, forKey: "compose_cached_text")
-                                }
+                                UserDefaults.standard.set(newValue, forKey: "compose_cached_text")
                                 // Reset highlight when user enters new text
                                 if highlightNonAscii {
                                     highlightNonAscii = false
@@ -506,12 +386,7 @@ struct ComposeTextView: View {
                     HStack(spacing: 8) {
                         actionBtn(icon: "xmark", color: !text.isEmpty ? .red : .secondary, enabled: !text.isEmpty) {
                             undoSnapshot = ""; undoClearEligible = false; text = ""
-                            if prefs.composeDraftRetentionEnabled {
-                                UserDefaults.standard.removeObject(forKey: "compose_cached_text")
-                            }
-                        }
-                        actionBtn(icon: "arrow.uturn.backward", color: undoClearEligible && !undoSnapshot.isEmpty ? .orange : .secondary, enabled: undoClearEligible && !undoSnapshot.isEmpty) {
-                            text = undoSnapshot; undoSnapshot = ""; undoClearEligible = false
+                            UserDefaults.standard.removeObject(forKey: "compose_cached_text")
                         }
                         actionBtn(icon: "externaldrive.fill.badge.plus", color: .secondary) {
                             store.save(text)
@@ -533,9 +408,7 @@ struct ComposeTextView: View {
                             if !newVal && sending {
                                 sending = false
                                 text = ""
-                                if prefs.composeDraftRetentionEnabled {
-                                    UserDefaults.standard.removeObject(forKey: "compose_cached_text")
-                                }
+                                UserDefaults.standard.removeObject(forKey: "compose_cached_text")
                             }
                         }
                     }
@@ -545,7 +418,7 @@ struct ComposeTextView: View {
 
                     // Shortcut panel
                     VStack(spacing: 6) {
-                        ShortcutStripPager(pages: shortcutPages).id(profileMgr.activeProfileId).padding(.horizontal, 4)
+                        ShortcutStripPager(pages: shortcutPages).id("\(profileMgr.activeProfileId)-\(profileMgr.myShortcutsVersion)").padding(.horizontal, 4)
                         FixedRowsPager(pages: fixedRowsPages, defaultPageIndex: 1).padding(.horizontal, 4)
                     }
                     .background(Color(UIColor.secondarySystemBackground))
@@ -569,10 +442,13 @@ struct ComposeTextView: View {
             .sheet(isPresented: $showLibrarySheet) {
                 savedTextLibrarySheet
             }
+            .sheet(isPresented: $showingFavEditor) {
+                FavoritesEditorSheet(keyboardManager: keyboardManager)
+            }
         }
         .onAppear {
-            // Restore cached text if the editor is empty (only when draft retention is enabled)
-            if prefs.composeDraftRetentionEnabled && text.isEmpty && !cachedText.isEmpty {
+            // Restore cached text if the editor is empty
+            if text.isEmpty && !cachedText.isEmpty {
                 text = cachedText
             }
             NotificationCenter.default.addObserver(forName: UIResponder.keyboardWillShowNotification, object: nil, queue: .main) { n in
@@ -589,8 +465,8 @@ struct ComposeTextView: View {
             }
         }
         .onDisappear {
-            // Ensure text is cached before leaving (only when draft retention is enabled)
-            if prefs.composeDraftRetentionEnabled && !text.isEmpty {
+            // Ensure text is cached before leaving
+            if !text.isEmpty {
                 UserDefaults.standard.set(text, forKey: "compose_cached_text")
             }
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
@@ -790,9 +666,7 @@ struct ComposeTextView: View {
 
     private func loadItem(_ item: SavedTextItem) {
         text = item.text
-        if prefs.composeDraftRetentionEnabled {
-            UserDefaults.standard.set(item.text, forKey: "compose_cached_text")
-        }
+        UserDefaults.standard.set(item.text, forKey: "compose_cached_text")
         showLibrarySheet = false
     }
 

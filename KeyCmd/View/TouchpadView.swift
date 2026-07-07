@@ -168,6 +168,7 @@ class TouchpadUIView: UIView {
     }
 
     @objc private func handleTwoFingerTap() {
+        guard padClickDragGesturesEnabled else { return }
         print("Two-finger tap detected - performing right click")
         hapticManager.triggerButtonPress()
         mouseManager?.handleRightClick()
@@ -187,6 +188,7 @@ class TouchpadUIView: UIView {
     }
 
     @objc private func handleDoubleTap() {
+        guard padClickDragGesturesEnabled else { return }
         print("Double tap detected - performing double click")
         cancelPendingTap() // Cancel any pending single tap
         suppressSingleTapFromDoubleTap = true // Prevent stray single-tap after double-tap

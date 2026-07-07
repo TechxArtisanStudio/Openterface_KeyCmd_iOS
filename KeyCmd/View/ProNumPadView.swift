@@ -83,8 +83,10 @@ struct ProNumPadView: View {
                         padClickDragGesturesEnabled: prefs.padClickDragGesturesEnabled,
                         onPointerMoving: { moving in pointerMoving = moving }
                     )
-                    ProTouchpadScrollStripView(mouseManager: mouseManager, labelFontSize: 7)
-                        .frame(width: 80)
+                    if prefs.scrollStripEnabled {
+                        ProTouchpadScrollStripView(mouseManager: mouseManager, labelFontSize: 7)
+                            .frame(width: 80)
+                    }
                 }
                 .background(mouseManager.isSelectMode ? Color.blue.opacity(0.18) : Color.clear)
 

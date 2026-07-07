@@ -36,12 +36,18 @@ class KeyboardManager: ObservableObject {
     private let hapticManager = HapticFeedbackManager.shared
     private let logger = LogManager.shared
 
-    /// Fn lock mapping: letter key → F-key (matches Android CustomKeyboardView.resolveFnMapping)
+    /// Fn lock mapping: letter key → digit/F-key (matches Android CustomKeyboardView.resolveFnMapping).
+    /// Row 1 (q-p) → 1-0, Row 2 (a-l) → F1-F9, Row 3 (z,x,c) → F10-F12.
     let fnMapping: [String: String] = [
-        "q": "F1", "w": "F2", "e": "F3", "r": "F4", "t": "F5",
-        "y": "F6", "u": "F7", "i": "F8", "o": "F9", "p": "F10",
-        "a": "F11", "s": "F12"
+        "q": "1", "w": "2", "e": "3", "r": "4", "t": "5",
+        "y": "6", "u": "7", "i": "8", "o": "9", "p": "0",
+        "a": "F1", "s": "F2", "d": "F3", "f": "F4", "g": "F5",
+        "h": "F6", "j": "F7", "k": "F8", "l": "F9",
+        "z": "F10", "x": "F11", "c": "F12",
+        "backspace": "Delete"
     ]
+    /// Short display labels for Fn-mapped keyCodes where the HID name is too long for the keycap.
+    let fnDisplayAbbrev: [String: String] = ["Delete": "Del"]
 
     /// Key alternates definition matching Android XML keyAlternates attributes.
     /// Each entry: (label, symbolLabel, alternates, cornerHint)

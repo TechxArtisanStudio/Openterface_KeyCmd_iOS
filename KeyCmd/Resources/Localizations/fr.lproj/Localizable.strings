@@ -134,14 +134,12 @@
 "Modifiers (shared with Basic)" = "Modificateurs (partagés avec Basic)";
 "Sends a real modifier-down to the connected device when long-pressing." = "Envoie un vrai signal modificateur-enfoncé à l'appareil connecté lors d'un appui long.";
 "Show a floating label above a held key while pressing." = "Afficher une étiquette flottante au-dessus d'une touche maintenue pendant l'appui.";
-"Show compact gesture status line on touchpad (buttons up / touch idle)." = "Afficher une ligne de statut de geste compacte sur le pavé tactile (boutons relevés / toucher inactif).";
 "Show drag strip beside touchpad for mouse wheel scroll." = "Afficher la bande de glissement à côté du pavé tactile pour le défilement de la molette de souris.";
 "Shortcut Hub Profile" = "Profil du centre de raccourcis";
 "Choose which profile's shortcuts appear on the keyboard strip." = "Choisissez les raccourcis de quel profil apparaissent sur la bande du clavier.";
 "These settings also apply in Keyboard & Mouse (Basic) mode." = "Ces paramètres s'appliquent également en mode Clavier et Souris (Basic).";
 "Tap to change" = "Appuyez pour modifier";
 "Typing" = "Frappe";
-"Remember compose text while switching to Keyboard or NumPad submodes (in-memory only)." = "Mémoriser le texte de composition lors du passage aux sous-modes Clavier ou NumPad (en mémoire uniquement).";
 
 "Welcome to KeyMod" = "Bienvenue sur KeyMod";
 "Choose your preferred mode" = "Choisissez votre mode préféré";
@@ -343,9 +341,7 @@
 /* --- Libellés des bascules KM Pro --- */
 "Alternate Hints" = "Indices alternatifs";
 "Key Tap Preview" = "Aperçu d'appui de touche";
-"Compose Draft Retention" = "Conservation du brouillon de composition";
 "Vertical Scroll Strip" = "Bande de défilement verticale";
-"Gesture Status Line" = "Ligne d'état des gestes";
 "Select Profile" = "Sélectionner un profil";
 
 /* --- Descriptions courtes KM Pro --- */

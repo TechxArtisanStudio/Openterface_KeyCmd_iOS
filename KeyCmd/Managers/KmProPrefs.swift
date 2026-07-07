@@ -3,7 +3,7 @@
 //  KeyMod
 //
 //  Keyboard & Mouse Pro mode settings: keys display, alternate hints, key tap
-//  preview, compose draft retention, touchpad mode, scroll strip, gesture status.
+//  preview, touchpad mode, scroll strip.
 //  Matches Android KmProSettingsFragment / related prefs classes.
 //
 
@@ -16,11 +16,9 @@ class KmProPrefs: ObservableObject {
     static let kKeysDisplay           = "top_shortcut_display_mode"       // Int: 0=Names, 1=Icons, 2=Combo
     static let kAlternateHints        = "keyboard_alternates_hints_enabled"
     static let kKeyTapPreview        = "km_pro_key_tap_preview_enabled"
-    static let kComposeDraftRetention = "km_pro_compose_draft_retention_enabled"
     static let kTouchpadMode         = "km_pro_touchpad_mode"            // Int: 0=Gestures, 1=Pad+Mouse, 2=Hybrid
     static let kScrollStripEnabled   = "km_pro_touchpad_scroll_strip_enabled"
     static let kStripSensitivity     = "km_pro_touchpad_strip_scroll_sensitivity"
-    static let kGestureStatusVisible = "km_pro_touchpad_gesture_status_visible"
 
     // MARK: - Keys Display
 
@@ -54,14 +52,6 @@ class KmProPrefs: ObservableObject {
     @Published var keyTapPreviewEnabled: Bool {
         didSet {
             UserDefaults.standard.set(keyTapPreviewEnabled, forKey: Self.kKeyTapPreview)
-        }
-    }
-
-    // MARK: - Compose Draft Retention
-
-    @Published var composeDraftRetentionEnabled: Bool {
-        didSet {
-            UserDefaults.standard.set(composeDraftRetentionEnabled, forKey: Self.kComposeDraftRetention)
         }
     }
 
@@ -117,14 +107,6 @@ class KmProPrefs: ObservableObject {
         }
     }
 
-    // MARK: - Gesture Status Line
-
-    @Published var gestureStatusVisible: Bool {
-        didSet {
-            UserDefaults.standard.set(gestureStatusVisible, forKey: Self.kGestureStatusVisible)
-        }
-    }
-
     // MARK: - Init
 
     private init() {
@@ -135,7 +117,6 @@ class KmProPrefs: ObservableObject {
 
         self.alternateHintsEnabled = ud.object(forKey: Self.kAlternateHints) as? Bool ?? true
         self.keyTapPreviewEnabled = ud.object(forKey: Self.kKeyTapPreview) as? Bool ?? true
-        self.composeDraftRetentionEnabled = ud.object(forKey: Self.kComposeDraftRetention) as? Bool ?? true
 
         let tpRaw = ud.integer(forKey: Self.kTouchpadMode)
         self.touchpadMode = TouchpadMode(rawValue: tpRaw) ?? .gesturesOnly
@@ -145,7 +126,5 @@ class KmProPrefs: ObservableObject {
         let sensitivityPct = ud.object(forKey: Self.kStripSensitivity) as? Int ?? 100
         let clamped = max(20, min(200, sensitivityPct))
         self.stripScrollSensitivity = Double(clamped) / 100.0
-
-        self.gestureStatusVisible = ud.object(forKey: Self.kGestureStatusVisible) as? Bool ?? true
     }
 }

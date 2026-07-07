@@ -53,19 +53,23 @@ struct ShortcutItem: Codable, Identifiable, Equatable {
     let keyCode: String
     /// Optional custom background colour hex for "My Shortcuts" cards.
     var colorHex: String?
+    /// Optional icon name (asset catalog or emoji glyph) for display in icon mode.
+    var icon: String?
 
     init(id: String = UUID().uuidString,
          description: String,
          key: String,
          modifier: String? = nil,
          keyCode: String,
-         colorHex: String? = nil) {
+         colorHex: String? = nil,
+         icon: String? = nil) {
         self.id = id
         self.description = description
         self.key = key
         self.modifier = modifier
         self.keyCode = keyCode
         self.colorHex = colorHex
+        self.icon = icon
     }
 
     // Content-based equality so drag-and-drop deduplication works correctly

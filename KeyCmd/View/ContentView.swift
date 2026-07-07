@@ -282,36 +282,33 @@ struct ContentView: View {
 
     @ViewBuilder private var proSubmodeSelector: some View {
         let current = ProKeyboardMouseView.ProSubmode(rawValue: proSubmodeRaw) ?? .keyboard
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 4) {
-                Button { proSubmodeRaw = ProKeyboardMouseView.ProSubmode.keyboard.rawValue } label: {
-                    Image("ic_km_pro_submode_keyboard")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 27, height: 27)
-                        .foregroundColor(current == .keyboard ? themeManager.accentColor : .secondary)
-                        .frame(width: 38, height: 38)
-                }
-                Button { proSubmodeRaw = ProKeyboardMouseView.ProSubmode.compose.rawValue } label: {
-                    Image("ic_km_pro_submode_compose")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 27, height: 27)
-                        .foregroundColor(current == .compose ? themeManager.accentColor : .secondary)
-                        .frame(width: 38, height: 38)
-                }
-                Button { proSubmodeRaw = ProKeyboardMouseView.ProSubmode.numpad.rawValue } label: {
-                    Image("ic_km_pro_submode_numpad")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 27, height: 27)
-                        .foregroundColor(current == .numpad ? themeManager.accentColor : .secondary)
-                        .frame(width: 38, height: 38)
-                }
+        // ponytail: fixed HStack — 3 buttons × 38pt + 2 × 4pt spacing = 122pt, fits in top bar.
+        HStack(spacing: 4) {
+            Button { proSubmodeRaw = ProKeyboardMouseView.ProSubmode.keyboard.rawValue } label: {
+                Image("ic_km_pro_submode_keyboard")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 27, height: 27)
+                    .foregroundColor(current == .keyboard ? themeManager.accentColor : .secondary)
+                    .frame(width: 38, height: 38)
+            }
+            Button { proSubmodeRaw = ProKeyboardMouseView.ProSubmode.compose.rawValue } label: {
+                Image("ic_km_pro_submode_compose")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 27, height: 27)
+                    .foregroundColor(current == .compose ? themeManager.accentColor : .secondary)
+                    .frame(width: 38, height: 38)
+            }
+            Button { proSubmodeRaw = ProKeyboardMouseView.ProSubmode.numpad.rawValue } label: {
+                Image("ic_km_pro_submode_numpad")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 27, height: 27)
+                    .foregroundColor(current == .numpad ? themeManager.accentColor : .secondary)
+                    .frame(width: 38, height: 38)
             }
         }
-        .frame(width: 80)
-        .clipped()
     }
 
     private var orientationToggleDivider: some View {

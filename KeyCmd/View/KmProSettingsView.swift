@@ -42,11 +42,6 @@ struct KmProSettingsView: View {
             Text("Show a floating label above a held key while pressing.")
                 .font(.caption)
                 .foregroundColor(.secondary)
-
-            Toggle("Compose Draft Retention", isOn: $prefs.composeDraftRetentionEnabled)
-            Text("Remember compose text while switching to Keyboard or NumPad submodes (in-memory only).")
-                .font(.caption)
-                .foregroundColor(.secondary)
         }
 
         // MARK: - Touchpad section
@@ -70,11 +65,6 @@ struct KmProSettingsView: View {
                 scrollSensitivitySection
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
-
-            Toggle("Gesture Status Line", isOn: $prefs.gestureStatusVisible)
-            Text("Show compact gesture status line on touchpad (buttons up / touch idle).")
-                .font(.caption)
-                .foregroundColor(.secondary)
         }
 
         // MARK: - Modifiers section (shared with Basic)

@@ -134,14 +134,12 @@
 "Modifiers (shared with Basic)" = "修飾キー（基本と共有）";
 "Sends a real modifier-down to the connected device when long-pressing." = "長押し時に接続デバイスに本物の修飾キー押下を送信します。";
 "Show a floating label above a held key while pressing." = "押している間、保持されたキーの上にフローティングラベルを表示します。";
-"Show compact gesture status line on touchpad (buttons up / touch idle)." = "タッチパッドにコンパクトなジェスチャーステータスラインを表示します（ボタン離し / タッチアイドル）。";
 "Show drag strip beside touchpad for mouse wheel scroll." = "マウスホイールスクロール用にタッチパッド横にドラッグストリップを表示します。";
 "Shortcut Hub Profile" = "ショートカットハブプロファイル";
 "Choose which profile's shortcuts appear on the keyboard strip." = "キーボードストリップに表示するプロファイルのショートカットを選択します。";
 "These settings also apply in Keyboard & Mouse (Basic) mode." = "これらの設定はキーボードとマウス（基本）モードにも適用されます。";
 "Tap to change" = "タップして変更";
 "Typing" = "入力";
-"Remember compose text while switching to Keyboard or NumPad submodes (in-memory only)." = "キーボードまたは数字キーパッドサブモードに切り替える際に作成テキストを記憶します（メモリ内のみ）。";
 
 "Welcome to KeyMod" = "KeyModへようこそ";
 "Choose your preferred mode" = "お好みのモードを選択してください";
@@ -341,9 +339,7 @@
 /* --- KM Pro設定トグルラベル --- */
 "Alternate Hints" = "代替ヒント";
 "Key Tap Preview" = "キータッププレビュー";
-"Compose Draft Retention" = "作成下書きの保持";
 "Vertical Scroll Strip" = "垂直スクロールストリップ";
-"Gesture Status Line" = "ジェスチャーステータスライン";
 "Select Profile" = "プロファイルを選択";
 
 /* --- KM Pro短い説明 --- */

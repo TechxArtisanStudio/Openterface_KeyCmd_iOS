@@ -147,14 +147,12 @@
 "Modifiers (shared with Basic)" = "Modifiers (shared with Basic)";
 "Sends a real modifier-down to the connected device when long-pressing." = "Sends a real modifier-down to the connected device when long-pressing.";
 "Show a floating label above a held key while pressing." = "Show a floating label above a held key while pressing.";
-"Show compact gesture status line on touchpad (buttons up / touch idle)." = "Show compact gesture status line on touchpad (buttons up / touch idle).";
 "Show drag strip beside touchpad for mouse wheel scroll." = "Show drag strip beside touchpad for mouse wheel scroll.";
 "Shortcut Hub Profile" = "Shortcut Hub Profile";
 "Choose which profile's shortcuts appear on the keyboard strip." = "Choose which profile's shortcuts appear on the keyboard strip.";
 "These settings also apply in Keyboard & Mouse (Basic) mode." = "These settings also apply in Keyboard & Mouse (Basic) mode.";
 "Tap to change" = "Tap to change";
 "Typing" = "Typing";
-"Remember compose text while switching to Keyboard or NumPad submodes (in-memory only)." = "Remember compose text while switching to Keyboard or NumPad submodes (in-memory only).";
 
 /* --- Launch Panel --- */
 "Welcome to KeyMod" = "Welcome to KeyMod";
@@ -424,9 +422,7 @@
 /* --- KM Pro Settings Toggle Labels --- */
 "Alternate Hints" = "Alternate Hints";
 "Key Tap Preview" = "Key Tap Preview";
-"Compose Draft Retention" = "Compose Draft Retention";
 "Vertical Scroll Strip" = "Vertical Scroll Strip";
-"Gesture Status Line" = "Gesture Status Line";
 "Select Profile" = "Select Profile";
 
 /* --- KM Pro Short Descriptions (compact versions) --- */

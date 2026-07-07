@@ -152,57 +152,57 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     }
 
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
-        // Check peripheral.name first, then fall back to advertisement local name
-        // (some devices like KVM-Go don't populate peripheral.name until connected)
+        // ponytail: prefer advName over peripheral.name — KVM-Go doesn't populate peripheral.name until connected,
+        // and on iOS the cached peripheral.name can be stale/wrong for previously-seen-but-unconnected devices.
         let advName = advertisementData[CBAdvertisementDataLocalNameKey] as? String
-        let deviceName = (peripheral.name ?? advName)?.lowercased() ?? ""
-        if !deviceName.isEmpty, (deviceName.hasPrefix("openterface") || deviceName.hasPrefix("kvm") || deviceName.hasPrefix("keymod")) {
-            logger.log("Discovered device: \(peripheral.name ?? advName ?? "Unknown")", category: "BLE")
-            logger.log("RSSI\(RSSI)", category: "BLE")
-            if let serviceUUIDs = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] {
-                logger.log("Service UUIDs from advertisement: \(serviceUUIDs)", category: "BLE")
+        let displayName = advName ?? peripheral.name
+        let deviceName = (displayName ?? "").lowercased()
+
+        let isKnownDevice = !deviceName.isEmpty &&
+            (deviceName.hasPrefix("openterface") || deviceName.hasPrefix("kvm") || deviceName.hasPrefix("keymod"))
+        guard isKnownDevice else { return }
+
+        logger.log("Discovered device: \(displayName ?? "Unknown") RSSI=\(RSSI)", category: "BLE")
+
+        DispatchQueue.main.async {
+            if let existingIndex = self.discoveredDevices.firstIndex(where: { $0.0.identifier == peripheral.identifier }) {
+                self.discoveredDevices[existingIndex] = (peripheral, RSSI)
+            } else {
+                self.discoveredDevices.append((peripheral, RSSI))
             }
+        }
 
-            DispatchQueue.main.async {
-                if let existingIndex = self.discoveredDevices.firstIndex(where: { $0.0.identifier == peripheral.identifier }) {
-                    self.discoveredDevices[existingIndex] = (peripheral, RSSI)
-                } else {
-                    self.discoveredDevices.append((peripheral, RSSI))
-                }
-            }
+        guard shouldAutoConnect(to: peripheral, advertisementName: advName) else { return }
 
-            guard shouldAutoConnect(to: peripheral, advertisementName: advName) else { return }
+        if connectionState == .connected {
+            logger.log("Already connected, skipping auto-connect", category: "BLE")
+            return
+        }
 
-            if connectionState == .connected {
-                logger.log("Already connected, skipping auto-connect", category: "BLE")
+        // When connection state is stale (connecting to another peripheral for too long),
+        // recover by switching to the discovered auto-connect target.
+        if connectionState == .connected || connectionState == .connecting || connectionState == .reconnecting {
+            let isSamePeripheral = connectedPeripheral?.identifier == peripheral.identifier
+            if isSamePeripheral {
+                logger.log("Already connecting to auto-connect target, skipping", category: "BLE")
                 return
             }
 
-            // When connection state is stale (connecting to another peripheral for too long),
-            // recover by switching to the discovered auto-connect target.
-            if connectionState == .connected || connectionState == .connecting || connectionState == .reconnecting {
-                let isSamePeripheral = connectedPeripheral?.identifier == peripheral.identifier
-                if isSamePeripheral {
-                    logger.log("Already connecting to auto-connect target, skipping", category: "BLE")
-                    return
-                }
-
-                if let startedAt = pendingConnectionStartedAt,
-                   Date().timeIntervalSince(startedAt) < 3.0 {
-                    logger.log("Connection in progress to another peripheral, waiting...", category: "BLE")
-                    return
-                }
-
-                logger.log("Stale connecting state detected, switching auto-connect target", category: "BLE", level: .warning)
-                if let current = connectedPeripheral, current.identifier != peripheral.identifier {
-                    centralManager.cancelPeripheralConnection(current)
-                }
-                cancelConnectionTimeout()
+            if let startedAt = pendingConnectionStartedAt,
+               Date().timeIntervalSince(startedAt) < 3.0 {
+                logger.log("Connection in progress to another peripheral, waiting...", category: "BLE")
+                return
             }
 
-            logger.log("Auto-connect target discovered, connecting...", category: "BLE")
-            beginConnecting(to: peripheral, isReconnecting: false)
+            logger.log("Stale connecting state detected, switching auto-connect target", category: "BLE", level: .warning)
+            if let current = connectedPeripheral, current.identifier != peripheral.identifier {
+                centralManager.cancelPeripheralConnection(current)
+            }
+            cancelConnectionTimeout()
         }
+
+        logger.log("Auto-connect target discovered, connecting...", category: "BLE")
+        beginConnecting(to: peripheral, isReconnecting: false)
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
