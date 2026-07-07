@@ -72,6 +72,7 @@ final class BleEthTransport: TransportAdapter {
     // MARK: - TransportAdapter Methods
 
     func connect(host: String, port: Int, timeoutMs: Int) {
+        logger.log("BLE-Eth: connect(\(host):\(port), timeout=\(timeoutMs)ms)", category: "BLE-Eth", level: .info)
         // 1. Reset state
         stateLock.lock()
         closePipes()
@@ -114,18 +115,23 @@ final class BleEthTransport: TransportAdapter {
         let portLo = UInt8(port & 0xFF)
 
         var payload = Data([ip0, ip1, ip2, ip3, portHi, portLo])
+        logger.log("BLE-Eth: sending CONNECT frame payloadLen=\(payload.count)", category: "BLE-Eth", level: .debug)
         sendFrame(addr: 0x00, cmd: Self.CMD_CONNECT, payload: payload)
 
         // 5. Wait for CONNECT_RESP or timeout
+        logger.log("BLE-Eth: waiting for CONNECT_RESP (semaphore)", category: "BLE-Eth", level: .debug)
         let result = semaphore.wait(timeout: .now() + .milliseconds(timeoutMs))
         if result == .timedOut {
+            logger.log("BLE-Eth CONNECT timed out after \(timeoutMs)ms", category: "BLE-Eth", level: .error)
             listener?.onError(message: "BLE-Eth CONNECT timed out")
             return
         }
+        logger.log("BLE-Eth: got CONNECT_RESP pendingConnId=\(pendingConnId) pendingConnStatus=\(pendingConnStatus)", category: "BLE-Eth", level: .debug)
 
         // 6. Check response status
         if pendingConnStatus != 0x00 {
             let statusHex = String(format: "0x%02X", pendingConnStatus)
+            logger.log("BLE-Eth CONNECT failed: status=\(statusHex)", category: "BLE-Eth", level: .error)
             listener?.onError(message: "BLE-Eth CONNECT failed: status=\(statusHex)")
             return
         }
@@ -140,16 +146,22 @@ final class BleEthTransport: TransportAdapter {
     }
 
     func send(data: Data) {
-        guard let pipe = outboundPipe else { return }
+        guard let pipe = outboundPipe else {
+            logger.log("BLE-Eth: send() dropped — outboundPipe is nil", category: "BLE-Eth", level: .warning)
+            return
+        }
+        logger.log("BLE-Eth: send() enqueuing \(data.count) bytes", category: "BLE-Eth", level: .debug)
         pipe.output.write(data)
     }
 
     func disconnect() {
+        logger.log("BLE-Eth: disconnect() called", category: "BLE-Eth", level: .info)
         stateLock.lock()
 
         // Already fully closed?
         if !running && connId < 0 && inputPipeClosed {
             stateLock.unlock()
+            logger.log("BLE-Eth: disconnect() no-op (already closed)", category: "BLE-Eth", level: .debug)
             return
         }
 
@@ -218,21 +230,24 @@ final class BleEthTransport: TransportAdapter {
     // MARK: - Private: Frame Handling
 
     private func handleParsedFrame(_ frame: FrameParser.ParsedFrame) {
+        logger.log("BLE-Eth: frame cmd=0x\(String(format: "%02X", frame.cmd)) payloadLen=\(frame.payload.count)", category: "BLE-Eth", level: .debug)
         switch frame.cmd {
         case Self.CMD_CONNECT_RESP:
+            logger.log("BLE-Eth: handling CONNECT_RESP payloadLen=\(frame.payload.count)", category: "BLE-Eth", level: .debug)
             handleConnectResponse(frame.payload)
 
         case Self.CMD_DATA_RESP:
             handleDataResponse(frame.payload)
 
         case Self.CMD_DISCONN_RESP, Self.CMD_CONN_CLOSED:
+            logger.log("BLE-Eth: handling remote close cmd=0x\(String(format: "0x%02X", frame.cmd))", category: "BLE-Eth", level: .warning)
             handleRemoteClose(frame.payload)
 
         case Self.CMD_INFO_RESP:
             logger.log("BLE-Eth INFO response received", category: "BLE-Eth")
 
         default:
-            logger.log("BLE-Eth unknown cmd: \(String(format: "0x%02X", frame.cmd))", category: "BLE-Eth")
+            logger.log("BLE-Eth unknown cmd: 0x\(String(format: "%02X", frame.cmd))", category: "BLE-Eth", level: .warning)
         }
     }
 
@@ -281,24 +296,29 @@ final class BleEthTransport: TransportAdapter {
     private func deliverReassembledData(_ reassembled: DataReassembler.ReassembledData) {
         // Verify this is for our connection
         stateLock.lock()
-        let shouldDeliver = running && connId >= 0 && !inputPipeClosed && Int(reassembled.connId) == connId
+        let ourConnId = connId
+        let isRunning = running
         stateLock.unlock()
+
+        let shouldDeliver = isRunning && ourConnId >= 0 && Int(reassembled.connId) == ourConnId
+        logger.log("BLE-Eth: deliver reassembled dataLen=\(reassembled.data.count) dataConnId=\(reassembled.connId) ourConnId=\(ourConnId) running=\(isRunning) → deliver=\(shouldDeliver)",
+                   category: "BLE-Eth", level: .debug)
 
         guard shouldDeliver else { return }
 
-        // Write to inbound pipe (BLE → SSH direction)
-        if let pipe = inboundPipe {
-            pipe.output.write(reassembled.data)
-            // Also notify listener
-            listener?.onDataReceived(data: reassembled.data)
-        }
+        // Deliver directly to listener (bridge writes to libssh2's socket fd)
+        listener?.onDataReceived(data: reassembled.data)
     }
 
     // MARK: - Private: Output Reader
 
     /// Background task that reads from outbound pipe and sends fragmented DATA frames.
     private func runOutputReader() async {
-        guard let pipe = outboundPipe else { return }
+        logger.log("BLE-Eth: output reader started", category: "BLE-Eth", level: .info)
+        guard let pipe = outboundPipe else {
+            logger.log("BLE-Eth: output reader — no outboundPipe", category: "BLE-Eth", level: .error)
+            return
+        }
         let reader = pipe.input
 
         while !Task.isCancelled {
@@ -317,12 +337,15 @@ final class BleEthTransport: TransportAdapter {
             let chunk = await reader.read()
             guard let data = chunk else {
                 // EOF — pipe closed
+                logger.log("BLE-Eth: output reader EOF", category: "BLE-Eth", level: .info)
                 break
             }
 
+            logger.log("BLE-Eth: output reader got \(data.count) bytes → sendFragmented", category: "BLE-Eth", level: .debug)
             // Fragment and send
             sendFragmented(data: data)
         }
+        logger.log("BLE-Eth: output reader exited", category: "BLE-Eth", level: .info)
     }
 
     // MARK: - Private: Frame Building & Sending

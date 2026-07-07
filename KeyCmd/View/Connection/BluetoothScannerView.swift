@@ -51,13 +51,14 @@ struct BluetoothScannerView: View {
                         }
                         .listRowBackground(Color.clear)
                     } else {
-                        ForEach(bleManager.discoveredDevices, id: \.0.identifier) { peripheral, rssi in
+                        ForEach(Array(bleManager.discoveredDevices.enumerated()), id: \.element.0.identifier) { index, device in
                             DeviceRow(
-                                peripheral: peripheral,
-                                rssi: rssi,
-                                isConnected: bleManager.connectedDevices.contains(peripheral.identifier),
+                                peripheral: device.0,
+                                rssi: device.1,
+                                advName: device.2,
+                                isConnected: bleManager.connectedDevices.contains(device.0.identifier),
                                 onTap: {
-                                    bleManager.connectToDevice(peripheral)
+                                    bleManager.connectToDevice(device.0)
                                     dismiss()
                                 }
                             )
@@ -80,6 +81,7 @@ struct BluetoothScannerView: View {
 private struct DeviceRow: View {
     let peripheral: CBPeripheral
     let rssi: NSNumber
+    let advName: String?
     let isConnected: Bool
     let onTap: () -> Void
 
@@ -93,7 +95,8 @@ private struct DeviceRow: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack {
-                        Text(peripheral.name ?? "Unknown Device")
+                        // ponytail: prefer advName — peripheral.name is often nil before connection on iOS
+                        Text(advName ?? peripheral.name ?? "Unknown Device")
                             .font(.system(size: 15, weight: .medium))
                             .foregroundColor(.primary)
 
@@ -110,7 +113,11 @@ private struct DeviceRow: View {
 
                     HStack(spacing: 4) {
                         SignalStrengthView(rssi: rssi)
-                        Text("RSSI: \(rssi.intValue)")
+                        // ponytail: show nRF Connect-style signal data: RSSI + distance estimate
+                        let rssiValue = rssi.doubleValue
+                        let distanceMeters = pow(10.0, (-59.0 - rssiValue) / 20.0)
+                        let distanceStr = distanceMeters < 1.0 ? "\(Int(distanceMeters * 100))cm" : String(format: "%.1fm", distanceMeters)
+                        Text("\(Int(rssiValue)) dBm · \(distanceStr)")
                             .font(.system(size: 12))
                             .foregroundColor(.secondary)
                     }

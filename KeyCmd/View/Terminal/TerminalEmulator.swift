@@ -11,7 +11,6 @@ class TerminalEmulator: NSObject, TerminalViewDelegate {
 
     private weak var terminalView: TerminalView?
     let sshClient: SSHClient
-    private let localProxy: LocalTCPProxy
 
     /// Callback for connection status changes
     var onStatusChanged: ((ConnectionStatus) -> Void)?
@@ -42,8 +41,8 @@ class TerminalEmulator: NSObject, TerminalViewDelegate {
     // MARK: - Init
 
     override init() {
-        self.localProxy = LocalTCPProxy(port: 12345)
-        self.sshClient = SSHClient(host: "127.0.0.1", port: 12345, username: "", password: "")
+        // SSHClient host/port are unused now — bridge creates its own TCP socket.
+        self.sshClient = SSHClient(host: "127.0.0.1", port: 0, username: "", password: "")
         super.init()
 
         // Wire SSHClient output → terminal.feed()
@@ -73,40 +72,38 @@ class TerminalEmulator: NSObject, TerminalViewDelegate {
     }
 
     /// Connect to remote host via BLE-Eth transport
-    func connect(profile: ConnectionProfile, transport: BleEthTransport) async throws {
+    func connect(profile: ConnectionProfile, transport: BleEthTransport, bridge: POSIXSocketBridge) async throws {
         status = .connecting
+        print("[TerminalEmulator] connect() starting — host=\(profile.host) port=\(profile.port) user=\(profile.username)")
 
-        // Start local TCP proxy
-        try localProxy.start(transport: transport)
+        // Update SSHClient with real credentials from the profile
+        sshClient.setCredentials(username: profile.username, password: profile.password)
 
-        // Update SSHClient with credentials
-        // Note: We reconnect to local proxy with new credentials
-        // For now, we'll pass credentials through a modified approach
-
-        // Connect SSH to local proxy (which bridges to BLE)
-        // The transport handles the actual remote connection
-
-        // Start SSH session
-        sshClient.connect(transport: transport)
+        // Pass the pre-created bridge to SSHClient
+        print("[TerminalEmulator] calling sshClient.connect(transport:bridge:)")
+        sshClient.connect(transport: transport, bridge: bridge)
 
         // Wait for connection (with timeout)
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             Task {
                 // Check every 100ms for up to 30 seconds
-                for _ in 0..<300 {
+                for i in 0..<300 {
                     try await Task.sleep(nanoseconds: 100_000_000) // 100ms
 
                     if self.sshClient.isConnected {
+                        print("[TerminalEmulator] SSH connected after ~\((i+1)*100)ms")
                         self.status = .connected
                         continuation.resume()
                         return
                     }
 
                     if case .error(let msg) = self.status {
+                        print("[TerminalEmulator] SSH error detected at ~\((i+1)*100)ms: \(msg)")
                         continuation.resume(throwing: NSError(domain: "SSH", code: -1, userInfo: [NSLocalizedDescriptionKey: msg]))
                         return
                     }
                 }
+                print("[TerminalEmulator] SSH connect timeout after 30s")
                 continuation.resume(throwing: NSError(domain: "SSH", code: -1, userInfo: [NSLocalizedDescriptionKey: "Connection timeout"]))
             }
         }
@@ -115,7 +112,6 @@ class TerminalEmulator: NSObject, TerminalViewDelegate {
     /// Disconnect SSH session
     func disconnect() {
         sshClient.disconnect()
-        localProxy.stop()
         status = .disconnected
     }
 
@@ -145,6 +141,7 @@ class TerminalEmulator: NSObject, TerminalViewDelegate {
     public func send(source: TerminalView, data: ArraySlice<UInt8>) {
         // User typed something → forward to SSH
         let data = Data(data)
+        print("[TerminalEmulator] send() \(data.count) bytes from terminal")
         sshClient.write(data)
     }
 

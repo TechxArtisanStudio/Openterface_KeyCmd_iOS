@@ -5,7 +5,7 @@ struct ConnectionDialog: View {
     @Environment(\.dismiss) var dismiss
     @ObservedObject var viewModel: TerminalViewModel
 
-    @State private var host = ""
+    @State private var host = "192.168.11.2"
     @State private var port = "22"
     @State private var username = ""
     @State private var password = ""

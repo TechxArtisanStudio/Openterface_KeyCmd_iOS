@@ -49,12 +49,14 @@ final class DataReassembler {
         let flags = payload[0]
         let seq = Int(payload[1])
         let connId = payload[2]
+        let isFirst = (flags & Self.FRAG_FIRST) != 0
+        let hasMore = (flags & Self.FRAG_MORE) != 0
+        let dataLen = payload.count - Self.FRAG_HEADER_LEN
+        print("[DataReassembler] feed: flags=0x\(String(format: "%02X", flags)) seq=\(seq) connId=\(connId) first=\(isFirst) more=\(hasMore) dataLen=\(dataLen) active=\(active) nextSeq=\(nextSeq)")
 
         // Extract fragment data (skip 3-byte header)
         let fragData = payload.dropFirst(DataReassembler.FRAG_HEADER_LEN)
 
-        let isFirst = (flags & Self.FRAG_FIRST) != 0
-        let hasMore = (flags & Self.FRAG_MORE) != 0
         var count = Int(flags & Self.FRAG_COUNT_MASK)
         if count == 0 {
             count = 1  // Normalize 0 to 1
@@ -71,12 +73,14 @@ final class DataReassembler {
 
         if !active {
             // Not in reassembly mode — drop fragment
+            print("[DataReassembler] dropped: not active")
             return
         }
 
         // Check sequence number
         if seq != nextSeq {
             // Out of order — discard entire reassembly
+            print("[DataReassembler] out of order: expected=\(nextSeq) got=\(seq) — discarding")
             active = false
             return
         }
@@ -88,6 +92,7 @@ final class DataReassembler {
         // Check if this is the last fragment
         if !hasMore {
             // Reassembly complete
+            print("[DataReassembler] complete: totalLen=\(buffer.count) connId=\(reassemblyConnId)")
             let reassembled = ReassembledData(
                 connId: reassemblyConnId,
                 data: buffer

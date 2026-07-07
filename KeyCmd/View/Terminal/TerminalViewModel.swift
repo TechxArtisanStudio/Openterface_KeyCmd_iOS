@@ -37,6 +37,7 @@ class TerminalViewModel: ObservableObject {
     let emulator = TerminalEmulator()
     private let bleManager: BLEManager
     private var transport: BleEthTransport?
+    private var bridge: POSIXSocketBridge?
     private var cancellables = Set<AnyCancellable>()
 
     // MARK: - Init
@@ -69,11 +70,13 @@ class TerminalViewModel: ObservableObject {
 
     /// Connect to remote host via BLE-Eth transport
     func connect(host: String, port: Int = 22, username: String, password: String) async {
+        LogManager.shared.log("ViewModel: connect(\(host):\(port), user=\(username))", category: "Terminal", level: .info)
         guard !bleManager.connectedDevices.isEmpty else {
             await MainActor.run {
                 statusMessage = "BLE not connected"
                 connectionStatus = .error("BLE not connected")
             }
+            LogManager.shared.log("ViewModel: BLE not connected — aborting", category: "Terminal", level: .error)
             return
         }
 
@@ -85,15 +88,34 @@ class TerminalViewModel: ObservableObject {
         // Create BLE-Eth transport
         let transport = BleEthTransport(bleManager: bleManager)
         self.transport = transport
+        LogManager.shared.log("ViewModel: BleEthTransport created", category: "Terminal", level: .debug)
+
+        // Create POSIX bridge and attach BEFORE transport.connect() so it receives the server banner
+        do {
+            let bridge = POSIXSocketBridge()
+            try bridge.start(transport: transport)
+            self.bridge = bridge
+            LogManager.shared.log("ViewModel: POSIXSocketBridge created, libssh2Fd=\(bridge.libssh2Fd)", category: "Terminal", level: .info)
+        } catch {
+            LogManager.shared.log("ViewModel: bridge creation failed: \(error.localizedDescription)", category: "Terminal", level: .error)
+            await MainActor.run {
+                connectionStatus = .error("Bridge creation failed")
+                statusMessage = "Bridge creation failed: \(error.localizedDescription)"
+            }
+            return
+        }
 
         // Connect transport to remote host
+        LogManager.shared.log("ViewModel: calling transport.connect()", category: "Terminal", level: .info)
         transport.connect(host: host, port: port, timeoutMs: 30000)
+        LogManager.shared.log("ViewModel: transport.connect() returned, isConnected=\(transport.isConnected)", category: "Terminal", level: .info)
 
         // Wait for transport connection
         try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
 
         // Check if transport connected
         guard transport.isConnected else {
+            LogManager.shared.log("ViewModel: transport not connected after 1s wait — aborting", category: "Terminal", level: .error)
             await MainActor.run {
                 connectionStatus = .error("BLE-Eth transport connection failed")
                 statusMessage = "Transport connection failed"
@@ -109,9 +131,12 @@ class TerminalViewModel: ObservableObject {
             password: password
         )
 
+        LogManager.shared.log("ViewModel: calling emulator.connect()", category: "Terminal", level: .info)
         do {
-            try await emulator.connect(profile: profile, transport: transport)
+            try await emulator.connect(profile: profile, transport: transport, bridge: bridge!)
+            LogManager.shared.log("ViewModel: emulator connected", category: "Terminal", level: .success)
         } catch {
+            LogManager.shared.log("ViewModel: emulator.connect failed: \(error.localizedDescription)", category: "Terminal", level: .error)
             await MainActor.run {
                 connectionStatus = .error(error.localizedDescription)
                 statusMessage = "SSH error: \(error.localizedDescription)"
@@ -123,7 +148,9 @@ class TerminalViewModel: ObservableObject {
     func disconnect() {
         emulator.disconnect()
         transport?.disconnect()
+        bridge?.stop()
         transport = nil
+        bridge = nil
 
         DispatchQueue.main.async {
             self.connectionStatus = .disconnected

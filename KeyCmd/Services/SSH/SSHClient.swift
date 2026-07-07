@@ -8,11 +8,12 @@ class SSHClient {
     private var session: OpaquePointer?
     private var channel: OpaquePointer?
     private var transport: BleEthTransport?
+    private var bridge: POSIXSocketBridge?
 
     private let host: String
     private let port: Int
-    private let username: String
-    private let password: String
+    private var username: String
+    private var password: String
 
     private let sshQueue = DispatchQueue(label: "ssh.client.queue", qos: .userInitiated)
 
@@ -28,95 +29,146 @@ class SSHClient {
         self.password = password
     }
 
+    /// Update credentials before connecting
+    func setCredentials(username: String, password: String) {
+        self.username = username
+        self.password = password
+    }
+
     deinit {
         disconnect()
     }
 
-    /// Connect to SSH server through BLE-Eth transport
-    func connect(transport: BleEthTransport) {
+    /// Connect to SSH server through BLE-Eth transport using a pre-created bridge
+    func connect(transport: BleEthTransport, bridge: POSIXSocketBridge) {
         self.transport = transport
+        self.bridge = bridge
+        LogManager.shared.log("SSH: connect() called, transport isConnected=\(transport.isConnected), bridge libssh2Fd=\(bridge.libssh2Fd)", category: "SSH", level: .info)
 
         sshQueue.async { [weak self] in
             guard let self = self else { return }
 
             do {
-                try self.performConnect()
+                LogManager.shared.log("SSH: using pre-created bridge, libssh2Fd=\(bridge.libssh2Fd)", category: "SSH", level: .info)
+                try self.performConnect(socketFd: bridge.libssh2Fd)
             } catch {
+                LogManager.shared.log("SSH: connect failed: \(error.localizedDescription)", category: "SSH", level: .error)
                 self.onError?("Connection failed: \(error.localizedDescription)")
             }
         }
     }
 
-    private func performConnect() throws {
+    private func performConnect(socketFd: Int32) throws {
+        let log = LogManager.shared
+        log.log("SSH: performConnect starting (socketFd=\(socketFd))", category: "SSH", level: .info)
+
         // Initialize libssh2
         guard libssh2_init(0) == 0 else {
+            log.log("SSH: libssh2_init failed", category: "SSH", level: .error)
             throw SSHError.initializationFailed
         }
+        log.log("SSH: libssh2_init ok", category: "SSH", level: .debug)
 
         // Create session
         guard let session = libssh2_session_init_ex(nil, nil, nil, nil) else {
+            log.log("SSH: session_init_ex returned nil", category: "SSH", level: .error)
             throw SSHError.sessionInitFailed
         }
         self.session = session
+        log.log("SSH: session created", category: "SSH", level: .debug)
 
         // Configure session preferences
         configureSessionPreferences(session)
+        log.log("SSH: session preferences configured", category: "SSH", level: .debug)
 
         // Set non-blocking mode
         libssh2_session_set_blocking(session, 0)
 
-        // Perform handshake
-        // Note: libssh2 will use the socket from BleEthTransport
-        // For BLE-Eth, we need to set up a socket-like interface
-        // This is a simplified version - in practice, you'd need to bridge
-        // BleEthTransport to a POSIX socket that libssh2 can use
-
-        let handshakeResult = libssh2_session_handshake(session, 0)
+        // Perform handshake over the bridge socket (non-blocking with retry loop)
+        log.log("SSH: starting handshake (socketFd=\(socketFd))", category: "SSH", level: .info)
+        var handshakeResult = libssh2_session_handshake(session, socketFd)
+        var attempts = 0
+        while handshakeResult == LIBSSH2_ERROR_EAGAIN && attempts < 300 {
+            waitForSocket(socketFd, session: session)
+            attempts += 1
+            handshakeResult = libssh2_session_handshake(session, socketFd)
+        }
+        let handshakeErrno = libssh2_session_last_errno(session)
+        log.log("SSH: handshake returned \(handshakeResult) after \(attempts) retries, errno=\(handshakeErrno)",
+                category: "SSH", level: handshakeResult == 0 ? .debug : .error)
         if handshakeResult != 0 {
-            let lastError = libssh2_session_last_errno(session)
-            throw SSHError.handshakeFailed(code: lastError)
+            var detail = "SSH handshake failed (error code: \(handshakeErrno))"
+            if let msg = lastSessionErrorString(session) {
+                detail += " — \(msg)"
+            }
+            throw SSHError.handshakeFailed(code: handshakeErrno, detail: detail)
         }
 
         // Get server banner
         if let banner = libssh2_session_banner_get(session) {
-            print("SSH Banner: \(String(cString: banner))")
+            let bannerStr = String(cString: banner)
+            log.log("SSH: server banner: \(bannerStr)", category: "SSH", level: .info)
         }
 
-        // Authenticate
-        let authResult = libssh2_userauth_password_ex(session, username, UInt32(strlen(username)), password, UInt32(strlen(password)), nil)
+        // Authenticate (with EAGAIN retry)
+        log.log("SSH: authenticating as user=\(username)", category: "SSH", level: .info)
+        let authResult = retryEAGAIN(session: session, socketFd: socketFd) {
+            libssh2_userauth_password_ex(session, username, UInt32(strlen(username)),
+                                         password, UInt32(strlen(password)), nil)
+        }
+        let authErrno = libssh2_session_last_errno(session)
+        log.log("SSH: auth returned \(authResult), errno=\(authErrno)", category: "SSH", level: authResult == 0 ? .debug : .error)
         if authResult != 0 {
-            let lastError = libssh2_session_last_errno(session)
-            throw SSHError.authenticationFailed(code: lastError)
+            if let msg = lastSessionErrorString(session) {
+                log.log("SSH: auth last_error: \(msg)", category: "SSH", level: .error)
+            }
+            throw SSHError.authenticationFailed(code: authErrno)
         }
+        log.log("SSH: auth ok", category: "SSH", level: .debug)
 
-        // Open channel (libssh2_channel_open_ex: session, type, type_len, window_size, packet_size, message, message_len)
-        guard let channel = libssh2_channel_open_ex(session, "session", 7, 2*1024*1024, 32768, nil, 0) else {
+        // Open channel (with EAGAIN retry)
+        log.log("SSH: opening channel", category: "SSH", level: .info)
+        var channel: OpaquePointer?
+        var channelAttempts = 0
+        while channelAttempts < 300 {
+            channel = libssh2_channel_open_ex(session, "session", 7, 2*1024*1024, 32768, nil, 0)
+            if channel != nil { break }
+            let err = libssh2_session_last_errno(session)
+            guard err == LIBSSH2_ERROR_EAGAIN else { break }
+            waitForSocket(socketFd, session: session)
+            channelAttempts += 1
+        }
+        guard let channel = channel else {
             let lastError = libssh2_session_last_errno(session)
+            if let msg = lastSessionErrorString(session) {
+                log.log("SSH: channel open last_error: \(msg)", category: "SSH", level: .error)
+            }
+            log.log("SSH: channel open failed, errno=\(lastError)", category: "SSH", level: .error)
             throw SSHError.channelOpenFailed(code: lastError)
         }
         self.channel = channel
+        log.log("SSH: channel open ok", category: "SSH", level: .debug)
 
-        // Request PTY with xterm-256color
+        // Request PTY with xterm-256color (with EAGAIN retry)
         let termType = "xterm-256color"
-        let ptyResult = libssh2_channel_request_pty_ex(
-            channel,
-            termType,
-            UInt32(strlen(termType)),
-            nil, 0,
-            80, 24,  // width, height in characters
-            0, 0     // width, height in pixels
-        )
-        if ptyResult != 0 {
-            throw SSHError.ptyRequestFailed
+        log.log("SSH: requesting PTY \(termType) 80x24", category: "SSH", level: .info)
+        let ptyResult = retryEAGAIN(session: session, socketFd: socketFd) {
+            libssh2_channel_request_pty_ex(channel, termType, UInt32(strlen(termType)),
+                                           nil, 0, 80, 24, 0, 0)
         }
+        log.log("SSH: PTY request returned \(ptyResult)", category: "SSH", level: ptyResult == 0 ? .debug : .error)
+        if ptyResult != 0 { throw SSHError.ptyRequestFailed }
 
-        // Request shell
-        let shellResult = libssh2_channel_process_startup(channel, "shell", 5, nil, 0)
-        if shellResult != 0 {
-            throw SSHError.shellRequestFailed
+        // Request shell (with EAGAIN retry)
+        log.log("SSH: requesting shell", category: "SSH", level: .info)
+        let shellResult = retryEAGAIN(session: session, socketFd: socketFd) {
+            libssh2_channel_process_startup(channel, "shell", 5, nil, 0)
         }
+        log.log("SSH: shell request returned \(shellResult)", category: "SSH", level: shellResult == 0 ? .debug : .error)
+        if shellResult != 0 { throw SSHError.shellRequestFailed }
 
         isConnected = true
+        log.log("SSH: fully connected, starting output reader", category: "SSH", level: .success)
 
         // Start reading output
         startReadingOutput()
@@ -155,7 +207,8 @@ class SSHClient {
     }
 
     private func startReadingOutput() {
-        sshQueue.async { [weak self] in
+        // Use a global concurrent queue — the serial sshQueue can't host an infinite loop
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self, let channel = self.channel else { return }
 
             var buffer = [UInt8](repeating: 0, count: 4096)
@@ -187,13 +240,24 @@ class SSHClient {
 
     /// Write data to SSH channel
     func write(_ data: Data) {
-        guard let channel = self.channel, isConnected else { return }
+        guard let channel = self.channel, isConnected else {
+            LogManager.shared.log("SSH: write() dropped — channel=\(channel != nil) connected=\(isConnected)", category: "SSH", level: .warning)
+            return
+        }
+        LogManager.shared.log("SSH: write() \(data.count) bytes — queueing to sshQueue", category: "SSH", level: .info)
 
         sshQueue.async { [weak self] in
-            guard let self = self else { return }
+            guard let self = self else {
+                LogManager.shared.log("SSH: write async — self is nil", category: "SSH", level: .error)
+                return
+            }
+            LogManager.shared.log("SSH: write async block executing", category: "SSH", level: .info)
 
             data.withUnsafeBytes { bufferPointer in
-                guard let baseAddress = bufferPointer.baseAddress else { return }
+                guard let baseAddress = bufferPointer.baseAddress else {
+                    LogManager.shared.log("SSH: write baseAddress is nil", category: "SSH", level: .error)
+                    return
+                }
                 let bytesToWrite = baseAddress.assumingMemoryBound(to: Int8.self)
 
                 var totalWritten = 0
@@ -209,14 +273,17 @@ class SSHClient {
                         let errorCode = libssh2_session_last_errno(self.session)
                         if errorCode == LIBSSH2_ERROR_EAGAIN {
                             // Non-blocking mode, retry
+                            LogManager.shared.log("SSH: write EAGAIN — retrying", category: "SSH", level: .info)
                             Thread.sleep(forTimeInterval: 0.01)
                             continue
                         } else {
+                            LogManager.shared.log("SSH: write error \(errorCode)", category: "SSH", level: .error)
                             self.onError?("Write error: \(errorCode)")
                             break
                         }
                     } else {
                         totalWritten += bytesWritten
+                        LogManager.shared.log("SSH: wrote \(bytesWritten) bytes (total \(totalWritten)/\(data.count))", category: "SSH", level: .info)
                     }
                 }
             }
@@ -247,17 +314,136 @@ class SSHClient {
                 self.session = nil
             }
 
+            self.bridge?.stop()
+            self.bridge = nil
+
             libssh2_exit()
         }
     }
 
+    /// Wait for socket to be ready for reading and/or writing based on libssh2's block directions.
+    private func waitForSocket(_ socketFd: Int32, session: OpaquePointer) {
+        let dirs = libssh2_session_block_directions(session)
+        var events: Int16 = 0
+        if (dirs & LIBSSH2_SESSION_BLOCK_INBOUND)  != 0 { events |= Int16(POLLIN) }
+        if (dirs & LIBSSH2_SESSION_BLOCK_OUTBOUND) != 0 { events |= Int16(POLLOUT) }
+        if events == 0 { events = Int16(POLLIN) }  // default: wait for readable
+
+        var pfd = pollfd(fd: socketFd, events: events, revents: 0)
+        let rc = poll(&pfd, 1, 1000)  // 1s timeout
+        if rc < 0 && errno != EINTR {
+            LogManager.shared.log("SSH: poll() failed errno=\(errno)", category: "SSH", level: .error)
+        }
+    }
+
+    /// Retry a libssh2 call while it returns LIBSSH2_ERROR_EAGAIN.
+    private func retryEAGAIN(session: OpaquePointer, socketFd: Int32, maxAttempts: Int = 300,
+                             _ body: () -> Int32) -> Int32 {
+        var result = body()
+        var attempts = 0
+        while result == LIBSSH2_ERROR_EAGAIN && attempts < maxAttempts {
+            waitForSocket(socketFd, session: session)
+            result = body()
+            attempts += 1
+        }
+        return result
+    }
+
+    /// Extract the last error string from a libssh2 session (output param pattern).
+    private func lastSessionErrorString(_ session: OpaquePointer) -> String? {
+        var errPtr: UnsafeMutablePointer<CChar>? = nil
+        let rc = libssh2_session_last_error(session, &errPtr, nil, 0)
+        guard rc != 0, let ptr = errPtr else { return nil }
+        return String(cString: ptr)
+    }
+}
+
+// MARK: - POSIXSocketBridge
+
+/// socketpair bridge: libssh2 ↔ socket fd ↔ BleEthTransport.
+/// libssh2 gets one fd, bridge pumps the other: socket→BLE and BLE→socket.
+final class POSIXSocketBridge: TransportListener {
+
+    private let logger = LogManager.shared
+    private(set) var libssh2Fd: Int32 = -1
+    private var bridgeFd: Int32 = -1
+    private weak var transport: BleEthTransport?
+    private var readerTask: Task<Void, Never>?
+    private var stopped = false
+
+    init() {}
+    deinit { stop() }
+
+    func start(transport: BleEthTransport) throws {
+        var fds = [Int32](repeating: -1, count: 2)
+        guard socketpair(AF_UNIX, SOCK_STREAM, 0, &fds) == 0 else {
+            logger.log("Bridge: socketpair() failed errno=\(errno)", category: "Bridge", level: .error)
+            throw NSError(domain: "POSIXSocketBridge", code: Int(errno))
+        }
+        libssh2Fd = fds[0]
+        bridgeFd = fds[1]
+        self.transport = transport
+        transport.listener = self
+        logger.log("Bridge: socketpair (libssh2Fd=\(libssh2Fd), bridgeFd=\(bridgeFd))",
+                   category: "Bridge", level: .info)
+        startSocketReader()
+    }
+
+    func stop() {
+        guard !stopped else { return }
+        stopped = true
+        readerTask?.cancel(); readerTask = nil
+        if bridgeFd >= 0 { shutdown(bridgeFd, Int32(SHUT_RDWR)); close(bridgeFd); bridgeFd = -1 }
+        if libssh2Fd >= 0 { close(libssh2Fd); libssh2Fd = -1 }
+    }
+
+    private func startSocketReader() {
+        logger.log("Bridge: starting socket reader task", category: "Bridge", level: .info)
+        readerTask = Task.detached { [weak self] in
+            guard let self, self.bridgeFd >= 0 else { return }
+            var buf = [UInt8](repeating: 0, count: 4096)
+            while !Task.isCancelled {
+                let n = Darwin.read(self.bridgeFd, &buf, buf.count)
+                if n > 0 {
+                    self.logger.log("Bridge: socket reader got \(n) bytes → transport.send()", category: "Bridge", level: .debug)
+                    self.transport?.send(data: Data(bytes: buf, count: n))
+                } else if n == 0 {
+                    self.logger.log("Bridge: socket EOF", category: "Bridge", level: .info); break
+                } else {
+                    if errno != EINTR {
+                        self.logger.log("Bridge: socket read error errno=\(errno)", category: "Bridge", level: .error)
+                    }
+                    break
+                }
+            }
+        }
+    }
+
+    // MARK: - TransportListener
+
+    func onDataReceived(data: Data) {
+        guard bridgeFd >= 0 else {
+            logger.log("Bridge: onDataReceived but bridgeFd<0 — dropping \(data.count) bytes", category: "Bridge", level: .warning)
+            return
+        }
+        logger.log("Bridge: onDataReceived \(data.count) bytes → writing to bridgeFd=\(bridgeFd)", category: "Bridge", level: .debug)
+        data.withUnsafeBytes { raw in
+            guard let base = raw.baseAddress else { return }
+            if Darwin.write(bridgeFd, base, data.count) < 0 {
+                logger.log("Bridge: socket write error errno=\(errno)", category: "Bridge", level: .error)
+            }
+        }
+    }
+    func onDisconnected() { logger.log("Bridge: transport disconnected", category: "Bridge", level: .info); stop() }
+    func onError(message: String) { logger.log("Bridge: transport error: \(message)", category: "Bridge", level: .error) }
+}
+
+extension SSHClient {
     /// Resize terminal window
     func resizeTerminal(width: Int, height: Int) {
         guard let channel = self.channel, isConnected else { return }
-
         sshQueue.async { [weak self] in
             guard self != nil else { return }
-
             libssh2_channel_request_pty_size_ex(channel, Int32(width), Int32(height), 0, 0)
         }
     }
@@ -267,7 +453,7 @@ class SSHClient {
 enum SSHError: Error, LocalizedError {
     case initializationFailed
     case sessionInitFailed
-    case handshakeFailed(code: Int32)
+    case handshakeFailed(code: Int32, detail: String? = nil)
     case authenticationFailed(code: Int32)
     case channelOpenFailed(code: Int32)
     case ptyRequestFailed
@@ -279,8 +465,8 @@ enum SSHError: Error, LocalizedError {
             return "Failed to initialize libssh2"
         case .sessionInitFailed:
             return "Failed to create SSH session"
-        case .handshakeFailed(let code):
-            return "SSH handshake failed (error code: \(code))"
+        case .handshakeFailed(let code, let detail):
+            return detail ?? "SSH handshake failed (error code: \(code))"
         case .authenticationFailed(let code):
             return "Authentication failed (error code: \(code))"
         case .channelOpenFailed(let code):

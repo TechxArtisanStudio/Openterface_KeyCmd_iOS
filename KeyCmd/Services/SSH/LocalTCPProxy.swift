@@ -22,6 +22,7 @@ class LocalTCPProxy {
 
     func start(transport: BleEthTransport) throws {
         self.transport = transport
+        print("[LocalTCPProxy] start() called, transport isConnected=\(transport.isConnected)")
 
         let parameters = NWParameters.tcp
         parameters.acceptLocalOnly = true
@@ -30,20 +31,28 @@ class LocalTCPProxy {
         listener?.stateUpdateHandler = { state in
             switch state {
             case .ready:
-                print("TCP Proxy listening on port \(self.port)")
+                print("[LocalTCPProxy] listening on port \(self.port)")
             case .failed(let error):
-                print("TCP Proxy listener failed: \(error)")
-            default:
-                break
+                print("[LocalTCPProxy] listener failed: \(error)")
+            case .setup:
+                print("[LocalTCPProxy] setup")
+            case .cancelled:
+                print("[LocalTCPProxy] cancelled")
+            case .waiting(let error):
+                print("[LocalTCPProxy] waiting: \(error)")
+            @unknown default:
+                print("[LocalTCPProxy] unknown state")
             }
         }
         listener?.newConnectionHandler = { [weak self] connection in
+            print("[LocalTCPProxy] new incoming connection")
             self?.handleNewConnection(connection)
         }
         listener?.start(queue: .global(qos: .userInitiated))
     }
 
     func stop() {
+        print("[LocalTCPProxy] stop()")
         inboundTask?.cancel()
         inboundTask = nil
 
@@ -54,23 +63,36 @@ class LocalTCPProxy {
 
     private func handleNewConnection(_ connection: NWConnection) {
         connections.append(connection)
+        print("[LocalTCPProxy] handleNewConnection, total=\(connections.count)")
 
         connection.stateUpdateHandler = { [weak self] state in
             switch state {
             case .ready:
-                print("TCP connection ready")
+                print("[LocalTCPProxy] TCP connection ready — bridging")
                 self?.bridgeConnection(connection)
             case .failed(let error):
-                print("TCP connection failed: \(error)")
-            default:
-                break
+                print("[LocalTCPProxy] TCP connection failed: \(error)")
+            case .setup:
+                print("[LocalTCPProxy] TCP setup")
+            case .preparing:
+                print("[LocalTCPProxy] TCP preparing")
+            case .cancelled:
+                print("[LocalTCPProxy] TCP cancelled")
+            case .waiting(let error):
+                print("[LocalTCPProxy] TCP waiting: \(error)")
+            @unknown default:
+                print("[LocalTCPProxy] TCP unknown state")
             }
         }
         connection.start(queue: .global(qos: .userInitiated))
     }
 
     private func bridgeConnection(_ connection: NWConnection) {
-        guard let transport = transport else { return }
+        guard let transport = transport else {
+            print("[LocalTCPProxy] bridgeConnection: transport is nil")
+            return
+        }
+        print("[LocalTCPProxy] bridgeConnection starting (TCP↔BLE bidirectional)")
 
         // === TCP → BLE direction ===
         // libssh2 writes to NWConnection; we read and forward to transport.send(...)

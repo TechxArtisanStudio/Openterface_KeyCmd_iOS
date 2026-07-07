@@ -20,7 +20,7 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
 
     // MARK: - Published State
 
-    @Published var discoveredDevices: [(CBPeripheral, NSNumber)] = []
+    @Published var discoveredDevices: [(CBPeripheral, NSNumber, String?)] = []  // (peripheral, rssi, advName)
     @Published var connectedDevices: Set<UUID> = []
     @Published var currentRSSI: NSNumber? = nil
     @Published var connectionState: ConnectionState = .disconnected
@@ -49,6 +49,7 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     private var reconnectWorkItem: DispatchWorkItem?
     private var rssiTimer: Timer?
     private var pendingConnectionStartedAt: Date?
+    private var discoveryTimestamps: [UUID: Date] = [:]  // Track last discovery time per device
 
     /// Raw data publish/subscribe for BLE-Eth transport (bypasses HID parsing).
     let rawDataSubject = PassthroughSubject<Data, Never>()
@@ -162,17 +163,41 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             (deviceName.hasPrefix("openterface") || deviceName.hasPrefix("kvm") || deviceName.hasPrefix("keymod"))
         guard isKnownDevice else { return }
 
-        logger.log("Discovered device: \(displayName ?? "Unknown") RSSI=\(RSSI)", category: "BLE")
+        // Calculate time delta since last discovery
+        let now = Date()
+        let timeDeltaMs: Double
+        if let lastSeen = discoveryTimestamps[peripheral.identifier] {
+            timeDeltaMs = now.timeIntervalSince(lastSeen) * 1000
+        } else {
+            timeDeltaMs = 0
+        }
+        discoveryTimestamps[peripheral.identifier] = now
+
+        // Calculate distance estimate from RSSI (path loss model)
+        // Formula: distance = 10^((txPower - RSSI) / (10 * n))
+        // txPower = -59 dBm (typical RSSI at 1m), n = 2.0 (free space)
+        let rssiValue = RSSI.doubleValue
+        let txPower = -59.0
+        let pathLossExponent = 2.0
+        let distanceMeters = pow(10.0, (txPower - rssiValue) / (10.0 * pathLossExponent))
+        let distanceCm = Int(distanceMeters * 100)
+        let distanceStr = distanceCm < 100 ? "\(distanceCm)cm" : String(format: "%.1fm", distanceMeters)
+
+        logger.log("Discovered device: \(displayName ?? "Unknown") \(Int(rssiValue)) dBm(\(String(format: "%.2f", timeDeltaMs))ms) \(distanceStr)", category: "BLE")
 
         DispatchQueue.main.async {
             if let existingIndex = self.discoveredDevices.firstIndex(where: { $0.0.identifier == peripheral.identifier }) {
-                self.discoveredDevices[existingIndex] = (peripheral, RSSI)
+                self.discoveredDevices[existingIndex] = (peripheral, RSSI, advName)
             } else {
-                self.discoveredDevices.append((peripheral, RSSI))
+                self.discoveredDevices.append((peripheral, RSSI, advName))
+                self.logger.log("Added \(displayName ?? "Unknown") to discoveredDevices (total: \(self.discoveredDevices.count))", category: "BLE", level: .debug)
             }
         }
 
-        guard shouldAutoConnect(to: peripheral, advertisementName: advName) else { return }
+        guard shouldAutoConnect(to: peripheral, advertisementName: advName) else {
+            logger.log("Device \(displayName ?? "Unknown") does not match auto-connect criteria", category: "BLE", level: .debug)
+            return
+        }
 
         if connectionState == .connected {
             logger.log("Already connected, skipping auto-connect", category: "BLE")
@@ -206,9 +231,10 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        logger.log("Connected to \(peripheral.name ?? "Unknown") (id=\(peripheral.identifier.uuidString.prefix(8))...)", category: "BLE", level: .success)
+        logger.log("Connected to \(peripheral.name ?? "Unknown") (id=\(peripheral.identifier.uuidString))", category: "BLE", level: .success)
         cancelConnectionTimeout()
         central.stopScan()
+        logger.log("Stopped BLE scan after connection", category: "BLE", level: .debug)
         pendingConnectionStartedAt = nil
         connectedPeripheral = peripheral
         reconnectAttempts = 0
@@ -299,7 +325,7 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     }
 
     func disconnectDevice(_ peripheral: CBPeripheral) {
-        logger.log("Disconnecting from device", category: "BLE")
+        logger.log("Disconnecting from \(peripheral.name ?? "Unknown") (id=\(peripheral.identifier.uuidString.prefix(8))...)", category: "BLE", level: .info)
         cancelConnectionTimeout()
         pendingConnectionStartedAt = nil
         cancelReconnect()
@@ -309,8 +335,19 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         DispatchQueue.main.async {
             self.lastConnectedDeviceName = nil
             self.connectionState = .disconnected
+            self.logger.log("Connection state set to .disconnected", category: "BLE", level: .debug)
         }
         centralManager.cancelPeripheralConnection(peripheral)
+    }
+
+    /// Disconnect currently connected device (convenience for UI)
+    func disconnectCurrentDevice() {
+        if let peripheral = connectedPeripheral {
+            logger.log("Disconnecting current device via UI", category: "BLE", level: .info)
+            disconnectDevice(peripheral)
+        } else {
+            logger.log("No connected device to disconnect", category: "BLE", level: .warning)
+        }
     }
 
     func startScanning() {
@@ -320,6 +357,11 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         } else {
             logger.log("Cannot start scanning, Bluetooth is not powered on", category: "BLE", level: .warning)
         }
+    }
+
+    func stopScanning() {
+        logger.log("Stopping BLE scan", category: "BLE", level: .debug)
+        centralManager.stopScan()
     }
 
     func sendData(to peripheral: CBPeripheral, data: Data, characteristic: CBCharacteristic) {
@@ -407,18 +449,28 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     }
 
     private func startRSSIMonitoring() {
-        guard let peripheral = connectedPeripheral else { return }
+        guard let peripheral = connectedPeripheral else {
+            logger.log("RSSI monitoring: no connected peripheral", category: "BLE", level: .warning)
+            return
+        }
 
+        logger.log("Starting RSSI monitoring for \(peripheral.name ?? "Unknown")", category: "BLE", level: .info)
         rssiTimer?.invalidate()
         peripheral.readRSSI()
 
         // ponytail: weak self to prevent retain cycle; stored timer so it can be invalidated
-        rssiTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+        let timer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             guard let self = self,
-                  self.connectedPeripheral != nil,
-                  self.connectedDevices.contains(peripheral.identifier) else { return }
+                  let peripheral = self.connectedPeripheral else {
+                self?.logger.log("RSSI timer skipped: no connected peripheral", category: "BLE", level: .warning)
+                return
+            }
+            self.logger.log("RSSI timer fired, calling readRSSI() for \(peripheral.name ?? "Unknown")", category: "BLE", level: .info)
             peripheral.readRSSI()
         }
+        // Ensure timer runs during scroll/tracking modes
+        RunLoop.main.add(timer, forMode: .common)
+        rssiTimer = timer
     }
 
     private func stopRSSIMonitoring() {
@@ -432,6 +484,7 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             return
         }
 
+        logger.log("RSSI updated: \(RSSI.intValue) dBm", category: "BLE", level: .info)
         DispatchQueue.main.async {
             self.currentRSSI = RSSI
         }

@@ -53,7 +53,13 @@ struct ConnectionDialogView: View {
                     rssi: bleManager.currentRSSI,
                     themeManager: themeManager
                 )
-                .onTapGesture { showScanner = true }
+                .onTapGesture {
+                    if bleManager.connectionState == .connected {
+                        bleManager.disconnectCurrentDevice()
+                    } else {
+                        showScanner = true
+                    }
+                }
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
 
@@ -147,9 +153,22 @@ private struct BluetoothCard: View {
                     .font(.system(size: 15, weight: .bold))
                     .foregroundColor(.primary)
 
-                Text(statusText)
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary)
+                HStack(spacing: 8) {
+                    Text(statusText)
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+
+                    if isConnected, let rssiValue = rssi?.doubleValue {
+                        // ponytail: show nRF Connect-style signal data
+                        let distanceMeters = pow(10.0, (-59.0 - rssiValue) / 20.0)
+                        let distanceStr = distanceMeters < 1.0 ? "\(Int(distanceMeters * 100))cm" : String(format: "%.1fm", distanceMeters)
+                        Text("·")
+                            .foregroundColor(.secondary)
+                        Text("\(Int(rssiValue)) dBm · \(distanceStr)")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                    }
+                }
             }
 
             Spacer()
