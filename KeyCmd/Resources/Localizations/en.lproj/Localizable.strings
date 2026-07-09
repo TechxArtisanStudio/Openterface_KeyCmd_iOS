@@ -468,3 +468,27 @@
 
 /* --- ShortcutHub --- */
 "Profile name" = "Profile name";
+
+/* --- Terminal --- */
+"terminal_title" = "Terminal";
+"terminal_connect_prompt" = "Connect to an SSH endpoint via BLE to start a terminal session.";
+
+/* --- Agent --- */
+"agent_title" = "Agent";
+
+/* --- View Type Names (used in sidebar) --- */
+"Terminal" = "Terminal";
+"Agent" = "Agent";
+
+/* --- Credentials --- */
+"Credentials" = "Credentials";
+"Add Credential" = "Add Credential";
+"Edit Profile" = "Edit Profile";
+"New Profile" = "New Profile";
+"Tags" = "Tags";
+"Select Tags" = "Select Tags";
+"Existing Tags" = "Existing Tags";
+"New tag..." = "New tag...";
+"Add tag..." = "Add tag...";
+"No tags added" = "No tags added";
+"No tags yet" = "No tags yet";

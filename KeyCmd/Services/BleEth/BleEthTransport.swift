@@ -81,6 +81,17 @@ final class BleEthTransport: TransportAdapter {
         connId = -1
         stateLock.unlock()
 
+        // 2. Clear any stale connection state on the device
+        // Send DISCONNECT for common stale connIds (255 and 0) to ensure device releases orphaned connections
+        // This prevents 0xE7 errors when device has stale state from previous sessions
+        logger.log("BLE-Eth: sending cleanup DISCONNECT for stale connIds", category: "BLE-Eth", level: .info)
+        for staleConnId in [UInt8(255), UInt8(0)] {
+            let cleanupPayload = Data([staleConnId])
+            sendFrame(addr: 0x00, cmd: Self.CMD_DISCONNECT, payload: cleanupPayload)
+        }
+        // Small delay to let device process the DISCONNECT
+        Thread.sleep(forTimeInterval: 0.2)
+
         // 2. Create pipes
         outboundPipe = QueuePipe(capacity: 256)
         inboundPipe = QueuePipe(capacity: 256)
@@ -131,7 +142,13 @@ final class BleEthTransport: TransportAdapter {
         // 6. Check response status
         if pendingConnStatus != 0x00 {
             let statusHex = String(format: "0x%02X", pendingConnStatus)
-            logger.log("BLE-Eth CONNECT failed: status=\(statusHex)", category: "BLE-Eth", level: .error)
+            logger.log("BLE-Eth CONNECT failed: status=\(statusHex) connId=\(pendingConnId) — sending DISCONNECT to clear stale state", category: "BLE-Eth", level: .error)
+
+            // Send DISCONNECT for the rejected connId to clear device's stale state
+            // This prevents 0xE7 on retry (device thinks connId is still allocated)
+            let payload = Data([pendingConnId])
+            sendFrame(addr: 0x00, cmd: Self.CMD_DISCONNECT, payload: payload)
+
             listener?.onError(message: "BLE-Eth CONNECT failed: status=\(statusHex)")
             return
         }
@@ -156,6 +173,9 @@ final class BleEthTransport: TransportAdapter {
 
     func disconnect() {
         logger.log("BLE-Eth: disconnect() called", category: "BLE-Eth", level: .info)
+        // Cancel BLE subscription FIRST to stop receiving new notifications
+        cancellables.removeAll()
+
         stateLock.lock()
 
         // Already fully closed?
@@ -191,6 +211,8 @@ final class BleEthTransport: TransportAdapter {
     /// Entry point for raw BLE notification bytes.
     /// Call this from BLEManager's didUpdateValueFor delegate.
     func handleIncomingData(_ data: Data) {
+        let hex = data.map { String(format: "%02X", $0) }.joined(separator: " ")
+        logger.log("BLE-Eth: incoming raw \(data.count) bytes: \(hex)", category: "BLE-Eth", level: .debug)
         frameParser.feed(data: data)
     }
 
@@ -259,13 +281,15 @@ final class BleEthTransport: TransportAdapter {
     }
 
     private func handleDataResponse(_ payload: Data) {
-        // Check if this is an ACK or a data push
+        let hex = payload.map { String(format: "%02X", $0) }.joined(separator: " ")
+        // Match Android: filter ACKs before feeding to reassembler
+        // ACKs are status frames (payload[0]==0x00 or 0xE0-0xEF), not data fragments
         if looksLikeDataAck(payload) {
-            // ACK — ignore
+            let hex = payload.map { String(format: "%02X", $0) }.joined(separator: " ")
+            logger.log("BLE-Eth: DATA ACK — ignored (hex=\(hex))", category: "BLE-Eth", level: .debug)
             return
         }
-
-        // Data push — feed to reassembler
+        logger.log("BLE-Eth: DATA_RESP payloadLen=\(payload.count) hex=\(hex)", category: "BLE-Eth", level: .debug)
         dataReassembler.feed(payload: payload)
     }
 
@@ -358,10 +382,13 @@ final class BleEthTransport: TransportAdapter {
         let cId = UInt8(connId)
 
         if data.count <= maxFragData {
-            // Single fragment
-            let flags: UInt8 = DataReassembler.FRAG_FIRST | 0x01  // FIRST + count=1
+            // Single fragment — match device format: FRAG_FIRST | count=1 (0x41)
+            // Device doesn't normalize count=0→1 like our reassembler does
+            let flags: UInt8 = DataReassembler.FRAG_FIRST | 0x01  // 0x41
             var payload = Data([flags, 0x00, cId])  // flags, seq=0, connId
             payload.append(data)
+            let payloadHex = payload.prefix(16).map { String(format: "%02X", $0) }.joined(separator: " ")
+            logger.log("BLE-Eth: single frag flags=0x\(String(format: "%02X", flags)) seq=0 connId=\(cId) dataLen=\(data.count) payload(\(payload.count))=\(payloadHex)", category: "BLE-Eth", level: .debug)
             sendFrame(addr: 0x00, cmd: Self.CMD_DATA, payload: payload)
         } else {
             // Multiple fragments
@@ -417,6 +444,8 @@ final class BleEthTransport: TransportAdapter {
             checksum = checksum &+ byte
         }
         frame.append(checksum)
+
+        logger.log("BLE-Eth: sendFrame addr=0x\(String(format: "%02X", addr)) cmd=0x\(String(format: "%02X", cmd)) payloadLen=\(payloadLen) frameLen=\(frame.count)", category: "BLE-Eth", level: .debug)
 
         // Send via BLEManager
         bleManager.sendRawData(frame)

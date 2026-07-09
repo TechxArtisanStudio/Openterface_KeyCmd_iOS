@@ -465,3 +465,27 @@
 "Up-Right" = "오른쪽 위";
 "Width" = "너비";
 "ms" = "밀리초";
+
+/* --- Terminal --- */
+"terminal_title" = "터미널";
+"terminal_connect_prompt" = "BLE를 통해 SSH 엔드포인트에 연결하여 터미널 세션을 시작하세요.";
+
+/* --- Agent --- */
+"agent_title" = "에이전트";
+
+/* --- 뷰 타입 이름 (사이드바에서 사용) --- */
+"Terminal" = "터미널";
+"Agent" = "에이전트";
+
+/* --- Credentials --- */
+"Credentials" = "자격 증명";
+"Add Credential" = "자격 증명 추가";
+"Edit Profile" = "프로필 편집";
+"New Profile" = "새 프로필";
+"Tags" = "태그";
+"Select Tags" = "태그 선택";
+"Existing Tags" = "기존 태그";
+"New tag..." = "새 태그...";
+"Add tag..." = "태그 추가...";
+"No tags added" = "추가된 태그 없음";
+"No tags yet" = "아직 태그가 없습니다";

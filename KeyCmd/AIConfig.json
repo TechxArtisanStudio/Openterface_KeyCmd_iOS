@@ -51,6 +51,12 @@
       "promptFile": "Prompts/command_assistant.md"
     },
     {
+      "id": "agent_planner",
+      "name": "Agent Planner",
+      "description": "Generate execution plans for the Agent to run on the connected device",
+      "promptFile": "Prompts/agent_planner.md"
+    },
+    {
       "id": "custom",
       "name": "Custom",
       "description": "Use your own system prompt",

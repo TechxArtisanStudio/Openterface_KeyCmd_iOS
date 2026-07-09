@@ -436,3 +436,27 @@
 "Up-Right" = "右上";
 "Width" = "寬度";
 "ms" = "毫秒";
+
+/* --- Terminal --- */
+"terminal_title" = "終端";
+"terminal_connect_prompt" = "透過 BLE 連線到 SSH 端點以啟動終端機工作階段。";
+
+/* --- Agent --- */
+"agent_title" = "智能體";
+
+/* --- 視圖類型名稱（側邊欄使用） --- */
+"Terminal" = "終端";
+"Agent" = "智能體";
+
+/* --- Credentials --- */
+"Credentials" = "憑證";
+"Add Credential" = "新增憑證";
+"Edit Profile" = "編輯設定檔";
+"New Profile" = "新建設定檔";
+"Tags" = "標籤";
+"Select Tags" = "選擇標籤";
+"Existing Tags" = "現有標籤";
+"New tag..." = "新標籤...";
+"Add tag..." = "新增標籤...";
+"No tags added" = "未新增標籤";
+"No tags yet" = "暫無標籤";

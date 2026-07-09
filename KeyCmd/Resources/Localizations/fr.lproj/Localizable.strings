@@ -438,3 +438,27 @@
 "Up-Right" = "Haut-droit";
 "Width" = "Largeur";
 "ms" = "ms";
+
+/* --- Terminal --- */
+"terminal_title" = "Terminal";
+"terminal_connect_prompt" = "Connectez-vous à un point de terminaison SSH via BLE pour démarrer une session terminal.";
+
+/* --- Agent --- */
+"agent_title" = "Agent";
+
+/* --- Noms des types de vue (utilisés dans la barre latérale) --- */
+"Terminal" = "Terminal";
+"Agent" = "Agent";
+
+/* --- Credentials --- */
+"Credentials" = "Identifiants";
+"Add Credential" = "Ajouter un identifiant";
+"Edit Profile" = "Modifier le profil";
+"New Profile" = "Nouveau profil";
+"Tags" = "Étiquettes";
+"Select Tags" = "Sélectionner les étiquettes";
+"Existing Tags" = "Étiquettes existantes";
+"New tag..." = "Nouvelle étiquette...";
+"Add tag..." = "Ajouter une étiquette...";
+"No tags added" = "Aucune étiquette ajoutée";
+"No tags yet" = "Aucune étiquette pour le moment";

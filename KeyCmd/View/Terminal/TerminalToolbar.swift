@@ -24,7 +24,7 @@ struct TerminalToolbar: View {
             // Special keys toggle
             Button(action: onToggleSpecialKeys) {
                 Image(systemName: "keyboard")
-                    .foregroundColor(.accentColor)
+                    .foregroundColor(ThemeManager.shared.accentColor)
             }
 
             // Connect/Disconnect button
@@ -36,7 +36,7 @@ struct TerminalToolbar: View {
             } else {
                 Button(action: onConnect) {
                     Image(systemName: "plus.circle")
-                        .foregroundColor(.accentColor)
+                        .foregroundColor(ThemeManager.shared.accentColor)
                 }
                 .disabled(status == .connecting)
             }

@@ -153,10 +153,13 @@ Add two new capabilities:
 
 1. **Raw data write** (mirrors `sendTouchData` but for arbitrary bytes):
 ```swift
+// NOTE: Must use .withResponse — device firmware requires BLE-level ACK
+// before processing and forwarding data to TCP. .withoutResponse causes
+// silent data loss (device ACKs at BLE-Eth level but drops payload).
 func sendRawData(_ data: Data) {
     guard let peripheral = connectedPeripheral,
           let characteristic = fff2Characteristic else { return }
-    peripheral.writeValue(data, for: characteristic, type: .withoutResponse)
+    peripheral.writeValue(data, for: characteristic, type: .withResponse)
 }
 ```
 

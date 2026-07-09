@@ -266,6 +266,139 @@ When BLE notifications arrive from FFF1 (or whichever characteristic the device 
 2. **ADDR byte is hardcoded 0x00** in all frames the client builds.
 3. **`CMD_DATA_RESP` (0x91) is dual-use** — same command code carries both data-push (multi-byte fragmented payloads) and single-byte ACKs (status `0x00` or `0xE0–0xEF`).
 4. **Disconnect is half-fire-and-forget**: client sends `CMD_DISCONNECT` and immediately tears down local state; it does not wait for `CMD_DISCONN_RESP`.
+5. **iOS BLE write limitations**: Unlike Android's RxAndroidBle, iOS CoreBluetooth requires careful chunking and pacing to avoid overwhelming the BLE stack.
+
+### Android Alignment (iOS BLEManager Implementation)
+
+The iOS implementation has been aligned with Android's `BluetoothService` behavior for reliable BLE-Eth communication:
+
+#### Write Modes
+
+**Important Discovery:** The device firmware requires BLE-level write acknowledgment (`.withResponse`) for ALL frames — not just control frames. Without BLE-level ACK, the device receives DATA frames and sends BLE-Eth level ACKs (CMD_DATA_RESP), but silently drops the payload instead of forwarding it to TCP. This manifests as: SSH handshake completes, terminal renders server output, but keystrokes never reach the server.
+
+Android differentiates between control and data frames when writing to BLE:
+
+```java
+// Android BluetoothService.java
+boolean useAcknowledgedWrite = isControlFrame(data);
+characteristic.setWriteType(acknowledgedWrite
+    ? BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+    : BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE);
+```
+
+**iOS Implementation (corrected):**
+
+```swift
+// ALL frames use .withResponse — device firmware requires BLE-level ACK
+// before it processes and forwards data to TCP.
+// Using .withoutResponse for data frames causes silent data loss post-handshake.
+let writeType: CBCharacteristicWriteType = .withResponse
+```
+
+**Rationale:** The device firmware processes incoming BLE data only after the BLE write is acknowledged at the link layer. Without acknowledgment, the device's BLE stack accepts the notification but the application layer never sees the data. This affects data frames (CMD_DATA) specifically — control frames already used `.withResponse`. The symptom is asymmetric: server→client works (device initiates BLE notifications), but client→server silently fails after SSH handshake.
+
+#### Chunked Writes with Pacing
+
+Android chunks large writes to 128 bytes with 10ms inter-chunk delays to prevent BLE buffer overflow:
+
+```java
+// Android BluetoothService.java
+private static final int SAFE_BLE_STREAM_CHUNK = 128;
+private static final int BLE_ETH_INTER_CHUNK_DELAY_MS = 10;
+
+while (offset < data.length) {
+    int chunkLen = Math.min(SAFE_BLE_STREAM_CHUNK, data.length - offset);
+    // ... write chunk ...
+    Thread.sleep(BLE_ETH_INTER_CHUNK_DELAY_MS);
+}
+```
+
+**iOS Implementation:**
+
+```swift
+private enum BLEConstants {
+    static let safeChunkSize = 128      // bytes per chunk
+    static let interChunkDelayMs = 10   // delay between chunks
+}
+
+if data.count <= BLEConstants.safeChunkSize {
+    // Single write
+    performWrite(peripheral: peripheral, characteristic: characteristic, data: data, writeType: writeType)
+} else {
+    // Chunked write with pacing — all chunks use .withResponse
+    var offset = 0
+    while offset < data.count {
+        let chunkEnd = min(offset + BLEConstants.safeChunkSize, data.count)
+        let chunk = data[offset..<chunkEnd]
+        performWrite(peripheral: peripheral, characteristic: characteristic, data: Data(chunk), writeType: .withResponse)
+        offset = chunkEnd
+        if offset < data.count {
+            Thread.sleep(forTimeInterval: Double(BLEConstants.interChunkDelayMs) / 1000.0)
+        }
+    }
+}
+```
+
+#### Single-Threaded Write Queue
+
+Android uses a single-threaded executor to serialize all BLE-Eth writes:
+
+```java
+// Android BluetoothService.java
+private final ExecutorService bleEthWriteExecutor = Executors.newSingleThreadExecutor();
+```
+
+**iOS Implementation:**
+
+```swift
+private let bleEthWriteQueue = DispatchQueue(label: "com.keycmd.bleEth.write", qos: .userInitiated)
+
+// All writes go through this queue
+bleEthWriteQueue.async {
+    // ... perform write ...
+}
+```
+
+**Rationale:** BLE writes must be serialized to prevent race conditions and ensure proper ordering, especially when control frames and data frames are interleaved.
+
+#### Control Frame Detection
+
+```swift
+private func isControlFrame(data: Data) -> Bool {
+    guard data.count > 3 else { return false }  // Frame must have at least header bytes
+    let cmd = data[3]  // CMD byte is at offset 3 in the frame
+    return cmd == 0x10 ||  // CONNECT
+           cmd == 0x12 ||  // DISCONNECT
+           cmd == 0x1F     // INFO
+}
+```
+
+#### MTU Negotiation
+
+Android explicitly requests MTU negotiation to 247 bytes:
+
+```java
+// Android BluetoothService.java
+private static final int BLE_ETH_TARGET_MTU = 247;
+connection.requestMtu(BLE_ETH_TARGET_MTU);
+```
+
+**iOS Behavior:** iOS CoreBluetooth handles MTU negotiation automatically. The system negotiates the optimal MTU based on device capabilities and connection parameters. iOS does not provide a direct API to request a specific MTU value like Android does.
+
+The iOS implementation uses 128-byte chunks (conservative) which work reliably across all MTU sizes without explicit negotiation.
+
+#### Summary of Differences
+
+| Aspect | Android | iOS |
+|--------|---------|-----|
+| Write modes | Acknowledged for control, unacknowledged for data | **All writes use `.withResponse`** — device requires BLE-level ACK before forwarding data to TCP |
+| Chunk size | 128 bytes | 128 bytes |
+| Inter-chunk delay | 10ms | 10ms |
+| Write queue | Single-threaded `ExecutorService` | Serial `DispatchQueue` |
+| MTU negotiation | Explicit request to 247 | Automatic (system-managed) |
+| Control frame detection | Check CMD byte at index 3 | Same |
+
+These alignment changes ensure consistent, reliable BLE-Eth communication across both platforms, preventing buffer overflows, ensuring proper frame ordering, and optimizing for the characteristics of each platform's BLE stack.
 
 ---
 
@@ -278,7 +411,7 @@ When BLE notifications arrive from FFF1 (or whichever characteristic the device 
 | `5 ms` | inter-fragment delay | Pacing between consecutive fragments |
 | `256` | queue capacity | `QueuePipe` instances per direction |
 | `1 second` | write backoff | `PipeOutputStream.write` re-check `writerClosed` |
-| `4096` | read buffer | Max read per outbound chunk |
+| `246` | read buffer | Max read per outbound chunk (= `MAX_FRAG_DATA`). Limits each `transport.send()` to a single BLE-Eth fragment. The original Android spec uses 4096 which produces multi-fragment DATA frames, but the device firmware silently drops multi-fragment frames for client→server direction. |
 
 ---
 

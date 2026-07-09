@@ -436,3 +436,27 @@
 "Up-Right" = "右上";
 "Width" = "幅";
 "ms" = "ミリ秒";
+
+/* --- Terminal --- */
+"terminal_title" = "ターミナル";
+"terminal_connect_prompt" = "BLE 経由で SSH エンドポイントに接続して、ターミナルセッションを開始します。";
+
+/* --- Agent --- */
+"agent_title" = "エージェント";
+
+/* --- ビュータイプ名（サイドバーで使用） --- */
+"Terminal" = "ターミナル";
+"Agent" = "エージェント";
+
+/* --- Credentials --- */
+"Credentials" = "資格情報";
+"Add Credential" = "資格情報を追加";
+"Edit Profile" = "プロファイルを編集";
+"New Profile" = "新しいプロファイル";
+"Tags" = "タグ";
+"Select Tags" = "タグを選択";
+"Existing Tags" = "既存のタグ";
+"New tag..." = "新しいタグ...";
+"Add tag..." = "タグを追加...";
+"No tags added" = "タグが追加されていません";
+"No tags yet" = "タグがまだありません";

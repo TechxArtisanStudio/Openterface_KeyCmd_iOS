@@ -25,6 +25,7 @@ struct ContentView: View {
     @State private var showSettings = false
     @State private var showSetupSheet = false
     @State private var showProSetupSheet = false
+    @State private var showCredentialSheet = false
     @State private var isGamepadEditMode = false
     @State private var showPresetPicker = false
     @State private var showBackgroundPicker = false
@@ -33,6 +34,7 @@ struct ContentView: View {
     @StateObject private var presetRepository = GamepadPresetRepository()
     @StateObject private var backgroundManager = GamepadBackgroundManager()
     @StateObject private var gyroMouseManager: GyroMouseManager
+    @StateObject private var terminalViewModel: TerminalViewModel
     @AppStorage("gyroMouseEnabled") private var gyroMouseEnabled = false
     @AppStorage("gyroMouseSensitivity") private var gyroMouseSensitivity: Double = 1.0
     @State private var basicSubmode: BasicKeyboardMouseView.Submode = .touchpad
@@ -52,6 +54,7 @@ struct ContentView: View {
         let gyroManager = GyroMouseManager(mouseManager: mouseManager)
         gyroManager.sensitivity = UserDefaults.standard.double(forKey: "gyroMouseSensitivity") != 0 ? UserDefaults.standard.double(forKey: "gyroMouseSensitivity") : 1.0
         _gyroMouseManager = StateObject(wrappedValue: gyroManager)
+        _terminalViewModel = StateObject(wrappedValue: TerminalViewModel(bleManager: bleManager))
     }
     
     // MARK: - Sidebar View
@@ -191,7 +194,7 @@ struct ContentView: View {
                         .font(.headline)
                         .foregroundColor(.primary)
                     // Beta badge for experimental features
-                    if viewType == .macros || viewType == .voiceInput || viewType == .terminal {
+                    if viewType == .macros || viewType == .voiceInput || viewType == .terminal || viewType == .agent {
                         Image(systemName: "flask.fill")
                             .font(.system(size: 14))
                             .foregroundColor(.secondary)
@@ -254,6 +257,24 @@ struct ContentView: View {
                     }
                     .buttonStyle(.plain)
                     .padding(.leading, 12)
+
+                    // Show KeyCmd logo and title when viewing terminal or agent
+                    if viewManager.currentView == .terminal || viewManager.currentView == .agent {
+                        Image("keycmd_wordmark")
+                            .resizable()
+                            .renderingMode(.template)
+                            .scaledToFit()
+                            .frame(height: 18)
+                            .foregroundColor(themeManager.accentColor)
+                            .accessibilityLabel(Text("KeyCmd"))
+                            .padding(.leading, 4)
+                        Text(viewManager.currentView == .terminal ?
+                            NSLocalizedString("terminal_title", comment: "Terminal view title") :
+                            NSLocalizedString("agent_title", comment: "Agent view title"))
+                            .font(.subheadline.bold())
+                            .foregroundColor(.primary)
+                    }
+
                     if viewManager.currentView == .keyboardMouseBasic {
                         BasicKeyboardMouseView(
                             mouseManager: mouseManager,
@@ -364,6 +385,10 @@ struct ContentView: View {
                 if viewManager.currentView == .keyboardMousePro {
                     kmProSetupButton
                 }
+                // Show credential settings button for terminal view
+                if viewManager.currentView == .terminal {
+                    credentialSettingsButton
+                }
                 bleButton
             }
         }
@@ -425,6 +450,22 @@ struct ContentView: View {
                 }
             }
             .frame(minWidth: 320, idealWidth: 380, minHeight: 500)
+        }
+    }
+
+    private var credentialSettingsButton: some View {
+        Button(action: { showCredentialSheet = true }) {
+            Image(systemName: "gearshape")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 20, height: 20)
+                .foregroundColor(.gray)
+        }
+        .frame(width: 34, height: 34)
+        .background(Color.clear)
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showCredentialSheet) {
+            CredentialSettingsView()
         }
     }
 
@@ -867,7 +908,10 @@ struct ContentView: View {
                 )
                 .id(viewManager.currentView)
             case .terminal:
-                TerminalContainerView(bleManager: bleManager)
+                TerminalContainerView(viewModel: terminalViewModel)
+                    .id(viewManager.currentView)
+            case .agent:
+                AgentView(keyboardManager: keyboardManager)
                     .id(viewManager.currentView)
             }
         }
@@ -977,6 +1021,9 @@ struct ContentView: View {
             )
             .onChange(of: showTargetOSDialog) { newValue in
                 print("🎯 showTargetOSDialog changed to: \(newValue)")
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenSettings"))) { _ in
+                showSettings = true
             }
             .sheet(isPresented: $showTargetOSDialog) {
                 targetOSSelectionSheet

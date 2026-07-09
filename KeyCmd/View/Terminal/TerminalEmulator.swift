@@ -57,17 +57,24 @@ class TerminalEmulator: NSObject, TerminalViewDelegate {
 
     /// Attach to a SwiftTerm TerminalView
     func attach(to terminalView: TerminalView) {
+        LogManager.shared.log("attach() to TerminalView — setting delegate", category: "Terminal", level: .info)
         self.terminalView = terminalView
         terminalView.terminalDelegate = self
 
-        // Set up terminal appearance
-        terminalView.backgroundColor = .black
-        terminalView.font = UIFont(name: "Menlo", size: 14) ?? UIFont.monospacedSystemFont(ofSize: 14, weight: .regular)
+        // Set up terminal appearance — use system colors that adapt to light/dark mode
+        let bgColor = UIColor.systemBackground
+        let fgColor = UIColor.label
+        terminalView.backgroundColor = bgColor
+        terminalView.nativeBackgroundColor = bgColor
+        terminalView.nativeForegroundColor = fgColor
+        let fontSize = TerminalPrefs.shared.fontSize
+        terminalView.font = UIFont(name: "Menlo", size: fontSize) ?? UIFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
 
         // Set initial terminal size
         let frameSize = terminalView.getOptimalFrameSize()
         let cols = max(Int(frameSize.width / 8.4), 80)
         let rows = max(Int(frameSize.height / 18), 24)
+        LogManager.shared.log("attach() initial size: \(cols)x\(rows)", category: "Terminal", level: .info)
         sshClient.resizeTerminal(width: cols, height: rows)
     }
 
@@ -117,9 +124,16 @@ class TerminalEmulator: NSObject, TerminalViewDelegate {
 
     /// Feed data from SSH to terminal
     private func feedTerminal(data: Data) {
+        LogManager.shared.log("feedTerminal() \(data.count) bytes, terminalView is \(terminalView != nil ? "attached" : "NIL")", category: "Terminal", level: .debug)
+        LogManager.shared.log("feedTerminal() raw bytes: \(data.hexString)", category: "Terminal", level: .debug)
         DispatchQueue.main.async { [weak self] in
             let bytes = ArraySlice<UInt8>(data)
-            self?.terminalView?.feed(byteArray: bytes)
+            guard let tv = self?.terminalView else {
+                LogManager.shared.log("feedTerminal() terminalView is NIL — data DROPPED", category: "Terminal", level: .error)
+                return
+            }
+            tv.feed(byteArray: bytes)
+            LogManager.shared.log("feedTerminal() fed \(bytes.count) bytes to TerminalView — rendering OK", category: "Terminal", level: .debug)
         }
     }
 
@@ -141,7 +155,7 @@ class TerminalEmulator: NSObject, TerminalViewDelegate {
     public func send(source: TerminalView, data: ArraySlice<UInt8>) {
         // User typed something → forward to SSH
         let data = Data(data)
-        print("[TerminalEmulator] send() \(data.count) bytes from terminal")
+        LogManager.shared.log("send() \(data.count) bytes from terminal: \(data.hexString)", category: "Terminal", level: .debug)
         sshClient.write(data)
     }
 

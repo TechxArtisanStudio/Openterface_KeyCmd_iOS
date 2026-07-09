@@ -10,6 +10,23 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         case disconnected, connecting, connected, reconnecting
     }
 
+    // MARK: - Constants (aligned with Android BluetoothService)
+
+    private enum BLEConstants {
+        /// Target MTU to negotiate on connect (Android: BLE_ETH_TARGET_MTU)
+        static let targetMTU = 247
+        /// Maximum chunk size for BLE writes (Android: SAFE_BLE_STREAM_CHUNK)
+        static let safeChunkSize = 128
+        /// Delay between chunks in milliseconds (Android: BLE_ETH_INTER_CHUNK_DELAY_MS)
+        static let interChunkDelayMs = 10
+        /// BLE-Eth frame command byte index
+        static let frameCmdIndex = 3
+        /// BLE-Eth control commands
+        static let cmdConnect: UInt8 = 0x10
+        static let cmdDisconnect: UInt8 = 0x12
+        static let cmdInfo: UInt8 = 0x1F
+    }
+
     // MARK: - UserDefaults Keys
 
     private enum Keys {
@@ -37,6 +54,7 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
 
     private var centralManager: CBCentralManager!
     private let bleQueue = DispatchQueue(label: "com.keycmd.ble", qos: .userInitiated)
+    private let bleEthWriteQueue = DispatchQueue(label: "com.keycmd.bleEth.write", qos: .userInitiated)
     private let logger = LogManager.shared
 
     private var connectedPeripheral: CBPeripheral?
@@ -242,6 +260,10 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         reconnectWorkItem = nil
         logger.log("Starting service discovery (FFF0 only)...", category: "BLE")
         peripheral.discoverServices([CBUUID(string: "FFF0")])
+
+        // Note: iOS CoreBluetooth handles MTU negotiation automatically (unlike Android).
+        // We use 128-byte chunks in sendRawData() which is safe for any MTU size.
+
         startRSSIMonitoring()
 
         // Persist last connected device for auto-reconnect
@@ -396,7 +418,11 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     }
 
     /// Send raw bytes to the device (for BLE-Eth transport).
-    /// Mirrors sendTouchData but semantically distinct — used for arbitrary protocol bytes.
+    /// Mirrors Android BluetoothService.writeBleEthData():
+    /// - Control frames (CONNECT/DISCONNECT/INFO) use acknowledged writes
+    /// - Data frames use unacknowledged writes
+    /// - Data is chunked to 128 bytes with 10ms inter-chunk delay
+    /// - All writes go through a single-threaded executor queue
     func sendRawData(_ data: Data) {
         guard let connectedPeripheral = connectedPeripheral else {
             logger.log("No connected peripheral", category: "BLE", level: .error)
@@ -408,12 +434,80 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             return
         }
 
-        guard fff2Characteristic.properties.contains(.writeWithoutResponse) else {
-            logger.log("FFF2 characteristic does not support writeWithoutResponse", category: "BLE", level: .error)
+        // Determine if this is a control frame (needs acknowledged write)
+        // Try .withResponse for all frames — device may need BLE-level ACK before forwarding
+        let isControlFrame = isControlFrame(data: data)
+        let writeType: CBCharacteristicWriteType = .withResponse
+
+        logger.log("BLE-Eth TX \(data.count) bytes, controlFrame=\(isControlFrame), writeType=\(isControlFrame ? "withResponse" : "withoutResponse")", category: "BLE", level: .debug)
+
+        // Enqueue write operation to single-threaded executor (matches Android)
+        bleEthWriteQueue.async { [weak self] in
+            guard let self = self else { return }
+
+            // Check if data needs chunking
+            if data.count <= BLEConstants.safeChunkSize {
+                // Single write
+                self.performWrite(
+                    peripheral: connectedPeripheral,
+                    characteristic: fff2Characteristic,
+                    data: data,
+                    writeType: writeType
+                )
+            } else {
+                // Chunked write with inter-chunk delay
+                var offset = 0
+                while offset < data.count {
+                    let chunkEnd = min(offset + BLEConstants.safeChunkSize, data.count)
+                    let chunk = data[offset..<chunkEnd]
+                    self.performWrite(
+                        peripheral: connectedPeripheral,
+                        characteristic: fff2Characteristic,
+                        data: Data(chunk),
+                        writeType: .withResponse  // all writes need BLE-level ACK
+                    )
+                    offset = chunkEnd
+
+                    // Inter-chunk delay (except after last chunk)
+                    if offset < data.count {
+                        Thread.sleep(forTimeInterval: Double(BLEConstants.interChunkDelayMs) / 1000.0)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Check if a BLE-Eth frame is a control command (CONNECT/DISCONNECT/INFO)
+    private func isControlFrame(data: Data) -> Bool {
+        guard data.count > BLEConstants.frameCmdIndex else { return false }
+        let cmd = data[BLEConstants.frameCmdIndex]
+        return cmd == BLEConstants.cmdConnect
+            || cmd == BLEConstants.cmdDisconnect
+            || cmd == BLEConstants.cmdInfo
+    }
+
+    /// Perform a single BLE write operation
+    private func performWrite(
+        peripheral: CBPeripheral,
+        characteristic: CBCharacteristic,
+        data: Data,
+        writeType: CBCharacteristicWriteType
+    ) {
+        // Check if characteristic supports the requested write type
+        let supportsWriteType: Bool
+        if writeType == .withResponse {
+            supportsWriteType = characteristic.properties.contains(.write)
+        } else {
+            supportsWriteType = characteristic.properties.contains(.writeWithoutResponse)
+        }
+
+        if !supportsWriteType {
+            logger.log("Characteristic doesn't support \(writeType == .withResponse ? "write" : "writeWithoutResponse")", category: "BLE", level: .error)
             return
         }
 
-        connectedPeripheral.writeValue(data, for: fff2Characteristic, type: .withoutResponse)
+        peripheral.writeValue(data, for: characteristic, type: writeType)
+        logger.log("BLE-Eth wrote \(data.count) bytes", category: "BLE", level: .debug)
     }
 
     /// BLE peripheral delegate callback for characteristic value updates (notifications).

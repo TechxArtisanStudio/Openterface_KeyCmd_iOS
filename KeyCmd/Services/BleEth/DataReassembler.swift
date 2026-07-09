@@ -34,6 +34,7 @@ final class DataReassembler {
 
     // MARK: - Callback
 
+    private let logger = LogManager.shared
     var onReassembled: ((ReassembledData) -> Void)?
 
     // MARK: - Public Methods
@@ -42,7 +43,7 @@ final class DataReassembler {
     /// The payload should include the 3-byte fragment header.
     func feed(payload: Data) {
         guard payload.count >= Self.FRAG_HEADER_LEN else {
-            // Too short to contain fragment header
+            logger.log("DataReassembler: feed too short (\(payload.count) bytes) — dropping", category: "BLE-Eth", level: .info)
             return
         }
 
@@ -52,7 +53,7 @@ final class DataReassembler {
         let isFirst = (flags & Self.FRAG_FIRST) != 0
         let hasMore = (flags & Self.FRAG_MORE) != 0
         let dataLen = payload.count - Self.FRAG_HEADER_LEN
-        print("[DataReassembler] feed: flags=0x\(String(format: "%02X", flags)) seq=\(seq) connId=\(connId) first=\(isFirst) more=\(hasMore) dataLen=\(dataLen) active=\(active) nextSeq=\(nextSeq)")
+        logger.log("DataReassembler: feed flags=0x\(String(format: "%02X", flags)) seq=\(seq) connId=\(connId) first=\(isFirst) more=\(hasMore) dataLen=\(dataLen) active=\(active) nextSeq=\(nextSeq)", category: "BLE-Eth", level: .debug)
 
         // Extract fragment data (skip 3-byte header)
         let fragData = payload.dropFirst(DataReassembler.FRAG_HEADER_LEN)
@@ -72,16 +73,19 @@ final class DataReassembler {
         }
 
         if !active {
-            // Not in reassembly mode — drop fragment
-            print("[DataReassembler] dropped: not active")
+            logger.log("DataReassembler: not active — dropping fragment (flags=0x\(String(format: "%02X", flags)))", category: "BLE-Eth", level: .info)
             return
         }
 
-        // Check sequence number
+        // Skip fragments for a different connId (e.g. ACKs from device's other connections)
+        if connId != reassemblyConnId {
+            logger.log("DataReassembler: connId mismatch active=\(reassemblyConnId) got=\(connId) — skipping", category: "BLE-Eth", level: .debug)
+            return
+        }
+
+        // Check sequence number — drop stray fragments (ACKs) without breaking active reassembly
         if seq != nextSeq {
-            // Out of order — discard entire reassembly
-            print("[DataReassembler] out of order: expected=\(nextSeq) got=\(seq) — discarding")
-            active = false
+            logger.log("DataReassembler: out of order expected=\(nextSeq) got=\(seq) — dropping fragment (keeping active)", category: "BLE-Eth", level: .debug)
             return
         }
 
@@ -91,8 +95,7 @@ final class DataReassembler {
 
         // Check if this is the last fragment
         if !hasMore {
-            // Reassembly complete
-            print("[DataReassembler] complete: totalLen=\(buffer.count) connId=\(reassemblyConnId)")
+            logger.log("DataReassembler: complete totalLen=\(buffer.count) connId=\(reassemblyConnId)", category: "BLE-Eth", level: .info)
             let reassembled = ReassembledData(
                 connId: reassemblyConnId,
                 data: buffer

@@ -131,7 +131,7 @@ private struct BluetoothCard: View {
 
     private var iconName: String {
         switch connectionState {
-        case .connected: return "bluetooth.connected"
+        case .connected: return "checkmark.circle.fill"
         case .connecting, .reconnecting: return "antenna.radiowaves.left.and.right"
         case .disconnected: return "bluetooth"
         }

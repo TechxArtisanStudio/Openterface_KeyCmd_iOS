@@ -172,6 +172,9 @@ class SSHClient {
 
         // Start reading output
         startReadingOutput()
+
+        // After shell is up, send a small "probe" by reading once to confirm channel is alive
+        log.log("SSH: connection complete — auth OK, PTY requested, shell started. Awaiting remote data.", category: "SSH", level: .info)
     }
 
     private func configureSessionPreferences(_ session: OpaquePointer) {
@@ -208,33 +211,47 @@ class SSHClient {
 
     private func startReadingOutput() {
         // Use a global concurrent queue — the serial sshQueue can't host an infinite loop
+        LogManager.shared.log("SSH: output reader starting", category: "SSH", level: .info)
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self = self, let channel = self.channel else { return }
+            guard let self = self, let channel = self.channel else {
+                LogManager.shared.log("SSH: output reader — channel nil, exiting", category: "SSH", level: .error)
+                return
+            }
 
             var buffer = [UInt8](repeating: 0, count: 4096)
+            var eagainCount = 0
 
             while self.isConnected {
                 let bytesRead = libssh2_channel_read_ex(channel, 0, &buffer, buffer.count)
 
                 if bytesRead > 0 {
                     let data = Data(bytes: buffer, count: bytesRead)
+                    LogManager.shared.log("SSH: channel read \(bytesRead) bytes (total eagain=\(eagainCount)) hex=\(data.hexString)", category: "SSH", level: .debug)
+                    eagainCount = 0
                     self.onOutput?(data)
                 } else if bytesRead == 0 {
                     // Channel closed
+                    LogManager.shared.log("SSH: channel closed (read returned 0)", category: "SSH", level: .info)
                     break
                 } else if bytesRead < 0 {
                     let errorCode = libssh2_session_last_errno(self.session)
                     if errorCode == LIBSSH2_ERROR_EAGAIN {
+                        eagainCount += 1
+                        if eagainCount == 1 || eagainCount % 500 == 0 {
+                            LogManager.shared.log("SSH: channel read EAGAIN (no data yet, poll #\(eagainCount))", category: "SSH", level: .debug)
+                        }
                         // Non-blocking mode, no data available yet
                         Thread.sleep(forTimeInterval: 0.01)
                         continue
                     } else {
                         // Error
+                        LogManager.shared.log("SSH: channel read error \(errorCode)", category: "SSH", level: .error)
                         self.onError?("Read error: \(errorCode)")
                         break
                     }
                 }
             }
+            LogManager.shared.log("SSH: output reader exited", category: "SSH", level: .info)
         }
     }
 
@@ -244,7 +261,7 @@ class SSHClient {
             LogManager.shared.log("SSH: write() dropped — channel=\(channel != nil) connected=\(isConnected)", category: "SSH", level: .warning)
             return
         }
-        LogManager.shared.log("SSH: write() \(data.count) bytes — queueing to sshQueue", category: "SSH", level: .info)
+        LogManager.shared.log("SSH: write() \(data.count) bytes — queueing to sshQueue", category: "SSH", level: .debug)
 
         sshQueue.async { [weak self] in
             guard let self = self else {
@@ -283,7 +300,7 @@ class SSHClient {
                         }
                     } else {
                         totalWritten += bytesWritten
-                        LogManager.shared.log("SSH: wrote \(bytesWritten) bytes (total \(totalWritten)/\(data.count))", category: "SSH", level: .info)
+                        LogManager.shared.log("SSH: wrote \(bytesWritten) bytes (total \(totalWritten)/\(data.count))", category: "SSH", level: .debug)
                     }
                 }
             }
@@ -317,7 +334,10 @@ class SSHClient {
             self.bridge?.stop()
             self.bridge = nil
 
-            libssh2_exit()
+            // NOTE: Do NOT call libssh2_exit() here — it tears down global state
+            // and causes issues on reconnect. libssh2_init() is ref-counted, so
+            // repeated calls are safe. libssh2_exit() should only be called on
+            // app termination.
         }
     }
 
@@ -401,7 +421,8 @@ final class POSIXSocketBridge: TransportListener {
         logger.log("Bridge: starting socket reader task", category: "Bridge", level: .info)
         readerTask = Task.detached { [weak self] in
             guard let self, self.bridgeFd >= 0 else { return }
-            var buf = [UInt8](repeating: 0, count: 4096)
+            // ponytail: 246-byte cap = MAX_FRAG_DATA, single fragment per send
+            var buf = [UInt8](repeating: 0, count: DataReassembler.MAX_FRAG_DATA)
             while !Task.isCancelled {
                 let n = Darwin.read(self.bridgeFd, &buf, buf.count)
                 if n > 0 {
@@ -429,8 +450,13 @@ final class POSIXSocketBridge: TransportListener {
         logger.log("Bridge: onDataReceived \(data.count) bytes → writing to bridgeFd=\(bridgeFd)", category: "Bridge", level: .debug)
         data.withUnsafeBytes { raw in
             guard let base = raw.baseAddress else { return }
-            if Darwin.write(bridgeFd, base, data.count) < 0 {
-                logger.log("Bridge: socket write error errno=\(errno)", category: "Bridge", level: .error)
+            let written = Darwin.write(bridgeFd, base, data.count)
+            if written < 0 {
+                logger.log("Bridge: socket write error errno=\(errno), attempted=\(data.count) bytes", category: "Bridge", level: .error)
+            } else if written != data.count {
+                logger.log("Bridge: socket write partial — expected=\(data.count), wrote=\(written) bytes", category: "Bridge", level: .warning)
+            } else {
+                logger.log("Bridge: socket write OK \(data.count) bytes: \(data.hexString)", category: "Bridge", level: .debug)
             }
         }
     }

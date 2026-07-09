@@ -466,3 +466,27 @@
 
 /* --- ShortcutHub --- */
 "Profile name" = "配置文件名称";
+
+/* --- Terminal --- */
+"terminal_title" = "终端";
+"terminal_connect_prompt" = "通过 BLE 连接到 SSH 端点以启动终端会话。";
+
+/* --- Agent --- */
+"agent_title" = "智能体";
+
+/* --- 视图类型名称（侧边栏使用） --- */
+"Terminal" = "终端";
+"Agent" = "智能体";
+
+/* --- Credentials --- */
+"Credentials" = "凭据";
+"Add Credential" = "添加凭据";
+"Edit Profile" = "编辑配置文件";
+"New Profile" = "新建配置文件";
+"Tags" = "标签";
+"Select Tags" = "选择标签";
+"Existing Tags" = "现有标签";
+"New tag..." = "新标签...";
+"Add tag..." = "添加标签...";
+"No tags added" = "未添加标签";
+"No tags yet" = "暂无标签";
