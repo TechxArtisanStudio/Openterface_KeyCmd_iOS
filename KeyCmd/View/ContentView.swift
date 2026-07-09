@@ -737,7 +737,7 @@ struct ContentView: View {
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 20, height: 20)
                     .foregroundColor(themeManager.accentColor)
-                Text("Report a Bug")
+                Text(NSLocalizedString("Report a Bug", comment: "Sidebar button to open bug report form"))
                     .font(.headline)
                     .foregroundColor(.primary)
             }

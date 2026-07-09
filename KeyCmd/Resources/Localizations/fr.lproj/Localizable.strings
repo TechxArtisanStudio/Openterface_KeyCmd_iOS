@@ -462,3 +462,7 @@
 "Add tag..." = "Ajouter une étiquette...";
 "No tags added" = "Aucune étiquette ajoutée";
 "No tags yet" = "Aucune étiquette pour le moment";
+
+"terminal_cdc_ecm_notice" = "L'appareil KeyMod utilise le mode CDC-ECM — fonctionne avec Linux et macOS sans pilote. Le support RNDIS pour Windows arrive bientôt.";
+
+"Report a Bug" = "Signaler un bug";

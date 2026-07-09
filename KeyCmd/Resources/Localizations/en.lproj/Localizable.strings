@@ -492,3 +492,7 @@
 "Add tag..." = "Add tag...";
 "No tags added" = "No tags added";
 "No tags yet" = "No tags yet";
+
+"terminal_cdc_ecm_notice" = "KeyMod device uses CDC-ECM mode — works with Linux and macOS without drivers. Windows RNDIS support is coming soon.";
+
+"Report a Bug" = "Report a Bug";

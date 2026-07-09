@@ -489,3 +489,7 @@
 "Add tag..." = "태그 추가...";
 "No tags added" = "추가된 태그 없음";
 "No tags yet" = "아직 태그가 없습니다";
+
+"terminal_cdc_ecm_notice" = "KeyMod 장치는 CDC-ECM 모드를 사용합니다 — 드라이버 없이 Linux 및 macOS에서 작동합니다. Windows RNDIS 지원은 곧 제공됩니다.";
+
+"Report a Bug" = "버그 신고";

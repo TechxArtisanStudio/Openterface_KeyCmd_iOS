@@ -490,3 +490,7 @@
 "Add tag..." = "添加标签...";
 "No tags added" = "未添加标签";
 "No tags yet" = "暂无标签";
+
+"terminal_cdc_ecm_notice" = "KeyMod 设备使用 CDC-ECM 模式 — 支持 Linux 和 macOS，无需驱动。Windows RNDIS 支持即将推出。";
+
+"Report a Bug" = "报告问题";

@@ -74,6 +74,23 @@ struct TerminalContainerView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
 
+            // CDC-ECM transport notice
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: "network")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                Text(NSLocalizedString(
+                    "terminal_cdc_ecm_notice",
+                    value: "KeyMod device uses CDC-ECM mode — works with Linux and macOS without drivers. Windows RNDIS support is coming soon.",
+                    comment: "CDC-ECM transport notice for terminal connect screen"
+                ))
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, 40)
+            .padding(.top, 2)
+
             Button(action: { showConnectionDialog = true }) {
                 HStack(spacing: 8) {
                     Image(systemName: "antenna.radiowaves.left.and.right")

@@ -460,3 +460,7 @@
 "Add tag..." = "タグを追加...";
 "No tags added" = "タグが追加されていません";
 "No tags yet" = "タグがまだありません";
+
+"terminal_cdc_ecm_notice" = "KeyModデバイスはCDC-ECMモードを使用 — ドライバーなしでLinuxとmacOSで動作します。Windows RNDISサポートは近日公開予定です。";
+
+"Report a Bug" = "不具合を報告";

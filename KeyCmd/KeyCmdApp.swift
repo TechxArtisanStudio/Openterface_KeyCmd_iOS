@@ -127,6 +127,10 @@ struct KeyCmdApp: App {
             .ignoresSafeArea()
             .environment(\.locale, languageManager.locale)
             .tint(themeManager.accentColor)
+            .preferredColorScheme(
+                themeManager.followSystem ? nil :
+                    (themeManager.modeOverride == .dark ? .dark : .light)
+            )
             .onAppear {
                 if launchPanelManager.showLaunchPanel {
                     applyLaunchPanelOrientation(show: true)
