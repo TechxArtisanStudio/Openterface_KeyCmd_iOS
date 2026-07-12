@@ -83,6 +83,7 @@ class TerminalViewModel: ObservableObject {
         // Clean up any previous connection first — device may still hold a stale connId
         // from a prior failed attempt (e.g. SSH handshake failure), causing 0xE7 on retry.
         disconnect()
+        emulator.clearScreen()
 
         await MainActor.run {
             connectionStatus = .connecting

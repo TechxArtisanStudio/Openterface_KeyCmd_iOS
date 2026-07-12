@@ -94,7 +94,7 @@ class AISettings: ObservableObject {
     }
     
     @Published var providers: [AIProvider] {
-        didSet { 
+        didSet {
             if let encoded = try? JSONEncoder().encode(providers) {
                 UserDefaults.standard.set(encoded, forKey: "AISettings.providers")
             }
@@ -181,7 +181,25 @@ class AISettings: ObservableObject {
                                               modelName: "gpt-4o")]
             }
         }
-        self.providers = loadedProviders
+        var mutableProviders = loadedProviders
+
+        // Migration: ensure Local Qwen presets exist for existing users
+        if !mutableProviders.contains(where: { $0.apiBaseURL == "local://qwen3-0.6b" }) {
+            let smallPreset = AIProvider(name: "Local Qwen 0.6B",
+                                         apiBaseURL: "local://qwen3-0.6b",
+                                         modelName: "Qwen3-0.6B-4bit",
+                                         apiKeyOptional: true)
+            mutableProviders.append(smallPreset)
+        }
+        if !mutableProviders.contains(where: { $0.apiBaseURL == "local://qwen3-4b" }) {
+            let largePreset = AIProvider(name: "Local Qwen 4B",
+                                          apiBaseURL: "local://qwen3-4b",
+                                          modelName: "Qwen3-4B-Instruct-2507-4bit",
+                                          apiKeyOptional: true)
+            mutableProviders.append(largePreset)
+        }
+
+        self.providers = mutableProviders
         
         // Initialize selectedProviderId
         let providerId: String
@@ -253,6 +271,9 @@ class AISettings: ObservableObject {
     }
     
     func deleteProvider(_ providerId: UUID) {
+        guard providers.contains(where: { $0.id == providerId }) else {
+            return
+        }
         providers.removeAll(where: { $0.id == providerId })
         // If deleted provider was selected, select the first one
         if selectedProviderId == providerId.uuidString && !providers.isEmpty {
@@ -268,6 +289,16 @@ class AISettings: ObservableObject {
     // MARK: - Get System Prompt Role by ID
     func getSystemPromptRole(id: String) -> SystemPromptRole? {
         return AIConfigManager.shared.role(id: id)
+    }
+
+    /// Returns the effective prompt for a given role ID.
+    /// Checks UserDefaults for a custom override first, then falls back to the config default.
+    func effectivePrompt(for roleId: String) -> String {
+        let key = "AgentSettings.\(roleId)Prompt"
+        if let saved = UserDefaults.standard.string(forKey: key), !saved.isEmpty {
+            return saved
+        }
+        return getSystemPromptRole(id: roleId)?.prompt ?? ""
     }
     
     // MARK: - Update System Prompt from Role
@@ -332,7 +363,7 @@ class AISettings: ObservableObject {
     func isConfigured(provider: AIProvider? = nil) -> Bool {
         let targetProvider = provider ?? selectedProvider
         guard let targetProvider = targetProvider else { return false }
-        return isEnabled && hasAPIKey(for: targetProvider) && !targetProvider.apiBaseURL.isEmpty && !targetProvider.modelName.isEmpty
+        return hasAPIKey(for: targetProvider) && !targetProvider.apiBaseURL.isEmpty && !targetProvider.modelName.isEmpty
     }
     
     func getValidationError(provider: AIProvider? = nil) -> String? {

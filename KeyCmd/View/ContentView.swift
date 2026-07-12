@@ -31,6 +31,7 @@ struct ContentView: View {
     @State private var showBackgroundPicker = false
     @State private var showAddModulePicker = false
     @State private var showTargetOSDialog = false
+    @State private var targetSettingsProfileId: String? = CredentialManager.shared.getActiveProfile()?.id
     @StateObject private var presetRepository = GamepadPresetRepository()
     @StateObject private var backgroundManager = GamepadBackgroundManager()
     @StateObject private var gyroMouseManager: GyroMouseManager
@@ -576,13 +577,22 @@ struct ContentView: View {
             showTargetOSDialog = true
             print("🎯 showTargetOSDialog set to: \(showTargetOSDialog)")
         }) {
-            Image(aiSettings.targetOS.imageName)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 20, height: 20)
-                .foregroundColor(.gray)
-                .contentShape(Rectangle())
+            if targetSettingsProfileId != nil {
+                // Terminal profile selected: show terminal icon
+                Image(systemName: "terminal")
+                    .font(.system(size: 18))
+                    .foregroundColor(.gray)
+                    .contentShape(Rectangle())
+            } else {
+                // No profile: show OS icon
+                Image(aiSettings.targetOS.imageName)
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 20, height: 20)
+                    .foregroundColor(.gray)
+                    .contentShape(Rectangle())
+            }
         }
         .frame(width: 34, height: 34)
         .background(Color.clear)
@@ -591,66 +601,7 @@ struct ContentView: View {
     }
 
     private var targetOSSelectionSheet: some View {
-        ZStack {
-            // Semi-transparent dimming background
-            Color.black.opacity(0.4)
-                .ignoresSafeArea()
-                .onTapGesture {
-                    showTargetOSDialog = false
-                }
-
-            VStack(spacing: 18) {
-                Text("Target OS")
-                    .font(.headline)
-                    .foregroundColor(.primary)
-
-                HStack(spacing: 24) {
-                    ForEach(TargetOS.allCases, id: \.self) { os in
-                        Button {
-                            aiSettings.targetOS = os
-                            showTargetOSDialog = false
-                        } label: {
-                            Image(os.imageName)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .foregroundColor(aiSettings.targetOS == os ? .white : .primary)
-                                .frame(width: 32, height: 32)
-                                .padding(12)
-                                .background(
-                                    Circle()
-                                        .fill(aiSettings.targetOS == os ? Color.accentColor : Color(UIColor.secondarySystemFill))
-                                )
-                                .overlay(
-                                    Circle()
-                                        .stroke(aiSettings.targetOS == os ? Color.accentColor : Color.clear, lineWidth: 2)
-                                )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 16)
-
-                Button(action: {
-                    showTargetOSDialog = false
-                }) {
-                    Text("Cancel")
-                        .font(.headline)
-                        .foregroundColor(.orange)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color(UIColor.systemBackground))
-                        .cornerRadius(14)
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 16)
-            }
-            .padding(.vertical, 20)
-            .padding(.horizontal, 16)
-            .background(Color(UIColor.secondarySystemBackground))
-            .cornerRadius(24)
-            .frame(maxWidth: 360)
-            .shadow(color: Color.black.opacity(0.25), radius: 20, x: 0, y: 12)
-        }
+        TargetSettingsSheet(selectedProfileId: $targetSettingsProfileId)
     }
 
     private var bleButton: some View {

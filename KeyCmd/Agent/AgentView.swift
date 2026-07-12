@@ -10,7 +10,8 @@ struct AgentView: View {
     @State private var keyboardHeight: CGFloat = 0
     @FocusState private var inputFocused: Bool
 
-    private let aiSettings = AISettings.shared
+    @ObservedObject private var aiSettings = AISettings.shared
+    private let credentialManager = CredentialManager.shared
 
     init(keyboardManager: KeyboardManager) {
         self.keyboardManager = keyboardManager
@@ -34,19 +35,14 @@ struct AgentView: View {
             inputBar
         }
         .background(Color(UIColor.systemBackground).ignoresSafeArea())
-        .padding(.bottom, keyboardHeight + 50)
+        .padding(.bottom, keyboardHeight)
         .animation(.easeOut(duration: 0.25), value: keyboardHeight)
         .onReceive(
             NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)
         ) { onKeyboardFrameChange($0) }
         .onReceive(
-            NotificationCenter.default.publisher(for: UIResponder.keyboardDidChangeFrameNotification)
-        ) { onKeyboardFrameChange($0) }
-        .onReceive(
             NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)
-        ) { _ in
-            keyboardHeight = 0
-        }
+        ) { _ in keyboardHeight = 0 }
         .onTapGesture {
             inputFocused = false
         }
@@ -54,30 +50,53 @@ struct AgentView: View {
 
     private func onKeyboardFrameChange(_ notification: Notification) {
         guard let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
-        let safeBottom = UIApplication.shared.connectedScenes
-            .compactMap { ($0 as? UIWindowScene)?.windows.first { $0.isKeyWindow } }
-            .first?.safeAreaInsets.bottom ?? 0
-        keyboardHeight = max(0, frame.height - safeBottom)
+        // Use screen height minus keyboard origin to get the full keyboard height
+        // including any accessory views (predictive text bar, etc.)
+        let screenHeight = UIScreen.main.bounds.height
+        keyboardHeight = screenHeight - frame.origin.y
     }
 
     // MARK: - Session Bar
 
     private var sessionBar: some View {
-        HStack {
-            Text(isConfigured ? "Agent is ready." : "Agent needs AI provider.")
-                .font(.footnote)
-                .foregroundColor(.secondary)
-                .lineLimit(2)
+        HStack(spacing: 8) {
+            let activeProfile = credentialManager.getActiveProfile()
+
+            if let profile = activeProfile {
+                // Profile selected: show terminal icon and profile name
+                Image(systemName: "terminal")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+
+                Text("Target: \(profile.displayLabel)")
+                    .font(.caption)
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+            } else {
+                // No profile: show OS name
+                Image(aiSettings.targetOS.imageName)
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 16, height: 16)
+                    .foregroundColor(.gray)
+
+                Text("Target: \(aiSettings.targetOS.displayName)")
+                    .font(.caption)
+                    .foregroundColor(.primary)
+            }
+
             Spacer()
-            Text(isConfigured ? "READY" : "DISCONNECTED")
+
+            Text(isConfigured ? "AGENT READY" : "NOT CONFIGURED")
                 .font(.caption2.weight(.bold))
                 .foregroundColor(isConfigured ? .green : .secondary)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
-                .background(Capsule().fill(Color.green.opacity(0.12)))
+                .background(Capsule().fill(isConfigured ? Color.green.opacity(0.12) : Color.secondary.opacity(0.12)))
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 8)
+        .padding(.vertical, 10)
         .background(Color(UIColor.secondarySystemBackground))
     }
 
@@ -149,7 +168,7 @@ struct AgentView: View {
     private var thinkingRow: some View {
         HStack(spacing: 8) {
             ProgressView()
-            Text("Thinking…")
+            Text("Thinking\u{2026}")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
         }
@@ -343,7 +362,7 @@ struct AgentView: View {
 
     private var inputBar: some View {
         HStack(spacing: 8) {
-            TextField("Describe a workflow…", text: $promptDraft)
+            TextField("Describe a workflow\u{2026}", text: $promptDraft)
                 .textFieldStyle(.plain)
                 .focused($inputFocused)
                 .padding(.horizontal, 10)
@@ -411,6 +430,100 @@ struct AgentView: View {
                     .padding(.horizontal, 24)
                     .padding(.top, 8)
                 }
+            }
+        }
+    }
+}
+
+// MARK: - Target Settings Sheet
+
+struct TargetSettingsSheet: View {
+    @Environment(\.dismiss) var dismiss
+    @Binding var selectedProfileId: String?
+    @ObservedObject private var aiSettings = AISettings.shared
+    @State private var profiles: [CredentialProfile] = []
+
+    private let credentialManager = CredentialManager.shared
+
+    var body: some View {
+        NavigationView {
+            List {
+                // Section 1: Target OS
+                Section("Target OS") {
+                    ForEach(TargetOS.allCases, id: \.self) { os in
+                        Button(action: {
+                            // Selecting OS directly clears profile selection
+                            aiSettings.targetOS = os
+                            selectedProfileId = nil
+                            credentialManager.clearActiveProfile()
+                        }) {
+                            HStack {
+                                Image(os.imageName)
+                                    .renderingMode(.template)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 22, height: 22)
+                                    .foregroundColor(aiSettings.targetOS == os && selectedProfileId == nil ? .accentColor : .secondary)
+
+                                Text(os.displayName)
+                                    .font(.subheadline)
+                                    .foregroundColor(.primary)
+                                    .padding(.leading, 8)
+
+                                Spacer()
+                                if aiSettings.targetOS == os && selectedProfileId == nil {
+                                    Image(systemName: "checkmark")
+                                        .foregroundColor(.accentColor)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Section 2: Terminal Profile
+                Section("Terminal Profile") {
+                    if profiles.isEmpty {
+                        Text("No profiles saved yet")
+                            .foregroundColor(.secondary)
+                    } else {
+                        ForEach(profiles) { profile in
+                            Button(action: {
+                                // Selecting profile sets OS from profile
+                                selectedProfileId = profile.id
+                                credentialManager.setActiveProfileId(profile.id)
+                                if let profileOS = TargetOS(rawValue: profile.targetOs) {
+                                    aiSettings.targetOS = profileOS
+                                }
+                            }) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(profile.displayLabel)
+                                            .font(.subheadline.bold())
+                                            .foregroundColor(.primary)
+                                        Text(profile.shortDescription)
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    Spacer()
+                                    if selectedProfileId == profile.id {
+                                        Image(systemName: "checkmark")
+                                            .foregroundColor(.accentColor)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Target Settings")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .onAppear {
+                profiles = credentialManager.getAllProfiles()
             }
         }
     }

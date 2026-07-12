@@ -122,6 +122,13 @@ class TerminalEmulator: NSObject, TerminalViewDelegate {
         status = .disconnected
     }
 
+    /// Clear the terminal screen and scrollback (called before a new connection).
+    func clearScreen() {
+        DispatchQueue.main.async { [weak self] in
+            self?.terminalView?.getTerminal().resetToInitialState()
+        }
+    }
+
     /// Feed data from SSH to terminal
     private func feedTerminal(data: Data) {
         LogManager.shared.log("feedTerminal() \(data.count) bytes, terminalView is \(terminalView != nil ? "attached" : "NIL")", category: "Terminal", level: .debug)

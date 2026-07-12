@@ -102,6 +102,17 @@ class CredentialManager {
         defaults.set(id, forKey: activeIdKey)
     }
 
+    /// Clear the active profile (show OS target instead).
+    func clearActiveProfile() {
+        defaults.removeObject(forKey: activeIdKey)
+        // Also clear isActive flags so the fallback doesn't pick up a profile
+        var profiles = getAllProfiles()
+        for i in profiles.indices {
+            profiles[i].isActive = false
+        }
+        saveProfiles(profiles)
+    }
+
     /// Get the password for a profile from Keychain.
     func getPassword(for profileId: String) -> String {
         KeychainHelper.shared.retrieve(key: passwordKey(for: profileId)) ?? ""
