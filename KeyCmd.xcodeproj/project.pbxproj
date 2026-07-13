@@ -10,6 +10,9 @@
 		6B20A1B22E058000004331F6 /* whisper in Frameworks */ = {isa = PBXBuildFile; productRef = 6B20A1B12E058000004331F6 /* whisper */; };
 		6B56FFDD2FEA7E220089C59F /* CSSH in Frameworks */ = {isa = PBXBuildFile; productRef = 6BAFF1012E040AD6004331F6 /* CSSH */; };
 		6B56FFDE2FEA7E220089C59F /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 6EDFAC2B8A6844B7AB7D4C71 /* SwiftTerm */; };
+		6BDE435D300129A800A20A41 /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 6BDE435C300129A800A20A41 /* MLXLLM */; };
+		6BDE435F300129A800A20A41 /* MLXVLM in Frameworks */ = {isa = PBXBuildFile; productRef = 6BDE435E300129A800A20A41 /* MLXVLM */; };
+		6BDE4361300129A800A20A41 /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = 6BDE4360300129A800A20A41 /* MLXLMCommon */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -58,6 +61,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				6BDE435F300129A800A20A41 /* MLXVLM in Frameworks */,
+				6BDE435D300129A800A20A41 /* MLXLLM in Frameworks */,
+				6BDE4361300129A800A20A41 /* MLXLMCommon in Frameworks */,
 				6B56FFDE2FEA7E220089C59F /* SwiftTerm in Frameworks */,
 				6B56FFDD2FEA7E220089C59F /* CSSH in Frameworks */,
 				6B20A1B22E058000004331F6 /* whisper in Frameworks */,
@@ -124,6 +130,9 @@
 				6B20A1B12E058000004331F6 /* whisper */,
 				6BAFF1012E040AD6004331F6 /* CSSH */,
 				6EDFAC2B8A6844B7AB7D4C71 /* SwiftTerm */,
+				6BDE435C300129A800A20A41 /* MLXLLM */,
+				6BDE435E300129A800A20A41 /* MLXVLM */,
+				6BDE4360300129A800A20A41 /* MLXLMCommon */,
 			);
 			productName = KeyCmd;
 			productReference = 6BAFF02B2E040AD6004331F6 /* KeyCmd.app */;
@@ -217,6 +226,7 @@
 				6B3468E52F5189F00065BF7E /* XCLocalSwiftPackageReference "../whisper.cpp" */,
 				6BAFF1002E040AD6004331F6 /* XCLocalSwiftPackageReference "../Libssh2Prebuild" */,
 				6B37F94E607A422FB36691C0 /* XCLocalSwiftPackageReference "../SwiftTerm" */,
+				6BDE435B300129A800A20A41 /* XCRemoteSwiftPackageReference "mlx-swift-examples" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 6BAFF02C2E040AD6004331F6 /* Products */;
@@ -348,7 +358,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Uses Bluetooth to connect to KeyCmd-compatible input devices and peripherals.";
 				INFOPLIST_KEY_NSMotionUsageDescription = "Uses device motion sensors to control the mouse cursor via gyroscope.";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -410,7 +420,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Uses Bluetooth to connect to KeyCmd-compatible input devices and peripherals.";
 				INFOPLIST_KEY_NSMotionUsageDescription = "Uses device motion sensors to control the mouse cursor via gyroscope.";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -627,6 +637,17 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		6BDE435B300129A800A20A41 /* XCRemoteSwiftPackageReference "mlx-swift-examples" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ml-explore/mlx-swift-examples";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.29.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		6B20A1B12E058000004331F6 /* whisper */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -637,6 +658,21 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 6BAFF1002E040AD6004331F6 /* XCLocalSwiftPackageReference "../Libssh2Prebuild" */;
 			productName = CSSH;
+		};
+		6BDE435C300129A800A20A41 /* MLXLLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6BDE435B300129A800A20A41 /* XCRemoteSwiftPackageReference "mlx-swift-examples" */;
+			productName = MLXLLM;
+		};
+		6BDE435E300129A800A20A41 /* MLXVLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6BDE435B300129A800A20A41 /* XCRemoteSwiftPackageReference "mlx-swift-examples" */;
+			productName = MLXVLM;
+		};
+		6BDE4360300129A800A20A41 /* MLXLMCommon */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6BDE435B300129A800A20A41 /* XCRemoteSwiftPackageReference "mlx-swift-examples" */;
+			productName = MLXLMCommon;
 		};
 		6EDFAC2B8A6844B7AB7D4C71 /* SwiftTerm */ = {
 			isa = XCSwiftPackageProductDependency;

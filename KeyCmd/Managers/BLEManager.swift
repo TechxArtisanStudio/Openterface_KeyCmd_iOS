@@ -393,7 +393,7 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         }
         peripheral.writeValue(data, for: characteristic, type: .withResponse)
         let hexString = data.map { String(format: "%02X", $0) }.joined(separator: " ")
-        logger.logHex(hexString, message: "Data sent", category: "BLE")
+        logger.logHex(hexString, message: "Data sent", category: "BLE", level: .debug)
     }
 
     func sendTouchData(data: Data) {
@@ -414,7 +414,7 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
 
         connectedPeripheral.writeValue(data, for: fff2Characteristic, type: .withoutResponse)
         let hexString = data.map { String(format: "%02X", $0) }.joined(separator: " ")
-        logger.logHex(hexString, message: "TX: ", category: "BLE")
+        logger.logHex(hexString, message: "TX: ", category: "BLE", level: .debug)
     }
 
     /// Send raw bytes to the device (for BLE-Eth transport).

@@ -26,6 +26,8 @@ struct ContentView: View {
     @State private var showSetupSheet = false
     @State private var showProSetupSheet = false
     @State private var showCredentialSheet = false
+    @State private var showAgentSettingsSheet = false
+    @State private var showVoiceSettingsSheet = false
     @State private var isGamepadEditMode = false
     @State private var showPresetPicker = false
     @State private var showBackgroundPicker = false
@@ -390,6 +392,14 @@ struct ContentView: View {
                 if viewManager.currentView == .terminal {
                     credentialSettingsButton
                 }
+                // Show agent AI settings button for agent view
+                if viewManager.currentView == .agent {
+                    agentSettingsButton
+                }
+                // Show voice settings button for voice input view
+                if viewManager.currentView == .voiceInput {
+                    voiceSettingsButton
+                }
                 bleButton
             }
         }
@@ -467,6 +477,38 @@ struct ContentView: View {
         .buttonStyle(.plain)
         .sheet(isPresented: $showCredentialSheet) {
             CredentialSettingsView()
+        }
+    }
+
+    private var agentSettingsButton: some View {
+        Button(action: { showAgentSettingsSheet = true }) {
+            Image(systemName: "gearshape")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 20, height: 20)
+                .foregroundColor(.gray)
+        }
+        .frame(width: 34, height: 34)
+        .background(Color.clear)
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showAgentSettingsSheet) {
+            AgentSettingsView()
+        }
+    }
+
+    private var voiceSettingsButton: some View {
+        Button(action: { showVoiceSettingsSheet = true }) {
+            Image(systemName: "gearshape")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 20, height: 20)
+                .foregroundColor(.gray)
+        }
+        .frame(width: 34, height: 34)
+        .background(Color.clear)
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showVoiceSettingsSheet) {
+            VoiceSettingsView()
         }
     }
 
@@ -862,7 +904,7 @@ struct ContentView: View {
                 TerminalContainerView(viewModel: terminalViewModel)
                     .id(viewManager.currentView)
             case .agent:
-                AgentView(keyboardManager: keyboardManager)
+                AgentView(keyboardManager: keyboardManager, bleManager: bleManager)
                     .id(viewManager.currentView)
             }
         }

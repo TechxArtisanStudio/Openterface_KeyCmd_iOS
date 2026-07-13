@@ -37,52 +37,9 @@ public class AppDelegate: NSObject, UIApplicationDelegate {
             }
         }
 
-        // Pre-warm the keyboard prediction XPC connection at launch time
-        // (outside of any gesture pipeline) so the first tap on a UITextView
-        // doesn't trigger the ~3 s "gesture gate timeout".
-        print("⏱️ [AppDelegate.keyboard] Scheduling keyboard prediction warmup at +0.5s")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            print("⏱️ [AppDelegate.keyboard] Keyboard prediction warmup STARTED")
-            let warmupStartTime = Date()
-            let warmupTV = UITextView()
-            warmupTV.frame = CGRect(x: -1000, y: -1000, width: 1, height: 1)
-            warmupTV.alpha = 0
-            warmupTV.autocorrectionType = .no
-            warmupTV.autocapitalizationType = .none
-            warmupTV.spellCheckingType = .no
-            warmupTV.smartDashesType = .no
-            warmupTV.smartQuotesType = .no
-            warmupTV.smartInsertDeleteType = .no
-            if #available(iOS 17.0, *) { warmupTV.inlinePredictionType = .no }
-            warmupTV.textContentType = .none
-            // Dummy inputView so becomeFirstResponder() is instant but
-            // still initializes the prediction service.
-            warmupTV.inputView = UIView(frame: .zero)
-            warmupTV.isEditable = true
-            warmupTV.isSelectable = true
-
-            guard let window = UIApplication.shared.connectedScenes
-                .compactMap({ $0 as? UIWindowScene })
-                .first?.windows.first else { 
-                print("⚠️ [AppDelegate.keyboard] No window found")
-                return 
-            }
-            print("⏱️ [AppDelegate.keyboard] Adding UITextView to window")
-            window.addSubview(warmupTV)
-            print("⏱️ [AppDelegate.keyboard] Calling becomeFirstResponder()...")
-            let beforeResponder = Date()
-            _ = warmupTV.becomeFirstResponder()
-            let responderTime = Date().timeIntervalSince(beforeResponder)
-            print("⏱️ [AppDelegate.keyboard] becomeFirstResponder() took \(String(format: "%.3f", responderTime))s")
-            
-            // Dispose after 2 s — XPC connection has been established.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                print("⏱️ [AppDelegate.keyboard] Cleanup: Total warmup time \(String(format: "%.3f", Date().timeIntervalSince(warmupStartTime)))s")
-                warmupTV.resignFirstResponder()
-                warmupTV.removeFromSuperview()
-                print("✅ [AppDelegate.keyboard] Keyboard warmup complete")
-            }
-        }
+        // Skip keyboard prediction XPC warmup - causes XPC connection invalid errors on startup
+        // This functionality is not required for the app's core functionality
+        print("⏭️ [AppDelegate.keyboard] Skipping keyboard prediction warmup (XPC disabled)")
         print("🚀 [AppDelegate.didFinishLaunchingWithOptions] END (returning true)")
         return true
     }

@@ -1,6 +1,6 @@
 //
 //  LaunchPanelView.swift
-//  KeyMod
+//  KeyCmd
 //
 //  Created by GitHub Copilot on 2026/2/25.
 //
@@ -22,7 +22,7 @@ struct LaunchPanelView: View {
             VStack(spacing: 30) {
                 // Header
                 VStack(spacing: 12) {
-                    Text("Welcome to KeyMod")
+                    Text("Welcome to KeyCmd")
                         .font(.system(size: 32, weight: .bold))
                     Text("Choose your preferred mode")
                         .font(.system(size: 16, weight: .regular))

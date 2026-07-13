@@ -475,6 +475,193 @@ extension SSHClient {
     }
 }
 
+// MARK: - Exec Channel (one-shot command execution)
+
+extension SSHClient {
+    /// Execute a single command via SSH exec channel and return captured output.
+    /// This is a one-shot helper: creates transport, connects, authenticates, runs command, cleans up.
+    static func execCommand(
+        host: String,
+        port: Int,
+        username: String,
+        password: String,
+        command: String,
+        bleManager: BLEManager,
+        timeout: TimeInterval = 30
+    ) async throws -> String {
+        let log = LogManager.shared
+        log.log("SSH exec: starting one-shot for \(username)@\(host):\(port)", category: "SSH", level: .info)
+
+        // Create transport
+        let transport = BleEthTransport(bleManager: bleManager)
+
+        // Create bridge
+        let bridge = POSIXSocketBridge()
+        try bridge.start(transport: transport)
+        log.log("SSH exec: bridge created, libssh2Fd=\(bridge.libssh2Fd)", category: "SSH", level: .info)
+
+        // Connect transport
+        transport.connect(host: host, port: port, timeoutMs: Int(timeout * 1000))
+
+        // Wait for transport connection
+        for _ in 0..<50 {
+            if transport.isConnected { break }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+        guard transport.isConnected else {
+            transport.disconnect()
+            bridge.stop()
+            throw SSHError.handshakeFailed(code: -1, detail: "BLE-Eth transport connection timeout")
+        }
+        log.log("SSH exec: transport connected", category: "SSH", level: .info)
+
+        // Create SSH client and connect
+        let client = SSHClient(host: host, port: port, username: username, password: password)
+        var connectError: String?
+        client.onError = { err in connectError = err }
+
+        return try await withCheckedThrowingContinuation { continuation in
+            client.sshQueue.async {
+                do {
+                    try client.performConnect(socketFd: bridge.libssh2Fd)
+                    log.log("SSH exec: authenticated, executing command", category: "SSH", level: .info)
+
+                    client.executeExecChannel(command: command) { result in
+                        // Cleanup
+                        client.isConnected = false
+                        if let ch = client.channel { libssh2_channel_free(ch) }
+                        if let s = client.session {
+                            libssh2_session_disconnect_ex(s, 11, "Exec done", "")
+                            libssh2_session_free(s)
+                        }
+                        client.channel = nil
+                        client.session = nil
+                        bridge.stop()
+                        transport.disconnect()
+
+                        log.log("SSH exec: done", category: "SSH", level: .info)
+                        continuation.resume(with: result)
+                    }
+                } catch {
+                    // Cleanup on connect failure
+                    client.isConnected = false
+                    bridge.stop()
+                    transport.disconnect()
+                    log.log("SSH exec: connect failed: \(error.localizedDescription)", category: "SSH", level: .error)
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    /// Open an exec channel, run command, read stdout+stderr until EOF.
+    /// Calls completion with the captured output.
+    private func executeExecChannel(command: String, completion: @escaping (Result<String, Error>) -> Void) {
+        guard let session = self.session else {
+            completion(.failure(SSHError.sessionInitFailed))
+            return
+        }
+
+        let socketFd = bridge?.libssh2Fd ?? -1
+
+        sshQueue.async { [weak self] in
+            guard let self = self else { return }
+
+            // Open a new channel for exec
+            LogManager.shared.log("SSH exec: opening exec channel", category: "SSH", level: .info)
+            var execChannel: OpaquePointer?
+            var attempts = 0
+            while attempts < 300 {
+                execChannel = libssh2_channel_open_ex(session, "session", 7, 2*1024*1024, 32768, nil, 0)
+                if execChannel != nil { break }
+                let err = libssh2_session_last_errno(session)
+                guard err == LIBSSH2_ERROR_EAGAIN else { break }
+                self.waitForSocket(socketFd, session: session)
+                attempts += 1
+            }
+            guard let execChannel = execChannel else {
+                completion(.failure(SSHError.channelOpenFailed(code: libssh2_session_last_errno(session))))
+                return
+            }
+            LogManager.shared.log("SSH exec: channel opened", category: "SSH", level: .info)
+
+            // Request exec (not shell)
+            let cmd = command
+            LogManager.shared.log("SSH exec: requesting exec: \(cmd)", category: "SSH", level: .info)
+            let execResult = self.retryEAGAIN(session: session, socketFd: socketFd) {
+                libssh2_channel_process_startup(execChannel, "exec", 4, cmd, UInt32(strlen(cmd)))
+            }
+            if execResult != 0 {
+                libssh2_channel_free(execChannel)
+                completion(.failure(SSHError.shellRequestFailed))
+                return
+            }
+            LogManager.shared.log("SSH exec: exec started, reading output", category: "SSH", level: .info)
+
+            // Read output until EOF
+            var output = Data()
+            var buffer = [UInt8](repeating: 0, count: 4096)
+            var eofReached = false
+
+            while !eofReached {
+                let bytesRead = libssh2_channel_read_ex(execChannel, 0, &buffer, buffer.count)
+
+                if bytesRead > 0 {
+                    output.append(contentsOf: buffer[..<bytesRead])
+                } else if bytesRead == 0 {
+                    // EOF
+                    eofReached = true
+                } else {
+                    let errorCode = libssh2_session_last_errno(session)
+                    if errorCode == LIBSSH2_ERROR_EAGAIN {
+                        // Check if EOF flag is set
+                        if libssh2_channel_eof(execChannel) == 1 {
+                            eofReached = true
+                        } else {
+                            self.waitForSocket(socketFd, session: session)
+                        }
+                    } else {
+                        // Error - but we may have partial output
+                        LogManager.shared.log("SSH exec: read error \(errorCode)", category: "SSH", level: .error)
+                        eofReached = true
+                    }
+                }
+            }
+
+            // Also read stderr
+            var stderrBuffer = [UInt8](repeating: 0, count: 4096)
+            while true {
+                let bytesRead = libssh2_channel_read_ex(execChannel, Int32(SSH_EXTENDED_DATA_STDERR), &stderrBuffer, stderrBuffer.count)
+                if bytesRead > 0 {
+                    output.append(contentsOf: stderrBuffer[..<bytesRead])
+                } else {
+                    break
+                }
+            }
+
+            // Get exit status BEFORE freeing the channel
+            let exitStatus = libssh2_channel_get_exit_status(execChannel)
+            let outputStr = String(data: output, encoding: .utf8) ?? String(decoding: output, as: UTF8.self)
+            LogManager.shared.log("SSH exec: captured \(outputStr.count) chars, exit code \(exitStatus)", category: "SSH", level: .info)
+
+            // Now safe to free the channel
+            libssh2_channel_free(execChannel)
+
+            // Check exit status — non-zero means the command itself failed
+            // (e.g. wrong command, file not found, permission denied)
+            if exitStatus != 0 {
+                let trimmed = outputStr.trimmingCharacters(in: .whitespacesAndNewlines)
+                let detail = trimmed.isEmpty
+                    ? "Command `\(command)` failed with exit code \(exitStatus)"
+                    : "Command `\(command)` failed (exit \(exitStatus)):\n\(trimmed)"
+                completion(.failure(SSHError.commandFailed(exitCode: Int(exitStatus), detail: detail)))
+            } else {
+                completion(.success(outputStr))
+            }
+        }
+    }
+}
+
 // MARK: - SSH Errors
 enum SSHError: Error, LocalizedError {
     case initializationFailed
@@ -484,6 +671,8 @@ enum SSHError: Error, LocalizedError {
     case channelOpenFailed(code: Int32)
     case ptyRequestFailed
     case shellRequestFailed
+    case execFailed(detail: String? = nil)
+    case commandFailed(exitCode: Int, detail: String)
 
     var errorDescription: String? {
         switch self {
@@ -501,6 +690,10 @@ enum SSHError: Error, LocalizedError {
             return "Failed to request PTY"
         case .shellRequestFailed:
             return "Failed to start shell"
+        case .execFailed(let detail):
+            return detail ?? "Failed to execute command"
+        case .commandFailed(let exitCode, let detail):
+            return detail
         }
     }
 }

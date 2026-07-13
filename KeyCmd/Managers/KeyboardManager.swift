@@ -1109,9 +1109,17 @@ class KeyboardManager: ObservableObject {
     
     // MARK: - Text Input with Special Token Support
     
+    /// Synchronous variant — blocks the calling thread until all tokens are sent.
+    /// Must NOT be called from the main thread (the internal work sleeps with usleep()).
+    func handleTextInputWithTokensSync(_ text: String) {
+        let sem = DispatchSemaphore(value: 0)
+        handleTextInputWithTokens(text) { sem.signal() }
+        sem.wait()
+    }
+
     /// Parse and handle text input with special tokens (e.g., <CTRL>, <SHIFT>, <ALT>, <CMD>, <F1>-<F12>)
     /// Supports composite keys: <CTRL>A</CTRL> means press Ctrl, press A, release all
-    func handleTextInputWithTokens(_ text: String) {
+    func handleTextInputWithTokens(_ text: String, completion: (() -> Void)? = nil) {
         // ── Pre-process <Macro>label</Macro> blocks ────────────────
         // Replace each block with a deterministic uppercase placeholder so the
         // main tokenizer (which only accepts uppercase tags) can handle them.
@@ -1170,10 +1178,12 @@ class KeyboardManager: ObservableObject {
                     }
                 }
                 // Handle delay tokens
-                else if token == "<DELAY1S>" || token == "<DELAY2S>" || token == "<DELAY5S>" || token == "<DELAY10S>" {
+                else if token == "<DELAY1S>" || token == "<DELAY2S>" || token == "<DELAY3S>" || token == "<DELAY4S>" || token == "<DELAY5S>" || token == "<DELAY10S>" {
                     switch token {
                     case "<DELAY1S>":  usleep(1_000_000)
                     case "<DELAY2S>":  usleep(2_000_000)
+                    case "<DELAY3S>":  usleep(3_000_000)
+                    case "<DELAY4S>":  usleep(4_000_000)
                     case "<DELAY5S>":  usleep(5_000_000)
                     default:           usleep(10_000_000)
                     }
@@ -1224,7 +1234,7 @@ class KeyboardManager: ObservableObject {
                 }
                 // Inter-token gap. Skip for delay tokens (already slept) and
                 // multi-char tokens (per-char gap applied above).
-                let isDelayToken = token == "<DELAY1S>" || token == "<DELAY2S>" || token == "<DELAY5S>" || token == "<DELAY10S>"
+                let isDelayToken = token == "<DELAY1S>" || token == "<DELAY2S>" || token == "<DELAY3S>" || token == "<DELAY4S>" || token == "<DELAY5S>" || token == "<DELAY10S>"
                 let isSpecial = token.hasPrefix("<") && token.hasSuffix(">") && !token.hasPrefix("</")
                 if !isDelayToken && (token.count <= 1 || isSpecial) {
                     usleep(self.keyDelayUs)
@@ -1239,6 +1249,7 @@ class KeyboardManager: ObservableObject {
                     self.releaseAllKeys()
                 }
             }
+            completion?()
         }
     }
     

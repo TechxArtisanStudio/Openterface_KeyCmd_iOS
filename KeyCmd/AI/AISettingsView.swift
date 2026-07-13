@@ -19,18 +19,11 @@ struct AISettingsView: View {
     
     var body: some View {
         Group {
-            APIConfigurationSection(tempAPIKey: $tempAPIKey, showAPIKeyField: $showAPIKeyField)
+            APIConfigurationSection()
             
             if aiSettings.isEnabled {
                 AIProviderSettingSection()
                 APIKeyManagementSection(tempAPIKey: $tempAPIKey, showAPIKeyField: $showAPIKeyField)
-                RoleManagementSection()
-                PromptManagementSection()
-                TestingSection(
-                    isTestingAPI: $isTestingAPI,
-                    testResult: $testResult,
-                    testError: $testError
-                )
             }
         }
     }
@@ -39,9 +32,7 @@ struct AISettingsView: View {
 // MARK: - API Configuration Section
 struct APIConfigurationSection: View {
     @ObservedObject private var aiSettings = AISettings.shared
-    @Binding var tempAPIKey: String
-    @Binding var showAPIKeyField: Bool
-    
+
     var body: some View {
         Section(header: Text("API Configuration")) {
             HStack {
@@ -52,69 +43,46 @@ struct APIConfigurationSection: View {
             Text("After voice input, AI will check intention and refine text")
                 .font(.caption)
                 .foregroundColor(.secondary)
-            
-            if aiSettings.isEnabled {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("API Key")
-                        Spacer()
-                        Text(aiSettings.apiKeyStatus)
-                            .font(.caption)
-                            .foregroundColor(aiSettings.apiKeyStatus.contains("✓") ? .green : .red)
-                    }
-                    
-                    if showAPIKeyField {
-                        SecureField("Enter OpenAI API Key", text: $tempAPIKey)
-                            .textInputAutocapitalization(.never)
-                            .disableAutocorrection(true)
-                            .padding(8)
-                            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.gray, lineWidth: 0.5))
-                        
-                        HStack(spacing: 8) {
-                            Button("Save") {
-                                if !tempAPIKey.isEmpty {
-                                    aiSettings.saveAPIKey(tempAPIKey)
-                                    tempAPIKey = ""
-                                    showAPIKeyField = false
-                                }
-                            }
-                            .foregroundColor(.blue)
-                            
-                            Button("Cancel") {
-                                tempAPIKey = ""
-                                showAPIKeyField = false
-                            }
-                            .foregroundColor(.gray)
-                        }
-                    } else {
-                        Button("Update API Key") {
-                            showAPIKeyField = true
-                            tempAPIKey = ""
-                        }
-                        .foregroundColor(.blue)
-                    }
-                }
-            }
         }
     }
 }
 // MARK: - AI Provider Setting Section
 struct AIProviderSettingSection: View {
     @ObservedObject private var aiSettings = AISettings.shared
-    
+    @ObservedObject private var localModel = LocalModelManager.shared
+    @State private var showAddAlert = false
+    @State private var showDeleteAlert = false
+    @State private var isTestingAPI = false
+    @State private var testResult: String?
+    @State private var testError: String?
+
+    private func confirmAddProvider() {
+        let newProvider = aiSettings.addProvider()
+        aiSettings.selectProvider(newProvider.id)
+        showAddAlert = false
+    }
+
+    private func confirmDeleteProvider() {
+        if let selectedProvider = aiSettings.selectedProvider {
+            aiSettings.deleteProvider(selectedProvider.id)
+        }
+        showDeleteAlert = false
+    }
+
     var body: some View {
         Section(header: Text("AI Provider Setting")) {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Select or manage AI providers")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                
+
                 if !aiSettings.providers.isEmpty {
                     Picker("Active Provider", selection: Binding(
                         get: { aiSettings.selectedProviderId },
                         set: { newId in
                             if let provider = aiSettings.providers.first(where: { $0.id.uuidString == newId }) {
                                 aiSettings.selectProvider(provider.id)
+                                LocalModelManager.shared.selectModel(for: provider.apiBaseURL)
                             }
                         }
                     )) {
@@ -131,37 +99,252 @@ struct AIProviderSettingSection: View {
                     .pickerStyle(.menu)
                     .padding(8)
                     .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.gray, lineWidth: 0.5))
-                }
-                
-                Button(action: {
-                    let newProvider = aiSettings.addProvider()
-                    aiSettings.selectProvider(newProvider.id)
-                }) {
-                    Label("Add New Provider", systemImage: "plus.circle")
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.green.opacity(0.1))
-                        .foregroundColor(.green)
-                        .cornerRadius(8)
-                }
-                
-                if let selectedProvider = aiSettings.selectedProvider {
-                    ProviderEditFields(provider: selectedProvider)
-                    
-                    if aiSettings.providers.count > 1 {
-                        Button(action: {
-                            aiSettings.deleteProvider(selectedProvider.id)
-                        }) {
-                            Label("Delete This Provider", systemImage: "trash")
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.red.opacity(0.1))
-                                .foregroundColor(.red)
-                                .cornerRadius(8)
+                    .disabled(localModel.isDownloading)
+
+                    // Show validation warning if selected provider is invalid
+                    if let validationError = aiSettings.getValidationError() {
+                        HStack(spacing: 4) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                                .font(.caption)
+                            Text(validationError)
+                                .font(.caption)
+                                .foregroundColor(.orange)
                         }
+                        .padding(.horizontal, 8)
                     }
                 }
+
+                Label("Add New Provider", systemImage: "plus.circle")
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color.green.opacity(0.1))
+                    .foregroundColor(.green)
+                    .cornerRadius(8)
+                    .onTapGesture {
+                        showAddAlert = true
+                    }
+                    .disabled(localModel.isDownloading)
+                    .alert("Add New Provider?", isPresented: $showAddAlert) {
+                        Button("Add Provider") {
+                            confirmAddProvider()
+                        }
+                        Button("Cancel", role: .cancel) { }
+                    } message: {
+                        Text("This will create a new AI provider configuration.")
+                    }
+
+                if let selectedProvider = aiSettings.selectedProvider {
+                    // Show download UI for local providers
+                    if selectedProvider.apiBaseURL.hasPrefix("local://") {
+                        LocalModelDownloadView()
+                    }
+
+                    // Always show editable provider fields
+                    ProviderEditFields(provider: selectedProvider)
+
+                    if aiSettings.providers.count > 1 {
+                        Label("Delete This Provider", systemImage: "trash")
+                            .padding()
+                            .frame(maxWidth: .infinity)
+                            .background(Color.red.opacity(0.1))
+                            .foregroundColor(.red)
+                            .cornerRadius(8)
+                            .onTapGesture {
+                                showDeleteAlert = true
+                            }
+                            .disabled(localModel.isDownloading)
+                            .alert("Delete This Provider?", isPresented: $showDeleteAlert) {
+                                Button("Delete Provider", role: .destructive) {
+                                    confirmDeleteProvider()
+                                }
+                                Button("Cancel", role: .cancel) { }
+                            } message: {
+                                Text("This will permanently remove the selected provider.")
+                            }
+                    }
+
+                    TestingSection(
+                        isTestingAPI: $isTestingAPI,
+                        testResult: $testResult,
+                        testError: $testError
+                    )
+                }
             }
+        }
+        .onAppear {
+            if let selectedProvider = aiSettings.selectedProvider {
+                LocalModelManager.shared.selectModel(for: selectedProvider.apiBaseURL)
+            }
+        }
+    }
+}
+
+// MARK: - Local Model Download UI
+struct LocalModelDownloadView: View {
+    @ObservedObject private var localModel = LocalModelManager.shared
+    @State private var showDownloadConfirmation = false
+    @State private var showDeleteLocalModelConfirmation = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Local \(localModel.activeModel.displayName) Model")
+                .font(.headline)
+
+            Text("On-device AI model for simple offline requests. No API key needed.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            Divider()
+
+            // Model source picker (only when not downloading)
+            if case .notDownloaded = localModel.state {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Download Source")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Picker("Source", selection: Binding(
+                        get: { localModel.modelSource },
+                        set: { localModel.modelSource = $0 }
+                    )) {
+                        ForEach(LocalModelManager.ModelSource.allCases, id: \.self) { source in
+                            Text(source.displayName).tag(source)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+            }
+
+            switch localModel.state {
+            case .notDownloaded:
+                Button(action: { showDownloadConfirmation = true }) {
+                    Label("Download from \(localModel.modelSource.displayName)", systemImage: "arrow.down.circle")
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+                }
+                .confirmationDialog(
+                    "Download \(localModel.activeModel.displayName) Model?",
+                    isPresented: $showDownloadConfirmation,
+                    titleVisibility: .visible
+                ) {
+                    Button("Download (~\(localModel.activeModel.approxSizeMB)MB) from \(localModel.modelSource.displayName)") {
+                        localModel.startDownload()
+                    }
+                    Button("Cancel", role: .cancel) { }
+                } message: {
+                    Text("This will download approximately \(localModel.activeModel.approxSizeMB)MB of model data from \(localModel.modelSource.displayName). Make sure you have enough storage and a stable internet connection.")
+                }
+
+            case .downloading(let progress):
+                VStack(spacing: 8) {
+                    HStack {
+                        Text("Source: \(localModel.modelSource.displayName)")
+                            .font(.caption2)
+                            .foregroundColor(.blue)
+                        Spacer()
+                    }
+                    ProgressView(value: progress) {
+                        Text("Downloading… \(Int(progress * 100))%")
+                            .font(.caption)
+                    }
+                    .progressViewStyle(.linear)
+
+                    HStack {
+                        Text("Downloading model files (~\(localModel.activeModel.approxSizeMB)MB). This may take several minutes.")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Button("Cancel", role: .destructive) {
+                            localModel.cancelDownload()
+                        }
+                        .font(.caption)
+                    }
+                }
+                .padding()
+                .background(Color.blue.opacity(0.05))
+                .cornerRadius(8)
+
+            case .downloaded:
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                    Text("Model Ready")
+                        .foregroundColor(.green)
+                    Spacer()
+                    Button(action: { showDeleteLocalModelConfirmation = true }) {
+                        Label("Delete", systemImage: "trash")
+                    }
+                    .foregroundColor(.red)
+                }
+                .padding()
+                .background(Color.green.opacity(0.1))
+                .cornerRadius(8)
+
+            case .loading:
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                    Text("Loading model into memory…")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+            case .ready:
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                    Text("Model Loaded & Ready")
+                        .foregroundColor(.green)
+                    Spacer()
+                    Button(action: { showDeleteLocalModelConfirmation = true }) {
+                        Label("Delete", systemImage: "trash")
+                    }
+                    .foregroundColor(.red)
+                }
+                .padding()
+                .background(Color.green.opacity(0.1))
+                .cornerRadius(8)
+
+            case .error(let message):
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .foregroundColor(.red)
+                        Text("Download Failed")
+                            .foregroundColor(.red)
+                    }
+                    Text(message)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Button(action: { localModel.startDownload() }) {
+                        Label("Retry Download", systemImage: "arrow.clockwise")
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.blue)
+                            .foregroundColor(.white)
+                            .cornerRadius(8)
+                    }
+                }
+                .padding()
+                .background(Color.red.opacity(0.1))
+                .cornerRadius(8)
+            }
+        }
+        .padding(.vertical, 8)
+        .confirmationDialog("Delete Local Model?",
+            isPresented: $showDeleteLocalModelConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                localModel.deleteModel()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This will delete the downloaded model file and free up approximately \(localModel.activeModel.approxSizeMB)MB of storage.")
         }
     }
 }
@@ -170,14 +353,22 @@ struct AIProviderSettingSection: View {
 struct ProviderEditFields: View {
     @ObservedObject private var aiSettings = AISettings.shared
     let provider: AIProvider
-    
+
+    private var isURLValid: Bool {
+        !provider.apiBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var isModelValid: Bool {
+        !provider.modelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var body: some View {
         if let selectedProvider = aiSettings.selectedProvider {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Edit Provider: \(selectedProvider.name)")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                
+
                 TextField("Provider Name", text: Binding(
                     get: { selectedProvider.name },
                     set: { newName in
@@ -189,7 +380,7 @@ struct ProviderEditFields: View {
                 .textInputAutocapitalization(.words)
                 .padding(8)
                 .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.gray, lineWidth: 0.5))
-                
+
                 TextField("API Base URL", text: Binding(
                     get: { selectedProvider.apiBaseURL },
                     set: { newURL in
@@ -201,8 +392,16 @@ struct ProviderEditFields: View {
                 .textInputAutocapitalization(.never)
                 .disableAutocorrection(true)
                 .padding(8)
-                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.gray, lineWidth: 0.5))
-                
+                .overlay(
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(isURLValid ? Color.gray : Color.red, lineWidth: isURLValid ? 0.5 : 1.5)
+                )
+                if !isURLValid {
+                    Text("API Base URL is required")
+                        .font(.caption2)
+                        .foregroundColor(.red)
+                }
+
                 TextField("Model Name", text: Binding(
                     get: { selectedProvider.modelName },
                     set: { newModel in
@@ -214,8 +413,16 @@ struct ProviderEditFields: View {
                 .textInputAutocapitalization(.never)
                 .disableAutocorrection(true)
                 .padding(8)
-                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.gray, lineWidth: 0.5))
-                
+                .overlay(
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(isModelValid ? Color.gray : Color.red, lineWidth: isModelValid ? 0.5 : 1.5)
+                )
+                if !isModelValid {
+                    Text("Model Name is required")
+                        .font(.caption2)
+                        .foregroundColor(.red)
+                }
+
                 HStack {
                     Text("API Key Optional")
                     Spacer()
@@ -521,9 +728,48 @@ struct TestingSection: View {
         isTestingAPI = true
         testResult = nil
         testError = nil
-        
+
+        // Check if this is a local provider
+        if let provider = aiSettings.selectedProvider, provider.apiBaseURL.hasPrefix("local://") {
+            // Guard: ensure model is downloaded; generate() will load it if needed
+            guard LocalModelManager.shared.isModelDownloaded() else {
+                isTestingAPI = false
+                testResult = nil
+                testError = "Local model not downloaded. Please download the model first."
+                LogManager.shared.log("❌ Local model not downloaded for testing", category: "SettingsView", level: .error)
+                return
+            }
+
+            // Test local model instead of HTTP API
+            Task {
+                do {
+                    let testText = "Test message from iOS app"
+                    let response = try await LocalModelManager.shared.generate(
+                        system: "You are a helpful assistant.",
+                        user: testText
+                    )
+                    await MainActor.run {
+                        isTestingAPI = false
+                        let modelInfo = provider.modelName
+                        testResult = "Provider: \(provider.name)\nModel: \(modelInfo)\nResponse: \(response.prefix(100))..."
+                        testError = nil
+                        LogManager.shared.log("✅ Local model test successful", category: "SettingsView", level: .info)
+                    }
+                } catch {
+                    await MainActor.run {
+                        isTestingAPI = false
+                        testResult = nil
+                        testError = error.localizedDescription
+                        LogManager.shared.log("❌ Local model test failed: \(error.localizedDescription)", category: "SettingsView", level: .error)
+                    }
+                }
+            }
+            return
+        }
+
+        // HTTP API test for remote providers
         let testText = "Test message from iOS app"
-        
+
         AITextRefinementManager.shared.refineText(input: testText) { result in
             DispatchQueue.main.async {
                 isTestingAPI = false

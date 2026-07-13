@@ -31,7 +31,7 @@ class MacroManager: ObservableObject {
             "<ESC>", "<BACK>", "<ENTER>", "<SPACE>", 
             "<LEFT>", "<RIGHT>", "<UP>", "<DOWN>",
             "<HOME>", "<END>",
-            "<DELAY1S>", "<DELAY2S>", "<DELAY5S>", "<DELAY10S>",
+            "<DELAY1S>", "<DELAY2S>", "<DELAY3S>", "<DELAY4S>", "<DELAY5S>", "<DELAY10S>",
             "<CTRL>", "<SHIFT>", "<ALT>", "<CMD>"
         ]
         return specialKeys.contains(token)
@@ -191,6 +191,8 @@ class MacroManager: ObservableObject {
             // ── Explicit delay tokens ────────────────────────────────────
             case "<DELAY1S>":  usleep(1_000_000)
             case "<DELAY2S>":  usleep(2_000_000)
+            case "<DELAY3S>":  usleep(3_000_000)
+            case "<DELAY4S>":  usleep(4_000_000)
             case "<DELAY5S>":  usleep(5_000_000)
             case "<DELAY10S>": usleep(10_000_000)
 
@@ -211,7 +213,7 @@ class MacroManager: ObservableObject {
             }
 
             switch token {
-            case "<DELAY1S>", "<DELAY2S>", "<DELAY5S>", "<DELAY10S>": break
+            case "<DELAY1S>", "<DELAY2S>", "<DELAY3S>", "<DELAY4S>", "<DELAY5S>", "<DELAY10S>": break
             default:
                 usleep(useconds_t(item.intervalMs * 1000))
             }

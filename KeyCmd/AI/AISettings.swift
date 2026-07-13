@@ -143,6 +143,16 @@ class AISettings: ObservableObject {
             }
         }
     }
+
+    /// Max terminal steps the planner can emit in a single plan. Hard cap prevents runaway plans.
+    @Published var agentMaxSteps: Int {
+        didSet { UserDefaults.standard.set(agentMaxSteps, forKey: "AISettings.agentMaxSteps") }
+    }
+
+    /// Max times the agent will retry failed terminal steps with alternative commands.
+    @Published var agentMaxRetries: Int {
+        didSet { UserDefaults.standard.set(agentMaxRetries, forKey: "AISettings.agentMaxRetries") }
+    }
     
     // MARK: - System Prompt Roles (sourced from AIConfigManager)
 
@@ -183,7 +193,12 @@ class AISettings: ObservableObject {
         }
         var mutableProviders = loadedProviders
 
-        // Migration: ensure Local Qwen presets exist for existing users
+        // Migration: ensure Local Qwen presets exist and have apiKeyOptional=true
+        for i in mutableProviders.indices {
+            if mutableProviders[i].apiBaseURL.hasPrefix("local://") && !mutableProviders[i].apiKeyOptional {
+                mutableProviders[i].apiKeyOptional = true
+            }
+        }
         if !mutableProviders.contains(where: { $0.apiBaseURL == "local://qwen3-0.6b" }) {
             let smallPreset = AIProvider(name: "Local Qwen 0.6B",
                                          apiBaseURL: "local://qwen3-0.6b",
@@ -191,10 +206,10 @@ class AISettings: ObservableObject {
                                          apiKeyOptional: true)
             mutableProviders.append(smallPreset)
         }
-        if !mutableProviders.contains(where: { $0.apiBaseURL == "local://qwen3-4b" }) {
-            let largePreset = AIProvider(name: "Local Qwen 4B",
-                                          apiBaseURL: "local://qwen3-4b",
-                                          modelName: "Qwen3-4B-Instruct-2507-4bit",
+        if !mutableProviders.contains(where: { $0.apiBaseURL == "local://qwen3-1.7b" }) {
+            let largePreset = AIProvider(name: "Local Qwen 1.7B",
+                                          apiBaseURL: "local://qwen3-1.7b",
+                                          modelName: "Qwen3-1.7B-4bit",
                                           apiKeyOptional: true)
             mutableProviders.append(largePreset)
         }
@@ -240,8 +255,12 @@ class AISettings: ObservableObject {
         self.bleKeyDelayMs = UserDefaults.standard.object(forKey: "AISettings.bleKeyDelayMs") as? Int ?? 10
 
         // Initialize targetOS
-        let osRaw = UserDefaults.standard.string(forKey: "AISettings.targetOS") ?? TargetOS.windows.rawValue
-        self.targetOS = TargetOS(rawValue: osRaw) ?? .windows
+        let osRaw = UserDefaults.standard.string(forKey: "AISettings.targetOS") ?? TargetOS.linux.rawValue
+        self.targetOS = TargetOS(rawValue: osRaw) ?? .linux
+
+        // Initialize agent limits (ponytail: hardcoded defaults — change via Settings UI)
+        self.agentMaxSteps = UserDefaults.standard.object(forKey: "AISettings.agentMaxSteps") as? Int ?? 10
+        self.agentMaxRetries = UserDefaults.standard.object(forKey: "AISettings.agentMaxRetries") as? Int ?? 3
 
         updateAPIKeyStatus()
 
@@ -255,7 +274,12 @@ class AISettings: ObservableObject {
     
     // MARK: - Provider Management
     var selectedProvider: AIProvider? {
-        providers.first(where: { $0.id.uuidString == selectedProviderId })
+        // First try to match by UUID (for user-added providers)
+        if let provider = providers.first(where: { $0.id.uuidString == selectedProviderId }) {
+            return provider
+        }
+        // Fallback: match by name (for config-loaded providers with new UUIDs)
+        return providers.first(where: { $0.name == selectedProviderId })
     }
     
     func addProvider(name: String = "New Provider", apiBaseURL: String = "", modelName: String = "") -> AIProvider {

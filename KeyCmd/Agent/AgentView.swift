@@ -13,11 +13,11 @@ struct AgentView: View {
     @ObservedObject private var aiSettings = AISettings.shared
     private let credentialManager = CredentialManager.shared
 
-    init(keyboardManager: KeyboardManager) {
+    init(keyboardManager: KeyboardManager, bleManager: BLEManager) {
         self.keyboardManager = keyboardManager
         let macroManager = MacroManager(keyboardManager: keyboardManager)
         _macroManager = StateObject(wrappedValue: macroManager)
-        _session = StateObject(wrappedValue: AgentSession(keyboardManager: keyboardManager, macroManager: macroManager))
+        _session = StateObject(wrappedValue: AgentSession(keyboardManager: keyboardManager, macroManager: macroManager, bleManager: bleManager))
     }
 
     private var isConfigured: Bool { aiSettings.isConfigured() }
@@ -72,6 +72,16 @@ struct AgentView: View {
                     .font(.caption)
                     .foregroundColor(.primary)
                     .lineLimit(1)
+
+                Button(action: {
+                    LogManager.shared.log("Clearing session", category: "Agent", level: .info)
+                    session.reset()
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 2)
+                }
             } else {
                 // No profile: show OS name
                 Image(aiSettings.targetOS.imageName)
@@ -84,13 +94,24 @@ struct AgentView: View {
                 Text("Target: \(aiSettings.targetOS.displayName)")
                     .font(.caption)
                     .foregroundColor(.primary)
+
+                Button(action: {
+                    LogManager.shared.log("Resetting target OS to macOS", category: "Agent", level: .info)
+                    aiSettings.targetOS = TargetOS.macOS
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 2)
+                }
             }
 
             Spacer()
 
-            Text(isConfigured ? "AGENT READY" : "NOT CONFIGURED")
+            Text(isConfigured ? (aiSettings.selectedProvider?.modelName ?? "AGENT READY") : "NOT CONFIGURED")
                 .font(.caption2.weight(.bold))
                 .foregroundColor(isConfigured ? .green : .secondary)
+                .lineLimit(1)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
                 .background(Capsule().fill(isConfigured ? Color.green.opacity(0.12) : Color.secondary.opacity(0.12)))
@@ -115,7 +136,45 @@ struct AgentView: View {
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
+
+            faqChips
+                .padding(.horizontal, 24)
+                .padding(.top, 8)
+
             Spacer()
+        }
+    }
+
+    // ponytail: static list — promote to config if users ask for customization
+    private static let faqItems: [(icon: String, title: String, prompt: String)] = [
+        ("info.circle",        "Check OS version",      "Check the OS version of the target machine"),
+        ("internaldrive",      "Check free disk size",  "Show free disk space on the target machine"),
+        ("memory",             "Check memory usage",    "Show memory usage on the target machine"),
+        ("clock",              "Check uptime",          "Show how long the target machine has been running"),
+        ("network",            "Check IP address",      "Show the IP address of the target machine"),
+        ("cpu",                "Check CPU load",        "Show current CPU load on the target machine"),
+    ]
+
+    private var faqChips: some View {
+        let columns = [GridItem(.adaptive(minimum: 150), spacing: 8)]
+        return LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
+            ForEach(Self.faqItems, id: \.prompt) { item in
+                Button {
+                    session.submit(prompt: item.prompt)
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: item.icon).font(.caption)
+                        Text(item.title).font(.caption.weight(.medium))
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(UIColor.tertiarySystemFill))
+                    .foregroundColor(.primary)
+                    .cornerRadius(10)
+                }
+                .disabled(session.isThinking || session.isExecuting)
+            }
         }
     }
 
@@ -148,13 +207,13 @@ struct AgentView: View {
         case .user:
             userBubble(msg.text ?? "")
         case .assistant:
-            assistantBubble(msg.text ?? "")
+            assistantBubble(text: msg.text ?? "", isError: msg.isError)
         case .plan:
             planCard(msg.planSteps)
         case .actBar:
             actBar
         case .executionCli:
-            cliCard(msg.terminalLines)
+            cliCard(command: msg.terminalCommand ?? "", outputLines: msg.terminalOutputLines, status: msg.terminalStatus ?? "running")
         case .executionMacro:
             macroCard(
                 steps: msg.macroSteps,
@@ -168,12 +227,22 @@ struct AgentView: View {
     private var thinkingRow: some View {
         HStack(spacing: 8) {
             ProgressView()
-            Text("Thinking\u{2026}")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+            if session.receivedTokens > 0 {
+                Text("Receiving… \(session.receivedTokens) tokens")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .animation(.easeOut(duration: 0.15), value: session.receivedTokens)
+                    .transition(.opacity.combined(with: .move(edge: .leading)))
+            } else {
+                Text("Thinking\u{2026}")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .transition(.opacity)
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
+        .animation(.easeOut(duration: 0.2), value: session.receivedTokens > 0)
     }
 
     // MARK: - Bubbles
@@ -191,17 +260,34 @@ struct AgentView: View {
         .padding(.horizontal, 12)
     }
 
-    private func assistantBubble(_ text: String) -> some View {
+    private func assistantBubble(text: String, isError: Bool) -> some View {
         HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "sparkles")
-                .foregroundColor(.accentColor)
+            Image(systemName: isError ? "exclamationmark.triangle" : "sparkles")
+                .foregroundColor(isError ? .red : .accentColor)
                 .padding(.top, 4)
-            Text(text)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color(UIColor.tertiarySystemFill))
-                .foregroundColor(.primary)
-                .cornerRadius(14)
+            VStack(alignment: .leading, spacing: 6) {
+                MarkdownText(text: text)
+                    .foregroundColor(.primary)
+                if isError {
+                    Button {
+                        session.regeneratePlan()
+                    } label: {
+                        Label("Retry", systemImage: "arrow.clockwise")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(Capsule().fill(Color.red))
+                    }
+                    .disabled(session.isThinking || session.isExecuting)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(isError ? Color.red.opacity(0.08) : Color(UIColor.tertiarySystemFill))
+            )
             Spacer()
         }
         .padding(.horizontal, 12)
@@ -210,10 +296,34 @@ struct AgentView: View {
     // MARK: - Plan Card
 
     private func planCard(_ steps: [AgentPlanStep]) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("PLAN")
-                .font(.caption.weight(.bold))
-                .foregroundColor(.accentColor)
+        let hidMode = session.isHIDMode
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Text("PLAN")
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(.accentColor)
+
+                if session.receivedTokens > 0 {
+                    Text("\(session.receivedTokens) tokens")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                if hidMode {
+                    HStack(spacing: 3) {
+                        Image(systemName: AISettings.shared.targetOS.systemImage)
+                            .font(.caption2)
+                        Image(systemName: "keyboard")
+                            .font(.caption2)
+                        Text("HID")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundColor(.orange)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Color.orange.opacity(0.15)))
+                }
+            }
             ForEach(steps) { step in
                 HStack(alignment: .top, spacing: 10) {
                     Text("\(step.index)")
@@ -223,9 +333,14 @@ struct AgentView: View {
                         .background(Circle().fill(Color.accentColor))
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
-                            Image(systemName: icon(for: step.kind))
+                            Image(systemName: icon(for: step.kind, hidMode: hidMode))
                                 .font(.caption)
                                 .foregroundColor(.secondary)
+                            if step.kind == .hid || hidMode {
+                                Image(systemName: AISettings.shared.targetOS.systemImage)
+                                    .font(.caption2)
+                                    .foregroundColor(hidMode ? .orange : .secondary)
+                            }
                             Text(step.title)
                                 .font(.subheadline.weight(.medium))
                                 .foregroundColor(.primary)
@@ -247,14 +362,14 @@ struct AgentView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.accentColor.opacity(0.5), lineWidth: 1)
+                .stroke(hidMode ? Color.orange.opacity(0.5) : Color.accentColor.opacity(0.5), lineWidth: 1)
         )
         .padding(.horizontal, 12)
     }
 
-    private func icon(for kind: AgentPlanStep.Kind) -> String {
+    private func icon(for kind: AgentPlanStep.Kind, hidMode: Bool) -> String {
         switch kind {
-        case .terminal: return "terminal"
+        case .terminal: return hidMode ? "keyboard" : "terminal"
         case .macro: return "list.bullet.rectangle"
         case .hid: return "keyboard"
         }
@@ -289,28 +404,58 @@ struct AgentView: View {
                     )
             }
         }
+        .onLongPressGesture {
+            session.reexecutePlan()
+        }
         .padding(.horizontal, 12)
     }
 
     // MARK: - CLI Card
 
-    private func cliCard(_ lines: [String]) -> some View {
+    private func cliCard(command: String, outputLines: [String], status: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
+            // Header
             HStack(spacing: 6) {
-                Image(systemName: "terminal").font(.caption)
+                Image(systemName: status == "error" ? "exclamationmark.triangle" : "terminal").font(.caption)
                 Text(NSLocalizedString("terminal_title", comment: "Terminal view title")).font(.caption.weight(.semibold))
+                Spacer()
+                Text(status == "running" ? "Running..." : (status == "error" ? "Error" : "Done"))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundColor(status == "error" ? .red : (status == "running" ? .orange : .green))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(
+                        Capsule().fill(
+                            (status == "error" ? Color.red : (status == "running" ? Color.orange : Color.green)).opacity(0.12)
+                        )
+                    )
             }
             .foregroundColor(.secondary)
-            Text(lines.joined(separator: "\n"))
+
+            // Command
+            Text(command)
                 .font(.system(.caption, design: .monospaced))
                 .foregroundColor(.primary)
                 .textSelection(.enabled)
+
+            // Output
+            if !outputLines.isEmpty {
+                Text(outputLines.joined(separator: "\n"))
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundColor(.secondary)
+                    .textSelection(.enabled)
+                    .padding(.top, 2)
+            }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(Color.black.opacity(0.05))
+                .fill(status == "error" ? Color.red.opacity(0.05) : Color.black.opacity(0.05))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(status == "error" ? Color.red.opacity(0.3) : Color.clear, lineWidth: 1)
         )
         .padding(.horizontal, 12)
     }

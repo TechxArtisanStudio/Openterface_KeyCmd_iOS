@@ -35,6 +35,18 @@
       "apiBaseURL": "https://open.bigmodel.cn/api/paas/v4",
       "modelName": "glm-4-flash",
       "apiKeyOptional": false
+    },
+    {
+      "name": "Local Qwen 0.6B",
+      "apiBaseURL": "local://qwen3-0.6b",
+      "modelName": "Qwen3-0.6B-4bit",
+      "apiKeyOptional": true
+    },
+    {
+      "name": "Local Qwen 1.7B",
+      "apiBaseURL": "local://qwen3-1.7b",
+      "modelName": "Qwen3-1.7B-4bit",
+      "apiKeyOptional": true
     }
   ],
   "roles": [
@@ -55,6 +67,18 @@
       "name": "Agent Planner",
       "description": "Generate execution plans for the Agent to run on the connected device",
       "promptFile": "Prompts/agent_planner.md"
+    },
+    {
+      "id": "agent_planner_terminal",
+      "name": "Agent Planner (Terminal)",
+      "description": "Planner prompt when SSH terminal is active — focused on shell commands",
+      "promptFile": "Prompts/agent_planner_terminal.md"
+    },
+    {
+      "id": "agent_planner_hid",
+      "name": "Agent Planner (HID)",
+      "description": "Planner prompt when no SSH — focused on BLE keyboard input",
+      "promptFile": "Prompts/agent_planner_hid.md"
     },
     {
       "id": "custom",
