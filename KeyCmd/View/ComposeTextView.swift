@@ -725,26 +725,42 @@ struct SavedTextRow: View {
                 }
                 Text(item.title).font(.system(size: 15, weight: .semibold))
                 Spacer()
-                Text(item.createdAt, style: .date).font(.caption2).foregroundColor(.secondary)
+                Menu {
+                    Button {
+                        onPin(item.id)
+                    } label: {
+                        Label(item.pinned ? "Unpin" : "Pin to Top",
+                              systemImage: item.pinned ? "pin.slash" : "pin")
+                    }
+                    Button {
+                        onRename(item)
+                    } label: {
+                        Label("Rename", systemImage: "pencil")
+                    }
+                    Button(role: .destructive) {
+                        onDelete(item.id)
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.secondary)
+                }
             }
-            Text(bodyPreview).font(.system(size: 13)).foregroundColor(.secondary).lineLimit(1)
+            HStack(spacing: 4) {
+                Text(item.createdAt, style: .date)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                Text("· \(bodyPreview)")
+                    .font(.system(size: 13))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+            }
         }
         .contentShape(Rectangle())
         .background(isSelected ? Color.blue.opacity(0.12) : Color.clear)
         .onTapGesture { onSelect(item) }
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button(role: .destructive) { onDelete(item.id) } label: {
-                Label("Delete", systemImage: "trash")
-            }
-            Button { onRename(item) } label: {
-                Label("Rename", systemImage: "pencil")
-            }
-            .tint(.blue)
-            Button { onPin(item.id) } label: {
-                Label(item.pinned ? "Unpin" : "Pin", systemImage: item.pinned ? "pin.slash" : "pin")
-            }
-            .tint(.orange)
-        }
     }
 
     private var bodyPreview: String {
