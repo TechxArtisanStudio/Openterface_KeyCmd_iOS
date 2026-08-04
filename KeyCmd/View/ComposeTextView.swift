@@ -746,6 +746,8 @@ struct SavedTextRow: View {
                     Image(systemName: "ellipsis")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(.secondary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
             }
             HStack(spacing: 4) {
