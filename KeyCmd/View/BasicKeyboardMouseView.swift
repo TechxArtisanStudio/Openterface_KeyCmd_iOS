@@ -990,9 +990,12 @@ struct BasicKeyboardMouseView: View {
         }
 
         // Rows 1-2 at half height, rows 3-6 equal.
-        // Total spacing: 5 gaps × 6pt = 30pt. 8pt top padding.
+        // Total spacing: 5 gaps × 6pt = 30pt.
+        // NOTE: The visual layouts treat the 8pt top padding as an offset that does
+        // NOT reduce the row budget (Windows: `geo.size.height - 30`, Mac: `geo.size.height - 15`).
+        // The touch layer must match this convention, so the 8pt is NOT subtracted here.
         let totalSpacing = CGFloat(5) * 6
-        let remaining = max(0, size.height - totalSpacing - 8)
+        let remaining = max(0, size.height - totalSpacing)
         let topH = remaining / 10
         let fixedRowHeights = [topH, topH]
         let fixedKeyWidths: [String: CGFloat] = ["Space": 200]
