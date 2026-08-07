@@ -1,5 +1,5 @@
 import XCTest
-@testable import KeyMod
+@testable import KeyCmd
 
 final class FrameParserTests: XCTestCase {
 

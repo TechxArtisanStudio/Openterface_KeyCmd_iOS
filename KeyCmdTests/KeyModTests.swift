@@ -6,7 +6,7 @@
 //
 
 import Testing
-@testable import KeyMod
+@testable import KeyCmd
 
 struct KeyModTests {
 
