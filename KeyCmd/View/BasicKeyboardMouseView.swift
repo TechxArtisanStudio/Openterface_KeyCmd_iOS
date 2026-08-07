@@ -381,7 +381,7 @@ struct BasicKeyboardMouseView: View {
 
     private var macKeyboardLayout: some View {
         GeometryReader { geo in
-            let remainingHeight = max(0, geo.size.height - 15)
+            let remainingHeight = max(0, geo.size.height - 30)
             let topRowHeight = remainingHeight / 10
 
             ZStack {
