@@ -29,26 +29,34 @@ final class AgentExecutor {
         q.async { [weak self] in
             guard let self = self else { return }
 
-            for (idx, step) in steps.enumerated() {
-                guard !self.cancelled else { break }
+            Task {
+                for (idx, step) in steps.enumerated() {
+                    guard !self.cancelled else { break }
 
-                DispatchQueue.main.async { onStepStart(idx, step) }
+                    DispatchQueue.main.async { onStepStart(idx, step) }
 
-                let output = self.execute(step: step)
-                if let output = output {
-                    self.stepOutputs[idx] = output
+                    let output: String?
+                    do {
+                        output = try await self.execute(step: step)
+                    } catch {
+                        LogManager.shared.log("Agent: step[\(idx)] execute failed: \(error.localizedDescription)", category: "Agent", level: .error)
+                        output = "Error: \(error.localizedDescription)"
+                    }
+                    if let output = output {
+                        self.stepOutputs[idx] = output
+                    }
+
+                    if self.stepDelay > 0 && !self.cancelled {
+                        Thread.sleep(forTimeInterval: self.stepDelay)
+                    }
+
+                    DispatchQueue.main.async { onStepDone(idx, step, output) }
                 }
 
-                if self.stepDelay > 0 && !self.cancelled {
-                    Thread.sleep(forTimeInterval: self.stepDelay)
+                DispatchQueue.main.async {
+                    self.cancelled = false
+                    onDone()
                 }
-
-                DispatchQueue.main.async { onStepDone(idx, step, output) }
-            }
-
-            DispatchQueue.main.async {
-                self.cancelled = false
-                onDone()
             }
         }
     }
@@ -56,14 +64,21 @@ final class AgentExecutor {
     func cancel() { cancelled = true }
 
     /// Execute a single step. Returns captured output for terminal steps, nil otherwise.
-    private func execute(step: AgentLLMStep) -> String? {
+    private func execute(step: AgentLLMStep) async throws -> String? {
         switch step.kind.lowercased() {
         case "terminal":
             return executeTerminal(step.payload)
         case "hid":
             keyboardManager.handleTextInputWithTokensSync(step.payload)
             // Safety: release all modifiers/keys so nothing carries into the next step.
-            DispatchQueue.main.sync { keyboardManager.releaseAllKeys() }
+            // Use async continuation instead of DispatchQueue.main.sync to avoid
+            // deadlock if execute(step:) is ever called from the main thread.
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                DispatchQueue.main.async {
+                    self.keyboardManager.releaseAllKeys()
+                    continuation.resume()
+                }
+            }
             return nil
         case "macro":
             macroManager.sendMacroByLabel(step.payload)
