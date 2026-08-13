@@ -76,6 +76,7 @@ final class LocalModelManager: ObservableObject {
             modelLock.lock()
             _modelContainer = nil
             _chatSession = nil
+            loadingTask = nil
             modelLock.unlock()
             checkIfModelDownloaded()
         }
@@ -96,6 +97,7 @@ final class LocalModelManager: ObservableObject {
     private var _modelContainer: ModelContainer?
     private var _chatSession: ChatSession?
     private var downloadTask: Task<Void, Never>?
+    private var loadingTask: Task<Void, Error>?
 
     /// All MLX inference must run on this queue — Metal command queues
     /// are thread-affine, and ChatSession is not thread-safe.
@@ -133,6 +135,7 @@ final class LocalModelManager: ObservableObject {
         modelLock.lock()
         _modelContainer = nil
         _chatSession = nil
+        loadingTask = nil
         modelLock.unlock()
         checkIfModelDownloaded()
     }
@@ -140,37 +143,59 @@ final class LocalModelManager: ObservableObject {
     // MARK: - Public API
 
     /// Ensures the MLX model container is loaded. Idempotent — if already
-    /// loaded, returns immediately. Serialized via `modelLock` so concurrent
-    /// callers do not trigger duplicate loads.
+    /// loaded, returns immediately. Serialized via `loadingTask` so concurrent
+    /// callers await the same in-flight load instead of triggering duplicates.
     private func ensureModelLoaded() async throws {
         // Fast path: already loaded
         modelLock.lock()
-        let alreadyLoaded = _modelContainer != nil
-        modelLock.unlock()
-        guard !alreadyLoaded else { return }
-
-        await MainActor.run { state = .loading }
-
-        do {
-            let config: ModelConfiguration = modelSource == .huggingface
-                ? ModelConfiguration(id: activeModel.hfModelID)
-                : ModelConfiguration(directory: localModelsDir)
-
-            let container = try await loadModelContainer(configuration: config)
-
-            modelLock.lock()
-            // Double-check: another Task may have loaded it while we were awaiting
-            if _modelContainer == nil {
-                _modelContainer = container
-                _chatSession = ChatSession(container)
-            }
+        if _modelContainer != nil {
             modelLock.unlock()
-
-            await MainActor.run { state = .ready }
-        } catch {
-            await MainActor.run { state = .notDownloaded }
-            throw error
+            return
         }
+
+        // If another caller is already loading, await its task.
+        if let existing = loadingTask {
+            modelLock.unlock()
+            try await existing.value
+            return
+        }
+
+        // First caller — create the loading task.
+        let task = Task<Void, Error> { [weak self] in
+            guard let self else { return }
+
+            await MainActor.run { self.state = .loading }
+
+            do {
+                let config: ModelConfiguration = self.modelSource == .huggingface
+                    ? ModelConfiguration(id: self.activeModel.hfModelID)
+                    : ModelConfiguration(directory: self.localModelsDir)
+
+                let container = try await loadModelContainer(configuration: config)
+
+                self.modelLock.lock()
+                if self._modelContainer == nil {
+                    self._modelContainer = container
+                    self._chatSession = ChatSession(container)
+                }
+                self.modelLock.unlock()
+
+                await MainActor.run { self.state = .ready }
+            } catch {
+                // Clear loadingTask so retry is possible.
+                self.modelLock.lock()
+                self.loadingTask = nil
+                self.modelLock.unlock()
+
+                await MainActor.run { self.state = .notDownloaded }
+                throw error
+            }
+        }
+
+        loadingTask = task
+        modelLock.unlock()
+
+        try await task.value
     }
 
     func startDownload() {
@@ -203,6 +228,7 @@ final class LocalModelManager: ObservableObject {
         modelLock.lock()
         _modelContainer = nil
         _chatSession = nil
+        loadingTask = nil
         modelLock.unlock()
 
         switch modelSource {
