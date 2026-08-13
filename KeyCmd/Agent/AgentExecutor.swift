@@ -29,7 +29,8 @@ final class AgentExecutor {
         q.async { [weak self] in
             guard let self = self else { return }
 
-            Task {
+            Task { [weak self] in
+                guard let self else { return }
                 for (idx, step) in steps.enumerated() {
                     guard !self.cancelled else { break }
 
@@ -43,20 +44,18 @@ final class AgentExecutor {
                         output = "Error: \(error.localizedDescription)"
                     }
                     if let output = output {
-                        self.stepOutputs[idx] = output
+                        q.async { self.stepOutputs[idx] = output }
                     }
 
                     if self.stepDelay > 0 && !self.cancelled {
-                        Thread.sleep(forTimeInterval: self.stepDelay)
+                        try? await Task.sleep(nanoseconds: UInt64(self.stepDelay * 1_000_000_000))
                     }
 
                     DispatchQueue.main.async { onStepDone(idx, step, output) }
                 }
 
-                DispatchQueue.main.async {
-                    self.cancelled = false
-                    onDone()
-                }
+                q.async { self.cancelled = false }
+                DispatchQueue.main.async { onDone() }
             }
         }
     }
