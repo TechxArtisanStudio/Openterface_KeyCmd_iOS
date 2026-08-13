@@ -76,7 +76,9 @@ final class LocalModelManager: ObservableObject {
             modelLock.lock()
             _modelContainer = nil
             _chatSession = nil
+            loadingTask?.cancel()
             loadingTask = nil
+            loadGeneration &+= 1
             modelLock.unlock()
             checkIfModelDownloaded()
         }
@@ -98,6 +100,11 @@ final class LocalModelManager: ObservableObject {
     private var _chatSession: ChatSession?
     private var downloadTask: Task<Void, Never>?
     private var loadingTask: Task<Void, Error>?
+    /// Monotonically increasing counter bumped on every reset path. A loading
+    /// task captures its value at creation time and checks it again before
+    /// writing `_modelContainer` — if the generation has advanced, the task
+    /// is stale (the user switched models) and must not publish its result.
+    private var loadGeneration = 0
 
     /// All MLX inference must run on this queue — Metal command queues
     /// are thread-affine, and ChatSession is not thread-safe.
@@ -135,7 +142,9 @@ final class LocalModelManager: ObservableObject {
         modelLock.lock()
         _modelContainer = nil
         _chatSession = nil
+        loadingTask?.cancel()
         loadingTask = nil
+        loadGeneration &+= 1
         modelLock.unlock()
         checkIfModelDownloaded()
     }
@@ -161,6 +170,7 @@ final class LocalModelManager: ObservableObject {
         }
 
         // First caller — create the loading task.
+        let myGeneration = loadGeneration
         let task = Task<Void, Error> { [weak self] in
             guard let self else { return }
 
@@ -174,10 +184,19 @@ final class LocalModelManager: ObservableObject {
                 let container = try await loadModelContainer(configuration: config)
 
                 self.modelLock.lock()
+                // Guard against stale completions: if loadGeneration has been
+                // bumped (selectModel / deleteModel / modelSource change fired
+                // while this task was in-flight), the container belongs to the
+                // wrong model — drop it silently.
+                guard self.loadGeneration == myGeneration else {
+                    self.modelLock.unlock()
+                    return
+                }
                 if self._modelContainer == nil {
                     self._modelContainer = container
                     self._chatSession = ChatSession(container)
                 }
+                self.loadingTask = nil
                 self.modelLock.unlock()
 
                 await MainActor.run { self.state = .ready }
@@ -228,7 +247,9 @@ final class LocalModelManager: ObservableObject {
         modelLock.lock()
         _modelContainer = nil
         _chatSession = nil
+        loadingTask?.cancel()
         loadingTask = nil
+        loadGeneration &+= 1
         modelLock.unlock()
 
         switch modelSource {
