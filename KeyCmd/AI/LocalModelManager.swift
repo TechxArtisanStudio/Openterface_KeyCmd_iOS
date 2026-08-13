@@ -71,12 +71,13 @@ final class LocalModelManager: ObservableObject {
     /// Persisted model source preference
     @Published var modelSource: ModelSource {
         didSet {
-            if oldValue != modelSource {
-                UserDefaults.standard.set(modelSource.rawValue, forKey: "LocalModelManager.modelSource")
-                modelContainer = nil
-                chatSession = nil
-                checkIfModelDownloaded()
-            }
+            guard oldValue != modelSource else { return }
+            UserDefaults.standard.set(modelSource.rawValue, forKey: "LocalModelManager.modelSource")
+            modelLock.lock()
+            _modelContainer = nil
+            _chatSession = nil
+            modelLock.unlock()
+            checkIfModelDownloaded()
         }
     }
 
@@ -92,9 +93,19 @@ final class LocalModelManager: ObservableObject {
             .appendingPathComponent(activeModel.id, isDirectory: true)
     }()
 
-    private var modelContainer: ModelContainer?
-    private var chatSession: ChatSession?
+    private var _modelContainer: ModelContainer?
+    private var _chatSession: ChatSession?
     private var downloadTask: Task<Void, Never>?
+
+    /// All MLX inference must run on this queue — Metal command queues
+    /// are thread-affine, and ChatSession is not thread-safe.
+    private let inferenceQueue = DispatchQueue(
+        label: "com.keycmd.localmodel.inference",
+        qos: .userInitiated
+    )
+
+    /// Protects _modelContainer and _chatSession.
+    private let modelLock = NSLock()
 
     var isDownloading: Bool {
         if case .downloading = state { return true }
@@ -119,12 +130,48 @@ final class LocalModelManager: ObservableObject {
         guard newModel.id != activeModel.id else { return }
         logger.info("selectModel: \(self.activeModel.id) -> \(newModel.id)")
         activeModel = newModel
-        modelContainer = nil
-        chatSession = nil
+        modelLock.lock()
+        _modelContainer = nil
+        _chatSession = nil
+        modelLock.unlock()
         checkIfModelDownloaded()
     }
 
     // MARK: - Public API
+
+    /// Ensures the MLX model container is loaded. Idempotent — if already
+    /// loaded, returns immediately. Serialized via `modelLock` so concurrent
+    /// callers do not trigger duplicate loads.
+    private func ensureModelLoaded() async throws {
+        // Fast path: already loaded
+        modelLock.lock()
+        let alreadyLoaded = _modelContainer != nil
+        modelLock.unlock()
+        guard !alreadyLoaded else { return }
+
+        await MainActor.run { state = .loading }
+
+        do {
+            let config: ModelConfiguration = modelSource == .huggingface
+                ? ModelConfiguration(id: activeModel.hfModelID)
+                : ModelConfiguration(directory: localModelsDir)
+
+            let container = try await loadModelContainer(configuration: config)
+
+            modelLock.lock()
+            // Double-check: another Task may have loaded it while we were awaiting
+            if _modelContainer == nil {
+                _modelContainer = container
+                _chatSession = ChatSession(container)
+            }
+            modelLock.unlock()
+
+            await MainActor.run { state = .ready }
+        } catch {
+            await MainActor.run { state = .notDownloaded }
+            throw error
+        }
+    }
 
     func startDownload() {
         logger.info("startDownload() called, modelSource: \(self.modelSource.rawValue), model: \(self.activeModel.id), state: \(String(describing: self.state))")
@@ -153,8 +200,10 @@ final class LocalModelManager: ObservableObject {
     func deleteModel() {
         downloadTask?.cancel()
         downloadTask = nil
-        modelContainer = nil
-        chatSession = nil
+        modelLock.lock()
+        _modelContainer = nil
+        _chatSession = nil
+        modelLock.unlock()
 
         switch modelSource {
         case .huggingface:
@@ -175,34 +224,7 @@ final class LocalModelManager: ObservableObject {
                          userInfo: [NSLocalizedDescriptionKey: "Model not downloaded"])
         }
 
-        if modelContainer == nil {
-            state = .loading
-            do {
-                let config = modelSource == .huggingface
-                    ? ModelConfiguration(id: activeModel.hfModelID)
-                    : ModelConfiguration(directory: localModelsDir)
-                let container = try await loadModelContainer(configuration: config)
-
-                await MainActor.run {
-                    self.modelContainer = container
-                    self.chatSession = ChatSession(container)
-                    self.state = .ready
-                }
-            } catch {
-                await MainActor.run { self.state = .notDownloaded }
-                throw NSError(domain: "LocalModelManager", code: 3,
-                             userInfo: [NSLocalizedDescriptionKey: "Failed to load model: \(error.localizedDescription)"])
-            }
-        }
-
-        guard let container = modelContainer else {
-            throw NSError(domain: "LocalModelManager", code: 2,
-                         userInfo: [NSLocalizedDescriptionKey: "Model container not initialized"])
-        }
-
-        // Create a fresh session for each inference to prevent KV cache corruption
-        // when reusing across multiple agent calls (plan/summarize/retry)
-        let session = ChatSession(container)
+        try await ensureModelLoaded()
 
         let prompt = """
         \(system)
@@ -210,7 +232,60 @@ final class LocalModelManager: ObservableObject {
         User: \(user)
         Assistant:
         """
-        return try await session.respond(to: prompt)
+
+        // Run inference on the serial queue so only one MLX session
+        // is active at a time, and always on the same queue.
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<String, Error>) in
+            inferenceQueue.async { [weak self] in
+                guard let self else {
+                    continuation.resume(throwing: NSError(
+                        domain: "LocalModelManager", code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "LocalModelManager deallocated"]))
+                    return
+                }
+
+                self.modelLock.lock()
+                let container = self._modelContainer
+                self.modelLock.unlock()
+
+                guard let container else {
+                    continuation.resume(throwing: NSError(
+                        domain: "LocalModelManager", code: 2,
+                        userInfo: [NSLocalizedDescriptionKey: "Model container not initialized"]))
+                    return
+                }
+
+                // A fresh ChatSession per inference to prevent KV cache
+                // corruption across plan / summarize / retry calls.
+                let session = ChatSession(container)
+
+                // Bridge async respond(to:) to the serial queue via semaphore.
+                // We block the queue thread until inference completes so the
+                // next caller cannot enter until this inference finishes —
+                // otherwise the async block would return immediately and a
+                // second inference could start concurrently on the same container.
+                let sema = DispatchSemaphore(value: 0)
+                var result: Result<String, Error> = .failure(NSError(
+                    domain: "LocalModelManager", code: -2,
+                    userInfo: [NSLocalizedDescriptionKey: "Inference did not produce a result"]))
+
+                Task {
+                    do {
+                        result = .success(try await session.respond(to: prompt))
+                    } catch {
+                        result = .failure(error)
+                    }
+                    sema.signal()
+                }
+
+                sema.wait()
+
+                switch result {
+                case .success(let s): continuation.resume(returning: s)
+                case .failure(let e): continuation.resume(throwing: e)
+                }
+            }
+        }
     }
 
     func isModelDownloaded() -> Bool {
@@ -244,8 +319,10 @@ final class LocalModelManager: ObservableObject {
                 try Task.checkCancellation()
                 await MainActor.run {
                     guard !Task.isCancelled else { return }
-                    self.modelContainer = container
-                    self.chatSession = ChatSession(container)
+                    self.modelLock.lock()
+                    self._modelContainer = container
+                    self._chatSession = ChatSession(container)
+                    self.modelLock.unlock()
                     self.state = .downloaded
                 }
             } catch {
@@ -274,8 +351,10 @@ final class LocalModelManager: ObservableObject {
 
                 await MainActor.run {
                     guard !Task.isCancelled else { return }
-                    self.modelContainer = container
-                    self.chatSession = ChatSession(container)
+                    self.modelLock.lock()
+                    self._modelContainer = container
+                    self._chatSession = ChatSession(container)
+                    self.modelLock.unlock()
                     self.state = .downloaded
                 }
             } catch is CancellationError {
