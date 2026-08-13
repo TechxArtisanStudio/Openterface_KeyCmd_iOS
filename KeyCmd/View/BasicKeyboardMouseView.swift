@@ -339,23 +339,18 @@ struct BasicKeyboardMouseView: View {
                     windowsBottomKey("Ctrl")
                     windowsBottomKey("Super")
                     windowsBottomKey("Alt")
-                    // Space key — wide
-                    KeyPressButton(
-                        onPress: { keyboardManager.handleKeyDown("Space") },
-                        onRelease: { keyboardManager.handleKeyUp("Space") },
-                        keyPreview: "Space"
-                    ) { isActive in
-                        Image("openterface_wordmark")
-                            .resizable()
-                            .renderingMode(.template)
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 82.5)
-                            .frame(width: 200, alignment: .center)
-                            .frame(maxHeight: .infinity)
-                            .background(Self.functionKeyBg)
-                            .cornerRadius(6)
-                            .foregroundColor(isActive ? Self.keyIconPressed : Self.keyIconIdle)
-                    }
+                    // Space key — wide (visual-only: touch handled by MultiTouchKeyboardContainer overlay)
+                    let isSpacePressed = keyboardManager.pressedKeys.contains("Space")
+                    Image("openterface_wordmark")
+                        .resizable()
+                        .renderingMode(.template)
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 82.5)
+                        .frame(width: 200, alignment: .center)
+                        .frame(maxHeight: .infinity)
+                        .background(isSpacePressed ? themeManager.accentColor : Self.functionKeyBg)
+                        .cornerRadius(6)
+                        .foregroundColor(isSpacePressed ? Self.keyIconPressed : Self.keyIconIdle)
                     windowsBottomKey("Alt")
                     windowsBottomKey("Ctrl")
                     arrowButton("Left", image: "left")
@@ -437,23 +432,18 @@ struct BasicKeyboardMouseView: View {
                         windowsBottomKey("Ctrl")
                         windowsBottomKey("Option")
                         windowsBottomKey("Cmd")
-                        // Space key — wide
-                        KeyPressButton(
-                            onPress: { keyboardManager.handleKeyDown("Space") },
-                            onRelease: { keyboardManager.handleKeyUp("Space") },
-                            keyPreview: "Space"
-                        ) { isActive in
-                            Image("openterface_wordmark")
-                                .resizable()
-                                .renderingMode(.template)
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 82.5)
-                                .frame(width: 200, alignment: .center)
-                                .frame(maxHeight: .infinity)
-                                .background(Self.functionKeyBg)
-                                .cornerRadius(6)
-                                .foregroundColor(isActive ? Self.keyIconPressed : Self.keyIconIdle)
-                        }
+                        // Space key — wide (visual-only: touch handled by MultiTouchKeyboardContainer overlay)
+                        let isSpacePressed = keyboardManager.pressedKeys.contains("Space")
+                        Image("openterface_wordmark")
+                            .resizable()
+                            .renderingMode(.template)
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 82.5)
+                            .frame(width: 200, alignment: .center)
+                            .frame(maxHeight: .infinity)
+                            .background(isSpacePressed ? themeManager.accentColor : Self.functionKeyBg)
+                            .cornerRadius(6)
+                            .foregroundColor(isSpacePressed ? Self.keyIconPressed : Self.keyIconIdle)
                         windowsBottomKey("Cmd")
                         windowsBottomKey("Option")
                         // Inverted-T: ↑ centered on top, ← ↓ → on bottom
@@ -569,23 +559,18 @@ struct BasicKeyboardMouseView: View {
                         windowsBottomKey("Ctrl")
                         windowsBottomKey("Win")
                         windowsBottomKey("Alt")
-                        // Space key — wide
-                        KeyPressButton(
-                            onPress: { keyboardManager.handleKeyDown("Space") },
-                            onRelease: { keyboardManager.handleKeyUp("Space") },
-                            keyPreview: "Space"
-                        ) { isActive in
-                            Image("openterface_wordmark")
-                                .resizable()
-                                .renderingMode(.template)
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 82.5)
-                                .frame(width: 200, alignment: .center)
-                                .frame(maxHeight: .infinity)
-                                .background(Self.functionKeyBg)
-                                .cornerRadius(6)
-                                .foregroundColor(isActive ? Self.keyIconPressed : Self.keyIconIdle)
-                        }
+                        // Space key — wide (visual-only: touch handled by MultiTouchKeyboardContainer overlay)
+                        let isSpacePressed = keyboardManager.pressedKeys.contains("Space")
+                        Image("openterface_wordmark")
+                            .resizable()
+                            .renderingMode(.template)
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 82.5)
+                            .frame(width: 200, alignment: .center)
+                            .frame(maxHeight: .infinity)
+                            .background(isSpacePressed ? themeManager.accentColor : Self.functionKeyBg)
+                            .cornerRadius(6)
+                            .foregroundColor(isSpacePressed ? Self.keyIconPressed : Self.keyIconIdle)
                         windowsBottomKey("Alt")
                         windowsBottomKey("Ctrl")
                         // Inverted-T: ↑ centered on top, ← ↓ → on bottom
@@ -636,37 +621,36 @@ struct BasicKeyboardMouseView: View {
             }
         }()
         let isSuperKey = key == "Super" || key == "Win"
-        return ModifierKeyButton(key: key, keyboardManager: keyboardManager, keyPreview: displayLabel) { isPhysical, isLocked in
-            Group {
-                if isSuperKey && aiSettings.targetOS == .windows {
-                    Image("targetos_windows")
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 28, height: 28)
-                        .foregroundColor(.gray)
-                } else if isSuperKey && aiSettings.targetOS == .linux {
-                    Image("targetos_linux")
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 28, height: 28)
-                        .foregroundColor(.gray)
-                } else {
-                    Text(displayLabel)
-                        .font(.system(size: 17, weight: .bold))
-                }
+        // Visual-only: touch handled by MultiTouchKeyboardContainer overlay
+        let isPressed = keyboardManager.activeModifiers.contains(key) || keyboardManager.lockedModifiers.contains(key)
+        return Group {
+            if isSuperKey && aiSettings.targetOS == .windows {
+                Image("targetos_windows")
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 28, height: 28)
+                    .foregroundColor(.gray)
+            } else if isSuperKey && aiSettings.targetOS == .linux {
+                Image("targetos_linux")
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 28, height: 28)
+                    .foregroundColor(.gray)
+            } else {
+                Text(displayLabel)
+                    .font(.system(size: 17, weight: .bold))
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(isLocked ? themeManager.accentColor : (isPhysical ? themeManager.accentColor.opacity(0.6) : Self.functionKeyBg))
-            .cornerRadius(6)
-            .foregroundColor(isPhysical || isLocked ? Self.keyLabelPressed : Self.keyLabelIdle)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(isPressed ? themeManager.accentColor : Self.functionKeyBg)
+        .cornerRadius(6)
+        .foregroundColor(isPressed ? Self.keyLabelPressed : Self.keyLabelIdle)
     }
 
     @ViewBuilder
     private func arrowButton(_ action: String, image: String) -> some View {
-        let repeatMode = KmBasicKeyboardPrefs.shared.isLongPressRepeatMode
         let dir: KeyboardArrow.Direction = {
             switch image {
             case "up": return .up
@@ -676,19 +660,15 @@ struct BasicKeyboardMouseView: View {
             default: return .up
             }
         }()
-        return KeyPressButton(
-            onPress: { repeatMode ? keyboardManager.startKeyRepeat(action) : keyboardManager.handleKeyDown(action) },
-            onRelease: { repeatMode ? keyboardManager.stopKeyRepeat() : keyboardManager.handleKeyUp(action) },
-            keyPreview: action
-        ) { isActive in
-            KeyboardArrow(direction: dir)
-                .fill(isActive ? Self.keyIconPressed : Self.keyIconIdle)
-                .frame(width: 24, height: 24)
-                .frame(width: 58)
-                .frame(maxHeight: .infinity)
-                .background(isActive ? themeManager.accentColor : Self.functionKeyBg)
-                .cornerRadius(6)
-        }
+        // Visual-only: touch handled by MultiTouchKeyboardContainer overlay
+        let isPressed = keyboardManager.pressedKeys.contains(action)
+        return KeyboardArrow(direction: dir)
+            .fill(isPressed ? Self.keyIconPressed : Self.keyIconIdle)
+            .frame(width: 24, height: 24)
+            .frame(width: 58)
+            .frame(maxHeight: .infinity)
+            .background(isPressed ? themeManager.accentColor : Self.functionKeyBg)
+            .cornerRadius(6)
     }
 
     @ViewBuilder
@@ -768,33 +748,17 @@ struct BasicKeyboardMouseView: View {
         let previewBelow = false
 
         if modifierKeys.contains(key) {
-            ModifierKeyButton(key: key, keyboardManager: keyboardManager, keyPreview: previewText, previewBelow: previewBelow, previewLeft: previewLeft, previewRight: previewRight) { isPhysical, isLocked in
-                windowsKeyVisual(key: key, displayText: keyLabel, isPressed: isPhysical || isLocked)
-            }
+            // Visual-only: touch handled by MultiTouchKeyboardContainer overlay
+            let isPressed = keyboardManager.activeModifiers.contains(key) || keyboardManager.lockedModifiers.contains(key)
+            windowsKeyVisual(key: key, displayText: keyLabel, isPressed: isPressed)
         } else if key == "Caps" {
-            KeyPressButton(
-                onPress: { keyboardManager.handleSpecialKey("Caps") },
-                onRelease: { },
-                keyPreview: "⇪",
-                previewBelow: previewBelow,
-                previewLeft: previewLeft,
-                previewRight: previewRight
-            ) { isActive in
-                windowsKeyVisual(key: key, displayText: keyLabel, isPressed: isActive || isCapsActive)
-            }
+            // Visual-only: touch handled by MultiTouchKeyboardContainer overlay
+            windowsKeyVisual(key: key, displayText: keyLabel, isPressed: isCapsActive)
         } else {
+            // Visual-only: touch handled by MultiTouchKeyboardContainer overlay
             let effectiveKey = key == "Esc" ? "Escape" : key
-            let repeatMode = KmBasicKeyboardPrefs.shared.isLongPressRepeatMode
-            KeyPressButton(
-                onPress: { repeatMode ? keyboardManager.startKeyRepeat(effectiveKey) : keyboardManager.handleKeyDown(effectiveKey) },
-                onRelease: { repeatMode ? keyboardManager.stopKeyRepeat() : keyboardManager.handleKeyUp(effectiveKey) },
-                keyPreview: previewText,
-                previewBelow: previewBelow,
-                previewLeft: previewLeft,
-                previewRight: previewRight
-            ) { isActive in
-                windowsKeyVisual(key: key, displayText: keyLabel, isPressed: isActive)
-            }
+            let isPressed = keyboardManager.pressedKeys.contains(effectiveKey)
+            windowsKeyVisual(key: key, displayText: keyLabel, isPressed: isPressed)
         }
     }
 
@@ -844,48 +808,32 @@ struct BasicKeyboardMouseView: View {
         let isCapsActive = key == "Caps" && keyboardManager.capsLockActive
 
         if modifierKeys.contains(key) {
-            ModifierKeyButton(key: key, keyboardManager: keyboardManager, keyPreview: previewText, previewBelow: previewBelow, previewLeft: previewLeft, previewRight: previewRight) { isPhysical, isLocked in
-                landscapeKeyContent(for: key, displayText: keyLabel)
-                    .font(.system(size: 14, weight: .bold))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(isLocked ? themeManager.accentColor : (isPhysical ? themeManager.accentColor.opacity(0.7) : keyBackground(for: key, pressed: false, active: false)))
-                    .cornerRadius(9)
-                    .foregroundColor(isPhysical || isLocked ? Self.keyLabelPressed : Self.keyLabelIdle)
-            }
+            // Visual-only: touch handled by MultiTouchKeyboardContainer overlay
+            let isPressed = keyboardManager.activeModifiers.contains(key) || keyboardManager.lockedModifiers.contains(key)
+            landscapeKeyContent(for: key, displayText: keyLabel)
+                .font(.system(size: 14, weight: .bold))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(isPressed ? themeManager.accentColor : keyBackground(for: key, pressed: false, active: false))
+                .cornerRadius(9)
+                .foregroundColor(isPressed ? Self.keyLabelPressed : Self.keyLabelIdle)
         } else if key == "Caps" {
-            KeyPressButton(
-                onPress: { keyboardManager.handleSpecialKey("Caps") },
-                onRelease: { },
-                keyPreview: "⇪",
-                previewBelow: previewBelow,
-                previewLeft: previewLeft,
-                previewRight: previewRight
-            ) { isActive in
-                landscapeKeyContent(for: key, displayText: keyLabel)
-                    .font(.system(size: 14, weight: .bold))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(keyBackground(for: key, pressed: isActive, active: isCapsActive))
-                    .cornerRadius(9)
-                    .foregroundColor(isActive || isCapsActive ? Self.keyLabelPressed : Self.keyLabelIdle)
-            }
+            // Visual-only: touch handled by MultiTouchKeyboardContainer overlay
+            landscapeKeyContent(for: key, displayText: keyLabel)
+                .font(.system(size: 14, weight: .bold))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(keyBackground(for: key, pressed: isCapsActive, active: isCapsActive))
+                .cornerRadius(9)
+                .foregroundColor(isCapsActive ? Self.keyLabelPressed : Self.keyLabelIdle)
         } else {
+            // Visual-only: touch handled by MultiTouchKeyboardContainer overlay
             let effectiveKey = key == "Esc" ? "Escape" : key
-            let repeatMode = KmBasicKeyboardPrefs.shared.isLongPressRepeatMode
-            KeyPressButton(
-                onPress: { repeatMode ? keyboardManager.startKeyRepeat(effectiveKey) : keyboardManager.handleKeyDown(effectiveKey) },
-                onRelease: { repeatMode ? keyboardManager.stopKeyRepeat() : keyboardManager.handleKeyUp(effectiveKey) },
-                keyPreview: previewText,
-                previewBelow: previewBelow,
-                previewLeft: previewLeft,
-                previewRight: previewRight
-            ) { isActive in
-                landscapeKeyContent(for: key, displayText: keyLabel)
-                    .font(.system(size: 14, weight: .bold))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(keyBackground(for: key, pressed: isActive, active: false))
-                    .cornerRadius(9)
-                    .foregroundColor(isActive ? Self.keyLabelPressed : Self.keyLabelIdle)
-            }
+            let isPressed = keyboardManager.pressedKeys.contains(effectiveKey)
+            landscapeKeyContent(for: key, displayText: keyLabel)
+                .font(.system(size: 14, weight: .bold))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(keyBackground(for: key, pressed: isPressed, active: false))
+                .cornerRadius(9)
+                .foregroundColor(isPressed ? Self.keyLabelPressed : Self.keyLabelIdle)
         }
     }
 
