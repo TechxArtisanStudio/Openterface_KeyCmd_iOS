@@ -185,22 +185,26 @@ final class LocalModelManager: ObservableObject {
             self.modelLock.lock()
             self._modelContainer = nil
             self._chatSession = nil
-            self.modelLock.unlock()
             self.releaseTimer = nil
+            self.modelLock.unlock()
             DispatchQueue.main.async {
                 self.state = .downloaded  // Reset to downloaded (not ready)
             }
         }
         timer.resume()
+        modelLock.lock()
         releaseTimer = timer
+        modelLock.unlock()
         logger.info("Delayed release scheduled in \(self.releaseDelay)s")
     }
 
     /// Cancels any pending delayed release timer.
     /// Called when a new inference starts to prevent premature release.
     private func cancelDelayedRelease() {
+        modelLock.lock()
         releaseTimer?.cancel()
         releaseTimer = nil
+        modelLock.unlock()
     }
 
     /// Ensures the MLX model container is loaded. Idempotent — if already
