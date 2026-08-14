@@ -43,6 +43,10 @@ public class AppDelegate: NSObject, UIApplicationDelegate {
         print("🚀 [AppDelegate.didFinishLaunchingWithOptions] END (returning true)")
         return true
     }
+
+    public func applicationDidReceiveMemoryWarning(_ application: UIApplication) {
+        LocalModelManager.shared.handleMemoryWarning()
+    }
 }
 
 @main

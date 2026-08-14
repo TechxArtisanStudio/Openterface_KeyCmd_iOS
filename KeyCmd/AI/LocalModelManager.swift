@@ -403,6 +403,21 @@ final class LocalModelManager: ObservableObject {
         return false
     }
 
+    /// Called when iOS issues a memory warning. Immediately releases the model
+    /// to free memory and prevent app termination. Cancels any pending delayed
+    /// release timer. The model will be reloaded on the next inference.
+    func handleMemoryWarning() {
+        logger.warning("⚠️ Memory warning received — releasing model immediately")
+        cancelDelayedRelease()
+        modelLock.lock()
+        _modelContainer = nil
+        _chatSession = nil
+        modelLock.unlock()
+        DispatchQueue.main.async {
+            self.state = .downloaded  // Reset to downloaded (not ready)
+        }
+    }
+
     // MARK: - Download from Hugging Face
 
     private func startHFDownload() {
