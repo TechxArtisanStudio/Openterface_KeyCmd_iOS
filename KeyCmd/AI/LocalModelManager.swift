@@ -106,6 +106,13 @@ final class LocalModelManager: ObservableObject {
     /// is stale (the user switched models) and must not publish its result.
     private var loadGeneration = 0
 
+    /// Timer for delayed model release. Cancelled when a new inference starts
+    /// before the previous timer fires. Prevents immediate reload overhead
+    /// during consecutive Agent inferences while still releasing memory after idle.
+    private var releaseTimer: DispatchSourceTimer?
+    private let releaseDelay: TimeInterval = 10.0  // seconds
+    private let releaseQueue = DispatchQueue(label: "com.keycmd.localmodel.release")
+
     /// All MLX inference must run on this queue — Metal command queues
     /// are thread-affine, and ChatSession is not thread-safe.
     private let inferenceQueue = DispatchQueue(
@@ -150,6 +157,51 @@ final class LocalModelManager: ObservableObject {
     }
 
     // MARK: - Public API
+
+    /// Releases the model container and chat session to free memory.
+    /// Cancels any pending delayed release timer.
+    /// The model will be reloaded on the next `generate()` call.
+    private func releaseModel() {
+        cancelDelayedRelease()
+        modelLock.lock()
+        _modelContainer = nil
+        _chatSession = nil
+        modelLock.unlock()
+        logger.info("Model released to free memory")
+    }
+
+    /// Schedules a delayed release of the model container.
+    /// If called again before the timer fires, cancels the previous timer and restarts.
+    /// This allows consecutive inferences to share the loaded model while ensuring
+    /// memory is freed after idle periods.
+    private func scheduleDelayedRelease() {
+        cancelDelayedRelease()
+
+        let timer = DispatchSource.makeTimerSource(queue: releaseQueue)
+        timer.schedule(deadline: .now() + releaseDelay)
+        timer.setEventHandler { [weak self] in
+            guard let self else { return }
+            self.logger.info("Delayed release timer expired, releasing model")
+            self.modelLock.lock()
+            self._modelContainer = nil
+            self._chatSession = nil
+            self.modelLock.unlock()
+            self.releaseTimer = nil
+            DispatchQueue.main.async {
+                self.state = .downloaded  // Reset to downloaded (not ready)
+            }
+        }
+        timer.resume()
+        releaseTimer = timer
+        logger.info("Delayed release scheduled in \(self.releaseDelay)s")
+    }
+
+    /// Cancels any pending delayed release timer.
+    /// Called when a new inference starts to prevent premature release.
+    private func cancelDelayedRelease() {
+        releaseTimer?.cancel()
+        releaseTimer = nil
+    }
 
     /// Ensures the MLX model container is loaded. Idempotent — if already
     /// loaded, returns immediately. Serialized via `loadingTask` so concurrent
@@ -271,6 +323,10 @@ final class LocalModelManager: ObservableObject {
                          userInfo: [NSLocalizedDescriptionKey: "Model not downloaded"])
         }
 
+        // Cancel any pending delayed release — we're about to use the model
+        cancelDelayedRelease()
+
+        logger.info("generate() called, ensuring model is loaded")
         try await ensureModelLoaded()
 
         let prompt = """
@@ -280,9 +336,9 @@ final class LocalModelManager: ObservableObject {
         Assistant:
         """
 
-        // Run inference on the serial queue so only one MLX session
-        // is active at a time, and always on the same queue.
-        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<String, Error>) in
+        logger.info("Starting inference (prompt length: \(prompt.count) chars)")
+
+        let result = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<String, Error>) in
             inferenceQueue.async { [weak self] in
                 guard let self else {
                     continuation.resume(throwing: NSError(
@@ -302,37 +358,39 @@ final class LocalModelManager: ObservableObject {
                     return
                 }
 
-                // A fresh ChatSession per inference to prevent KV cache
-                // corruption across plan / summarize / retry calls.
                 let session = ChatSession(container)
 
-                // Bridge async respond(to:) to the serial queue via semaphore.
-                // We block the queue thread until inference completes so the
-                // next caller cannot enter until this inference finishes —
-                // otherwise the async block would return immediately and a
-                // second inference could start concurrently on the same container.
                 let sema = DispatchSemaphore(value: 0)
-                var result: Result<String, Error> = .failure(NSError(
+                var inferenceResult: Result<String, Error> = .failure(NSError(
                     domain: "LocalModelManager", code: -2,
                     userInfo: [NSLocalizedDescriptionKey: "Inference did not produce a result"]))
 
                 Task {
                     do {
-                        result = .success(try await session.respond(to: prompt))
+                        inferenceResult = .success(try await session.respond(to: prompt))
                     } catch {
-                        result = .failure(error)
+                        inferenceResult = .failure(error)
                     }
                     sema.signal()
                 }
 
                 sema.wait()
 
-                switch result {
-                case .success(let s): continuation.resume(returning: s)
-                case .failure(let e): continuation.resume(throwing: e)
+                switch inferenceResult {
+                case .success(let s):
+                    self.logger.info("Inference completed successfully (response length: \(s.count) chars)")
+                    continuation.resume(returning: s)
+                case .failure(let e):
+                    self.logger.error("Inference failed: \(e.localizedDescription)")
+                    continuation.resume(throwing: e)
                 }
             }
         }
+
+        // Schedule delayed release instead of immediate release
+        scheduleDelayedRelease()
+
+        return result
     }
 
     func isModelDownloaded() -> Bool {
