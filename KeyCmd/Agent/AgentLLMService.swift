@@ -367,6 +367,9 @@ class AgentLLMService {
         logger.log("🏠 Routing plan to local model", category: "Agent", level: .info)
 
         Task {
+            // Release the model immediately after this session completes (success or failure)
+            // instead of waiting for the 10-second delayed release timer.
+            defer { LocalModelManager.shared.forceReleaseModel() }
             do {
                 logger.log("🏠 handleLocalPlan: about to await generate()", category: "Agent", level: .info)
                 let response = try await LocalModelManager.shared.generate(system: effectivePrompt, user: prompt)
@@ -442,6 +445,9 @@ class AgentLLMService {
         """
 
         Task {
+            // Release the model immediately after this session completes (success or failure)
+            // instead of waiting for the 10-second delayed release timer.
+            defer { LocalModelManager.shared.forceReleaseModel() }
             do {
                 logger.log("🏠 handleLocalSummarize: about to await generate()", category: "Agent", level: .info)
                 let response = try await LocalModelManager.shared.generate(system: systemPromptWithContext, user: userMessage)
@@ -508,6 +514,9 @@ class AgentLLMService {
         logger.log("🏠 handleLocalRetryPlan: calling local model generate", category: "Agent", level: .info)
 
         Task {
+            // Release the model immediately after this session completes (success or failure)
+            // instead of waiting for the 10-second delayed release timer.
+            defer { LocalModelManager.shared.forceReleaseModel() }
             // Give BLE/SSH time to fully clean up before running inference
             try? await Task.sleep(nanoseconds: 500_000_000) // 500ms
 

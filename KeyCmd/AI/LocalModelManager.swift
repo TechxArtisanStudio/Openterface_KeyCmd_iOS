@@ -418,6 +418,14 @@ final class LocalModelManager: ObservableObject {
         }
     }
 
+    /// Force-releases the model immediately, bypassing the delayed release timer.
+    /// Called when an Agent session completes to proactively free memory.
+    /// The model will be reloaded on the next inference.
+    func forceReleaseModel() {
+        logger.info("Force releasing model after Agent session")
+        releaseModel()
+    }
+
     // MARK: - Download from Hugging Face
 
     private func startHFDownload() {
