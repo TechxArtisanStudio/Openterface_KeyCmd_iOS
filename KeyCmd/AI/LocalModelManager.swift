@@ -215,15 +215,19 @@ final class LocalModelManager: ObservableObject {
         modelLock.lock()
         if _modelContainer != nil {
             modelLock.unlock()
+            logger.info("Model already loaded (fast path)")
             return
         }
 
         // If another caller is already loading, await its task.
         if let existing = loadingTask {
             modelLock.unlock()
+            logger.info("Model load in progress, awaiting existing task")
             try await existing.value
             return
         }
+
+        logger.info("Loading model: \(self.activeModel.id)")
 
         // First caller — create the loading task.
         let myGeneration = loadGeneration
@@ -246,11 +250,13 @@ final class LocalModelManager: ObservableObject {
                 // wrong model — drop it silently.
                 guard self.loadGeneration == myGeneration else {
                     self.modelLock.unlock()
+                    self.logger.warning("Model load completed but generation mismatch (stale), discarding")
                     return
                 }
                 if self._modelContainer == nil {
                     self._modelContainer = container
                     self._chatSession = ChatSession(container)
+                    self.logger.info("Model loaded successfully")
                 }
                 self.loadingTask = nil
                 self.modelLock.unlock()
@@ -262,6 +268,7 @@ final class LocalModelManager: ObservableObject {
                 self.loadingTask = nil
                 self.modelLock.unlock()
 
+                self.logger.error("Model load failed: \(error.localizedDescription)")
                 await MainActor.run { self.state = .notDownloaded }
                 throw error
             }
