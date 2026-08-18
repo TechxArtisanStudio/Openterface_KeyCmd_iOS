@@ -88,9 +88,11 @@ final class BleEthTransport: TransportAdapter {
         for staleConnId in [UInt8(255), UInt8(0)] {
             let cleanupPayload = Data([staleConnId])
             sendFrame(addr: 0x00, cmd: Self.CMD_DISCONNECT, payload: cleanupPayload)
+            // 50ms delay between DISCONNECT frames to avoid overwhelming firmware
+            Thread.sleep(forTimeInterval: 0.05)
         }
-        // Small delay to let device process the DISCONNECT
-        Thread.sleep(forTimeInterval: 0.2)
+        // Wait for firmware to process DISCONNECT frames and send responses
+        Thread.sleep(forTimeInterval: 0.5)
 
         // 2. Create pipes
         outboundPipe = QueuePipe(capacity: 256)
@@ -307,11 +309,18 @@ final class BleEthTransport: TransportAdapter {
 
         stateLock.lock()
         let shouldClose = (closedConnId == connId)
+        // Connecting: semaphore exists but connection not yet established
+        let isConnecting = (connectSemaphore != nil && !running && connId < 0)
         stateLock.unlock()
 
         if shouldClose {
             logger.log("BLE-Eth: remote closed connId=\(closedConnId)", category: "BLE-Eth")
             disconnect()
+        } else if isConnecting {
+            // Device rejected connection - signal connect semaphore with error
+            logger.log("BLE-Eth: device rejected connection with CMD_DISCONN_RESP", category: "BLE-Eth", level: .error)
+            pendingConnStatus = 0xE7 // Generic rejection status
+            connectSemaphore?.signal()
         }
     }
 

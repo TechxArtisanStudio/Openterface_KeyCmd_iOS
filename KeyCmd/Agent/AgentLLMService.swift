@@ -14,6 +14,12 @@ struct AgentLLMPlan: Codable {
     let steps: [AgentLLMStep]
 }
 
+/// Result of summarizing agent execution — includes whether the user's task was fully completed.
+struct AgentLLMSummary {
+    let summary: String
+    let taskComplete: Bool
+}
+
 enum AgentLLMError: LocalizedError {
     case noProvider
     case noAPIKey
@@ -148,7 +154,7 @@ class AgentLLMService {
 
     /// Summarize command outputs using SSE streaming. `onToken` fires on the main
     /// actor with the running token count.
-    func summarize(prompt: String, stepOutputs: [(command: String, output: String)], terminalModeContext: String, onToken: ((Int) -> Void)? = nil, completion: @escaping (Result<String, AgentLLMError>) -> Void) {
+    func summarize(prompt: String, stepOutputs: [(command: String, output: String)], terminalModeContext: String, onToken: ((Int) -> Void)? = nil, completion: @escaping (Result<AgentLLMSummary, AgentLLMError>) -> Void) {
         guard let provider = settings.selectedProvider else {
             completion(.failure(.noProvider)); return
         }
@@ -184,7 +190,14 @@ class AgentLLMService {
         The user asked a question or requested a task. Commands were executed and produced output.
         Based on the command outputs, provide a clear, concise answer to the user's original request.
         If the output contains the answer, state it directly. If there was an error, explain what went wrong.
-        Be brief and direct.
+
+        IMPORTANT: After summarizing, you MUST also assess whether the user's original task has been fully completed.
+        Respond with a JSON object (no prose outside the JSON):
+        {
+          "summary": "your summary text here",
+          "taskComplete": true or false
+        }
+        Set taskComplete to false if the user's task requires further steps that were not executed (e.g., the agent only read a file but did not act on its contents, or intermediate results suggest more commands are needed).
         """
 
         let systemPromptWithContext = terminalModeContext + "\n\n" + systemPrompt
@@ -195,7 +208,7 @@ class AgentLLMService {
         Execution results:
         \(context)
 
-        Please summarize the results and answer the user's request.
+        Please summarize the results, answer the user's request, and assess whether the task is fully completed.
         """
 
         var req = URLRequest(url: url)
@@ -229,8 +242,9 @@ class AgentLLMService {
             DispatchQueue.main.async {
                 switch result {
                 case .success(let content):
-                    let summary = content.trimmingCharacters(in: .whitespacesAndNewlines)
-                    self?.logger.log("✅ Agent summarize received: \(summary.count) chars", category: "Agent", level: .info)
+                    let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let summary = self?.parseSummary(from: trimmed) ?? AgentLLMSummary(summary: trimmed, taskComplete: true)
+                    self?.logger.log("✅ Agent summarize received: \(summary.summary.count) chars, taskComplete=\(summary.taskComplete)", category: "Agent", level: .info)
                     completion(.success(summary))
                 case .failure(let error):
                     completion(.failure(error))
@@ -412,7 +426,7 @@ class AgentLLMService {
     }
 
     /// Route summarize() to LocalModelManager for on-device inference.
-    private func handleLocalSummarize(prompt: String, stepOutputs: [(command: String, output: String)], terminalModeContext: String, onToken: ((Int) -> Void)?, completion: @escaping (Result<String, AgentLLMError>) -> Void) {
+    private func handleLocalSummarize(prompt: String, stepOutputs: [(command: String, output: String)], terminalModeContext: String, onToken: ((Int) -> Void)?, completion: @escaping (Result<AgentLLMSummary, AgentLLMError>) -> Void) {
         logger.log("🏠 Routing summarize to local model", category: "Agent", level: .info)
 
         var contextLines: [String] = []
@@ -427,7 +441,14 @@ class AgentLLMService {
         The user asked a question or requested a task. Commands were executed and produced output.
         Based on the command outputs, provide a clear, concise answer to the user's original request.
         If the output contains the answer, state it directly. If there was an error, explain what went wrong.
-        Be brief and direct.
+
+        IMPORTANT: After summarizing, you MUST also assess whether the user's original task has been fully completed.
+        Respond with a JSON object (no prose outside the JSON):
+        {
+          "summary": "your summary text here",
+          "taskComplete": true or false
+        }
+        Set taskComplete to false if the user's task requires further steps that were not executed.
         """
 
         let systemPromptWithContext = terminalModeContext + "\n\n" + systemPrompt
@@ -438,7 +459,7 @@ class AgentLLMService {
         Execution results:
         \(context)
 
-        Please summarize the results and answer the user's request.
+        Please summarize the results, answer the user's request, and assess whether the task is fully completed.
         """
 
         Task {
@@ -446,11 +467,11 @@ class AgentLLMService {
                 logger.log("🏠 handleLocalSummarize: about to await generate()", category: "Agent", level: .info)
                 let response = try await LocalModelManager.shared.generate(system: systemPromptWithContext, user: userMessage)
                 logger.log("🏠 handleLocalSummarize: generate() returned \(response.count) chars", category: "Agent", level: .info)
-                let summary = response.trimmingCharacters(in: .whitespacesAndNewlines)
-                logger.log("✅ Local summarize received: \(summary.count) chars", category: "Agent", level: .info)
+                let summary = parseSummary(from: response)
+                logger.log("✅ Local summarize received: \(summary.summary.count) chars, taskComplete=\(summary.taskComplete)", category: "Agent", level: .info)
 
                 // Simulate streaming by breaking response into chunks and calling onToken? incrementally
-                let chunks = summary.split { $0.isWhitespace || $0 == "\n" || $0 == "\r" }.map { String($0) }
+                let chunks = summary.summary.split { $0.isWhitespace || $0 == "\n" || $0 == "\r" }.map { String($0) }
                 var tokenCount = 0
 
                 for chunk in chunks {
@@ -608,6 +629,54 @@ class AgentLLMService {
                 completion(.failure(.networkError(error.localizedDescription)))
             }
         }
+    }
+
+    // MARK: - Summary parsing
+
+    /// Parse the summarize response — expects JSON `{summary, taskComplete}`.
+    /// Falls back to the raw text as summary with taskComplete=true if parsing fails.
+    /// Also strips `<think>...</think>` blocks from reasoning models.
+    private func parseSummary(from text: String) -> AgentLLMSummary {
+        var cleaned = text
+
+        // Strip <think>...</think> blocks
+        while let thinkStart = cleaned.range(of: "<think>", options: .caseInsensitive) {
+            if let thinkEnd = cleaned.range(of: "</think>", options: .caseInsensitive) {
+                let before = cleaned[cleaned.startIndex..<thinkStart.lowerBound]
+                let after = cleaned[thinkEnd.upperBound...]
+                cleaned = String(before) + String(after)
+            } else {
+                let before = cleaned[cleaned.startIndex..<thinkStart.lowerBound]
+                cleaned = String(before)
+            }
+        }
+
+        cleaned = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Try to extract JSON block
+        var jsonCandidate = cleaned
+        if let fenceRange = cleaned.range(of: "```json", options: .caseInsensitive) {
+            let afterFence = cleaned[fenceRange.upperBound...]
+            if let endFence = afterFence.range(of: "```") {
+                jsonCandidate = String(afterFence[afterFence.startIndex..<endFence.lowerBound])
+            } else {
+                jsonCandidate = String(afterFence)
+            }
+        }
+
+        // Try to find a JSON object
+        if let openIdx = jsonCandidate.firstIndex(of: "{"), let closeIdx = jsonCandidate.lastIndex(of: "}") {
+            let slice = String(jsonCandidate[openIdx...closeIdx])
+            if let data = slice.data(using: .utf8),
+               let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                let summary = (dict["summary"] as? String) ?? cleaned
+                let taskComplete = (dict["taskComplete"] as? Bool) ?? true
+                return AgentLLMSummary(summary: summary, taskComplete: taskComplete)
+            }
+        }
+
+        // Fallback: raw text, assume task complete
+        return AgentLLMSummary(summary: cleaned, taskComplete: true)
     }
 
     // MARK: - Plan parsing

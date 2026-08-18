@@ -1035,6 +1035,12 @@ struct ContentView: View {
             .sheet(isPresented: $showSettings) {
                 SettingsView()
             }
+            .alert("Bluetooth Not Connected",
+                   isPresented: $bleManager.showNoConnectionWarning) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("Please connect to your Openterface device via Bluetooth first.")
+            }
             .onChange(of: showPopup) { isPresented in
                 if isPresented && viewManager.currentView == .gamepad {
                     orientationManager.lockToLandscape()

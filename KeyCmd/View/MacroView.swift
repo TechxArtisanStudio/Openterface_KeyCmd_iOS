@@ -190,34 +190,21 @@ struct MacroView: View {
                             CursorTextEditor(text: $wizardData, selectedRange: $textEditorSelectedRange)
                                 .frame(minHeight: 80, maxHeight: 160)
                                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.3)))
-                            // Special keys row
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 8) {
-                                    ForEach([
-                                        ("⎇ Alt", "<ALT>"), ("^ Ctrl", "<CTRL>"), ("⇧ Shift", "<SHIFT>"), ("⌘ Cmd", "<CMD>"),
-                                        ("</ALT>", "</ALT>"), ("</CTRL>", "</CTRL>"), ("</SHIFT>", "</SHIFT>"), ("</CMD>", "</CMD>"),
-                                        ("⎋ Esc", "<ESC>"), ("⌫ Back", "<BACK>"), ("⏎ Enter", "<ENTER>"), ("␣ Space", "<SPACE>"),
-                                        ("←", "<LEFT>"), ("→", "<RIGHT>"), ("↑", "<UP>"), ("↓", "<DOWN>"),
-                                        ("⇱ Home", "<HOME>"), ("⇲ End", "<END>"),
-                                        ("⏱ 1s", "<DELAY1S>"), ("⏱ 2s", "<DELAY2S>"), ("⏱ 5s", "<DELAY5S>"), ("⏱ 10s", "<DELAY10S>")
-                                    ], id: \.1) { label, key in
-                                        Button(action: {
-                                            let range = textEditorSelectedRange
-                                            let start = wizardData.index(wizardData.startIndex, offsetBy: range.location)
-                                            let end = wizardData.index(start, offsetBy: range.length)
-                                            wizardData.replaceSubrange(start..<end, with: key)
-                                            // Move cursor after inserted token
-                                            let newLoc = range.location + key.count
-                                            textEditorSelectedRange = NSRange(location: newLoc, length: 0)
-                                        }) {
-                                            Text(label)
-                                                .font(.caption)
-                                                .padding(.horizontal, 8)
-                                                .padding(.vertical, 4)
-                                                .background(Color.gray.opacity(0.2))
-                                                .cornerRadius(6)
-                                        }
-                                    }
+                            // Insert tokens
+                            Text("INSERT TOKENS").font(.caption).fontWeight(.semibold).foregroundColor(.secondary)
+                            FlowLayout(spacing: 6) {
+                                tokenInsertButton("⎇ Alt", "<ALT>"); tokenInsertButton("^ Ctrl", "<CTRL>"); tokenInsertButton("⇧ Shift", "<SHIFT>"); tokenInsertButton("⌘ Cmd", "<CMD>")
+                                tokenInsertButton("</ALT>", "</ALT>"); tokenInsertButton("</CTRL>", "</CTRL>"); tokenInsertButton("</SHIFT>", "</SHIFT>"); tokenInsertButton("</CMD>", "</CMD>")
+                                tokenInsertButton("⎋ Esc", "<ESC>"); tokenInsertButton("⌫ Back", "<BACK>"); tokenInsertButton("⏎ Enter", "<ENTER>"); tokenInsertButton("␣ Space", "<SPACE>")
+                                tokenInsertButton("←", "<LEFT>"); tokenInsertButton("→", "<RIGHT>"); tokenInsertButton("↑", "<UP>"); tokenInsertButton("↓", "<DOWN>")
+                                tokenInsertButton("⇱ Home", "<HOME>"); tokenInsertButton("⇲ End", "<END>")
+                                tokenInsertButton("⏱ 1s", "<DELAY1S>"); tokenInsertButton("⏱ 2s", "<DELAY2S>"); tokenInsertButton("⏱ 5s", "<DELAY5S>"); tokenInsertButton("⏱ 10s", "<DELAY10S>")
+                                ForEach(1...12, id: \.self) { n in
+                                    tokenInsertButton("F\(n)", "<F\(n)>")
+                                }
+                                Text("SYMBOLS").font(.caption2).fontWeight(.semibold).foregroundColor(.secondary).padding(.top, 4)
+                                ForEach(["(", ")", "-", "+", "=", "!", "@", "#", "$", "%", "^", "&", "*", "<", ">", "{", "}", "[", "]", "|", "\\", ":", ";", "\"", "'", ",", ".", "/", "?", "~", "`", "_"], id: \.self) { sym in
+                                    tokenInsertButton(sym, String(sym))
                                 }
                             }
                         }
@@ -304,6 +291,30 @@ struct MacroView: View {
         }
     }
     
+    @ViewBuilder
+    private func tokenInsertButton(_ label: String, _ key: String) -> some View {
+        Button(action: {
+            var range = textEditorSelectedRange
+            // If cursor is invalid or at 0 when text is non-empty, append to end
+            if range.location == 0 && range.length == 0 && !wizardData.isEmpty {
+                range.location = wizardData.count
+            }
+            let clampedLoc = min(range.location, wizardData.count)
+            let clampedLen = min(range.length, wizardData.count - clampedLoc)
+            let start = wizardData.index(wizardData.startIndex, offsetBy: clampedLoc)
+            let end = wizardData.index(start, offsetBy: clampedLen)
+            wizardData.replaceSubrange(start..<end, with: key)
+            textEditorSelectedRange = NSRange(location: clampedLoc + key.count, length: 0)
+        }) {
+            Text(label)
+                .font(.caption)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.gray.opacity(0.2))
+                .cornerRadius(6)
+        }
+    }
+
     private func formatInterval(_ seconds: TimeInterval) -> String {
         let totalSeconds = Int(seconds)
         if totalSeconds < 60 {
@@ -410,6 +421,14 @@ struct TokenizedMacroView: View {
                                         .foregroundColor(.red)
                                 }
                             }
+                        } else if token.count == 1 && !token.allSatisfy({ $0.isLetter || $0.isNumber }) {
+                            // Symbol character — show with subtle background
+                            Text(token)
+                                .font(.body.monospaced())
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 2)
+                                .background(Color.green.opacity(0.15))
+                                .cornerRadius(3)
                         } else {
                             Text(token)
                                 .font(.body)
@@ -483,6 +502,33 @@ struct CursorTextEditor: UIViewRepresentable {
         }
         func textViewDidChangeSelection(_ textView: UITextView) {
             parent.selectedRange = textView.selectedRange
+        }
+    }
+}
+
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxW = proposal.width ?? .infinity
+        var x: CGFloat = 0, y: CGFloat = 0, rowH: CGFloat = 0
+        for sv in subviews {
+            let s = sv.sizeThatFits(.unspecified)
+            if x + s.width > maxW { x = 0; y += rowH + spacing; rowH = 0 }
+            x += s.width + spacing
+            rowH = max(rowH, s.height)
+        }
+        return CGSize(width: maxW == .infinity ? x : maxW, height: y + rowH)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX, y = bounds.minY, rowH: CGFloat = 0
+        for sv in subviews {
+            let s = sv.sizeThatFits(.unspecified)
+            if x + s.width > bounds.maxX { x = bounds.minX; y += rowH + spacing; rowH = 0 }
+            sv.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(s))
+            x += s.width + spacing
+            rowH = max(rowH, s.height)
         }
     }
 }

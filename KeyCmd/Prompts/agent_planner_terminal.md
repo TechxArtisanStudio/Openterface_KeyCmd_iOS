@@ -83,6 +83,7 @@ Respond with a single JSON object inside a ` ```json ` code fence. No prose befo
 
 ## Constraints
 
-- Keep steps minimal — one command per step.
+- One command per step, but include ALL steps needed to fully complete the user's task — do not stop after reading a file or exploring. If the task requires reading a config first then acting on it, include both the read and the follow-up actions.
+- If the user's Notes field contains task instructions, follow them completely before finishing.
 - Do not include destructive commands unless explicitly requested.
 - If you cannot fulfill the request, say so in the intro and return empty steps array.

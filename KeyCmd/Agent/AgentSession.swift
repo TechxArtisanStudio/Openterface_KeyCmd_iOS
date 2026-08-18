@@ -22,6 +22,11 @@ final class AgentSession: ObservableObject {
     /// How many retry rounds have been attempted for the current execution.
     private var retryCount: Int = 0
 
+    /// How many times the agent has auto-continued after the summarize phase.
+    /// Prevents infinite loops when the LLM keeps reporting taskComplete=false.
+    private var continueCount: Int = 0
+    private static let maxContinueRounds = 3
+
     /// True when no terminal profile is active — terminal steps will be typed via BLE HID.
     var isHIDMode: Bool { CredentialManager.shared.getActiveProfile() == nil }
 
@@ -43,6 +48,7 @@ final class AgentSession: ObservableObject {
         hasContent = true
         currentPrompt = prompt
         receivedTokens = 0
+        continueCount = 0
 
         messages.append(.user(prompt))
 
@@ -64,7 +70,7 @@ final class AgentSession: ObservableObject {
         let maxSteps = AISettings.shared.agentMaxSteps
 
         if let profile = credManager.getActiveProfile() {
-            return """
+            var context = """
             **Execution mode: Terminal (SSH)**
             Target: \(profile.username)@\(profile.host):\(profile.port)
             OS: \(targetOS.displayName)
@@ -73,6 +79,15 @@ final class AgentSession: ObservableObject {
             Terminal commands are executed via SSH on the remote device. Output (stdout + stderr) is captured and will be summarized for the user. Use `terminal` steps freely — they run directly.
             IMPORTANT: Use only the correct commands for \(targetOS.displayName). If a command fails, you will get a chance to retry with an alternative — do NOT pre-plan fallback commands.
             """
+
+            if !profile.notes.isEmpty {
+                context += "\n\n**Critical Notes (MUST follow):** \(profile.notes)"
+                context += "\nYou MUST execute ALL instructions in the notes above completely. Do not stop after reading files or exploring — continue until the user's task is fully done."
+            }
+
+            context += "\n\n**Note:** Use `\\t` (tab character) in commands when tab-completion or tab-separated values are needed."
+
+            return context
         } else {
             return """
             **Execution mode: HID (BLE keyboard)**
@@ -199,6 +214,7 @@ final class AgentSession: ObservableObject {
         currentPrompt = nil
         collectedOutputs = []
         retryCount = 0
+        continueCount = 0
         isThinking = false
         isExecuting = false
         isWaitingForApprove = false
@@ -376,18 +392,36 @@ final class AgentSession: ObservableObject {
                 self?.receivedTokens = count
             }) { [weak self] result in
                 DispatchQueue.main.async {
-                    self?.isThinking = false
+                    guard let self = self else { return }
+                    self.isThinking = false
                     switch result {
-                    case .success(let summary):
-                        self?.messages.append(.assistant(summary))
+                    case .success(let llmSummary):
+                        self.messages.append(.assistant(llmSummary.summary))
+
+                        // If task is not complete and we haven't exceeded the auto-continue limit,
+                        // generate a new plan to finish the remaining work.
+                        if !llmSummary.taskComplete && self.continueCount < AgentSession.maxContinueRounds {
+                            self.continueCount += 1
+                            LogManager.shared.log("🔁 Task not complete, auto-continuing (round \(self.continueCount)/\(AgentSession.maxContinueRounds))", category: "Agent", level: .info)
+                            self.messages.append(.assistant("🔁 Task not yet complete — continuing execution…"))
+                            self.continueExecution(originalPrompt: prompt)
+                            return
+                        }
+
+                        if llmSummary.taskComplete {
+                            self.continueCount = 0
+                        } else {
+                            LogManager.shared.log("⚠️ Auto-continue limit reached, stopping.", category: "Agent", level: .warning)
+                        }
+
                     case .failure(let error):
-                        self?.messages.append(.assistantError("⚠️ Summarize failed: \(error.localizedDescription)"))
+                        self.messages.append(.assistantError("⚠️ Summarize failed: \(error.localizedDescription)"))
                     }
-                    self?.isExecuting = false
-                    self?.currentSteps = nil
-                    self?.executor = nil
-                    self?.currentPrompt = nil
-                    self?.collectedOutputs = []
+                    self.isExecuting = false
+                    self.currentSteps = nil
+                    self.executor = nil
+                    self.currentPrompt = nil
+                    self.collectedOutputs = []
                 }
             }
         } else {
@@ -399,6 +433,90 @@ final class AgentSession: ObservableObject {
             executor = nil
             currentPrompt = nil
             collectedOutputs = []
+            continueCount = 0
+        }
+    }
+
+    /// Auto-continue execution when the summarize phase reports taskComplete=false.
+    /// Builds an augmented prompt that includes what was already executed, then plans
+    /// and runs the remaining steps. Loops back to summarizeAndFinish() when done.
+    private func continueExecution(originalPrompt: String) {
+        // Build context of what was already done
+        var doneLines: [String] = []
+        for (idx, entry) in collectedOutputs.enumerated() {
+            let truncated = entry.output.count > 500 ? String(entry.output.prefix(500)) + "…" : entry.output
+            doneLines.append("Step \(idx + 1): `\(entry.command)` → \(truncated)")
+        }
+        let doneContext = doneLines.joined(separator: "\n")
+
+        let continuedPrompt = """
+        Original request: \(originalPrompt)
+
+        The following steps were already executed but the task is not yet complete.
+        Continue from where we left off and complete the remaining steps.
+
+        Already executed:
+        \(doneContext)
+
+        What still needs to be done to fully complete the original request?
+        """
+
+        let macroCtx = macroManager.macroContextSection()
+        let terminalModeCtx = buildTerminalModeContext()
+
+        AgentLLMService.shared.plan(prompt: continuedPrompt, macroContext: macroCtx, terminalModeContext: terminalModeCtx, onToken: { [weak self] count in
+            self?.receivedTokens = count
+        }) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                switch result {
+                case .success(let plan):
+                    let maxSteps = AISettings.shared.agentMaxSteps
+                    let clampedSteps = Array(plan.steps.prefix(maxSteps))
+                    let clampedPlan = AgentLLMPlan(intro: plan.intro, steps: clampedSteps)
+
+                    self.messages.append(.assistant(clampedPlan.intro))
+                    let planSteps = clampedPlan.steps.enumerated().map { idx, step in
+                        AgentPlanStep(index: idx + 1, title: step.title, subtitle: step.subtitle, kind: self.planStepKind(from: step.kind))
+                    }
+                    self.messages.append(.plan(planSteps))
+                    self.messages.append(.actBar())
+
+                    // Auto-approve and execute the continuation plan
+                    self.currentSteps = clampedPlan.steps
+                    self.isExecuting = true
+
+                    self.removeActBar()
+
+                    let kbMgr = self.keyboardManager
+                    let macroMgr = self.macroManager
+                    let bleMgr = self.bleManager
+
+                    self.executor = AgentExecutor(keyboardManager: kbMgr, macroManager: macroMgr, bleManager: bleMgr)
+                    self.executor?.run(
+                        steps: clampedPlan.steps,
+                        onStepStart: { idx, step in
+                            self.upsertExecutionForStep(idx, step)
+                        },
+                        onStepDone: { idx, step, output in
+                            self.markStepDone(idx, step, total: clampedPlan.steps.count, output: output)
+                        },
+                        onDone: {
+                            self.checkForRetriesAndFinish()
+                        }
+                    )
+
+                case .failure(let error):
+                    LogManager.shared.log("❌ continueExecution plan failed: \(error.localizedDescription)", category: "Agent", level: .error)
+                    self.messages.append(.assistantError("⚠️ Continuation planning failed: \(error.localizedDescription)"))
+                    self.isExecuting = false
+                    self.currentSteps = nil
+                    self.executor = nil
+                    self.currentPrompt = nil
+                    self.collectedOutputs = []
+                    self.continueCount = 0
+                }
+            }
         }
     }
 

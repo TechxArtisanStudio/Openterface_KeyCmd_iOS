@@ -447,15 +447,29 @@ class KeyboardManager: ObservableObject {
             // in keyAlias to determine whether Shift is required.
             let lookupAlias = (keyAlias.count == 1 && keyAlias.first?.isLetter == true)
                 ? keyAlias.uppercased() : keyAlias
-            guard let keyCode = hidCode(forKey: lookupAlias) else { return }
+            var keyCode: UInt8?
+            var needsShift = false
+            if keyAlias.count == 1, let ch = keyAlias.first {
+                // Single character — use char-based HID lookup (handles symbols needing shift)
+                // Use original case (keyAlias) not uppercased (lookupAlias) to preserve letter case
+                let result = Keymod.hidCode(for: ch)
+                if result.code >= 0 {
+                    keyCode = UInt8(result.code)
+                    needsShift = result.needsShift
+                }
+            } else {
+                keyCode = hidCode(forKey: lookupAlias)
+            }
+            guard let code = keyCode else { return }
             var modByte: UInt8 = 0x00
             for m in activeModifiers { modByte |= modifierMask(for: m) ?? 0 }
+            if needsShift { modByte |= KMod.shift.rawValue }
             if keyAlias.count == 1, let ch = keyAlias.first, ch.isLetter {
                 // Add Shift when the intended case differs from the CapsLock state.
                 let wantUppercase = ch.isUppercase
                 if wantUppercase != capsLockActive { modByte |= KMod.shift.rawValue }
             }
-            sendKeyboardData(modifier: modByte, keyCodes: [keyCode, 0, 0, 0, 0, 0])
+            sendKeyboardData(modifier: modByte, keyCodes: [code, 0, 0, 0, 0, 0])
         }
         // Hold for 50 ms on background thread — no main-queue involvement
         usleep(50_000)
