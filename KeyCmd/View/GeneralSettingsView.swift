@@ -81,6 +81,15 @@ struct GeneralSettingsView: View {
                 .foregroundColor(.secondary)
         }
 
+        Section(header: Text("Keyboard")) {
+            NavigationLink("Keyboard Layout") {
+                KeyboardLayoutSettingsView()
+            }
+            Text("Configure the keyboard layout to match your physical keyboard (US, UK, DE, FR, JP, etc.).")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+
         Section(header: Text("Touchpad Settings")) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {

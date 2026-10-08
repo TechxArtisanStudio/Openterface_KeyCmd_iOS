@@ -153,7 +153,7 @@ class AISettings: ObservableObject {
     @Published var agentMaxRetries: Int {
         didSet { UserDefaults.standard.set(agentMaxRetries, forKey: "AISettings.agentMaxRetries") }
     }
-    
+
     // MARK: - System Prompt Roles (sourced from AIConfigManager)
 
     /// Live list of roles loaded from AIConfig.json (or server).

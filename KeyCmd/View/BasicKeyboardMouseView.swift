@@ -16,6 +16,7 @@ struct BasicKeyboardMouseView: View {
     @ObservedObject private var aiSettings = AISettings.shared
     @ObservedObject private var themeManager = ThemeManager.shared
     @ObservedObject private var prefs = KmBasicKeyboardPrefs.shared
+    @ObservedObject private var layoutManager = KeyboardLayoutManager.shared
 
     enum Submode: String, CaseIterable {
         case touchpad = "Touchpad"
@@ -44,7 +45,47 @@ struct BasicKeyboardMouseView: View {
         ["Ctrl", "Alt", "Space", "Alt", "Ctrl"]
     ]
 
-    // Windows-style layout rows
+    // MARK: - Keyboard Layout Rows (from KeyboardLayoutManager)
+
+    /// Extract key names from the current layout for visual rendering
+    private var currentLayoutRows: [[String]] {
+        let layout = layoutManager.currentLayout
+        return layout.rows.map { row in
+            row.map { $0.keyName }
+        }
+    }
+
+    /// Function row (F1-F12, Esc)
+    private var currentFRow: [String] {
+        currentLayoutRows.first ?? []
+    }
+
+    /// Number row (1-12 keys)
+    private var currentNumberRow: [String] {
+        currentLayoutRows.count > 1 ? currentLayoutRows[1] : []
+    }
+
+    /// QWERTY/AZERTY/QWERTZ row
+    private var currentRow3: [String] {
+        currentLayoutRows.count > 2 ? currentLayoutRows[2] : []
+    }
+
+    /// ASDF row
+    private var currentRow4: [String] {
+        currentLayoutRows.count > 3 ? currentLayoutRows[3] : []
+    }
+
+    /// ZXCV row
+    private var currentRow5: [String] {
+        currentLayoutRows.count > 4 ? currentLayoutRows[4] : []
+    }
+
+    /// Bottom modifier row
+    private var currentRow6: [String] {
+        currentLayoutRows.count > 5 ? currentLayoutRows[5] : []
+    }
+
+    // Windows-style layout rows (kept for backward compatibility, will be removed)
     let windowsFRow: [String] = [
         "Esc", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"
     ]
@@ -64,7 +105,7 @@ struct BasicKeyboardMouseView: View {
         "Ctrl", "Win", "Alt", "Space", "Alt", "Ctrl", "Left", "Down", "Right"
     ]
 
-    // Mac-specific bottom row
+    // Mac-specific bottom row (kept for backward compatibility, will be removed)
     let macRow6: [String] = [
         "Ctrl", "Option", "Cmd", "Space", "Cmd", "Option"
     ]
@@ -291,70 +332,75 @@ struct BasicKeyboardMouseView: View {
             VStack(spacing: 6) {
                 // Row 1: Esc + F1-F12 (half height)
                 HStack(spacing: 3) {
-                    ForEach(windowsFRow.indices, id: \.self) { idx in
-                        windowsKeyButton(key: windowsFRow[idx])
+                    ForEach(currentFRow.indices, id: \.self) { idx in
+                        windowsKeyButton(key: currentFRow[idx])
                     }
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: topRowHeight)
 
-                // Row 2: ` 1 2 3 4 5 6 7 8 9 0 - = Backspace (half height)
+                // Row 2: Number row (half height)
                 HStack(spacing: 3) {
-                    ForEach(windowsNumberRow.indices, id: \.self) { idx in
-                        windowsKeyButton(key: windowsNumberRow[idx])
+                    ForEach(currentNumberRow.indices, id: \.self) { idx in
+                        windowsKeyButton(key: currentNumberRow[idx])
                     }
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: topRowHeight)
 
-                // Row 3: Tab q w e r t y u i o p [ ] \
+                // Row 3: QWERTY/AZERTY/QWERTZ row
                 HStack(spacing: 3) {
-                    ForEach(windowsRow3.indices, id: \.self) { idx in
-                        windowsKeyButton(key: windowsRow3[idx])
+                    ForEach(currentRow3.indices, id: \.self) { idx in
+                        windowsKeyButton(key: currentRow3[idx])
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .layoutPriority(1)
 
-                // Row 4: Caps a s d f g h j k l ; ' Enter
+                // Row 4: ASDF row
                 HStack(spacing: 3) {
-                    ForEach(windowsRow4.indices, id: \.self) { idx in
-                        windowsKeyButton(key: windowsRow4[idx])
+                    ForEach(currentRow4.indices, id: \.self) { idx in
+                        windowsKeyButton(key: currentRow4[idx])
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .layoutPriority(1)
 
-                // Row 5: Shift z x c v b n m , . / Shift
+                // Row 5: ZXCV row
                 HStack(spacing: 3) {
-                    ForEach(windowsRow5.indices, id: \.self) { idx in
-                        windowsKeyButton(key: windowsRow5[idx])
+                    ForEach(currentRow5.indices, id: \.self) { idx in
+                        windowsKeyButton(key: currentRow5[idx])
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .layoutPriority(1)
 
-                // Row 6: Ctrl Super Alt Space Alt Ctrl + inverted-T arrow cluster
+                // Row 6: Bottom modifier row with arrow cluster
                 HStack(alignment: .center, spacing: 3) {
-                    windowsBottomKey("Ctrl")
-                    windowsBottomKey("Super")
-                    windowsBottomKey("Alt")
-                    // Space key — wide (visual-only: touch handled by MultiTouchKeyboardContainer overlay)
-                    let isSpacePressed = keyboardManager.pressedKeys.contains("Space")
-                    Image("openterface_wordmark")
-                        .resizable()
-                        .renderingMode(.template)
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 82.5)
-                        .frame(width: 200, alignment: .center)
-                        .frame(maxHeight: .infinity)
-                        .background(isSpacePressed ? themeManager.accentColor : Self.functionKeyBg)
-                        .cornerRadius(6)
-                        .foregroundColor(isSpacePressed ? Self.keyIconPressed : Self.keyIconIdle)
-                    windowsBottomKey("Alt")
-                    windowsBottomKey("Ctrl")
+                    // Render modifier keys from the layout
+                    ForEach(currentRow6.indices, id: \.self) { idx in
+                        let key = currentRow6[idx]
+                        if key == "Space" {
+                            // Special handling for Space key with logo
+                            let isSpacePressed = keyboardManager.pressedKeys.contains("Space")
+                            Image("openterface_wordmark")
+                                .resizable()
+                                .renderingMode(.template)
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 82.5)
+                                .frame(width: 200, alignment: .center)
+                                .frame(maxHeight: .infinity)
+                                .background(isSpacePressed ? themeManager.accentColor : Self.functionKeyBg)
+                                .cornerRadius(6)
+                                .foregroundColor(isSpacePressed ? Self.keyIconPressed : Self.keyIconIdle)
+                        } else if ["Left", "Right", "Up", "Down"].contains(key) {
+                            // Arrow keys are handled separately below
+                        } else {
+                            windowsBottomKey(key)
+                        }
+                    }
+                    // Arrow cluster (inverted-T)
                     arrowButton("Left", image: "left")
-                    // Inverted-T with arrows matching modifier key height
                     HStack(spacing: 3) {
                         VStack(spacing: 0) {
                             arrowButton("Up", image: "up")
@@ -384,72 +430,76 @@ struct BasicKeyboardMouseView: View {
                 VStack(spacing: 6) {
                     // Row 1: Esc + F1-F12 (half height)
                     HStack(spacing: 3) {
-                        ForEach(windowsFRow.indices, id: \.self) { idx in
-                            windowsKeyButton(key: windowsFRow[idx])
+                        ForEach(currentFRow.indices, id: \.self) { idx in
+                            windowsKeyButton(key: currentFRow[idx])
                         }
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: topRowHeight)
 
-                    // Row 2: ` 1 2 3 4 5 6 7 8 9 0 - = Backspace (half height)
+                    // Row 2: Number row (half height)
                     HStack(spacing: 3) {
-                        ForEach(windowsNumberRow.indices, id: \.self) { idx in
-                            windowsKeyButton(key: windowsNumberRow[idx])
+                        ForEach(currentNumberRow.indices, id: \.self) { idx in
+                            windowsKeyButton(key: currentNumberRow[idx])
                         }
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: topRowHeight)
 
-                    // Row 3: Tab q w e r t y u i o p [ ] \
+                    // Row 3: QWERTY/AZERTY/QWERTZ row
                     HStack(spacing: 3) {
-                        ForEach(windowsRow3.indices, id: \.self) { idx in
-                            windowsKeyButton(key: windowsRow3[idx])
+                        ForEach(currentRow3.indices, id: \.self) { idx in
+                            windowsKeyButton(key: currentRow3[idx])
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .layoutPriority(1)
 
-                    // Row 4: Caps a s d f g h j k l ; ' Enter
+                    // Row 4: ASDF row
                     HStack(spacing: 3) {
-                        ForEach(windowsRow4.indices, id: \.self) { idx in
-                            windowsKeyButton(key: windowsRow4[idx])
+                        ForEach(currentRow4.indices, id: \.self) { idx in
+                            windowsKeyButton(key: currentRow4[idx])
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .layoutPriority(1)
 
-                    // Row 5: Shift z x c v b n m , . / Shift
+                    // Row 5: ZXCV row
                     HStack(spacing: 3) {
-                        ForEach(windowsRow5.indices, id: \.self) { idx in
-                            windowsKeyButton(key: windowsRow5[idx])
+                        ForEach(currentRow5.indices, id: \.self) { idx in
+                            windowsKeyButton(key: currentRow5[idx])
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .layoutPriority(1)
 
-                    // Row 6: Ctrl Option Cmd Space Cmd Option + inverted-T arrow cluster
+                    // Row 6: Bottom modifier row with arrow cluster (Mac-style)
                     HStack(alignment: .center, spacing: 3) {
-                        windowsBottomKey("Ctrl")
-                        windowsBottomKey("Option")
-                        windowsBottomKey("Cmd")
-                        // Space key — wide (visual-only: touch handled by MultiTouchKeyboardContainer overlay)
-                        let isSpacePressed = keyboardManager.pressedKeys.contains("Space")
-                        Image("openterface_wordmark")
-                            .resizable()
-                            .renderingMode(.template)
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 82.5)
-                            .frame(width: 200, alignment: .center)
-                            .frame(maxHeight: .infinity)
-                            .background(isSpacePressed ? themeManager.accentColor : Self.functionKeyBg)
-                            .cornerRadius(6)
-                            .foregroundColor(isSpacePressed ? Self.keyIconPressed : Self.keyIconIdle)
-                        windowsBottomKey("Cmd")
-                        windowsBottomKey("Option")
-                        // Inverted-T: ↑ centered on top, ← ↓ → on bottom
+                        // Render modifier keys from the layout
+                        ForEach(currentRow6.indices, id: \.self) { idx in
+                            let key = currentRow6[idx]
+                            if key == "Space" {
+                                // Special handling for Space key with logo
+                                let isSpacePressed = keyboardManager.pressedKeys.contains("Space")
+                                Image("openterface_wordmark")
+                                    .resizable()
+                                    .renderingMode(.template)
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 82.5)
+                                    .frame(width: 200, alignment: .center)
+                                    .frame(maxHeight: .infinity)
+                                    .background(isSpacePressed ? themeManager.accentColor : Self.functionKeyBg)
+                                    .cornerRadius(6)
+                                    .foregroundColor(isSpacePressed ? Self.keyIconPressed : Self.keyIconIdle)
+                            } else if ["Left", "Right", "Up", "Down"].contains(key) {
+                                // Arrow keys are handled separately below
+                            } else {
+                                windowsBottomKey(key)
+                            }
+                        }
+                        // Arrow cluster (inverted-T for Mac)
                         arrowButton("Left", image: "left")
                         VStack(spacing: 3) {
-                            // Top row: Up arrow centered (same width as single arrow)
                             arrowButton("Up", image: "up").frame(width: 58)
                             arrowButton("Down", image: "down")
                         }
@@ -510,69 +560,73 @@ struct BasicKeyboardMouseView: View {
                 VStack(spacing: 6) {
                     // Row 1: Esc + F1-F12 (half height)
                     HStack(spacing: 3) {
-                        ForEach(windowsFRow.indices, id: \.self) { idx in
-                            windowsKeyButton(key: windowsFRow[idx])
+                        ForEach(currentFRow.indices, id: \.self) { idx in
+                            windowsKeyButton(key: currentFRow[idx])
                         }
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: topRowHeight)
 
-                    // Row 2: ` 1 2 3 4 5 6 7 8 9 0 - = Backspace (half height)
+                    // Row 2: Number row (half height)
                     HStack(spacing: 3) {
-                        ForEach(windowsNumberRow.indices, id: \.self) { idx in
-                            windowsKeyButton(key: windowsNumberRow[idx])
+                        ForEach(currentNumberRow.indices, id: \.self) { idx in
+                            windowsKeyButton(key: currentNumberRow[idx])
                         }
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: topRowHeight)
 
-                    // Row 3: Tab q w e r t y u i o p [ ] \
+                    // Row 3: QWERTY/AZERTY/QWERTZ row
                     HStack(spacing: 3) {
-                        ForEach(windowsRow3.indices, id: \.self) { idx in
-                            windowsKeyButton(key: windowsRow3[idx])
+                        ForEach(currentRow3.indices, id: \.self) { idx in
+                            windowsKeyButton(key: currentRow3[idx])
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .layoutPriority(1)
 
-                    // Row 4: Caps a s d f g h j k l ; ' Enter
+                    // Row 4: ASDF row
                     HStack(spacing: 3) {
-                        ForEach(windowsRow4.indices, id: \.self) { idx in
-                            windowsKeyButton(key: windowsRow4[idx])
+                        ForEach(currentRow4.indices, id: \.self) { idx in
+                            windowsKeyButton(key: currentRow4[idx])
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .layoutPriority(1)
 
-                    // Row 5: Shift z x c v b n m , . / Shift
+                    // Row 5: ZXCV row
                     HStack(spacing: 3) {
-                        ForEach(windowsRow5.indices, id: \.self) { idx in
-                            windowsKeyButton(key: windowsRow5[idx])
+                        ForEach(currentRow5.indices, id: \.self) { idx in
+                            windowsKeyButton(key: currentRow5[idx])
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .layoutPriority(1)
 
-                    // Row 6: Ctrl Win Alt Space Alt Ctrl + inverted-T arrow cluster
+                    // Row 6: Bottom modifier row with arrow cluster (Windows-style)
                     HStack(alignment: .center, spacing: 3) {
-                        // Modifier keys — same width as regular keys
-                        windowsBottomKey("Ctrl")
-                        windowsBottomKey("Win")
-                        windowsBottomKey("Alt")
-                        // Space key — wide (visual-only: touch handled by MultiTouchKeyboardContainer overlay)
-                        let isSpacePressed = keyboardManager.pressedKeys.contains("Space")
-                        Image("openterface_wordmark")
-                            .resizable()
-                            .renderingMode(.template)
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 82.5)
-                            .frame(width: 200, alignment: .center)
-                            .frame(maxHeight: .infinity)
-                            .background(isSpacePressed ? themeManager.accentColor : Self.functionKeyBg)
-                            .cornerRadius(6)
-                            .foregroundColor(isSpacePressed ? Self.keyIconPressed : Self.keyIconIdle)
-                        windowsBottomKey("Alt")
-                        windowsBottomKey("Ctrl")
+                        // Render modifier keys from the layout
+                        ForEach(currentRow6.indices, id: \.self) { idx in
+                            let key = currentRow6[idx]
+                            if key == "Space" {
+                                // Special handling for Space key with logo
+                                let isSpacePressed = keyboardManager.pressedKeys.contains("Space")
+                                Image("openterface_wordmark")
+                                    .resizable()
+                                    .renderingMode(.template)
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 82.5)
+                                    .frame(width: 200, alignment: .center)
+                                    .frame(maxHeight: .infinity)
+                                    .background(isSpacePressed ? themeManager.accentColor : Self.functionKeyBg)
+                                    .cornerRadius(6)
+                                    .foregroundColor(isSpacePressed ? Self.keyIconPressed : Self.keyIconIdle)
+                            } else if ["Left", "Right", "Up", "Down"].contains(key) {
+                                // Arrow keys are handled separately below
+                            } else {
+                                windowsBottomKey(key)
+                            }
+                        }
                         // Inverted-T: ↑ centered on top, ← ↓ → on bottom
                         VStack(spacing: 3) {
                             // Top row: Up arrow centered (same width as single arrow)
@@ -928,44 +982,15 @@ struct BasicKeyboardMouseView: View {
     /// Build a KeyboardLayoutDescription from the current keyboard layout and container size.
     /// This mirrors the SwiftUI layout math so the touch container's key frames match the visual positions.
     private func buildLayoutDescription(for size: CGSize, isWindowsLayout: Bool) -> KeyboardLayoutDescription {
-        let rows: [[String]]
-        if isWindowsLayout {
-            rows = [windowsFRow, windowsNumberRow, windowsRow3, windowsRow4, windowsRow5,
-                    ["Ctrl", "Win", "Alt", "Space", "Alt", "Ctrl", "Left", "Up", "Down", "Right"]]
-        } else {
-            rows = [windowsFRow, windowsNumberRow, windowsRow3, windowsRow4, windowsRow5,
-                    ["Ctrl", "Option", "Cmd", "Space", "Cmd", "Option", "Left", "Up", "Down", "Right"]]
-        }
-
-        // Rows 1-2 at half height, rows 3-6 equal.
-        // Total spacing: 5 gaps × 6pt = 30pt.
-        // NOTE: The visual layouts treat the 8pt top padding as an offset that does
-        // NOT reduce the row budget (Windows: `geo.size.height - 30`, Mac: `geo.size.height - 15`).
-        // The touch layer must match this convention, so the 8pt is NOT subtracted here.
-        let totalSpacing = CGFloat(5) * 6
-        let remaining = max(0, size.height - totalSpacing)
-        let topH = remaining / 10
-        let fixedRowHeights = [topH, topH]
-        let fixedKeyWidths: [String: CGFloat] = ["Space": 200]
-
-        return KeyboardLayoutDescription(
-            rows: rows,
-            containerSize: size,
-            rowSpacing: 6,
-            keySpacing: 3,
-            padding: EdgeInsets(top: 8, leading: 8, bottom: 0, trailing: 0),
-            fixedRowHeights: fixedRowHeights,
-            fixedKeyWidths: fixedKeyWidths
-        )
+        // Use the new layout system from KeyboardLayoutManager
+        let layout = layoutManager.currentLayout
+        return layout.toLayoutDescription(containerSize: size)
     }
 
     /// Map key names to their KeyType for the touch container.
+    /// Uses the layout's keyTypeResolver for accurate type information.
     private func keyType(for keyName: String) -> KeyType {
-        let modifiers: Set<String> = ["Ctrl", "Alt", "Cmd", "Win", "Option", "Super", "Shift"]
-        let specials: Set<String> = ["Caps"]
-        if modifiers.contains(keyName) { return .modifier }
-        if specials.contains(keyName) { return .special }
-        return .regular
+        return layoutManager.currentLayout.keyTypeResolver()(keyName)
     }
 
     // MARK: - Multi-touch event handlers
@@ -994,6 +1019,9 @@ struct BasicKeyboardMouseView: View {
             }
         case .special:
             keyboardManager.handleSpecialKey(keyName)
+        case .japaneseSpecial:
+            // Japanese special keys (変換, 無変換, ひらがな) — treat as regular key for now
+            keyboardManager.handleKeyDown(keyName)
         }
     }
 
@@ -1022,6 +1050,8 @@ struct BasicKeyboardMouseView: View {
             }
         case .special:
             break // Caps has no release behavior
+        case .japaneseSpecial:
+            keyboardManager.handleKeyUp(keyName)
         }
     }
 
