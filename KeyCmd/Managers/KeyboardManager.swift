@@ -30,6 +30,7 @@ class KeyboardManager: ObservableObject {
     @Published var isFnLocked: Bool = false // Fn lock for F1-F12 mapping
     @Published var isSymbolMode: Bool = false // Symbol mode keyboard layout
     @Published var isSending: Bool = false    // True while handleTextInput is in-flight
+    @Published var isAltGrActive: Bool = false // AltGr modifier state for European layouts
     private var sendCancelFlag = false
     private let sendLock = NSLock()
     let compositeKeyManager: CompositeKeyManager
@@ -358,6 +359,7 @@ class KeyboardManager: ObservableObject {
         case "Ctrl":  return KMod.ctrl.rawValue
         case "Shift": return KMod.shift.rawValue
         case "Alt", "Option": return KMod.alt.rawValue
+        case "AltGr": return KMod.alt.rawValue | KMod.gui.rawValue // AltGr = Right Alt + Right GUI for HID
         case "Cmd", "Win", "Super": return KMod.gui.rawValue
         default:      return nil
         }
@@ -391,10 +393,14 @@ class KeyboardManager: ObservableObject {
         // send the F-key instead of the letter.
         let effectiveKey = resolveFnKey(keyAlias) ?? keyAlias
 
+        logger.log("Looking up HID code for key: '\(key)' -> alias: '\(keyAlias)' -> effective: '\(effectiveKey)'", category: "Keyboard")
+
         guard let keyCode = hidCode(forKey: effectiveKey) else {
             logger.log("Unknown key: \(key) (resolved: \(effectiveKey))", category: "Keyboard", level: .warning)
             return
         }
+
+        logger.log("HID code for '\(effectiveKey)': 0x\(String(format: "%02X", keyCode))", category: "Keyboard")
         
         var modifierByte: UInt8 = 0x00
         let keyCodes: [UInt8] = [keyCode, 0x00, 0x00, 0x00, 0x00, 0x00]
@@ -895,6 +901,10 @@ class KeyboardManager: ObservableObject {
                     activeModifiers.insert(key)
                     logger.log("\(key) pressed", category: "Keyboard")
                 }
+                // Track AltGr state for European layouts
+                if key == "AltGr" {
+                    isAltGrActive = true
+                }
                 continue
             }
 
@@ -909,9 +919,14 @@ class KeyboardManager: ObservableObject {
             // Map common aliases to standard names
             let keyAlias = mapKeyAlias(key)
 
-            guard hidCode(forKey: keyAlias) != nil else {
+            guard let hidCode = hidCode(forKey: keyAlias) else {
                 logger.log("Unknown key: \(key)", category: "Keyboard", level: .warning)
                 continue
+            }
+
+            // Debug logging for special keys
+            if key == "¥" || keyAlias == "¥" || key == "\\" || keyAlias == "\\" {
+                logger.log("DEBUG: key=\(key), keyAlias=\(keyAlias), hidCode=0x\(String(format: "%02X", hidCode))", category: "Keyboard")
             }
 
             // Add to pressed keys set
@@ -944,12 +959,12 @@ class KeyboardManager: ObservableObject {
                 keyCodesToSend.append(keyCode)
             }
         }
-        
+
         // Pad key codes array to 6 elements
         while keyCodesToSend.count < 6 {
             keyCodesToSend.append(0x00)
         }
-        
+
         // Send key press (stay pressed until explicitly released)
         sendKeyboardData(modifier: modifierByte, keyCodes: keyCodesToSend)
     }
@@ -972,6 +987,10 @@ class KeyboardManager: ObservableObject {
                 if activeModifiers.contains(key) {
                     activeModifiers.remove(key)
                     logger.log("\(key) released", category: "Keyboard")
+                }
+                // Track AltGr state for European layouts
+                if key == "AltGr" {
+                    isAltGrActive = false
                 }
                 continue
             }
@@ -1000,12 +1019,12 @@ class KeyboardManager: ObservableObject {
                 keyCodesToSend.append(keyCode)
             }
         }
-        
+
         // Pad key codes array to 6 elements
         while keyCodesToSend.count < 6 {
             keyCodesToSend.append(0x00)
         }
-        
+
         sendKeyboardData(modifier: modifierByte, keyCodes: keyCodesToSend)
     }
     

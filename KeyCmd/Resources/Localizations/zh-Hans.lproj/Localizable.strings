@@ -68,6 +68,41 @@
 "Target OS" = "目标操作系统";
 "Sets the operating system of the target machine. The AI Command Assistant will use OS-specific shortcuts and key tokens." = "设置目标计算机的操作系统。AI 命令助手将使用特定于操作系统的快捷键和按键标记。";
 
+/* --- 键盘布局 --- */
+"Auto Detection" = "自动检测";
+"Auto Detect Keyboard Layout" = "自动检测键盘布局";
+"Detected Layout" = "检测到的布局";
+"Manual Selection" = "手动选择";
+"Keyboard Layout" = "键盘布局";
+"Current Layout" = "当前布局";
+"Layout Name" = "布局名称";
+"Physical Standard" = "物理标准";
+"AltGr Support" = "AltGr 支持";
+"Yes" = "是";
+"No" = "否";
+"Layout Preview" = "布局预览";
+"Keyboard layout determines the physical arrangement and labels of keys. Select the layout that matches your physical keyboard to ensure correct key mapping." = "键盘布局决定了按键的物理排列和标签。选择与您实际使用的物理键盘匹配的布局，以确保正确的按键映射。";
+"View All Supported Layouts" = "查看所有支持的布局";
+"Code" = "代码";
+"Supported Systems" = "支持的系统";
+"Features" = "特点";
+"Supported Layouts" = "支持的布局";
+"Standard US QWERTY layout" = "标准美式 QWERTY 布局";
+"UK layout with £ on the 3 key" = "英式布局，£ 在 3 键上";
+"German QWERTZ layout with Z and Y swapped" = "德式 QWERTZ 布局，Z 和 Y 互换";
+"French AZERTY layout" = "法式 AZERTY 布局";
+"Spanish layout with Ñ key" = "西班牙式布局，带 Ñ 键";
+"Italian layout with accent support" = "意大利式布局，支持重音符号";
+"Portuguese layout with Ç key" = "葡萄牙式布局，带 Ç 键";
+"Japanese JIS layout with special keys" = "日式 JIS 布局，带特殊键";
+"Chinese US layout (same as US)" = "中文美式布局（同 US）";
+"Canadian layout" = "加拿大布局";
+"Australian layout (same as UK)" = "澳大利亚布局（同 UK）";
+"Belgian AZERTY layout" = "比利时 AZERTY 布局";
+"Swiss QWERTZ layout" = "瑞士 QWERTZ 布局";
+"Nordic layout with Å, Ä, Ö" = "北欧布局，带 Å, Ä, Ö";
+"Windows, macOS, Linux" = "Windows, macOS, Linux";
+
 /* --- 通用 – 触控板 --- */
 "Touchpad Settings" = "触控板设置";
 "Tap Duration Threshold" = "点击持续时间阈值";

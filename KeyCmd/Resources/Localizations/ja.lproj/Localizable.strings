@@ -63,6 +63,41 @@
 "Target OS" = "ターゲットOS";
 "Sets the operating system of the target machine. The AI Command Assistant will use OS-specific shortcuts and key tokens." = "ターゲットマシンのオペレーティングシステムを設定します。AIコマンドアシスタントはOS固有のショートカットとキートークンを使用します。";
 
+/* --- キーボードレイアウト --- */
+"Auto Detection" = "自動検出";
+"Auto Detect Keyboard Layout" = "キーボードレイアウトを自動検出";
+"Detected Layout" = "検出されたレイアウト";
+"Manual Selection" = "手動選択";
+"Keyboard Layout" = "キーボードレイアウト";
+"Current Layout" = "現在のレイアウト";
+"Layout Name" = "レイアウト名";
+"Physical Standard" = "物理規格";
+"AltGr Support" = "AltGrサポート";
+"Yes" = "はい";
+"No" = "いいえ";
+"Layout Preview" = "レイアウトプレビュー";
+"Keyboard layout determines the physical arrangement and labels of keys. Select the layout that matches your physical keyboard to ensure correct key mapping." = "キーボードレイアウトはキーの物理的な配置とラベルを決定します。正しいキーマッピングを確保するために、実際の物理キーボードに一致するレイアウトを選択してください。";
+"View All Supported Layouts" = "サポートされているすべてのレイアウトを表示";
+"Code" = "コード";
+"Supported Systems" = "サポートされているシステム";
+"Features" = "特徴";
+"Supported Layouts" = "サポートされているレイアウト";
+"Standard US QWERTY layout" = "標準US QWERTYレイアウト";
+"UK layout with £ on the 3 key" = "3キーに£があるUKレイアウト";
+"German QWERTZ layout with Z and Y swapped" = "ZとYが入れ替わったドイツ語QWERTZレイアウト";
+"French AZERTY layout" = "フランス語AZERTYレイアウト";
+"Spanish layout with Ñ key" = "Ñキー付きスペイン語レイアウト";
+"Italian layout with accent support" = "アクセントサポート付きイタリア語レイアウト";
+"Portuguese layout with Ç key" = "Çキー付きポルトガル語レイアウト";
+"Japanese JIS layout with special keys" = "特殊キー付き日本語JISレイアウト";
+"Chinese US layout (same as US)" = "中国語USレイアウト（USと同じ）";
+"Canadian layout" = "カナダレイアウト";
+"Australian layout (same as UK)" = "オーストラリアレイアウト（UKと同じ）";
+"Belgian AZERTY layout" = "ベルギーAZERTYレイアウト";
+"Swiss QWERTZ layout" = "スイスQWERTZレイアウト";
+"Nordic layout with Å, Ä, Ö" = "Å、Ä、Ö付き北欧レイアウト";
+"Windows, macOS, Linux" = "Windows, macOS, Linux";
+
 "Touchpad Settings" = "タッチパッド設定";
 "Tap Duration Threshold" = "タップ持続時間のしきい値";
 "Maximum time allowed for a tap (shorter = more responsive, longer = more forgiving)" = "タップに許容される最大時間（短いほど応答性が高く、長いほど寛容）";

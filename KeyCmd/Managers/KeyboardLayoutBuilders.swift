@@ -6,7 +6,7 @@
 import Foundation
 import SwiftUI
 
-/// Windows/Linux 键盘布局构建器
+/// Windows/Linux keyboard layout builder
 struct WindowsLayoutBuilder {
     static func build(for locale: KeyboardLocale) -> KeyboardLayoutDefinition {
         switch locale {
@@ -27,17 +27,17 @@ struct WindowsLayoutBuilder {
         case .jp:
             return buildJpLayout()
         case .cn:
-            return buildUsLayout() // 中文通常使用美式布局
+            return buildUsLayout() // Chinese usually uses US layout
         case .ca:
-            return buildCaLayout() // 加拿大有英语和法语变体，这里默认英语
+            return buildCaLayout() // Canada has English and French variants, defaulting to English here
         case .au:
-            return buildUkLayout() // 澳大利亚同英国
+            return buildUkLayout() // Australia is same as UK
         case .be:
-            return buildBeLayout() // 比利时 AZERTY 变体
+            return buildBeLayout() // Belgium AZERTY variant
         case .ch:
-            return buildChLayout() // 瑞士 QWERTZ 变体
+            return buildChLayout() // Switzerland QWERTZ variant
         case .nordic:
-            return buildNordicLayout() // 北欧布局
+            return buildNordicLayout() // Nordic layout
         }
     }
 
@@ -77,7 +77,7 @@ struct WindowsLayoutBuilder {
                 KeyDefinition.key("=", "=", shift: "+"),
                 KeyDefinition.key("Backspace", "Backspace")
             ],
-            // QWERTY 第一行
+            // QWERTY first row
             [
                 KeyDefinition.key("Tab", "Tab"),
                 KeyDefinition.key("q", "Q"),
@@ -94,9 +94,9 @@ struct WindowsLayoutBuilder {
                 KeyDefinition.key("]", "]", shift: "}"),
                 KeyDefinition.key("\\", "\\", shift: "|")
             ],
-            // ASDF 第二行
+            // ASDF second row
             [
-                KeyDefinition.key("CapsLock", "CapsLock"),
+                KeyDefinition.key("Caps", "Caps"),
                 KeyDefinition.key("a", "a"),
                 KeyDefinition.key("s", "s"),
                 KeyDefinition.key("d", "d"),
@@ -110,7 +110,7 @@ struct WindowsLayoutBuilder {
                 KeyDefinition.key("'", "'", shift: "\""),
                 KeyDefinition.key("Enter", "Enter")
             ],
-            // ZXCV 第三行
+            // ZXCV third row
             [
                 KeyDefinition.key("Shift", "Shift", width: 1.5),
                 KeyDefinition.key("z", "z"),
@@ -126,7 +126,7 @@ struct WindowsLayoutBuilder {
                 KeyDefinition.key("Shift", "Shift", width: 1.5),
                 KeyDefinition.key("Up", "↑")
             ],
-            // 底部修饰键行
+            // Bottom modifier row
             [
                 KeyDefinition.mod("Ctrl"),
                 KeyDefinition.mod("Win"),
@@ -134,7 +134,7 @@ struct WindowsLayoutBuilder {
                 KeyDefinition.key("Space", " ", width: 6.0),
                 KeyDefinition.mod("Alt"),
                 KeyDefinition.mod("Win"),
-                KeyDefinition.mod("Menu"),
+                KeyDefinition.key("Menu", "Menu", keyCode: "App"),
                 KeyDefinition.mod("Ctrl"),
                 KeyDefinition.key("Left", "←"),
                 KeyDefinition.key("Down", "↓"),
@@ -169,15 +169,35 @@ struct WindowsLayoutBuilder {
         // UK-specific modifications:
         // - 2: " instead of @
         // - 3: £ instead of #
-        // - \ and # keys swapped positions in some layouts
+        // - \ (near enter) shows # instead of \
+        // - \ (between left shift and Z) shows ¬ instead
 
         // Modify number row
         if rows.count > 1 {
             var numberRow = rows[1]
             if numberRow.count > 3 {
-                numberRow[2] = KeyDefinition.key("2", "2", shift: "\"") // " instead of @
-                numberRow[3] = KeyDefinition.key("3", "3", shift: "£") // £ instead of #
+                numberRow[2] = KeyDefinition.key("2", "2", shift: "\"", keyCode: "2") // " instead of @
+                numberRow[3] = KeyDefinition.key("3", "3", shift: "£", keyCode: "3") // £ instead of #
                 rows[1] = numberRow
+            }
+        }
+
+        // Modify the backslash key (between [ and Enter) to show # instead
+        if rows.count > 2 {
+            var topRow = rows[2]
+            if let backslashIndex = topRow.firstIndex(where: { $0.keyName == "\\" }) {
+                topRow[backslashIndex] = KeyDefinition.key("#", "#", shift: "~", keyCode: "Backslash") // # instead of \
+                rows[2] = topRow
+            }
+        }
+
+        // Modify the key between left shift and Z to show \ instead of `
+        if rows.count > 4 {
+            var bottomRow = rows[4]
+            // Find the key after left shift (which should be ` in US layout)
+            if let backquoteIndex = bottomRow.firstIndex(where: { $0.keyName == "`" }) {
+                bottomRow[backquoteIndex] = KeyDefinition.key("\\", "\\", shift: "|", keyCode: "IntlBackslash") // \ instead of `
+                rows[4] = bottomRow
             }
         }
 
@@ -189,7 +209,7 @@ struct WindowsLayoutBuilder {
             rowSpacing: usLayout.metadata.rowSpacing,
             padding: usLayout.metadata.padding,
             fixedKeyWidths: usLayout.metadata.fixedKeyWidths,
-            physicalStandard: usLayout.metadata.physicalStandard
+            physicalStandard: .iso
         )
 
         return KeyboardLayoutDefinition(
@@ -261,18 +281,18 @@ struct WindowsLayoutBuilder {
             ],
             // Number row (AZERTY: &é"'(-è_çà)=
             [
-                KeyDefinition.key("&", "&", shift: "1"),
-                KeyDefinition.key("é", "é", shift: "2"),
-                KeyDefinition.key("\"", "\"", shift: "3"),
-                KeyDefinition.key("'", "'", shift: "4"),
-                KeyDefinition.key("(", "(", shift: "5"),
-                KeyDefinition.key("-", "-", shift: "6"),
-                KeyDefinition.key("è", "è", shift: "7"),
-                KeyDefinition.key("_", "_", shift: "8"),
-                KeyDefinition.key("ç", "ç", shift: "9"),
-                KeyDefinition.key("à", "à", shift: "0"),
-                KeyDefinition.key(")", ")", shift: "-"),
-                KeyDefinition.key("=", "=", shift: "+"),
+                KeyDefinition.key("&", "&", shift: "1", keyCode: "1"),
+                KeyDefinition.key("é", "é", shift: "2", keyCode: "2"),
+                KeyDefinition.key("\"", "\"", shift: "3", keyCode: "3"),
+                KeyDefinition.key("'", "'", shift: "4", keyCode: "4"),
+                KeyDefinition.key("(", "(", shift: "5", keyCode: "5"),
+                KeyDefinition.key("-", "-", shift: "6", keyCode: "6"),
+                KeyDefinition.key("è", "è", shift: "7", keyCode: "7"),
+                KeyDefinition.key("_", "_", shift: "8", keyCode: "8"),
+                KeyDefinition.key("ç", "ç", shift: "9", keyCode: "9"),
+                KeyDefinition.key("à", "à", shift: "0", keyCode: "0"),
+                KeyDefinition.key(")", ")", shift: "-", keyCode: "Minus"),
+                KeyDefinition.key("=", "=", shift: "+", keyCode: "Equal"),
                 KeyDefinition.key("Backspace", "Backspace")
             ],
             // Top letter row (AZERTY: A Z E R T Y U I O P ^ $
@@ -288,13 +308,13 @@ struct WindowsLayoutBuilder {
                 KeyDefinition.key("i", "i"),
                 KeyDefinition.key("o", "o"),
                 KeyDefinition.key("p", "p"),
-                KeyDefinition.key("^", "^", shift: "$"),
-                KeyDefinition.key("$", "$", shift: ""), // Actually £ in French, but using $ for simplicity
-                KeyDefinition.key("*", "*", shift: "µ") // * on key with µ
+                KeyDefinition.key("^", "^", shift: "$", keyCode: "BracketLeft"), // ^ on [ key
+                KeyDefinition.key("$", "$", shift: "", keyCode: "BracketRight"), // $ on ] key
+                KeyDefinition.key("*", "*", shift: "µ", keyCode: "Backslash") // * on \ key
             ],
             // Home row (Q S D F G H J K L M M ù
             [
-                KeyDefinition.key("CapsLock", "CapsLock"),
+                KeyDefinition.key("Caps", "Caps"),
                 KeyDefinition.key("q", "q"),
                 KeyDefinition.key("s", "s"),
                 KeyDefinition.key("d", "d"),
@@ -305,8 +325,8 @@ struct WindowsLayoutBuilder {
                 KeyDefinition.key("k", "k"),
                 KeyDefinition.key("l", "l"),
                 KeyDefinition.key("m", "m"),
-                KeyDefinition.key("%", "%", shift: "µ"), // % on key with µ
-                KeyDefinition.key("£", "£", shift: ""), // £ on M key
+                KeyDefinition.key("%", "%", shift: "µ", keyCode: "Digit5"), // % on 5 key
+                KeyDefinition.key("£", "£", shift: "", keyCode: "Quote"), // £ on ' key
                 KeyDefinition.key("Enter", "Enter")
             ],
             // Bottom letter row (W X C V B N N ? . / §
@@ -318,10 +338,10 @@ struct WindowsLayoutBuilder {
                 KeyDefinition.key("v", "v"),
                 KeyDefinition.key("b", "b"),
                 KeyDefinition.key("n", "n"),
-                KeyDefinition.key("?", "?", shift: "."), // ? on key with .
-                KeyDefinition.key(".", ".", shift: ";"), // . on key with ;
-                KeyDefinition.key("/", "/", shift: ":"), // / on key with :
-                KeyDefinition.key("§", "§", shift: "!"), // § on key with !
+                KeyDefinition.key("?", "?", shift: ".", keyCode: "Slash"), // ? on / key
+                KeyDefinition.key(".", ".", shift: ";", keyCode: "Period"), // . on . key
+                KeyDefinition.key("/", "/", shift: ":", keyCode: "Semicolon"), // / on ; key
+                KeyDefinition.key("§", "§", shift: "!", keyCode: "Backquote"), // § on ` key
                 KeyDefinition.key("Shift", "Shift", width: 1.5),
                 KeyDefinition.key("Up", "↑")
             ],
@@ -333,7 +353,7 @@ struct WindowsLayoutBuilder {
                 KeyDefinition.key("Space", " ", width: 6.0),
                 KeyDefinition.mod("AltGr"), // French uses AltGr
                 KeyDefinition.mod("Win"),
-                KeyDefinition.mod("Menu"),
+                KeyDefinition.key("Menu", "Menu", keyCode: "App"),
                 KeyDefinition.mod("Ctrl"),
                 KeyDefinition.key("Left", "←"),
                 KeyDefinition.key("Down", "↓"),
@@ -373,7 +393,7 @@ struct WindowsLayoutBuilder {
         if rows.count > 3 {
             var homeRow = rows[3]
             if let lIndex = homeRow.firstIndex(where: { $0.keyName == "l" }) {
-                let nKey = KeyDefinition.key("ñ", "ñ", shift: "Ñ")
+                let nKey = KeyDefinition.key("ñ", "ñ", shift: "Ñ", keyCode: "Semicolon") // ñ on ; key
                 homeRow.insert(nKey, at: lIndex + 1)
                 rows[3] = homeRow
             }
@@ -453,7 +473,7 @@ struct WindowsLayoutBuilder {
             var homeRow = rows[3]
             // Find the L key and insert Ç after it
             if let lIndex = homeRow.firstIndex(where: { $0.keyName == "l" }) {
-                let cCedilhaKey = KeyDefinition.key("ç", "ç", shift: "Ç")
+                let cCedilhaKey = KeyDefinition.key("ç", "ç", shift: "Ç", keyCode: "Semicolon") // Ç on ; key
                 homeRow.insert(cCedilhaKey, at: lIndex + 1)
                 rows[3] = homeRow
             }
@@ -501,7 +521,7 @@ struct WindowsLayoutBuilder {
             ],
             // Number row (similar to US but with backtick replaced by backslash)
             [
-                KeyDefinition.key("\\", "\\", shift: "_"), // Japanese JIS has \ instead of `
+                KeyDefinition.key("\\", "\\", shift: "_", keyCode: "Backslash"), // Japanese JIS has \ instead of `
                 KeyDefinition.key("1", "1", shift: "!"),
                 KeyDefinition.key("2", "2", shift: "@"),
                 KeyDefinition.key("3", "3", shift: "#"),
@@ -513,7 +533,7 @@ struct WindowsLayoutBuilder {
                 KeyDefinition.key("9", "9", shift: "("),
                 KeyDefinition.key("0", "0", shift: ")"),
                 KeyDefinition.key("-", "-", shift: "="),
-                KeyDefinition.key("^", "^", shift: "~"), // ^ instead of -
+                KeyDefinition.key("^", "^", shift: "~", keyCode: "Minus"), // ^ instead of -
                 KeyDefinition.key("Backspace", "Backspace")
             ],
             // Top letter row (includes ¥ key)
@@ -529,14 +549,14 @@ struct WindowsLayoutBuilder {
                 KeyDefinition.key("i", "i"),
                 KeyDefinition.key("o", "o"),
                 KeyDefinition.key("p", "p"),
-                KeyDefinition.key("@", "@", shift: "`"), // @ instead of [
+                KeyDefinition.key("@", "@", shift: "`", keyCode: "BracketLeft"), // @ instead of [
                 KeyDefinition.key("[", "[", shift: "{"),
                 KeyDefinition.key("]", "]", shift: "}"),
-                KeyDefinition.key("¥", "¥", shift: "|") // ¥ instead of \
+                KeyDefinition.key("¥", "¥", shift: "|", keyCode: "IntlBackslash"), // ¥ instead of \ (keyCode is IntlBackslash)
             ],
             // Home row
             [
-                KeyDefinition.key("CapsLock", "CapsLock"),
+                KeyDefinition.key("Caps", "Caps"),
                 KeyDefinition.key("a", "a"),
                 KeyDefinition.key("s", "s"),
                 KeyDefinition.key("d", "d"),
@@ -546,8 +566,8 @@ struct WindowsLayoutBuilder {
                 KeyDefinition.key("j", "j"),
                 KeyDefinition.key("k", "k"),
                 KeyDefinition.key("l", "l"),
-                KeyDefinition.key(";", ";", shift: "+"), // ; instead of :
-                KeyDefinition.key(":", ":", shift: "*"), // : instead of "
+                KeyDefinition.key(";", ";", shift: "+", keyCode: ";"), // ; instead of :
+                KeyDefinition.key(":", ":", shift: "*", keyCode: "'"), // : instead of "
                 KeyDefinition.key("Enter", "Enter")
             ],
             // Bottom letter row
@@ -564,7 +584,7 @@ struct WindowsLayoutBuilder {
                 KeyDefinition.key(".", ".", shift: ">"),
                 KeyDefinition.key("/", "/", shift: "?"),
                 KeyDefinition.key("Shift", "Shift", width: 1.5),
-                KeyDefinition.key("Ro", "Ro"), // Romaji key
+                KeyDefinition.special("Ro", label: "Ro", keyCode: "Ro"), // Romaji key
                 KeyDefinition.key("Up", "↑")
             ],
             // Bottom modifier row (with additional keys for Japanese)
@@ -660,19 +680,19 @@ struct WindowsLayoutBuilder {
             ],
             // Number row (Swiss: numbers have different shift characters)
             [
-                KeyDefinition.key("§", "§", shift: "°"),
-                KeyDefinition.key("1", "1", shift: "+"),
-                KeyDefinition.key("2", "2", shift: "\""),
-                KeyDefinition.key("3", "3", shift: "*"),
-                KeyDefinition.key("4", "4", shift: "ç"),
-                KeyDefinition.key("5", "5", shift: "%"),
-                KeyDefinition.key("6", "6", shift: "&"),
-                KeyDefinition.key("7", "7", shift: "/"),
-                KeyDefinition.key("8", "8", shift: "("),
-                KeyDefinition.key("9", "9", shift: ")"),
-                KeyDefinition.key("0", "0", shift: "="),
-                KeyDefinition.key("'", "'", shift: "?"),
-                KeyDefinition.key("^", "^", shift: "`"),
+                KeyDefinition.key("§", "§", shift: "°", keyCode: "IntlBackslash"), // § on \ key
+                KeyDefinition.key("1", "1", shift: "+", keyCode: "1"),
+                KeyDefinition.key("2", "2", shift: "\"", keyCode: "2"),
+                KeyDefinition.key("3", "3", shift: "*", keyCode: "3"),
+                KeyDefinition.key("4", "4", shift: "ç", keyCode: "4"),
+                KeyDefinition.key("5", "5", shift: "%", keyCode: "5"),
+                KeyDefinition.key("6", "6", shift: "&", keyCode: "6"),
+                KeyDefinition.key("7", "7", shift: "/", keyCode: "7"),
+                KeyDefinition.key("8", "8", shift: "(", keyCode: "8"),
+                KeyDefinition.key("9", "9", shift: ")", keyCode: "9"),
+                KeyDefinition.key("0", "0", shift: "=", keyCode: "0"),
+                KeyDefinition.key("'", "'", shift: "?", keyCode: "Quote"),
+                KeyDefinition.key("^", "^", shift: "`", keyCode: "Backquote"),
                 KeyDefinition.key("Backspace", "Backspace")
             ],
             // Top letter row (Swiss QWERTZ with Z/Y swap and special chars)
@@ -688,12 +708,12 @@ struct WindowsLayoutBuilder {
                 KeyDefinition.key("i", "i"),
                 KeyDefinition.key("o", "o"),
                 KeyDefinition.key("p", "p"),
-                KeyDefinition.key("ü", "ü", shift: "è"),
-                KeyDefinition.key("¨", "¨", shift: "!")
+                KeyDefinition.key("ü", "ü", shift: "è", keyCode: "BracketLeft"), // ü on [ key
+                KeyDefinition.key("¨", "¨", shift: "!", keyCode: "BracketRight") // ¨ on ] key (dead key for umlaut)
             ],
             // Home row (Swiss with ä and special characters)
             [
-                KeyDefinition.key("CapsLock", "CapsLock"),
+                KeyDefinition.key("Caps", "Caps"),
                 KeyDefinition.key("a", "a"),
                 KeyDefinition.key("s", "s"),
                 KeyDefinition.key("d", "d"),
@@ -703,9 +723,9 @@ struct WindowsLayoutBuilder {
                 KeyDefinition.key("j", "j"),
                 KeyDefinition.key("k", "k"),
                 KeyDefinition.key("l", "l"),
-                KeyDefinition.key("ö", "ö", shift: "é"),
-                KeyDefinition.key("ä", "ä", shift: "à"),
-                KeyDefinition.key("$", "$", shift: "£"),
+                KeyDefinition.key("ö", "ö", shift: "é", keyCode: "Semicolon"), // ö on ; key
+                KeyDefinition.key("ä", "ä", shift: "à", keyCode: "Quote"), // ä on ' key
+                KeyDefinition.key("$", "$", shift: "£", keyCode: "Backslash"), // $ on \ key
                 KeyDefinition.key("Enter", "Enter")
             ],
             // Bottom letter row
@@ -732,7 +752,7 @@ struct WindowsLayoutBuilder {
                 KeyDefinition.key("Space", " ", width: 6.0),
                 KeyDefinition.mod("AltGr"), // Swiss uses AltGr
                 KeyDefinition.mod("Win"),
-                KeyDefinition.mod("Menu"),
+                KeyDefinition.key("Menu", "Menu", keyCode: "App"),
                 KeyDefinition.mod("Ctrl"),
                 KeyDefinition.key("Left", "←"),
                 KeyDefinition.key("Down", "↓"),
@@ -773,8 +793,8 @@ struct WindowsLayoutBuilder {
             var topRow = rows[2]
             // Add Å key after ]
             if let bracketIndex = topRow.firstIndex(where: { $0.keyName == "]" }) {
-                let aringKey = KeyDefinition.key("å", "å", shift: "Å")
-                let diaeresisKey = KeyDefinition.key("¨", "¨", shift: "^") // dead key for umlaut
+                let aringKey = KeyDefinition.key("å", "å", shift: "Å", keyCode: "Backslash") // å on \ key
+                let diaeresisKey = KeyDefinition.key("¨", "¨", shift: "^", keyCode: "IntlBackslash") // dead key for umlaut
                 topRow.insert(contentsOf: [aringKey, diaeresisKey], at: bracketIndex + 1)
                 rows[2] = topRow
             }
@@ -784,8 +804,8 @@ struct WindowsLayoutBuilder {
         if rows.count > 3 {
             var homeRow = rows[3]
             if let lIndex = homeRow.firstIndex(where: { $0.keyName == "l" }) {
-                let aumlKey = KeyDefinition.key("ä", "ä", shift: "Ä")
-                let oumlKey = KeyDefinition.key("ö", "ö", shift: "Ö")
+                let aumlKey = KeyDefinition.key("ä", "ä", shift: "Ä", keyCode: "Semicolon") // ä on ; key
+                let oumlKey = KeyDefinition.key("ö", "ö", shift: "Ö", keyCode: "Quote") // ö on ' key
                 homeRow.insert(contentsOf: [aumlKey, oumlKey], at: lIndex + 1)
                 rows[3] = homeRow
             }
@@ -812,7 +832,7 @@ struct WindowsLayoutBuilder {
     }
 }
 
-/// macOS 键盘布局构建器
+/// macOS keyboard layout builder
 struct MacLayoutBuilder {
     static func build(for locale: KeyboardLocale) -> KeyboardLayoutDefinition {
         // Get the base Windows/Linux layout
@@ -822,23 +842,26 @@ struct MacLayoutBuilder {
         var modifiedRows = baseLayout.rows
 
         // Update the bottom modifier row for macOS
+        // The Windows layout uses keyNames: "Ctrl", "Win", "Alt", "Menu"
+        // macOS needs: "Ctrl" → "Control", "Win" → "⌘", "Alt" → "⌥"
         if modifiedRows.count > 0 {
             let bottomRowIndex = modifiedRows.count - 1
             if bottomRowIndex >= 0 && bottomRowIndex < modifiedRows.count {
                 var bottomRow = modifiedRows[bottomRowIndex]
-                // Replace modifier labels with macOS-specific symbols
                 for i in 0..<bottomRow.count {
-                    if bottomRow[i].keyName == "leftControl" || bottomRow[i].keyName == "rightControl" {
-                        bottomRow[i] = KeyDefinition.mod(bottomRow[i].keyName, label: "Control")
-                    } else if bottomRow[i].keyName == "leftGui" || bottomRow[i].keyName == "rightGui" {
-                        bottomRow[i] = KeyDefinition.mod(bottomRow[i].keyName, label: "⌘")
-                    } else if bottomRow[i].keyName == "leftAlt" || bottomRow[i].keyName == "rightAlt" {
-                        // Check if it's AltGr (right Alt on some layouts)
-                        if bottomRow[i].keyName == "rightAlt" && baseLayout.metadata.hasAltGr {
-                            bottomRow[i] = KeyDefinition.mod(bottomRow[i].keyName, label: "⌥")
-                        } else {
-                            bottomRow[i] = KeyDefinition.mod(bottomRow[i].keyName, label: "⌥")
-                        }
+                    let keyName = bottomRow[i].keyName
+                    switch keyName {
+                    case "Ctrl":
+                        bottomRow[i] = KeyDefinition.mod(keyName, label: "⌃")
+                    case "Win":
+                        bottomRow[i] = KeyDefinition.mod(keyName, label: "⌘")
+                    case "Alt":
+                        bottomRow[i] = KeyDefinition.mod(keyName, label: "⌥")
+                    case "Menu":
+                        // macOS doesn't have a Menu key, hide it or relabel
+                        bottomRow[i] = KeyDefinition.mod(keyName, label: "fn")
+                    default:
+                        break
                     }
                 }
                 modifiedRows[bottomRowIndex] = bottomRow
@@ -846,14 +869,15 @@ struct MacLayoutBuilder {
         }
 
         let metadata = LayoutMetadata(
-            name: baseLayout.metadata.name + " (macOS)",
+            name: baseLayout.metadata.name.replacingOccurrences(of: "Windows", with: "macOS"),
             description: baseLayout.metadata.description,
             rowHeights: baseLayout.metadata.rowHeights,
             keySpacing: baseLayout.metadata.keySpacing,
             rowSpacing: baseLayout.metadata.rowSpacing,
             padding: baseLayout.metadata.padding,
             fixedKeyWidths: baseLayout.metadata.fixedKeyWidths,
-            physicalStandard: baseLayout.metadata.physicalStandard
+            physicalStandard: baseLayout.metadata.physicalStandard,
+            hasAltGr: baseLayout.metadata.hasAltGr
         )
 
         return KeyboardLayoutDefinition(
@@ -865,7 +889,7 @@ struct MacLayoutBuilder {
     }
 }
 
-/// Linux 键盘布局构建器
+/// Linux keyboard layout builder
 struct LinuxLayoutBuilder {
     static func build(for locale: KeyboardLocale) -> KeyboardLayoutDefinition {
         // Linux typically uses the same layout as Windows

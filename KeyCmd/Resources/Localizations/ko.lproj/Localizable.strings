@@ -68,6 +68,41 @@
 "Target OS" = "대상 OS";
 "Sets the operating system of the target machine. The AI Command Assistant will use OS-specific shortcuts and key tokens." = "대상 컴퓨터의 운영 체제를 설정합니다. AI 명령 보조자는 OS별 단축키와 키 토큰을 사용합니다.";
 
+/* --- 키보드 레이아웃 --- */
+"Auto Detection" = "자동 감지";
+"Auto Detect Keyboard Layout" = "키보드 레이아웃 자동 감지";
+"Detected Layout" = "감지된 레이아웃";
+"Manual Selection" = "수동 선택";
+"Keyboard Layout" = "키보드 레이아웃";
+"Current Layout" = "현재 레이아웃";
+"Layout Name" = "레이아웃 이름";
+"Physical Standard" = "물리 표준";
+"AltGr Support" = "AltGr 지원";
+"Yes" = "예";
+"No" = "아니오";
+"Layout Preview" = "레이아웃 미리보기";
+"Keyboard layout determines the physical arrangement and labels of keys. Select the layout that matches your physical keyboard to ensure correct key mapping." = "키보드 레이아웃은 키의 물리적 배열과 라벨을 결정합니다. 실제 물리 키보드와 일치하는 레이아웃을 선택하여 올바른 키 매핑을 보장하세요.";
+"View All Supported Layouts" = "지원되는 모든 레이아웃 보기";
+"Code" = "코드";
+"Supported Systems" = "지원되는 시스템";
+"Features" = "기능";
+"Supported Layouts" = "지원되는 레이아웃";
+"Standard US QWERTY layout" = "표준 US QWERTY 레이아웃";
+"UK layout with £ on the 3 key" = "3번 키에 £가 있는 UK 레이아웃";
+"German QWERTZ layout with Z and Y swapped" = "Z와 Y가 교환된 독일어 QWERTZ 레이아웃";
+"French AZERTY layout" = "프랑스어 AZERTY 레이アウト";
+"Spanish layout with Ñ key" = "Ñ 키가 있는 스페인어 레이아웃";
+"Italian layout with accent support" = "악센트 지원이 있는 이탈리아어 레이아웃";
+"Portuguese layout with Ç key" = "Ç 키가 있는 포르투갈語レイアウト";
+"Japanese JIS layout with special keys" = "특수 키가 있는 일본어 JIS 레이아웃";
+"Chinese US layout (same as US)" = "중국어 US 레이아웃 (US와 동일)";
+"Canadian layout" = "캐나다 레이아웃";
+"Australian layout (same as UK)" = "오스트레일리아 레이아웃 (UK와 동일)";
+"Belgian AZERTY layout" = "벨기에 AZERTY 레이아웃";
+"Swiss QWERTZ layout" = "스위스 QWERTZ 레이아웃";
+"Nordic layout with Å, Ä, Ö" = "Å, Ä, Ö가 있는 북유럽 레이아웃";
+"Windows, macOS, Linux" = "Windows, macOS, Linux";
+
 /* --- 일반 – 터치패드 --- */
 "Touchpad Settings" = "터치패드 설정";
 "Tap Duration Threshold" = "탭 지속 시간 임계값";

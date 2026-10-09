@@ -85,6 +85,26 @@ struct BasicKeyboardMouseView: View {
         currentLayoutRows.count > 5 ? currentLayoutRows[5] : []
     }
 
+    /// Look up the KeyDefinition for a given key name from the current layout
+    private func keyDefinition(for keyName: String) -> KeyDefinition? {
+        return layoutManager.currentLayout.keyDefinition(for: keyName)
+    }
+
+    /// Get the display label for a key from the layout definition
+    private func layoutLabel(for keyName: String) -> String {
+        return keyDefinition(for: keyName)?.label ?? keyName
+    }
+
+    /// Get the shift label for a key from the layout definition
+    private func layoutShiftLabel(for keyName: String) -> String? {
+        return keyDefinition(for: keyName)?.shiftLabel
+    }
+
+    /// Get the AltGr label for a key from the layout definition
+    private func layoutAltGrLabel(for keyName: String) -> String? {
+        return keyDefinition(for: keyName)?.altGrLabel
+    }
+
     // Windows-style layout rows (kept for backward compatibility, will be removed)
     let windowsFRow: [String] = [
         "Esc", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"
@@ -675,8 +695,14 @@ struct BasicKeyboardMouseView: View {
             }
         }()
         let isSuperKey = key == "Super" || key == "Win"
+        let isModifierKey = ["Ctrl", "Alt", "Cmd", "Win", "Option", "Super", "Shift"].contains(key)
         // Visual-only: touch handled by MultiTouchKeyboardContainer overlay
-        let isPressed = keyboardManager.activeModifiers.contains(key) || keyboardManager.lockedModifiers.contains(key)
+        let isPressed: Bool
+        if isModifierKey {
+            isPressed = keyboardManager.activeModifiers.contains(key) || keyboardManager.lockedModifiers.contains(key)
+        } else {
+            isPressed = keyboardManager.pressedKeys.contains(hidKeyName(for: key))
+        }
         return Group {
             if isSuperKey && aiSettings.targetOS == .windows {
                 Image("targetos_windows")
@@ -746,28 +772,33 @@ struct BasicKeyboardMouseView: View {
         } else if key == "Space" {
             Text("").frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            // For number and symbol keys, show dual labels: small symbol in top-right corner, main character centered below
-            let shouldShowDualLabels = ["`", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=", "[", "]", "\\", ";", "'", ",", ".", "/"].contains(key)
+            // Use layout definition for labels
+            let shiftLabel = layoutShiftLabel(for: key)
+            let altGrLabel = layoutAltGrLabel(for: key)
+            let hasShiftLabel = shiftLabel != nil
+            let hasAltGrLabel = altGrLabel != nil
 
-            if shouldShowDualLabels {
-                let shiftMap: [String: String] = [
-                    "`": "~", "1": "!", "2": "@", "3": "#", "4": "$", "5": "%",
-                    "6": "^", "7": "&", "8": "*", "9": "(", "0": ")",
-                    "-": "_", "=": "+", "[": "{", "]": "}", "\\": "|",
-                    ";": ":", "'": "\"", ",": "<", ".": ">", "/": "?"
-                ]
-                let symbolLabel = shiftMap[key] ?? ""
-
+            if hasShiftLabel || hasAltGrLabel {
                 VStack(spacing: 0) {
+                    // Top row: shift label (top-left) and altGr label (top-right)
                     HStack {
+                        if let shiftLabel = shiftLabel {
+                            Text(shiftLabel)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.secondary)
+                                .padding(.leading, 4)
+                        }
                         Spacer()
-                        Text(symbolLabel)
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.secondary)
-                            .padding(.trailing, 4)
+                        if let altGrLabel = altGrLabel {
+                            Text(altGrLabel)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.secondary)
+                                .padding(.trailing, 4)
+                        }
                     }
                     .padding(.top, 2)
 
+                    // Main label centered
                     Text(displayText)
                         .font(.system(size: 14, weight: .bold))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -810,7 +841,7 @@ struct BasicKeyboardMouseView: View {
             windowsKeyVisual(key: key, displayText: keyLabel, isPressed: isCapsActive)
         } else {
             // Visual-only: touch handled by MultiTouchKeyboardContainer overlay
-            let effectiveKey = key == "Esc" ? "Escape" : key
+            let effectiveKey = hidKeyName(for: key)
             let isPressed = keyboardManager.pressedKeys.contains(effectiveKey)
             windowsKeyVisual(key: key, displayText: keyLabel, isPressed: isPressed)
         }
@@ -818,6 +849,11 @@ struct BasicKeyboardMouseView: View {
 
     /// Base label shown ON the key (physical-keyboard style: uppercase letters, raw symbols).
     private func windowsLabelOnKey(for key: String) -> String {
+        // Use layout definition if available
+        if let keyDef = keyDefinition(for: key) {
+            return keyDef.label
+        }
+        // Fallback for keys not in layout definition
         if key == "Cmd" { return "⌘" }
         if key == "Option" { return "⌥" }
         if key == "Super" { return "❖" }
@@ -829,6 +865,32 @@ struct BasicKeyboardMouseView: View {
 
     /// Shift-aware value for the preview popup (the actual char sent to target).
     private func windowsDisplayValue(for key: String) -> String {
+        // Use layout definition if available
+        if let keyDef = keyDefinition(for: key) {
+            let isShiftActive = keyboardManager.activeModifiers.contains("Shift")
+            let isCapsActive = keyboardManager.capsLockActive
+            let isAltGrActive = keyboardManager.isAltGrActive
+
+            // For letter keys, handle caps lock and shift
+            if key.count == 1 && key.first!.isLetter {
+                let shouldBeUppercase = (isShiftActive && !isCapsActive) || (!isShiftActive && isCapsActive)
+                return shouldBeUppercase ? key.uppercased() : key.lowercased()
+            }
+
+            // For AltGr active, return altGr label
+            if isAltGrActive, let altGrLabel = keyDef.altGrLabel {
+                return altGrLabel
+            }
+
+            // For other keys, return shift label if shift is active
+            if isShiftActive, let shiftLabel = keyDef.shiftLabel {
+                return shiftLabel
+            }
+
+            return keyDef.label
+        }
+
+        // Fallback for keys not in layout definition
         if key == "Cmd" { return "⌘" }
         if key == "Option" { return "⌥" }
         if key == "Super" { return "❖" }
@@ -880,7 +942,7 @@ struct BasicKeyboardMouseView: View {
                 .foregroundColor(isCapsActive ? Self.keyLabelPressed : Self.keyLabelIdle)
         } else {
             // Visual-only: touch handled by MultiTouchKeyboardContainer overlay
-            let effectiveKey = key == "Esc" ? "Escape" : key
+            let effectiveKey = hidKeyName(for: key)
             let isPressed = keyboardManager.pressedKeys.contains(effectiveKey)
             landscapeKeyContent(for: key, displayText: keyLabel)
                 .font(.system(size: 14, weight: .bold))
@@ -950,6 +1012,11 @@ struct BasicKeyboardMouseView: View {
     }
 
     private func landscapeLabelOnKey(for key: String) -> String {
+        // Use layout definition if available
+        if let keyDef = keyDefinition(for: key) {
+            return keyDef.label
+        }
+        // Fallback
         let specialKeys = ["Esc", "Tab", "Caps", "Shift", "Ctrl", "Alt", "Space", "Backspace"]
         if specialKeys.contains(key) { return key }
         if key.count == 1 && key.first!.isLetter { return key.uppercased() }
@@ -957,6 +1024,30 @@ struct BasicKeyboardMouseView: View {
     }
 
     private func landscapeDisplayValue(for key: String) -> String {
+        // Use layout definition if available
+        if let keyDef = keyDefinition(for: key) {
+            let isShiftActive = keyboardManager.activeModifiers.contains("Shift")
+            let isCapsActive = keyboardManager.capsLockActive
+            let isAltGrActive = keyboardManager.isAltGrActive
+
+            if key.count == 1 && key.first!.isLetter {
+                let shouldBeUppercase = (isShiftActive && !isCapsActive) || (!isShiftActive && isCapsActive)
+                return shouldBeUppercase ? key.uppercased() : key.lowercased()
+            }
+
+            // For AltGr active, return altGr label
+            if isAltGrActive, let altGrLabel = keyDef.altGrLabel {
+                return altGrLabel
+            }
+
+            if isShiftActive, let shiftLabel = keyDef.shiftLabel {
+                return shiftLabel
+            }
+
+            return keyDef.label
+        }
+
+        // Fallback
         let specialKeys = ["Esc", "Tab", "Caps", "Shift", "Ctrl", "Alt", "Space", "Backspace"]
         if specialKeys.contains(key) { return key }
         let isShiftActive = keyboardManager.activeModifiers.contains("Shift")
@@ -993,6 +1084,18 @@ struct BasicKeyboardMouseView: View {
         return layoutManager.currentLayout.keyTypeResolver()(keyName)
     }
 
+    /// Resolve the HID key code for a given key name from the layout definition.
+    /// Falls back to the key name itself if no definition is found.
+    /// Special-cases "Esc" → "Escape" for HID lookup.
+    private func hidKeyName(for keyName: String) -> String {
+        if keyName == "Esc" { return "Escape" }
+        let resolved = layoutManager.currentLayout.keyDefinition(for: keyName)?.keyCode ?? keyName
+        if keyName == "¥" || keyName == "\\" {
+            print("DEBUG hidKeyName: keyName=\(keyName), resolved=\(resolved)")
+        }
+        return resolved
+    }
+
     // MARK: - Multi-touch event handlers
 
     private func handleMultiTouchPress(keyName: String, keyType: KeyType) {
@@ -1004,14 +1107,14 @@ struct BasicKeyboardMouseView: View {
                 break // Toggle fires on release
             case .momentaryChord:
                 if prefs.chordSustainHid {
-                    keyboardManager.handleKeyDown(keyName)
+                    keyboardManager.handleKeyDown(hidKeyName(for: keyName))
                 } else {
                     keyboardManager.addModifierTrackedOnly(keyName)
                 }
             }
         case .regular:
             let repeatMode = KmBasicKeyboardPrefs.shared.isLongPressRepeatMode
-            let effectiveKey = keyName == "Esc" ? "Escape" : keyName
+            let effectiveKey = hidKeyName(for: keyName)
             if repeatMode {
                 keyboardManager.startKeyRepeat(effectiveKey)
             } else {
@@ -1021,7 +1124,7 @@ struct BasicKeyboardMouseView: View {
             keyboardManager.handleSpecialKey(keyName)
         case .japaneseSpecial:
             // Japanese special keys (変換, 無変換, ひらがな) — treat as regular key for now
-            keyboardManager.handleKeyDown(keyName)
+            keyboardManager.handleKeyDown(hidKeyName(for: keyName))
         }
     }
 
@@ -1038,11 +1141,11 @@ struct BasicKeyboardMouseView: View {
                     keyboardManager.lockModifier(keyName)
                 }
             case .momentaryChord:
-                keyboardManager.handleKeyUp(keyName)
+                keyboardManager.handleKeyUp(hidKeyName(for: keyName))
             }
         case .regular:
             let repeatMode = KmBasicKeyboardPrefs.shared.isLongPressRepeatMode
-            let effectiveKey = keyName == "Esc" ? "Escape" : keyName
+            let effectiveKey = hidKeyName(for: keyName)
             if repeatMode {
                 keyboardManager.stopKeyRepeat()
             } else {
@@ -1051,7 +1154,7 @@ struct BasicKeyboardMouseView: View {
         case .special:
             break // Caps has no release behavior
         case .japaneseSpecial:
-            keyboardManager.handleKeyUp(keyName)
+            keyboardManager.handleKeyUp(hidKeyName(for: keyName))
         }
     }
 
@@ -1432,7 +1535,7 @@ struct ModifierKeyButton<Label: View>: View {
             } else {
                 // Send modifier-down (or only track it locally when chord sustain is off)
                 if prefs.chordSustainHid {
-                    keyboardManager.handleKeyDown(key)
+                    keyboardManager.handleKeyDown(KeyboardLayoutManager.shared.hidKeyName(for: key))
                 } else {
                     keyboardManager.addModifierTrackedOnly(key)
                 }
@@ -1468,7 +1571,7 @@ struct ModifierKeyButton<Label: View>: View {
                     keyboardManager.unlockModifier(key)
                 }
             } else {
-                keyboardManager.handleKeyUp(key)
+                keyboardManager.handleKeyUp(KeyboardLayoutManager.shared.hidKeyName(for: key))
             }
         }
     }
@@ -1503,7 +1606,7 @@ struct ModifierKeyButton<Label: View>: View {
             case .sticky:
                 break  // nothing to release — was never pressed down
             case .momentaryChord:
-                keyboardManager.handleKeyUp(key)
+                keyboardManager.handleKeyUp(KeyboardLayoutManager.shared.hidKeyName(for: key))
             }
         }
     }

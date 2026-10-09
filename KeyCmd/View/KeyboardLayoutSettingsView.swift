@@ -10,16 +10,17 @@ import SwiftUI
 struct KeyboardLayoutSettingsView: View {
     @ObservedObject private var aiSettings = AISettings.shared
     @ObservedObject private var layoutManager = KeyboardLayoutManager.shared
+    @ObservedObject private var languageManager = LanguageManager.shared
 
     var body: some View {
         Form {
             // MARK: - Auto Detection Section
-            Section(header: Text("自动检测")) {
-                Toggle("自动检测键盘布局", isOn: $layoutManager.autoDetectLocale)
+            Section(header: Text(languageManager.localizedString("Auto Detection"))) {
+                Toggle(languageManager.localizedString("Auto Detect Keyboard Layout"), isOn: $layoutManager.autoDetectLocale)
 
                 if layoutManager.autoDetectLocale {
                     HStack {
-                        Text("检测到的布局")
+                        Text(languageManager.localizedString("Detected Layout"))
                         Spacer()
                         Text(layoutManager.currentKeyboardLocale.displayName)
                             .foregroundColor(.secondary)
@@ -28,9 +29,9 @@ struct KeyboardLayoutSettingsView: View {
             }
 
             // MARK: - Manual Selection Section
-            Section(header: Text("手动选择")) {
+            Section(header: Text(languageManager.localizedString("Manual Selection"))) {
                 if !layoutManager.autoDetectLocale {
-                    Picker("键盘布局", selection: $layoutManager.currentKeyboardLocale) {
+                    Picker(languageManager.localizedString("Keyboard Layout"), selection: $layoutManager.currentKeyboardLocale) {
                         ForEach(KeyboardLocale.allCases) { locale in
                             HStack {
                                 Text(locale.displayName)
@@ -46,23 +47,23 @@ struct KeyboardLayoutSettingsView: View {
             }
 
             // MARK: - Current Layout Info Section
-            Section(header: Text("当前布局")) {
+            Section(header: Text(languageManager.localizedString("Current Layout"))) {
                 HStack {
-                    Text("布局名称")
+                    Text(languageManager.localizedString("Layout Name"))
                     Spacer()
                     Text(layoutManager.activeLayoutName)
                         .foregroundColor(.secondary)
                 }
 
                 HStack {
-                    Text("目标系统")
+                    Text(languageManager.localizedString("Target System"))
                     Spacer()
                     Text(aiSettings.targetOS.displayName)
                         .foregroundColor(.secondary)
                 }
 
                 HStack {
-                    Text("物理标准")
+                    Text(languageManager.localizedString("Physical Standard"))
                     Spacer()
                     Text(layoutManager.currentKeyboardLocale.physicalStandard.rawValue)
                         .foregroundColor(.secondary)
@@ -70,28 +71,28 @@ struct KeyboardLayoutSettingsView: View {
 
                 if layoutManager.currentKeyboardLocale.physicalStandard == .iso {
                     HStack {
-                        Text("AltGr 支持")
+                        Text(languageManager.localizedString("AltGr Support"))
                         Spacer()
-                        Text(layoutManager.activeLayout.metadata.hasAltGr ? "是" : "否")
+                        Text(layoutManager.activeLayout.metadata.hasAltGr ? languageManager.localizedString("Yes") : languageManager.localizedString("No"))
                             .foregroundColor(.secondary)
                     }
                 }
             }
 
             // MARK: - Preview Section
-            Section(header: Text("布局预览")) {
+            Section(header: Text(languageManager.localizedString("Layout Preview"))) {
                 KeyboardLayoutPreviewView(layout: layoutManager.activeLayout)
                     .frame(height: 200)
             }
 
             // MARK: - Info Section
-            Section(footer: Text("键盘布局决定了按键的物理排列和标签。选择与您实际使用的物理键盘匹配的布局，以确保正确的按键映射。")) {
-                NavigationLink("查看所有支持的布局") {
+            Section(footer: Text(languageManager.localizedString("Keyboard layout determines the physical arrangement and labels of keys. Select the layout that matches your physical keyboard to ensure correct key mapping."))) {
+                NavigationLink(languageManager.localizedString("View All Supported Layouts")) {
                     SupportedLayoutsListView()
                 }
             }
         }
-        .navigationTitle("键盘布局")
+        .navigationTitle(languageManager.localizedString("Keyboard Layout"))
     }
 }
 
@@ -172,34 +173,35 @@ struct KeyPreviewView: View {
 // MARK: - Supported Layouts List
 
 struct SupportedLayoutsListView: View {
+    @ObservedObject private var languageManager = LanguageManager.shared
     var body: some View {
         List {
             ForEach(KeyboardLocale.allCases) { locale in
                 Section(header: Text(locale.displayName)) {
                     HStack {
-                        Text("代码")
+                        Text(languageManager.localizedString("Code"))
                         Spacer()
                         Text(locale.rawValue)
                             .foregroundColor(.secondary)
                     }
 
                     HStack {
-                        Text("物理标准")
+                        Text(languageManager.localizedString("Physical Standard"))
                         Spacer()
                         Text(locale.physicalStandard.rawValue)
                             .foregroundColor(.secondary)
                     }
 
                     HStack {
-                        Text("支持的系统")
+                        Text(languageManager.localizedString("Supported Systems"))
                         Spacer()
-                        Text("Windows, macOS, Linux")
+                        Text(languageManager.localizedString("Windows, macOS, Linux"))
                             .foregroundColor(.secondary)
                     }
 
                     if let description = getLayoutDescription(for: locale) {
                         HStack {
-                            Text("特点")
+                            Text(languageManager.localizedString("Features"))
                             Spacer()
                             Text(description)
                                 .foregroundColor(.secondary)
@@ -209,39 +211,39 @@ struct SupportedLayoutsListView: View {
                 }
             }
         }
-        .navigationTitle("支持的布局")
+        .navigationTitle(languageManager.localizedString("Supported Layouts"))
     }
 
     private func getLayoutDescription(for locale: KeyboardLocale) -> String? {
         switch locale {
         case .us:
-            return "标准美式 QWERTY 布局"
+            return languageManager.localizedString("Standard US QWERTY layout")
         case .uk:
-            return "英式布局，£ 在 3 键上"
+            return languageManager.localizedString("UK layout with £ on the 3 key")
         case .de:
-            return "德式 QWERTZ 布局，Z 和 Y 互换"
+            return languageManager.localizedString("German QWERTZ layout with Z and Y swapped")
         case .fr:
-            return "法式 AZERTY 布局"
+            return languageManager.localizedString("French AZERTY layout")
         case .es:
-            return "西班牙式布局，带 Ñ 键"
+            return languageManager.localizedString("Spanish layout with Ñ key")
         case .it:
-            return "意大利式布局，支持重音符号"
+            return languageManager.localizedString("Italian layout with accent support")
         case .pt:
-            return "葡萄牙式布局，带 Ç 键"
+            return languageManager.localizedString("Portuguese layout with Ç key")
         case .jp:
-            return "日式 JIS 布局，带特殊键"
+            return languageManager.localizedString("Japanese JIS layout with special keys")
         case .cn:
-            return "中文美式布局（同 US）"
+            return languageManager.localizedString("Chinese US layout (same as US)")
         case .ca:
-            return "加拿大布局"
+            return languageManager.localizedString("Canadian layout")
         case .au:
-            return "澳大利亚布局（同 UK）"
+            return languageManager.localizedString("Australian layout (same as UK)")
         case .be:
-            return "比利时 AZERTY 布局"
+            return languageManager.localizedString("Belgian AZERTY layout")
         case .ch:
-            return "瑞士 QWERTZ 布局"
+            return languageManager.localizedString("Swiss QWERTZ layout")
         case .nordic:
-            return "北欧布局，带 Å, Ä, Ö"
+            return languageManager.localizedString("Nordic layout with Å, Ä, Ö")
         }
     }
 }

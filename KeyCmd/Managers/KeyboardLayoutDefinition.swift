@@ -12,7 +12,7 @@ import SwiftUI
 
 // MARK: - Layout Padding (Codable/Equatable replacement for EdgeInsets)
 
-/// 布局内边距 - 替代 EdgeInsets 以支持 Codable/Equatable
+/// Layout padding - replacement for EdgeInsets to support Codable/Equatable
 struct LayoutPadding: Codable, Equatable, Hashable {
     let top: CGFloat
     let leading: CGFloat
@@ -26,32 +26,32 @@ struct LayoutPadding: Codable, Equatable, Hashable {
         self.trailing = trailing
     }
 
-    /// 转换为 SwiftUI EdgeInsets
+    /// Convert to SwiftUI EdgeInsets
     var edgeInsets: EdgeInsets {
         EdgeInsets(top: top, leading: leading, bottom: bottom, trailing: trailing)
     }
 
-    /// 从 SwiftUI EdgeInsets 创建
+    /// Create from SwiftUI EdgeInsets
     static func from(_ insets: EdgeInsets) -> LayoutPadding {
         LayoutPadding(top: insets.top, leading: insets.leading, bottom: insets.bottom, trailing: insets.trailing)
     }
 
-    /// 默认内边距
+    /// Default padding
     static let `default` = LayoutPadding(top: 8, leading: 8, bottom: 0, trailing: 0)
 }
 
 // MARK: - Key Definition
 
-/// 单个按键的完整定义
+/// Complete definition for a single key
 struct KeyDefinition: Codable, Equatable, Hashable {
-    let keyName: String           // 内部标识符，如 "q", "1", "Shift"
-    let label: String             // 按键上显示的主标签，如 "Q", "1", "Shift"
-    let shiftLabel: String?       // Shift按下时显示的标签，如 "!", "@"
-    let altGrLabel: String?       // AltGr/Option按下时显示的标签（欧洲布局需要）
-    let keyCode: String           // HID键码查找用的键名
-    let keyType: KeyType          // 按键类型（来自 KeyType.swift）
-    let widthMultiplier: CGFloat? // 宽度倍数（相对标准键），nil表示自动
-    let heightMultiplier: CGFloat? // 高度倍数（相对标准行），nil表示自动
+    let keyName: String           // Internal identifier, e.g. "q", "1", "Shift"
+    let label: String             // Primary label displayed on key, e.g. "Q", "1", "Shift"
+    let shiftLabel: String?       // Label shown when Shift is pressed, e.g. "!", "@"
+    let altGrLabel: String?       // Label shown when AltGr/Option is pressed (needed for European layouts)
+    let keyCode: String           // Key name for HID key code lookup
+    let keyType: KeyType          // Key type (from KeyType.swift)
+    let widthMultiplier: CGFloat? // Width multiplier (relative to standard key), nil means auto
+    let heightMultiplier: CGFloat? // Height multiplier (relative to standard row), nil means auto
 
     init(keyName: String,
          label: String,
@@ -72,22 +72,22 @@ struct KeyDefinition: Codable, Equatable, Hashable {
     }
 }
 
-/// 一行按键定义
+/// A single row of key definitions
 typealias KeyRow = [KeyDefinition]
 
 // MARK: - Layout Metadata
 
-/// 布局元数据
+/// Layout metadata
 struct LayoutMetadata: Codable, Equatable, Hashable {
-    let name: String                    // 布局名称，如 "US QWERTY"
-    let description: String             // 简短描述
-    let rowHeights: [CGFloat]?          // 各行相对高度比例
-    let keySpacing: CGFloat             // 按键间距
-    let rowSpacing: CGFloat             // 行间距
-    let padding: LayoutPadding          // 内边距
-    let fixedKeyWidths: [String: CGFloat] // 固定宽度的按键
-    let physicalStandard: KeyboardLocale.PhysicalStandard // 物理标准
-    let hasAltGr: Bool                  // 是否支持 AltGr 键（欧洲布局需要）
+    let name: String                    // Layout name, e.g. "US QWERTY"
+    let description: String             // Short description
+    let rowHeights: [CGFloat]?          // Relative height ratios for each row
+    let keySpacing: CGFloat             // Key spacing
+    let rowSpacing: CGFloat             // Row spacing
+    let padding: LayoutPadding          // Inner padding
+    let fixedKeyWidths: [String: CGFloat] // Fixed width keys
+    let physicalStandard: KeyboardLocale.PhysicalStandard // Physical standard
+    let hasAltGr: Bool                  // Whether AltGr key is supported (needed for European layouts)
 
     init(name: String = "",
          description: String = "",
@@ -112,22 +112,40 @@ struct LayoutMetadata: Codable, Equatable, Hashable {
 
 // MARK: - Keyboard Layout Definition
 
-/// 完整键盘布局定义
+/// Complete keyboard layout definition
 struct KeyboardLayoutDefinition: Codable, Equatable, Hashable {
     let locale: KeyboardLocale
     let targetOS: TargetOS
     let rows: [KeyRow]
     let metadata: LayoutMetadata
 
-    /// 缓存标识符，用于快速查找
+    /// Cache identifier for fast lookup
     var layoutCacheKey: String {
         "\(targetOS.rawValue)_\(locale.rawValue)"
     }
 
-    /// 转换为触摸层使用的 KeyboardLayoutDescription
+    /// Convert to KeyboardLayoutDescription used by touch layer
     func toLayoutDescription(containerSize: CGSize) -> KeyboardLayoutDescription {
         let stringRows = rows.map { $0.map { $0.keyName } }
-        let fixedRowHeights = metadata.rowHeights ?? []
+
+        // Convert ratio-based row heights to actual pixel values.
+        // Metadata stores rowHeights as relative ratios (e.g. [0.1, 0.1, 0.2, ...]);
+        // the touch layer's KeyFrameRegistry treats them as absolute pixel values,
+        // so we must scale them to match the container height.
+        let convertedRowHeights: [CGFloat]
+        if let ratios = metadata.rowHeights, !ratios.isEmpty {
+            let contentHeight = containerSize.height - metadata.padding.top - metadata.padding.bottom
+            let totalRowSpacing = CGFloat(max(0, rows.count - 1)) * metadata.rowSpacing
+            let availableHeight = max(0, contentHeight - totalRowSpacing)
+            let totalRatio = ratios.reduce(0, +)
+            if totalRatio > 0 {
+                convertedRowHeights = ratios.map { ($0 / totalRatio) * availableHeight }
+            } else {
+                convertedRowHeights = []
+            }
+        } else {
+            convertedRowHeights = []
+        }
 
         return KeyboardLayoutDescription(
             rows: stringRows,
@@ -135,25 +153,25 @@ struct KeyboardLayoutDefinition: Codable, Equatable, Hashable {
             rowSpacing: metadata.rowSpacing,
             keySpacing: metadata.keySpacing,
             padding: metadata.padding.edgeInsets,
-            fixedRowHeights: fixedRowHeights,
+            fixedRowHeights: convertedRowHeights,
             fixedKeyWidths: metadata.fixedKeyWidths
         )
     }
 
-    /// 获取按键类型映射（用于触摸层）
+    /// Get key type mapping (used by touch layer)
     func keyTypeResolver() -> (String) -> KeyType {
-        let typeMap = Dictionary(uniqueKeysWithValues: rows.flatMap { $0 }.map { ($0.keyName, $0.keyType) })
+        let typeMap = Dictionary(rows.flatMap { $0 }.map { ($0.keyName, $0.keyType) }, uniquingKeysWith: { first, _ in first })
         return { keyName in
             typeMap[keyName] ?? .regular
         }
     }
 
-    /// 获取按键定义查找
+    /// Get key definition lookup
     func keyDefinition(for keyName: String) -> KeyDefinition? {
         rows.flatMap { $0 }.first { $0.keyName == keyName }
     }
 
-    /// 获取所有按键定义的扁平数组
+    /// Get flattened array of all key definitions
     var allKeys: [KeyDefinition] {
         rows.flatMap { $0 }
     }
@@ -161,28 +179,28 @@ struct KeyboardLayoutDefinition: Codable, Equatable, Hashable {
 
 // MARK: - Builder Helpers
 
-/// 布局构建器辅助扩展
+/// Layout builder helper extensions
 extension KeyDefinition {
-    /// 创建普通字符键
+    /// Create a standard character key
     static func key(_ name: String, _ label: String, shift: String? = nil, altGr: String? = nil,
-                    type: KeyType = .regular, width: CGFloat? = nil, height: CGFloat? = nil) -> KeyDefinition {
+                    keyCode: String? = nil, type: KeyType = .regular, width: CGFloat? = nil, height: CGFloat? = nil) -> KeyDefinition {
         KeyDefinition(keyName: name, label: label, shiftLabel: shift, altGrLabel: altGr,
-                      keyCode: name, keyType: type, widthMultiplier: width, heightMultiplier: height)
+                      keyCode: keyCode ?? name, keyType: type, widthMultiplier: width, heightMultiplier: height)
     }
 
-    /// 创建修饰键
-    static func mod(_ name: String, label: String? = nil, width: CGFloat? = nil, height: CGFloat? = nil) -> KeyDefinition {
+    /// Create a modifier key
+    static func mod(_ name: String, label: String? = nil, keyCode: String? = nil, width: CGFloat? = nil, height: CGFloat? = nil) -> KeyDefinition {
         KeyDefinition(keyName: name, label: label ?? name, shiftLabel: nil, altGrLabel: nil,
-                      keyCode: name, keyType: .modifier, widthMultiplier: width, heightMultiplier: height)
+                      keyCode: keyCode ?? name, keyType: .modifier, widthMultiplier: width, heightMultiplier: height)
     }
 
-    /// 创建特殊键
-    static func special(_ name: String, label: String? = nil, width: CGFloat? = nil, height: CGFloat? = nil) -> KeyDefinition {
+    /// Create a special key
+    static func special(_ name: String, label: String? = nil, keyCode: String? = nil, width: CGFloat? = nil, height: CGFloat? = nil) -> KeyDefinition {
         KeyDefinition(keyName: name, label: label ?? name, shiftLabel: nil, altGrLabel: nil,
-                      keyCode: name, keyType: .special, widthMultiplier: width, heightMultiplier: height)
+                      keyCode: keyCode ?? name, keyType: .special, widthMultiplier: width, heightMultiplier: height)
     }
 
-    /// 创建日语特殊键
+    /// Create a Japanese special key
     static func jpSpecial(_ name: String, label: String, width: CGFloat? = nil) -> KeyDefinition {
         KeyDefinition(keyName: name, label: label, shiftLabel: nil, altGrLabel: nil,
                       keyCode: name, keyType: .japaneseSpecial, widthMultiplier: width)
@@ -191,21 +209,21 @@ extension KeyDefinition {
 
 // MARK: - Layout Row Types
 
-/// 布局行类型枚举，用于应用区域变体
+/// Layout row type enum for applying regional variants
 enum LayoutRowType: String, CaseIterable {
-    case functionRow  // F1-F12 行
-    case numberRow    // 数字行
-    case row3         // QWERTY/AZERTY 第一行
-    case row4         // ASDF 第二行
-    case row5         // ZXCV 第三行
-    case bottomRow    // 底部修饰键行
+    case functionRow  // F1-F12 row
+    case numberRow    // Number row
+    case row3         // QWERTY/AZERTY first row
+    case row4         // ASDF second row
+    case row5         // ZXCV third row
+    case bottomRow    // Bottom modifier row
 }
 
 // MARK: - Preview Helper
 
 #if DEBUG
 extension KeyboardLayoutDefinition {
-    /// 生成预览用的简化布局描述
+    /// Generate simplified layout description for preview
     var previewDescription: String {
         let rowStrings = rows.map { row in
             row.map { $0.label }.joined(separator: " ")

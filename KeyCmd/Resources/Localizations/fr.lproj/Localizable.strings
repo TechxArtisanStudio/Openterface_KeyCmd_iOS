@@ -63,6 +63,41 @@
 "Target OS" = "Système d'exploitation cible";
 "Sets the operating system of the target machine. The AI Command Assistant will use OS-specific shortcuts and key tokens." = "Définit le système d'exploitation de la machine cible. L'assistant de commande IA utilisera des raccourcis et des jetons de touche spécifiques au système d'exploitation.";
 
+/* --- Disposition du clavier --- */
+"Auto Detection" = "Détection automatique";
+"Auto Detect Keyboard Layout" = "Détecter automatiquement la disposition du clavier";
+"Detected Layout" = "Disposition détectée";
+"Manual Selection" = "Sélection manuelle";
+"Keyboard Layout" = "Disposition du clavier";
+"Current Layout" = "Disposition actuelle";
+"Layout Name" = "Nom de la disposition";
+"Physical Standard" = "Norme physique";
+"AltGr Support" = "Support AltGr";
+"Yes" = "Oui";
+"No" = "Non";
+"Layout Preview" = "Aperçu de la disposition";
+"Keyboard layout determines the physical arrangement and labels of keys. Select the layout that matches your physical keyboard to ensure correct key mapping." = "La disposition du clavier détermine l'agencement physique et les étiquettes des touches. Sélectionnez la disposition qui correspond à votre clavier physique pour assurer un mappage correct des touches.";
+"View All Supported Layouts" = "Voir toutes les dispositions prises en charge";
+"Code" = "Code";
+"Supported Systems" = "Systèmes pris en charge";
+"Features" = "Caractéristiques";
+"Supported Layouts" = "Dispositions prises en charge";
+"Standard US QWERTY layout" = "Disposition QWERTY US standard";
+"UK layout with £ on the 3 key" = "Disposition UK avec £ sur la touche 3";
+"German QWERTZ layout with Z and Y swapped" = "Disposition QWERTZ allemande avec Z et Y inversés";
+"French AZERTY layout" = "Disposition AZERTY française";
+"Spanish layout with Ñ key" = "Disposition espagnole avec touche Ñ";
+"Italian layout with accent support" = "Disposition italienne avec support d'accent";
+"Portuguese layout with Ç key" = "Disposition portugaise avec touche Ç";
+"Japanese JIS layout with special keys" = "Disposition JIS japonaise avec touches spéciales";
+"Chinese US layout (same as US)" = "Disposition chinoise US (identique à US)";
+"Canadian layout" = "Disposition canadienne";
+"Australian layout (same as UK)" = "Disposition australienne (identique à UK)";
+"Belgian AZERTY layout" = "Disposition AZERTY belge";
+"Swiss QWERTZ layout" = "Disposition QWERTZ suisse";
+"Nordic layout with Å, Ä, Ö" = "Disposition nordique avec Å, Ä, Ö";
+"Windows, macOS, Linux" = "Windows, macOS, Linux";
+
 "Touchpad Settings" = "Paramètres du pavé tactile";
 "Tap Duration Threshold" = "Seuil de durée d'appui";
 "Maximum time allowed for a tap (shorter = more responsive, longer = more forgiving)" = "Temps maximum autorisé pour un appui (plus court = plus réactif, plus long = plus tolérant)";

@@ -10,8 +10,8 @@
 import Foundation
 import SwiftUI
 
-/// 键盘布局管理器 - 单例模式
-/// 负责根据 targetOS + keyboardLocale 提供正确的键盘布局
+/// Keyboard layout manager - Singleton pattern
+/// Responsible for providing the correct keyboard layout based on targetOS + keyboardLocale
 final class KeyboardLayoutManager: ObservableObject {
     static let shared = KeyboardLayoutManager()
 
@@ -22,10 +22,10 @@ final class KeyboardLayoutManager: ObservableObject {
 
     // MARK: - Published Properties
 
-    /// 当前激活的布局
+    /// The currently active layout
     @Published private(set) var currentLayout: KeyboardLayoutDefinition
 
-    /// 当前选择的键盘布局区域
+    /// Currently selected keyboard locale
     @Published var currentKeyboardLocale: KeyboardLocale {
         didSet {
             guard currentKeyboardLocale != oldValue else { return }
@@ -34,7 +34,7 @@ final class KeyboardLayoutManager: ObservableObject {
         }
     }
 
-    /// 是否启用自动检测
+    /// Whether auto-detection is enabled
     @Published var autoDetectLocale: Bool {
         didSet {
             UserDefaults.standard.set(autoDetectLocale, forKey: Self.keyboardAutoDetectKey)
@@ -56,12 +56,12 @@ final class KeyboardLayoutManager: ObservableObject {
     // MARK: - Init
 
     private init() {
-        // 恢复保存的布局设置
+        // Restore saved layout settings
         let savedLocaleRaw = UserDefaults.standard.string(forKey: Self.keyboardLocaleKey)
         let savedSavedLocale = savedLocaleRaw.flatMap { KeyboardLocale(rawValue: $0) } ?? .us
         let savedAutoDetect = UserDefaults.standard.object(forKey: Self.keyboardAutoDetectKey) as? Bool
 
-        // 如果启用了自动检测且没有保存的设置，使用系统 locale
+        // If auto-detection is enabled and no saved settings, use system locale
         let resolvedLocale: KeyboardLocale
         if savedAutoDetect == true && savedLocaleRaw == nil {
             resolvedLocale = KeyboardLocale.fromSystemLocale()
@@ -71,7 +71,7 @@ final class KeyboardLayoutManager: ObservableObject {
 
         let targetOS = AISettings.shared.targetOS
 
-        // 先初始化所有存储属性
+        // Initialize all stored properties first
         self.currentKeyboardLocale = resolvedLocale
         self.autoDetectLocale = savedAutoDetect ?? false
         self.currentLayout = Self.createLayout(for: targetOS, locale: resolvedLocale)
@@ -84,10 +84,10 @@ final class KeyboardLayoutManager: ObservableObject {
 
     // MARK: - Public API
 
-    /// 获取所有支持的布局
+    /// Get all supported layouts
     var supportedLocales: [KeyboardLocale] { KeyboardLocale.allCases }
 
-    /// 获取指定OS和Locale的布局（带缓存）
+    /// Get layout for specified OS and Locale (with caching)
     func layout(for targetOS: TargetOS, locale: KeyboardLocale) -> KeyboardLayoutDefinition {
         let key = Self.cacheKey(targetOS, locale)
         if let cached = layoutCache[key] {
@@ -98,12 +98,23 @@ final class KeyboardLayoutManager: ObservableObject {
         return layout
     }
 
-    /// 当前激活的布局（基于当前设置）
+    /// Currently active layout (based on current settings)
     var activeLayout: KeyboardLayoutDefinition {
         currentLayout
     }
 
-    /// 预加载所有布局组合
+    /// Resolve display key name to HID key name using current layout
+    func hidKeyName(for keyName: String) -> String {
+        if keyName == "Esc" { return "Escape" }
+        let keyDef = currentLayout.keyDefinition(for: keyName)
+        let resolved = keyDef?.keyCode ?? keyName
+        if keyName == "¥" || keyName == "\\" || keyName == "@" || keyName == "^" || keyName == ":" {
+            print("DEBUG LayoutManager hidKeyName: keyName=\(keyName), keyDef=\(keyDef != nil ? "found" : "nil"), keyCode=\(keyDef?.keyCode ?? "nil"), resolved=\(resolved)")
+        }
+        return resolved
+    }
+
+    /// Preload all layout combinations
     func preloadAllLayouts() {
         DispatchQueue.global(qos: .utility).async {
             for os in TargetOS.allCases {
@@ -115,12 +126,12 @@ final class KeyboardLayoutManager: ObservableObject {
         }
     }
 
-    /// 获取当前活动布局名称
+    /// Get current active layout name
     var activeLayoutName: String {
         currentLayout.metadata.name
     }
 
-    /// 缓存统计
+    /// Cache statistics
     var cacheStats: String {
         "\(layoutCache.count) layouts cached"
     }
@@ -131,7 +142,7 @@ final class KeyboardLayoutManager: ObservableObject {
         "\(os.rawValue)_\(locale.rawValue)"
     }
 
-    /// 创建指定OS和Locale的布局（委托给对应的构建器）
+    /// Create layout for specified OS and Locale (delegated to corresponding builder)
     static func createLayout(for targetOS: TargetOS, locale: KeyboardLocale) -> KeyboardLayoutDefinition {
         switch targetOS {
         case .windows:
@@ -146,7 +157,7 @@ final class KeyboardLayoutManager: ObservableObject {
     // MARK: - Private Methods
 
     private func loadAllLayouts() {
-        // 同步预加载当前 targetOS 下常用 locale 的布局
+        // Preload commonly used locales for current targetOS
         let priorityLocales: [KeyboardLocale] = [.us, .uk, .de, .fr, .jp, .cn]
         for locale in priorityLocales {
             _ = layout(for: AISettings.shared.targetOS, locale: locale)
@@ -154,7 +165,7 @@ final class KeyboardLayoutManager: ObservableObject {
     }
 
     private func observeSettingsChanges() {
-        // 监听 targetOS 变化以更新布局
+        // Observe targetOS changes to update layout
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleTargetOSChanged),
@@ -195,16 +206,16 @@ final class KeyboardLayoutManager: ObservableObject {
 // MARK: - Notification Names
 
 extension Notification.Name {
-    /// 键盘布局发生变化时发送
+    /// Sent when keyboard layout changes
     static let keyboardLayoutChanged = Notification.Name("KeyboardLayoutChanged")
-    /// 键盘区域设置发生变化时发送
+    /// Sent when keyboard locale setting changes
     static let keyboardLocaleChanged = Notification.Name("KeyboardLocaleChanged")
 }
 
 // MARK: - AISettings Extension
 
 extension AISettings {
-    /// 键盘布局区域的便捷访问
+    /// Convenient access to keyboard locale setting
     var keyboardLocale: KeyboardLocale {
         get {
             KeyboardLayoutManager.shared.currentKeyboardLocale
@@ -214,7 +225,7 @@ extension AISettings {
         }
     }
 
-    /// 是否自动检测键盘布局的便捷访问
+    /// Convenient access to keyboard auto-detection setting
     var keyboardAutoDetect: Bool {
         get {
             KeyboardLayoutManager.shared.autoDetectLocale

@@ -68,6 +68,41 @@
 "Target OS" = "Target OS";
 "Sets the operating system of the target machine. The AI Command Assistant will use OS-specific shortcuts and key tokens." = "Sets the operating system of the target machine. The AI Command Assistant will use OS-specific shortcuts and key tokens.";
 
+/* --- Keyboard Layout --- */
+"Auto Detection" = "Auto Detection";
+"Auto Detect Keyboard Layout" = "Auto Detect Keyboard Layout";
+"Detected Layout" = "Detected Layout";
+"Manual Selection" = "Manual Selection";
+"Keyboard Layout" = "Keyboard Layout";
+"Current Layout" = "Current Layout";
+"Layout Name" = "Layout Name";
+"Physical Standard" = "Physical Standard";
+"AltGr Support" = "AltGr Support";
+"Yes" = "Yes";
+"No" = "No";
+"Layout Preview" = "Layout Preview";
+"Keyboard layout determines the physical arrangement and labels of keys. Select the layout that matches your physical keyboard to ensure correct key mapping." = "Keyboard layout determines the physical arrangement and labels of keys. Select the layout that matches your physical keyboard to ensure correct key mapping.";
+"View All Supported Layouts" = "View All Supported Layouts";
+"Code" = "Code";
+"Supported Systems" = "Supported Systems";
+"Features" = "Features";
+"Supported Layouts" = "Supported Layouts";
+"Standard US QWERTY layout" = "Standard US QWERTY layout";
+"UK layout with £ on the 3 key" = "UK layout with £ on the 3 key";
+"German QWERTZ layout with Z and Y swapped" = "German QWERTZ layout with Z and Y swapped";
+"French AZERTY layout" = "French AZERTY layout";
+"Spanish layout with Ñ key" = "Spanish layout with Ñ key";
+"Italian layout with accent support" = "Italian layout with accent support";
+"Portuguese layout with Ç key" = "Portuguese layout with Ç key";
+"Japanese JIS layout with special keys" = "Japanese JIS layout with special keys";
+"Chinese US layout (same as US)" = "Chinese US layout (same as US)";
+"Canadian layout" = "Canadian layout";
+"Australian layout (same as UK)" = "Australian layout (same as UK)";
+"Belgian AZERTY layout" = "Belgian AZERTY layout";
+"Swiss QWERTZ layout" = "Swiss QWERTZ layout";
+"Nordic layout with Å, Ä, Ö" = "Nordic layout with Å, Ä, Ö";
+"Windows, macOS, Linux" = "Windows, macOS, Linux";
+
 /* --- General – Touchpad --- */
 "Touchpad Settings" = "Touchpad Settings";
 "Tap Duration Threshold" = "Tap Duration Threshold";

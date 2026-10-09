@@ -10,8 +10,36 @@ import SwiftUI
 
 struct KmBasicSettingsView: View {
     @ObservedObject private var prefs = KmBasicKeyboardPrefs.shared
+    @ObservedObject private var layoutManager = KeyboardLayoutManager.shared
 
     var body: some View {
+        // MARK: - Keyboard Layout section
+        Section(header: Text("Keyboard Layout")) {
+            Toggle("Auto Detect", isOn: $layoutManager.autoDetectLocale)
+                .onChange(of: layoutManager.autoDetectLocale) { newValue in
+                    if newValue {
+                        layoutManager.currentKeyboardLocale = KeyboardLocale.fromSystemLocale()
+                    }
+                }
+
+            if !layoutManager.autoDetectLocale {
+                Picker("Layout", selection: $layoutManager.currentKeyboardLocale) {
+                    ForEach(KeyboardLocale.allCases) { locale in
+                        Text(locale.displayName).tag(locale)
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+
+            HStack {
+                Text("Current")
+                Spacer()
+                Text(layoutManager.activeLayoutName)
+                    .foregroundColor(.secondary)
+            }
+            .font(.caption)
+        }
+
         // MARK: - KM Basic Keyboard section
         Section(header: Text("KM Basic Keyboard")) {
             Text("Full keyboard in Keyboard + Mouse (Basic) mode: how Ctrl, Shift, Alt/Option, and Win/Cmd behave.")
