@@ -1,0 +1,691 @@
+{
+  "locale": "it",
+  "targetOS": "linux",
+  "metadata": {
+    "name": "Italian QWERTY",
+    "description": "Italian QWERTY layout",
+    "physicalStandard": "iso",
+    "hasAltGr": true,
+    "rowHeights": [
+      0.1,
+      0.1,
+      0.2,
+      0.2,
+      0.2,
+      0.2
+    ],
+    "keySpacing": 3,
+    "rowSpacing": 6,
+    "padding": {
+      "top": 8,
+      "leading": 8,
+      "bottom": 8,
+      "trailing": 8
+    },
+    "fixedKeyWidths": {
+      "Space": 200
+    }
+  },
+  "keys": [
+    {
+      "hidUsageID": 41,
+      "keyName": "Esc",
+      "label": "Esc",
+      "row": 0,
+      "column": 0,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 58,
+      "keyName": "F1",
+      "label": "F1",
+      "row": 0,
+      "column": 1,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 59,
+      "keyName": "F2",
+      "label": "F2",
+      "row": 0,
+      "column": 2,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 60,
+      "keyName": "F3",
+      "label": "F3",
+      "row": 0,
+      "column": 3,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 61,
+      "keyName": "F4",
+      "label": "F4",
+      "row": 0,
+      "column": 4,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 62,
+      "keyName": "F5",
+      "label": "F5",
+      "row": 0,
+      "column": 5,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 63,
+      "keyName": "F6",
+      "label": "F6",
+      "row": 0,
+      "column": 6,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 64,
+      "keyName": "F7",
+      "label": "F7",
+      "row": 0,
+      "column": 7,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 65,
+      "keyName": "F8",
+      "label": "F8",
+      "row": 0,
+      "column": 8,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 66,
+      "keyName": "F9",
+      "label": "F9",
+      "row": 0,
+      "column": 9,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 67,
+      "keyName": "F10",
+      "label": "F10",
+      "row": 0,
+      "column": 10,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 68,
+      "keyName": "F11",
+      "label": "F11",
+      "row": 0,
+      "column": 11,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 69,
+      "keyName": "F12",
+      "label": "F12",
+      "row": 0,
+      "column": 12,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 53,
+      "keyName": "backslash_it",
+      "label": "\\",
+      "shiftLabel": "|",
+      "row": 1,
+      "column": 0,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 30,
+      "keyName": "1",
+      "label": "1",
+      "shiftLabel": "!",
+      "row": 1,
+      "column": 1,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 31,
+      "keyName": "2",
+      "label": "2",
+      "shiftLabel": "\"",
+      "row": 1,
+      "column": 2,
+      "keyType": "regular",
+      "altGrLabel": "@"
+    },
+    {
+      "hidUsageID": 32,
+      "keyName": "3",
+      "label": "3",
+      "shiftLabel": "£",
+      "row": 1,
+      "column": 3,
+      "keyType": "regular",
+      "altGrLabel": "#"
+    },
+    {
+      "hidUsageID": 33,
+      "keyName": "4",
+      "label": "4",
+      "shiftLabel": "$",
+      "row": 1,
+      "column": 4,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 34,
+      "keyName": "5",
+      "label": "5",
+      "shiftLabel": "%",
+      "row": 1,
+      "column": 5,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 35,
+      "keyName": "6",
+      "label": "6",
+      "shiftLabel": "&",
+      "row": 1,
+      "column": 6,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 36,
+      "keyName": "7",
+      "label": "7",
+      "shiftLabel": "/",
+      "row": 1,
+      "column": 7,
+      "keyType": "regular",
+      "altGrLabel": "["
+    },
+    {
+      "hidUsageID": 37,
+      "keyName": "8",
+      "label": "8",
+      "shiftLabel": "(",
+      "row": 1,
+      "column": 8,
+      "keyType": "regular",
+      "altGrLabel": "]"
+    },
+    {
+      "hidUsageID": 38,
+      "keyName": "9",
+      "label": "9",
+      "shiftLabel": ")",
+      "row": 1,
+      "column": 9,
+      "keyType": "regular",
+      "altGrLabel": "}"
+    },
+    {
+      "hidUsageID": 39,
+      "keyName": "0",
+      "label": "0",
+      "shiftLabel": "=",
+      "row": 1,
+      "column": 10,
+      "keyType": "regular",
+      "altGrLabel": ""
+    },
+    {
+      "hidUsageID": 45,
+      "keyName": "-",
+      "label": "'",
+      "shiftLabel": "?",
+      "row": 1,
+      "column": 11,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 46,
+      "keyName": "=",
+      "label": "ì",
+      "shiftLabel": "^",
+      "row": 1,
+      "column": 12,
+      "keyType": "regular",
+      "deadKey": "circumflex"
+    },
+    {
+      "hidUsageID": 42,
+      "keyName": "Backspace",
+      "label": "Backspace",
+      "row": 1,
+      "column": 13,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 43,
+      "keyName": "Tab",
+      "label": "Tab",
+      "row": 2,
+      "column": 0,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 20,
+      "keyName": "q",
+      "label": "Q",
+      "row": 2,
+      "column": 1,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 26,
+      "keyName": "w",
+      "label": "W",
+      "row": 2,
+      "column": 2,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 8,
+      "keyName": "e",
+      "label": "E",
+      "row": 2,
+      "column": 3,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 21,
+      "keyName": "r",
+      "label": "R",
+      "row": 2,
+      "column": 4,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 23,
+      "keyName": "t",
+      "label": "T",
+      "row": 2,
+      "column": 5,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 28,
+      "keyName": "y",
+      "label": "Y",
+      "row": 2,
+      "column": 6,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 24,
+      "keyName": "u",
+      "label": "U",
+      "row": 2,
+      "column": 7,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 12,
+      "keyName": "i",
+      "label": "I",
+      "row": 2,
+      "column": 8,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 18,
+      "keyName": "o",
+      "label": "O",
+      "row": 2,
+      "column": 9,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 19,
+      "keyName": "p",
+      "label": "P",
+      "row": 2,
+      "column": 10,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 47,
+      "keyName": "egrave",
+      "label": "è",
+      "shiftLabel": "é",
+      "row": 2,
+      "column": 11,
+      "keyType": "regular",
+      "altGrLabel": "["
+    },
+    {
+      "hidUsageID": 48,
+      "keyName": "plus_it",
+      "label": "+",
+      "shiftLabel": "*",
+      "row": 2,
+      "column": 12,
+      "keyType": "regular",
+      "altGrLabel": "]"
+    },
+    {
+      "hidUsageID": 49,
+      "keyName": "ugrave",
+      "label": "ù",
+      "shiftLabel": "§",
+      "row": 2,
+      "column": 13,
+      "keyType": "regular",
+      "altGrLabel": "|"
+    },
+    {
+      "hidUsageID": 57,
+      "keyName": "Caps",
+      "label": "Caps",
+      "row": 3,
+      "column": 0,
+      "keyType": "special"
+    },
+    {
+      "hidUsageID": 4,
+      "keyName": "a",
+      "label": "A",
+      "row": 3,
+      "column": 1,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 22,
+      "keyName": "s",
+      "label": "S",
+      "row": 3,
+      "column": 2,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 7,
+      "keyName": "d",
+      "label": "D",
+      "row": 3,
+      "column": 3,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 9,
+      "keyName": "f",
+      "label": "F",
+      "row": 3,
+      "column": 4,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 10,
+      "keyName": "g",
+      "label": "G",
+      "row": 3,
+      "column": 5,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 11,
+      "keyName": "h",
+      "label": "H",
+      "row": 3,
+      "column": 6,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 13,
+      "keyName": "j",
+      "label": "J",
+      "row": 3,
+      "column": 7,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 14,
+      "keyName": "k",
+      "label": "K",
+      "row": 3,
+      "column": 8,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 15,
+      "keyName": "l",
+      "label": "L",
+      "row": 3,
+      "column": 9,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 51,
+      "keyName": "ograve",
+      "label": "ò",
+      "shiftLabel": "ç",
+      "row": 3,
+      "column": 10,
+      "keyType": "regular",
+      "altGrLabel": "@"
+    },
+    {
+      "hidUsageID": 52,
+      "keyName": "agrave",
+      "label": "à",
+      "shiftLabel": "°",
+      "row": 3,
+      "column": 11,
+      "keyType": "regular",
+      "altGrLabel": "#"
+    },
+    {
+      "hidUsageID": 40,
+      "keyName": "Enter",
+      "label": "Enter",
+      "row": 3,
+      "column": 12,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 225,
+      "keyName": "LeftShift",
+      "label": "Shift",
+      "row": 4,
+      "column": 0,
+      "keyType": "modifier",
+      "width": 1.5
+    },
+    {
+      "hidUsageID": 29,
+      "keyName": "z",
+      "label": "Z",
+      "row": 4,
+      "column": 1,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 27,
+      "keyName": "x",
+      "label": "X",
+      "row": 4,
+      "column": 2,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 6,
+      "keyName": "c",
+      "label": "C",
+      "row": 4,
+      "column": 3,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 25,
+      "keyName": "v",
+      "label": "V",
+      "row": 4,
+      "column": 4,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 5,
+      "keyName": "b",
+      "label": "B",
+      "row": 4,
+      "column": 5,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 17,
+      "keyName": "n",
+      "label": "N",
+      "row": 4,
+      "column": 6,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 16,
+      "keyName": "m",
+      "label": "M",
+      "row": 4,
+      "column": 7,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 54,
+      "keyName": ",",
+      "label": ",",
+      "shiftLabel": "<",
+      "row": 4,
+      "column": 8,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 55,
+      "keyName": ".",
+      "label": ".",
+      "shiftLabel": ">",
+      "row": 4,
+      "column": 9,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 56,
+      "keyName": "/",
+      "label": "/",
+      "shiftLabel": "?",
+      "row": 4,
+      "column": 10,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 229,
+      "keyName": "RightShift",
+      "label": "Shift",
+      "row": 4,
+      "column": 11,
+      "keyType": "modifier",
+      "width": 1.5
+    },
+    {
+      "hidUsageID": 82,
+      "keyName": "Up",
+      "label": "↑",
+      "row": 4,
+      "column": 12,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 224,
+      "keyName": "LeftCtrl",
+      "label": "Ctrl",
+      "row": 5,
+      "column": 0,
+      "keyType": "modifier"
+    },
+    {
+      "hidUsageID": 227,
+      "keyName": "LeftWin",
+      "label": "Win",
+      "row": 5,
+      "column": 1,
+      "keyType": "modifier"
+    },
+    {
+      "hidUsageID": 226,
+      "keyName": "LeftAlt",
+      "label": "Alt",
+      "row": 5,
+      "column": 2,
+      "keyType": "modifier"
+    },
+    {
+      "hidUsageID": 44,
+      "keyName": "Space",
+      "label": " ",
+      "row": 5,
+      "column": 3,
+      "keyType": "regular",
+      "width": 6.0
+    },
+    {
+      "hidUsageID": 230,
+      "keyName": "RightAlt",
+      "label": "AltGr",
+      "row": 5,
+      "column": 4,
+      "keyType": "modifier"
+    },
+    {
+      "hidUsageID": 231,
+      "keyName": "RightWin",
+      "label": "Win",
+      "row": 5,
+      "column": 5,
+      "keyType": "modifier"
+    },
+    {
+      "hidUsageID": 101,
+      "keyName": "Menu",
+      "label": "Menu",
+      "row": 5,
+      "column": 6,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 228,
+      "keyName": "RightCtrl",
+      "label": "Ctrl",
+      "row": 5,
+      "column": 7,
+      "keyType": "modifier"
+    },
+    {
+      "hidUsageID": 80,
+      "keyName": "Left",
+      "label": "←",
+      "row": 5,
+      "column": 8,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 81,
+      "keyName": "Down",
+      "label": "↓",
+      "row": 5,
+      "column": 9,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 79,
+      "keyName": "Right",
+      "label": "→",
+      "row": 5,
+      "column": 10,
+      "keyType": "regular"
+    }
+  ]
+}
