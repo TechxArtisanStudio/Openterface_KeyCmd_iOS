@@ -49,6 +49,7 @@ struct KeyDefinition: Codable, Equatable, Hashable {
     let shiftLabel: String?       // Label shown when Shift is pressed, e.g. "!", "@"
     let altGrLabel: String?       // Label shown when AltGr/Option is pressed (needed for European layouts)
     let keyCode: String           // Key name for HID key code lookup
+    let hidUsageID: HIDUsageID    // USB HID Usage ID for this key
     let keyType: KeyType          // Key type (from KeyType.swift)
     let widthMultiplier: CGFloat? // Width multiplier (relative to standard key), nil means auto
     let heightMultiplier: CGFloat? // Height multiplier (relative to standard row), nil means auto
@@ -58,6 +59,7 @@ struct KeyDefinition: Codable, Equatable, Hashable {
          shiftLabel: String? = nil,
          altGrLabel: String? = nil,
          keyCode: String? = nil,
+         hidUsageID: HIDUsageID,
          keyType: KeyType = .regular,
          widthMultiplier: CGFloat? = nil,
          heightMultiplier: CGFloat? = nil) {
@@ -66,9 +68,15 @@ struct KeyDefinition: Codable, Equatable, Hashable {
         self.shiftLabel = shiftLabel
         self.altGrLabel = altGrLabel
         self.keyCode = keyCode ?? keyName
+        self.hidUsageID = hidUsageID
         self.keyType = keyType
         self.widthMultiplier = widthMultiplier
         self.heightMultiplier = heightMultiplier
+    }
+
+    /// Gets the HID Usage ID's raw value
+    var hidUsageValue: UInt8 {
+        hidUsageID.rawValue
     }
 }
 
@@ -183,27 +191,27 @@ struct KeyboardLayoutDefinition: Codable, Equatable, Hashable {
 extension KeyDefinition {
     /// Create a standard character key
     static func key(_ name: String, _ label: String, shift: String? = nil, altGr: String? = nil,
-                    keyCode: String? = nil, type: KeyType = .regular, width: CGFloat? = nil, height: CGFloat? = nil) -> KeyDefinition {
+                    keyCode: String? = nil, hid: HIDUsageID = .keyboardA, type: KeyType = .regular, width: CGFloat? = nil, height: CGFloat? = nil) -> KeyDefinition {
         KeyDefinition(keyName: name, label: label, shiftLabel: shift, altGrLabel: altGr,
-                      keyCode: keyCode ?? name, keyType: type, widthMultiplier: width, heightMultiplier: height)
+                      keyCode: keyCode ?? name, hidUsageID: hid, keyType: type, widthMultiplier: width, heightMultiplier: height)
     }
 
     /// Create a modifier key
-    static func mod(_ name: String, label: String? = nil, keyCode: String? = nil, width: CGFloat? = nil, height: CGFloat? = nil) -> KeyDefinition {
+    static func mod(_ name: String, label: String? = nil, keyCode: String? = nil, hid: HIDUsageID = .keyboardA, width: CGFloat? = nil, height: CGFloat? = nil) -> KeyDefinition {
         KeyDefinition(keyName: name, label: label ?? name, shiftLabel: nil, altGrLabel: nil,
-                      keyCode: keyCode ?? name, keyType: .modifier, widthMultiplier: width, heightMultiplier: height)
+                      keyCode: keyCode ?? name, hidUsageID: hid, keyType: .modifier, widthMultiplier: width, heightMultiplier: height)
     }
 
     /// Create a special key
-    static func special(_ name: String, label: String? = nil, keyCode: String? = nil, width: CGFloat? = nil, height: CGFloat? = nil) -> KeyDefinition {
+    static func special(_ name: String, label: String? = nil, keyCode: String? = nil, hid: HIDUsageID = .keyboardA, width: CGFloat? = nil, height: CGFloat? = nil) -> KeyDefinition {
         KeyDefinition(keyName: name, label: label ?? name, shiftLabel: nil, altGrLabel: nil,
-                      keyCode: keyCode ?? name, keyType: .special, widthMultiplier: width, heightMultiplier: height)
+                      keyCode: keyCode ?? name, hidUsageID: hid, keyType: .special, widthMultiplier: width, heightMultiplier: height)
     }
 
     /// Create a Japanese special key
-    static func jpSpecial(_ name: String, label: String, width: CGFloat? = nil) -> KeyDefinition {
+    static func jpSpecial(_ name: String, label: String, hid: HIDUsageID = .keyboardA, width: CGFloat? = nil) -> KeyDefinition {
         KeyDefinition(keyName: name, label: label, shiftLabel: nil, altGrLabel: nil,
-                      keyCode: name, keyType: .japaneseSpecial, widthMultiplier: width)
+                      keyCode: name, hidUsageID: hid, keyType: .japaneseSpecial, widthMultiplier: width)
     }
 }
 
