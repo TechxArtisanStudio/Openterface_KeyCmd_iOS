@@ -62,5 +62,7 @@ Scanning plan for conflicts...
 ### Task 2.0: 设计 JSON 布局架构
 - **Status:** Complete
 - **BASE commit:** 330bcd3
+- **Commit:** c64490a
 - **Brief:** task-2.0-brief.md
 - **Report:** task-2.0-report.md
+- **Files:** docs/superpowers/specs/keyboard-layout-json-schema.md
