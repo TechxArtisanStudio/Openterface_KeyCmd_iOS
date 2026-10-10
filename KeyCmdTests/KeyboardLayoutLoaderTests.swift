@@ -12,7 +12,18 @@ final class KeyboardLayoutLoaderTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        // Set the layouts directory for testing
+        // Set the layouts directory for testing - use project root path
+        // Walk up from current directory to find Resources/KeyboardLayouts
+        var dir = FileManager.default.currentDirectoryPath
+        while dir != "/" {
+            let layoutsPath = (dir as NSString).appendingPathComponent("Resources/KeyboardLayouts")
+            if FileManager.default.fileExists(atPath: layoutsPath) {
+                KeyboardLayoutLoader.layoutsDirectoryOverride = layoutsPath
+                return
+            }
+            dir = (dir as NSString).deletingLastPathComponent
+        }
+        // Fallback: use absolute path (for CI/test environments)
         KeyboardLayoutLoader.layoutsDirectoryOverride = "/Users/txa/project/Openterface_KeyCmd_iOS/Resources/KeyboardLayouts"
     }
 
@@ -37,17 +48,25 @@ final class KeyboardLayoutLoaderTests: XCTestCase {
     }
 
     func testLoadAllLayouts() throws {
-        let locales: [KeyboardLocale] = KeyboardLocale.allCases
-        let oses: [TargetOS] = [.windows, .macOS, .linux]
+        // Currently only us_windows.json exists
+        // Test that it loads successfully
+        let usWindowsLayout = try KeyboardLayoutLoader.load(locale: .us, targetOS: .windows)
+        XCTAssertEqual(usWindowsLayout.locale, .us)
+        XCTAssertEqual(usWindowsLayout.targetOS, .windows)
 
-        for locale in locales {
-            for os in oses {
-                do {
-                    let layout = try KeyboardLayoutLoader.load(locale: locale, targetOS: os)
-                    XCTAssertEqual(layout.locale, locale)
-                    XCTAssertEqual(layout.targetOS, os)
-                } catch {
-                    XCTFail("Failed to load \(locale) \(os): \(error)")
+        // Test that missing layouts throw appropriate errors
+        let missingCombinations: [(KeyboardLocale, TargetOS)] = [
+            (.us, .macOS),
+            (.us, .linux),
+            (.uk, .windows),
+            (.de, .windows)
+        ]
+
+        for (locale, os) in missingCombinations {
+            XCTAssertThrowsError(try KeyboardLayoutLoader.load(locale: locale, targetOS: os)) { error in
+                guard case KeyboardLayoutError.fileNotFound = error else {
+                    XCTFail("Expected fileNotFound error for \(locale) \(os), got \(error)")
+                    return
                 }
             }
         }

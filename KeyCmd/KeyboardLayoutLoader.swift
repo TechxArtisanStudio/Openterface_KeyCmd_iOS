@@ -14,7 +14,6 @@ struct KeyboardLayoutLoader {
 
     static func load(locale: KeyboardLocale, targetOS: TargetOS) throws -> KeyboardLayoutDefinition {
         let filename = "\(locale.rawValue.lowercased())_\(targetOS.rawValue.lowercased()).json"
-        var useOriginalLocale = true
         var fileURL: URL?
 
         // 1. Try bundle resource
@@ -41,16 +40,6 @@ struct KeyboardLayoutLoader {
             }
         }
 
-        // 4. Fallback to us_windows.json
-        if fileURL == nil {
-            let root = findProjectRoot()
-            let fallbackURL = URL(fileURLWithPath: root).appendingPathComponent("Resources/KeyboardLayouts/us_windows.json")
-            if FileManager.default.fileExists(atPath: fallbackURL.path) {
-                fileURL = fallbackURL
-                useOriginalLocale = false
-            }
-        }
-
         guard let url = fileURL, FileManager.default.fileExists(atPath: url.path) else {
             throw KeyboardLayoutError.fileNotFound(filename)
         }
@@ -59,22 +48,20 @@ struct KeyboardLayoutLoader {
         let decoder = JSONDecoder()
         let jsonLayout = try decoder.decode(JSONKeyboardLayout.self, from: data)
 
-        return convert(jsonLayout, targetLocale: locale, targetOS: targetOS, useOriginalLocale: useOriginalLocale)
+        return try convert(jsonLayout)
     }
 
-    /// Find project root by searching up from current directory or known paths
+    /// Find project root by walking up from current directory or using environment variable
     private static func findProjectRoot() -> String {
-        // Try common test paths first
-        let knownPaths = [
-            "/Users/txa/project/Openterface_KeyCmd_iOS",
-            FileManager.default.currentDirectoryPath
-        ]
-        for path in knownPaths {
-            if FileManager.default.fileExists(atPath: (path as NSString).appendingPathComponent("Resources/KeyboardLayouts")) {
-                return path
+        // 1. Check environment variable (useful for testing/CI)
+        if let envPath = ProcessInfo.processInfo.environment["KEYCMD_PROJECT_ROOT"] {
+            let layoutsPath = (envPath as NSString).appendingPathComponent("Resources/KeyboardLayouts")
+            if FileManager.default.fileExists(atPath: layoutsPath) {
+                return envPath
             }
         }
-        // Walk up from current directory
+
+        // 2. Walk up from current directory
         var dir = FileManager.default.currentDirectoryPath
         while dir != "/" {
             if FileManager.default.fileExists(atPath: (dir as NSString).appendingPathComponent("Resources/KeyboardLayouts")) {
@@ -82,19 +69,26 @@ struct KeyboardLayoutLoader {
             }
             dir = (dir as NSString).deletingLastPathComponent
         }
+
+        // 3. Fallback to current directory
         return FileManager.default.currentDirectoryPath
     }
 
-    private static func convert(_ json: JSONKeyboardLayout, targetLocale: KeyboardLocale, targetOS: TargetOS, useOriginalLocale: Bool) -> KeyboardLayoutDefinition {
-        let locale = useOriginalLocale ? KeyboardLocale.allCases.first { $0.rawValue == json.locale.uppercased() } ?? targetLocale : targetLocale
-        let resultOS = useOriginalLocale ? TargetOS.allCases.first { $0.rawValue == json.targetOS.lowercased() } ?? targetOS : targetOS
+    private static func convert(_ json: JSONKeyboardLayout) throws -> KeyboardLayoutDefinition {
+        // Parse locale and targetOS from JSON
+        guard let locale = KeyboardLocale.allCases.first(where: { $0.rawValue.lowercased() == json.locale.lowercased() }) else {
+            throw KeyboardLayoutError.invalidFormat("Invalid locale: \(json.locale)")
+        }
+        guard let targetOS = TargetOS.allCases.first(where: { $0.rawValue.lowercased() == json.targetOS.lowercased() }) else {
+            throw KeyboardLayoutError.invalidFormat("Invalid targetOS: \(json.targetOS)")
+        }
 
         var tempRows: [[(Int, KeyDefinition)]] = []
         let maxRowIndex = (json.keys.map { $0.row }.max() ?? 0) + 1
         tempRows = Array(repeating: [], count: maxRowIndex)
 
         for jsonKey in json.keys {
-            let def = keyDefinition(from: jsonKey)
+            let def = try keyDefinition(from: jsonKey)
             if jsonKey.row < tempRows.count {
                 tempRows[jsonKey.row].append((jsonKey.column, def))
             }
@@ -116,14 +110,19 @@ struct KeyboardLayoutLoader {
 
         return KeyboardLayoutDefinition(
             locale: locale,
-            targetOS: resultOS,
+            targetOS: targetOS,
             rows: rows,
             metadata: metadata
         )
     }
 
-    private static func keyDefinition(from json: JSONKeyDefinition) -> KeyDefinition {
-        let uid = HIDUsageID(rawValue: json.hidUsageID) ?? .keyboardA
+    private static func keyDefinition(from json: JSONKeyDefinition) throws -> KeyDefinition {
+        let uid: HIDUsageID
+        if let raw = HIDUsageID(rawValue: json.hidUsageID) {
+            uid = raw
+        } else {
+            throw KeyboardLayoutError.invalidFormat("Invalid HID usage ID: \(json.hidUsageID)")
+        }
         let type: KeyType
         if let raw = json.keyType,
            let t = KeyType(rawValue: raw) {

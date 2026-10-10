@@ -112,7 +112,7 @@ struct WindowsLayoutBuilder {
             ],
             // ZXCV third row
             [
-                KeyDefinition.key("Shift", "Shift", width: 1.5),
+                KeyDefinition.mod("Shift", width: 1.5),
                 KeyDefinition.key("z", "z"),
                 KeyDefinition.key("x", "x"),
                 KeyDefinition.key("c", "c"),
@@ -123,7 +123,7 @@ struct WindowsLayoutBuilder {
                 KeyDefinition.key(",", ",", shift: "<"),
                 KeyDefinition.key(".", ".", shift: ">"),
                 KeyDefinition.key("/", "/", shift: "?"),
-                KeyDefinition.key("Shift", "Shift", width: 1.5),
+                KeyDefinition.mod("Shift", width: 1.5),
                 KeyDefinition.key("Up", "↑")
             ],
             // Bottom modifier row
@@ -226,17 +226,21 @@ struct WindowsLayoutBuilder {
         var rows = usLayout.rows
 
         // German-specific modifications:
-        // - Z and Y swapped
-        // - Special characters in different positions
+        // - Z and Y swapped (QWERTZ layout)
+        // - Top row: Q W E R T [Z] U I O P (Y position becomes Z)
+        // - Bottom row: [Y] X C V B N M (Z position becomes Y)
 
-        // Swap Z and Y in the top letter row (index 2)
-        if rows.count > 2 {
+        // Swap Y (top row position 6) with Z (bottom row position 1)
+        if rows.count > 4 {
             var topRow = rows[2]
-            if topRow.count > 6 {
-                let temp = topRow[5] // Y position
-                topRow[5] = topRow[6] // Z position
-                topRow[6] = temp
+            var bottomRow = rows[4]
+            if topRow.count > 6 && bottomRow.count > 1 {
+                let yKey = topRow[6]  // Y in top row (QWERTY position)
+                let zKey = bottomRow[1]  // Z in bottom row (QWERTY position)
+                topRow[6] = zKey  // Now Z is in top row position 6
+                bottomRow[1] = yKey  // Now Y is in bottom row position 1
                 rows[2] = topRow
+                rows[4] = bottomRow
             }
         }
 
@@ -308,11 +312,11 @@ struct WindowsLayoutBuilder {
                 KeyDefinition.key("i", "i"),
                 KeyDefinition.key("o", "o"),
                 KeyDefinition.key("p", "p"),
-                KeyDefinition.key("^", "^", shift: "$", keyCode: "BracketLeft"), // ^ on [ key
-                KeyDefinition.key("$", "$", shift: "", keyCode: "BracketRight"), // $ on ] key
+                KeyDefinition.key("^", "^", shift: "¨", keyCode: "BracketLeft"), // ^ (dead key) on [ key
+                KeyDefinition.key("$", "$", shift: "£", keyCode: "BracketRight"), // $ on ] key
                 KeyDefinition.key("*", "*", shift: "µ", keyCode: "Backslash") // * on \ key
             ],
-            // Home row (Q S D F G H J K L M M ù
+            // Home row (Q S D F G H J K L M ù *
             [
                 KeyDefinition.key("Caps", "Caps"),
                 KeyDefinition.key("q", "q"),
@@ -325,13 +329,13 @@ struct WindowsLayoutBuilder {
                 KeyDefinition.key("k", "k"),
                 KeyDefinition.key("l", "l"),
                 KeyDefinition.key("m", "m"),
-                KeyDefinition.key("%", "%", shift: "µ", keyCode: "Digit5"), // % on 5 key
-                KeyDefinition.key("£", "£", shift: "", keyCode: "Quote"), // £ on ' key
+                KeyDefinition.key("ù", "ù", shift: "%", keyCode: "Quote"), // ù on ' key (Shift gives %)
+                KeyDefinition.key("star", "*", shift: "µ", keyCode: "Backslash"), // * on \ key (Shift gives µ)
                 KeyDefinition.key("Enter", "Enter")
             ],
             // Bottom letter row (W X C V B N N ? . / §
             [
-                KeyDefinition.key("Shift", "Shift", width: 1.5),
+                KeyDefinition.mod("Shift", width: 1.5),
                 KeyDefinition.key("w", "w"),
                 KeyDefinition.key("x", "x"),
                 KeyDefinition.key("c", "c"),
@@ -342,7 +346,7 @@ struct WindowsLayoutBuilder {
                 KeyDefinition.key(".", ".", shift: ";", keyCode: "Period"), // . on . key
                 KeyDefinition.key("/", "/", shift: ":", keyCode: "Semicolon"), // / on ; key
                 KeyDefinition.key("§", "§", shift: "!", keyCode: "Backquote"), // § on ` key
-                KeyDefinition.key("Shift", "Shift", width: 1.5),
+                KeyDefinition.mod("Shift", width: 1.5),
                 KeyDefinition.key("Up", "↑")
             ],
             // Bottom modifier row
@@ -369,7 +373,8 @@ struct WindowsLayoutBuilder {
             rowSpacing: 6,
             padding: LayoutPadding(top: 8, leading: 8, bottom: 8, trailing: 8),
             fixedKeyWidths: ["Space": 200],
-            physicalStandard: .iso
+            physicalStandard: .iso,
+            hasAltGr: true
         )
 
         return KeyboardLayoutDefinition(
@@ -572,7 +577,7 @@ struct WindowsLayoutBuilder {
             ],
             // Bottom letter row
             [
-                KeyDefinition.key("Shift", "Shift", width: 1.5),
+                KeyDefinition.mod("Shift", width: 1.5),
                 KeyDefinition.key("z", "z"),
                 KeyDefinition.key("x", "x"),
                 KeyDefinition.key("c", "c"),
@@ -583,7 +588,7 @@ struct WindowsLayoutBuilder {
                 KeyDefinition.key(",", ",", shift: "<"),
                 KeyDefinition.key(".", ".", shift: ">"),
                 KeyDefinition.key("/", "/", shift: "?"),
-                KeyDefinition.key("Shift", "Shift", width: 1.5),
+                KeyDefinition.mod("Shift", width: 1.5),
                 KeyDefinition.special("Ro", label: "Ro", keyCode: "Ro"), // Romaji key
                 KeyDefinition.key("Up", "↑")
             ],
@@ -730,7 +735,7 @@ struct WindowsLayoutBuilder {
             ],
             // Bottom letter row
             [
-                KeyDefinition.key("Shift", "Shift", width: 1.5),
+                KeyDefinition.mod("Shift", width: 1.5),
                 KeyDefinition.key("y", "y"), // Y after Z in Swiss
                 KeyDefinition.key("x", "x"),
                 KeyDefinition.key("c", "c"),
@@ -741,7 +746,7 @@ struct WindowsLayoutBuilder {
                 KeyDefinition.key(",", ",", shift: ";"),
                 KeyDefinition.key(".", ".", shift: ":"),
                 KeyDefinition.key("-", "-", shift: "_"),
-                KeyDefinition.key("Shift", "Shift", width: 1.5),
+                KeyDefinition.mod("Shift", width: 1.5),
                 KeyDefinition.key("Up", "↑")
             ],
             // Bottom modifier row

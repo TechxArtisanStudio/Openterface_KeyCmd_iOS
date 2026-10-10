@@ -78,6 +78,21 @@ enum HIDUsageID: UInt8, CaseIterable, Codable {
     case keyboardF11 = 0x44
     case keyboardF12 = 0x45
 
+    // 导航和编辑键 (0x49 - 0x52)
+    case keyboardInsert = 0x49
+    case keyboardHome = 0x4A
+    case keyboardPageUp = 0x4B
+    case keyboardDelete = 0x4C
+    case keyboardEnd = 0x4D
+    case keyboardPageDown = 0x4E
+    case keyboardRightArrow = 0x4F
+    case keyboardLeftArrow = 0x50
+    case keyboardDownArrow = 0x51
+    case keyboardUpArrow = 0x52
+
+    // 应用键 (0x65)
+    case keyboardApplication = 0x65  // Menu key
+
     // 修饰键 (0xE0 - 0xE7)
     case keyboardLeftCtrl = 0xE0
     case keyboardLeftShift = 0xE1

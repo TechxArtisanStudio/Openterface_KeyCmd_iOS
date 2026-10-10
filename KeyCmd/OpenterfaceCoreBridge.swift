@@ -9,7 +9,7 @@ import Foundation
 
 // ── Modifier flags (mirrors OP_INPUT_MOD_* defines) ─────────────────────
 
-private enum OpInputMod {
+enum OpInputMod {
     static let none:   UInt8 = 0x00
     static let lCtrl:  UInt8 = 0x01
     static let lShift: UInt8 = 0x02
@@ -23,11 +23,17 @@ private enum OpInputMod {
 
 struct KMod: OptionSet {
     let rawValue: UInt8
+    // Left-side modifiers
     static let ctrl  = KMod(rawValue: OpInputMod.lCtrl)
     static let shift = KMod(rawValue: OpInputMod.lShift)
     static let alt   = KMod(rawValue: OpInputMod.lAlt)
     static let gui   = KMod(rawValue: OpInputMod.lGui)
     static let none  = KMod(rawValue: OpInputMod.none)
+    // Right-side modifiers (for AltGr, etc.)
+    static let rCtrl  = KMod(rawValue: OpInputMod.rCtrl)
+    static let rShift = KMod(rawValue: OpInputMod.rShift)
+    static let rAlt   = KMod(rawValue: OpInputMod.rAlt)
+    static let rGui   = KMod(rawValue: OpInputMod.rGui)
 }
 
 // ── Packet size constants (mirrors OP_INPUT_PKT_* defines) ──────────────

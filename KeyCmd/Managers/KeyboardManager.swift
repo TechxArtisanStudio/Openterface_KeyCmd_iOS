@@ -334,6 +334,10 @@ class KeyboardManager: ObservableObject {
     /// macro-label invocations without introducing a circular dependency.
     var MacroHandler: ((String) -> Void)?
 
+    /// Test hook: called before sending HID data. Set by tests to capture reports.
+    /// Not used in production code.
+    var hidReportCapture: ((UInt8, [UInt8]) -> Void)?
+
     init(bleManager: BLEManager) {
         self.bleManager = bleManager
         self.compositeKeyManager = CompositeKeyManager()
@@ -359,7 +363,7 @@ class KeyboardManager: ObservableObject {
         case "Ctrl":  return KMod.ctrl.rawValue
         case "Shift": return KMod.shift.rawValue
         case "Alt", "Option": return KMod.alt.rawValue
-        case "AltGr": return KMod.alt.rawValue | KMod.gui.rawValue // AltGr = Right Alt + Right GUI for HID
+        case "AltGr": return KMod.rAlt.rawValue // AltGr = Right Alt (0x40)
         case "Cmd", "Win", "Super": return KMod.gui.rawValue
         default:      return nil
         }
@@ -412,13 +416,6 @@ class KeyboardManager: ObservableObject {
             }
         }
 
-        // Apply caps lock effect for letters
-        if effectiveKey.count == 1 && effectiveKey.first!.isLetter {
-            let shouldBeUppercase = capsLockActive != activeModifiers.contains("Shift")
-            if shouldBeUppercase {
-                modifierByte |= KMod.shift.rawValue
-            }
-        }
 
         // Send key press
         sendKeyboardData(modifier: modifierByte, keyCodes: keyCodes)
@@ -601,6 +598,8 @@ class KeyboardManager: ObservableObject {
 
     // Send keyboard data via BLE
     private func sendKeyboardData(modifier: UInt8, keyCodes: [UInt8]) {
+        // Test hook: capture HID reports for testing
+        hidReportCapture?(modifier, keyCodes)
         let packet = Keymod.buildKeyboard(modifiers: modifier, keys: keyCodes)
         bleManager.sendTouchData(data: packet)
     }
@@ -937,18 +936,6 @@ class KeyboardManager: ObservableObject {
         for modifier in activeModifiers {
             if let modifierMask = modifierMask(for: modifier) {
                 modifierByte |= modifierMask
-            }
-        }
-
-        // Apply caps lock effect for letters in the key list
-        for key in keys {
-            let keyAlias = mapKeyAlias(key)
-            if keyAlias.count == 1 && keyAlias.first!.isLetter {
-                let shouldBeUppercase = capsLockActive != activeModifiers.contains("Shift")
-                if shouldBeUppercase {
-                    modifierByte |= KMod.shift.rawValue
-                }
-                break // Only need to apply once
             }
         }
 

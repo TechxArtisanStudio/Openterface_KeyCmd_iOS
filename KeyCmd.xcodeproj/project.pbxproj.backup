@@ -1,0 +1,687 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		6B20A1B22E058000004331F6 /* whisper in Frameworks */ = {isa = PBXBuildFile; productRef = 6B20A1B12E058000004331F6 /* whisper */; };
+		6B56FFDD2FEA7E220089C59F /* CSSH in Frameworks */ = {isa = PBXBuildFile; productRef = 6BAFF1012E040AD6004331F6 /* CSSH */; };
+		6B56FFDE2FEA7E220089C59F /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 6EDFAC2B8A6844B7AB7D4C71 /* SwiftTerm */; };
+		6BDE435D300129A800A20A41 /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 6BDE435C300129A800A20A41 /* MLXLLM */; };
+		6BDE435F300129A800A20A41 /* MLXVLM in Frameworks */ = {isa = PBXBuildFile; productRef = 6BDE435E300129A800A20A41 /* MLXVLM */; };
+		6BDE4361300129A800A20A41 /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = 6BDE4360300129A800A20A41 /* MLXLMCommon */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		6BAFF03C2E040AD8004331F6 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6BAFF0232E040AD6004331F6 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6BAFF02A2E040AD6004331F6;
+			remoteInfo = KeyCmd;
+		};
+		6BAFF0462E040AD8004331F6 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6BAFF0232E040AD6004331F6 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6BAFF02A2E040AD6004331F6;
+			remoteInfo = KeyCmd;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		6BAFF02B2E040AD6004331F6 /* KeyCmd.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KeyCmd.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		6BAFF03B2E040AD8004331F6 /* KeyCmdTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KeyCmdTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		6BAFF0452E040AD8004331F6 /* KeyCmdUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KeyCmdUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		6BAFF02D2E040AD6004331F6 /* KeyCmd */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = KeyCmd;
+			sourceTree = "<group>";
+		};
+		6BAFF03E2E040AD8004331F6 /* KeyCmdTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = KeyCmdTests;
+			sourceTree = "<group>";
+		};
+		6BAFF0482E040AD8004331F6 /* KeyCmdUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = KeyCmdUITests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		6BAFF0282E040AD6004331F6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6BDE435F300129A800A20A41 /* MLXVLM in Frameworks */,
+				6BDE435D300129A800A20A41 /* MLXLLM in Frameworks */,
+				6BDE4361300129A800A20A41 /* MLXLMCommon in Frameworks */,
+				6B56FFDE2FEA7E220089C59F /* SwiftTerm in Frameworks */,
+				6B56FFDD2FEA7E220089C59F /* CSSH in Frameworks */,
+				6B20A1B22E058000004331F6 /* whisper in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6BAFF0382E040AD8004331F6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6BAFF0422E040AD8004331F6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		6BAFF0222E040AD6004331F6 = {
+			isa = PBXGroup;
+			children = (
+				6BAFF02D2E040AD6004331F6 /* KeyCmd */,
+				6BAFF03E2E040AD8004331F6 /* KeyCmdTests */,
+				6BAFF0482E040AD8004331F6 /* KeyCmdUITests */,
+				6BAFF02C2E040AD6004331F6 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		6BAFF02C2E040AD6004331F6 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				6BAFF02B2E040AD6004331F6 /* KeyCmd.app */,
+				6BAFF03B2E040AD8004331F6 /* KeyCmdTests.xctest */,
+				6BAFF0452E040AD8004331F6 /* KeyCmdUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		6BAFF02A2E040AD6004331F6 /* KeyCmd */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6BAFF04F2E040AD8004331F6 /* Build configuration list for PBXNativeTarget "KeyCmd" */;
+			buildPhases = (
+				6BAFF0272E040AD6004331F6 /* Sources */,
+				6BAFF0282E040AD6004331F6 /* Frameworks */,
+				6BAFF0292E040AD6004331F6 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				6BAFF02D2E040AD6004331F6 /* KeyCmd */,
+			);
+			name = KeyCmd;
+			packageProductDependencies = (
+				6B20A1B12E058000004331F6 /* whisper */,
+				6BAFF1012E040AD6004331F6 /* CSSH */,
+				6EDFAC2B8A6844B7AB7D4C71 /* SwiftTerm */,
+				6BDE435C300129A800A20A41 /* MLXLLM */,
+				6BDE435E300129A800A20A41 /* MLXVLM */,
+				6BDE4360300129A800A20A41 /* MLXLMCommon */,
+			);
+			productName = KeyCmd;
+			productReference = 6BAFF02B2E040AD6004331F6 /* KeyCmd.app */;
+			productType = "com.apple.product-type.application";
+		};
+		6BAFF03A2E040AD8004331F6 /* KeyCmdTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6BAFF0522E040AD8004331F6 /* Build configuration list for PBXNativeTarget "KeyCmdTests" */;
+			buildPhases = (
+				6BAFF0372E040AD8004331F6 /* Sources */,
+				6BAFF0382E040AD8004331F6 /* Frameworks */,
+				6BAFF0392E040AD8004331F6 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				6BAFF03D2E040AD8004331F6 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				6BAFF03E2E040AD8004331F6 /* KeyCmdTests */,
+			);
+			name = KeyCmdTests;
+			packageProductDependencies = (
+			);
+			productName = KeyCmdTests;
+			productReference = 6BAFF03B2E040AD8004331F6 /* KeyCmdTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		6BAFF0442E040AD8004331F6 /* KeyCmdUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6BAFF0552E040AD8004331F6 /* Build configuration list for PBXNativeTarget "KeyCmdUITests" */;
+			buildPhases = (
+				6BAFF0412E040AD8004331F6 /* Sources */,
+				6BAFF0422E040AD8004331F6 /* Frameworks */,
+				6BAFF0432E040AD8004331F6 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				6BAFF0472E040AD8004331F6 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				6BAFF0482E040AD8004331F6 /* KeyCmdUITests */,
+			);
+			name = KeyCmdUITests;
+			packageProductDependencies = (
+			);
+			productName = KeyCmdUITests;
+			productReference = 6BAFF0452E040AD8004331F6 /* KeyCmdUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		6BAFF0232E040AD6004331F6 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1610;
+				LastUpgradeCheck = 2650;
+				ORGANIZATIONNAME = "TechxArtisan Limited";
+				TargetAttributes = {
+					6BAFF02A2E040AD6004331F6 = {
+						CreatedOnToolsVersion = 16.1;
+					};
+					6BAFF03A2E040AD8004331F6 = {
+						CreatedOnToolsVersion = 16.1;
+						TestTargetID = 6BAFF02A2E040AD6004331F6;
+					};
+					6BAFF0442E040AD8004331F6 = {
+						CreatedOnToolsVersion = 16.1;
+						TestTargetID = 6BAFF02A2E040AD6004331F6;
+					};
+				};
+			};
+			buildConfigurationList = 6BAFF0262E040AD6004331F6 /* Build configuration list for PBXProject "KeyCmd" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+				"zh-Hans",
+				"zh-Hant",
+				fr,
+				ja,
+				ko,
+			);
+			mainGroup = 6BAFF0222E040AD6004331F6;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				6B3468E52F5189F00065BF7E /* XCLocalSwiftPackageReference "../whisper.cpp" */,
+				6BAFF1002E040AD6004331F6 /* XCLocalSwiftPackageReference "../Libssh2Prebuild" */,
+				6B37F94E607A422FB36691C0 /* XCLocalSwiftPackageReference "../SwiftTerm" */,
+				6BDE435B300129A800A20A41 /* XCRemoteSwiftPackageReference "mlx-swift-examples" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 6BAFF02C2E040AD6004331F6 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				6BAFF02A2E040AD6004331F6 /* KeyCmd */,
+				6BAFF03A2E040AD8004331F6 /* KeyCmdTests */,
+				6BAFF0442E040AD8004331F6 /* KeyCmdUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		6BAFF0292E040AD6004331F6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6BAFF0392E040AD8004331F6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6BAFF0432E040AD8004331F6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		6BAFF0272E040AD6004331F6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6BAFF0372E040AD8004331F6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6BAFF0412E040AD8004331F6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		6BAFF03D2E040AD8004331F6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6BAFF02A2E040AD6004331F6 /* KeyCmd */;
+			targetProxy = 6BAFF03C2E040AD8004331F6 /* PBXContainerItemProxy */;
+		};
+		6BAFF0472E040AD8004331F6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6BAFF02A2E040AD6004331F6 /* KeyCmd */;
+			targetProxy = 6BAFF0462E040AD8004331F6 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		6BAFF04D2E040AD8004331F6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = NXWD68TXUQ;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Uses Bluetooth to connect to KeyCmd-compatible input devices and peripherals.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "Uses device motion sensors to control the mouse cursor via gyroscope.";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		6BAFF04E2E040AD8004331F6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = NXWD68TXUQ;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Uses Bluetooth to connect to KeyCmd-compatible input devices and peripherals.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "Uses device motion sensors to control the mouse cursor via gyroscope.";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		6BAFF0502E040AD8004331F6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = KeyCmd/KeyCmd.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 16;
+				DEVELOPMENT_ASSET_PATHS = "\"KeyCmd/Preview Content\"";
+				ENABLE_PREVIEWS = YES;
+				EXCLUDED_SOURCE_FILE_NAMES = (
+					"KeyCmd/Openterface_Core/tests/*.c",
+					"KeyCmd/Openterface_Core/cli/*.c",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/KeyCmd/Openterface_Core/include";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "KeyCmd needs microphone access for voice input.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "KeyCmd uses speech recognition to convert your voice into text that can be typed on the target device.";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.openterface.KeyCmd;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = "KeyCmd/KeyCmd-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		6BAFF0512E040AD8004331F6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = KeyCmd/KeyCmd.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 16;
+				DEVELOPMENT_ASSET_PATHS = "\"KeyCmd/Preview Content\"";
+				ENABLE_PREVIEWS = YES;
+				EXCLUDED_SOURCE_FILE_NAMES = (
+					"KeyCmd/Openterface_Core/tests/*.c",
+					"KeyCmd/Openterface_Core/cli/*.c",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/KeyCmd/Openterface_Core/include";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "KeyCmd needs microphone access for voice input.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "KeyCmd uses speech recognition to convert your voice into text that can be typed on the target device.";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.openterface.KeyCmd;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = "KeyCmd/KeyCmd-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		6BAFF0532E040AD8004331F6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.openterface.KeyCmdTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KeyCmd.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/KeyCmd";
+			};
+			name = Debug;
+		};
+		6BAFF0542E040AD8004331F6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.openterface.KeyCmdTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KeyCmd.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/KeyCmd";
+			};
+			name = Release;
+		};
+		6BAFF0562E040AD8004331F6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.openterface.KeyCmdUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = KeyCmd;
+			};
+			name = Debug;
+		};
+		6BAFF0572E040AD8004331F6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.openterface.KeyCmdUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = KeyCmd;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		6BAFF0262E040AD6004331F6 /* Build configuration list for PBXProject "KeyCmd" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6BAFF04D2E040AD8004331F6 /* Debug */,
+				6BAFF04E2E040AD8004331F6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		6BAFF04F2E040AD8004331F6 /* Build configuration list for PBXNativeTarget "KeyCmd" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6BAFF0502E040AD8004331F6 /* Debug */,
+				6BAFF0512E040AD8004331F6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		6BAFF0522E040AD8004331F6 /* Build configuration list for PBXNativeTarget "KeyCmdTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6BAFF0532E040AD8004331F6 /* Debug */,
+				6BAFF0542E040AD8004331F6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		6BAFF0552E040AD8004331F6 /* Build configuration list for PBXNativeTarget "KeyCmdUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6BAFF0562E040AD8004331F6 /* Debug */,
+				6BAFF0572E040AD8004331F6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		6B3468E52F5189F00065BF7E /* XCLocalSwiftPackageReference "../whisper.cpp" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../whisper.cpp;
+		};
+		6B37F94E607A422FB36691C0 /* XCLocalSwiftPackageReference "../SwiftTerm" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../SwiftTerm;
+		};
+		6BAFF1002E040AD6004331F6 /* XCLocalSwiftPackageReference "../Libssh2Prebuild" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../Libssh2Prebuild;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		6BDE435B300129A800A20A41 /* XCRemoteSwiftPackageReference "mlx-swift-examples" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ml-explore/mlx-swift-examples";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.29.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		6B20A1B12E058000004331F6 /* whisper */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6B3468E52F5189F00065BF7E /* XCLocalSwiftPackageReference "../whisper.cpp" */;
+			productName = whisper;
+		};
+		6BAFF1012E040AD6004331F6 /* CSSH */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6BAFF1002E040AD6004331F6 /* XCLocalSwiftPackageReference "../Libssh2Prebuild" */;
+			productName = CSSH;
+		};
+		6BDE435C300129A800A20A41 /* MLXLLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6BDE435B300129A800A20A41 /* XCRemoteSwiftPackageReference "mlx-swift-examples" */;
+			productName = MLXLLM;
+		};
+		6BDE435E300129A800A20A41 /* MLXVLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6BDE435B300129A800A20A41 /* XCRemoteSwiftPackageReference "mlx-swift-examples" */;
+			productName = MLXVLM;
+		};
+		6BDE4360300129A800A20A41 /* MLXLMCommon */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6BDE435B300129A800A20A41 /* XCRemoteSwiftPackageReference "mlx-swift-examples" */;
+			productName = MLXLMCommon;
+		};
+		6EDFAC2B8A6844B7AB7D4C71 /* SwiftTerm */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6B37F94E607A422FB36691C0 /* XCLocalSwiftPackageReference "../SwiftTerm" */;
+			productName = SwiftTerm;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 6BAFF0232E040AD6004331F6 /* Project object */;
+}
