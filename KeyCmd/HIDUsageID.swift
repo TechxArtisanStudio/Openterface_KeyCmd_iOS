@@ -44,7 +44,7 @@ enum HIDUsageID: UInt8, CaseIterable, Codable {
     case keyboard9 = 0x26
     case keyboard0 = 0x27
 
-    // 控制键 (0x28 - 0x2F)
+    // 控制键 (0x28 - 0x39)
     case keyboardEnter = 0x28
     case keyboardEscape = 0x29
     case keyboardBackspace = 0x2A
@@ -94,4 +94,11 @@ enum HIDUsageID: UInt8, CaseIterable, Codable {
     case keyboardInternational3 = 0x89  // 変換
     case keyboardInternational4 = 0x8A  // 無変換
     case keyboardInternational5 = 0x8B  // katakana/hiragana
+    case keyboardInternational6 = 0x8C  // Reserved for future use
+    case keyboardInternational7 = 0x8D  // Reserved for future use
+    case keyboardInternational8 = 0x8E  // Reserved for future use
+    case keyboardInternational9 = 0x8F  // Reserved for future use
+    case keyboardLANG1 = 0x90           // Hangul/English toggle
+    case keyboardLANG2 = 0x91           // Hanja conversion
+    case keyboardLANG3 = 0x92           // Reserved for future use
 }
