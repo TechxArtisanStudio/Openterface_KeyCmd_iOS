@@ -4,7 +4,7 @@
   "metadata": {
     "name": "Canadian QWERTY",
     "description": "Canadian QWERTY layout (same as US)",
-    "physicalStandard": "ansi",
+    "physicalStandard": "ANSI",
     "hasAltGr": false,
     "rowHeights": [
       0.1,

@@ -48,28 +48,22 @@ final class KeyboardLayoutLoaderTests: XCTestCase {
     }
 
     func testLoadAllLayouts() throws {
-        // Currently only us_windows.json exists
-        // Test that it loads successfully
-        let usWindowsLayout = try KeyboardLayoutLoader.load(locale: .us, targetOS: .windows)
-        XCTAssertEqual(usWindowsLayout.locale, .us)
-        XCTAssertEqual(usWindowsLayout.targetOS, .windows)
+        // Test that all 42 layouts (14 locales × 3 OSes) load successfully
+        let locales: [KeyboardLocale] = [.us, .uk, .de, .fr, .es, .it, .pt, .jp, .cn, .ca, .au, .be, .ch, .nordic]
+        let oses: [TargetOS] = [.windows, .macOS, .linux]
 
-        // Test that missing layouts throw appropriate errors
-        let missingCombinations: [(KeyboardLocale, TargetOS)] = [
-            (.us, .macOS),
-            (.us, .linux),
-            (.uk, .windows),
-            (.de, .windows)
-        ]
-
-        for (locale, os) in missingCombinations {
-            XCTAssertThrowsError(try KeyboardLayoutLoader.load(locale: locale, targetOS: os)) { error in
-                guard case KeyboardLayoutError.fileNotFound = error else {
-                    XCTFail("Expected fileNotFound error for \(locale) \(os), got \(error)")
-                    return
-                }
+        var loadedCount = 0
+        for locale in locales {
+            for os in oses {
+                let layout = try KeyboardLayoutLoader.load(locale: locale, targetOS: os)
+                XCTAssertEqual(layout.locale, locale)
+                XCTAssertEqual(layout.targetOS, os)
+                XCTAssertGreaterThan(layout.rows.count, 0, "Layout \(locale)_\(os) should have keys")
+                loadedCount += 1
             }
         }
+
+        XCTAssertEqual(loadedCount, 42, "Should have loaded all 42 layouts (14 locales × 3 OSes)")
     }
 
     func testLayoutMetadata() throws {

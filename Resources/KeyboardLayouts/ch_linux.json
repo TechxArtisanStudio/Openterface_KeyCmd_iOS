@@ -4,7 +4,7 @@
   "metadata": {
     "name": "Swiss German QWERTZ",
     "description": "Swiss German QWERTZ layout",
-    "physicalStandard": "iso",
+    "physicalStandard": "ISO",
     "hasAltGr": true,
     "rowHeights": [
       0.1,

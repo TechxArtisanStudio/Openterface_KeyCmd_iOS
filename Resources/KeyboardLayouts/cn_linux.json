@@ -4,7 +4,7 @@
   "metadata": {
     "name": "Chinese QWERTY",
     "description": "Chinese QWERTY layout (same as US)",
-    "physicalStandard": "ansi",
+    "physicalStandard": "ANSI",
     "hasAltGr": false,
     "rowHeights": [
       0.1,

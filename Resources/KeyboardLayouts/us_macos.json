@@ -4,7 +4,7 @@
   "metadata": {
     "name": "US QWERTY",
     "description": "Standard US QWERTY layout (ANSI)",
-    "physicalStandard": "ansi",
+    "physicalStandard": "ANSI",
     "hasAltGr": false,
     "rowHeights": [
       0.1,

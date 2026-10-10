@@ -4,7 +4,7 @@
   "metadata": {
     "name": "Spanish QWERTY",
     "description": "Spanish QWERTY layout with Ñ key",
-    "physicalStandard": "iso",
+    "physicalStandard": "ISO",
     "hasAltGr": true,
     "rowHeights": [
       0.1,

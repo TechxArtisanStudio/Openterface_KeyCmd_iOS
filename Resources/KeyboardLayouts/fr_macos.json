@@ -4,7 +4,7 @@
   "metadata": {
     "name": "French AZERTY",
     "description": "French AZERTY layout",
-    "physicalStandard": "iso",
+    "physicalStandard": "ISO",
     "hasAltGr": true,
     "rowHeights": [
       0.1,

@@ -4,7 +4,7 @@
   "metadata": {
     "name": "Portuguese QWERTY",
     "description": "Portuguese QWERTY layout",
-    "physicalStandard": "iso",
+    "physicalStandard": "ISO",
     "hasAltGr": true,
     "rowHeights": [
       0.1,

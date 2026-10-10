@@ -4,7 +4,7 @@
   "metadata": {
     "name": "Nordic QWERTY",
     "description": "Nordic QWERTY layout with åäö",
-    "physicalStandard": "iso",
+    "physicalStandard": "ISO",
     "hasAltGr": true,
     "rowHeights": [
       0.1,

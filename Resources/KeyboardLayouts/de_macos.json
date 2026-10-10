@@ -4,7 +4,7 @@
   "metadata": {
     "name": "German QWERTZ",
     "description": "German QWERTZ layout with Z/Y swapped and special characters",
-    "physicalStandard": "iso",
+    "physicalStandard": "ISO",
     "hasAltGr": true,
     "rowHeights": [
       0.1,

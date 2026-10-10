@@ -4,7 +4,7 @@
   "metadata": {
     "name": "Italian QWERTY",
     "description": "Italian QWERTY layout",
-    "physicalStandard": "iso",
+    "physicalStandard": "ISO",
     "hasAltGr": true,
     "rowHeights": [
       0.1,

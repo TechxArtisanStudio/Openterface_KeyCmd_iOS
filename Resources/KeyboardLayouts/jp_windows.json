@@ -4,7 +4,7 @@
   "metadata": {
     "name": "Japanese JIS",
     "description": "Japanese JIS layout with special keys",
-    "physicalStandard": "jis",
+    "physicalStandard": "JIS",
     "hasAltGr": false,
     "rowHeights": [
       0.1,
