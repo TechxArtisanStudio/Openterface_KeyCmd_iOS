@@ -63,6 +63,14 @@ Scanning plan for conflicts...
 - **Status:** Complete
 - **BASE commit:** 330bcd3
 - **Commit:** c64490a
+- **Review:** APPROVED - comprehensive JSON schema design with VirtualBox correspondence
 - **Brief:** task-2.0-brief.md
 - **Report:** task-2.0-report.md
 - **Files:** docs/superpowers/specs/keyboard-layout-json-schema.md
+
+### Task 2.1: 创建 JSON 布局加载器
+- **Status:** Complete
+- **Commits:** 5d238e8..HEAD
+- **Brief:** task-2.1-brief.md
+- **Report:** task-2.1-report.md (generated)
+- **Files:** KeyCmd/KeyboardLayoutLoader.swift, Resources/KeyboardLayouts/us_windows.json, KeyCmdTests/KeyboardLayoutLoaderTests.swift
