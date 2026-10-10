@@ -69,8 +69,20 @@ Scanning plan for conflicts...
 - **Files:** docs/superpowers/specs/keyboard-layout-json-schema.md
 
 ### Task 2.1: 创建 JSON 布局加载器
-- **Status:** Complete
-- **Commits:** 5d238e8..HEAD
-- **Brief:** task-2.1-brief.md
-- **Report:** task-2.1-report.md (generated)
+- **Status:** Complete ✅
+- **Commits:** 5d238e8..95845fe
+- **Review:** Fixed Critical/Important issues (hardcoded paths, error handling, test coverage)
 - **Files:** KeyCmd/KeyboardLayoutLoader.swift, Resources/KeyboardLayouts/us_windows.json, KeyCmdTests/KeyboardLayoutLoaderTests.swift
+- **Tests:** 7/7 passing
+
+### Task 2.2: 创建完整的 JSON 布局文件
+- **Status:** Complete ✅
+- **Agent:** ab31cf03e1b8776b4
+- **Commits:** f076e9b
+- **Review:** All 42 files validated (HID Usage ID uniqueness, business rules compliance)
+- **Brief:** task-2.2-brief.md
+- **Report:** task-2.2-report.md
+- **Files:** Resources/KeyboardLayouts/*.json (42 files total)
+- **Coverage:** 14 locales × 3 OSes (US, UK, DE, FR, ES, IT, PT, JP, BE, CH, Nordic, CA, AU, CN)
+- **Validation:** ✅ JSON syntax valid, ✅ HID IDs unique, ✅ Physical positions unique, ✅ AltGr consistency, ✅ Modifier key types correct
+
