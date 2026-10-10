@@ -78,11 +78,19 @@ Scanning plan for conflicts...
 ### Task 2.2: 创建完整的 JSON 布局文件
 - **Status:** Complete ✅
 - **Agent:** ab31cf03e1b8776b4
-- **Commits:** f076e9b
+- **Commits:** f076e9b, a32e14f (PhysicalStandard fix)
 - **Review:** All 42 files validated (HID Usage ID uniqueness, business rules compliance)
 - **Brief:** task-2.2-brief.md
 - **Report:** task-2.2-report.md
-- **Files:** Resources/KeyboardLayouts/*.json (42 files total)
+- **Files:** Resources/KeyboardLayouts/*.json (42 files total), KeyCmdTests/KeyboardLayoutLoaderTests.swift (updated)
 - **Coverage:** 14 locales × 3 OSes (US, UK, DE, FR, ES, IT, PT, JP, BE, CH, Nordic, CA, AU, CN)
-- **Validation:** ✅ JSON syntax valid, ✅ HID IDs unique, ✅ Physical positions unique, ✅ AltGr consistency, ✅ Modifier key types correct
+- **Validation:** ✅ JSON syntax valid, ✅ HID IDs unique, ✅ Physical positions unique, ✅ AltGr consistency, ✅ Modifier key types correct, ✅ PhysicalStandard values uppercase (ANSI/ISO/JIS), ✅ All 42 layouts load successfully via KeyboardLayoutLoader
+
+### Task 2.3: 重构 KeyboardLayoutBuilders 使用 JSON 加载器
+- **Status:** In Progress ⚠️
+- **Agent:** aba3d37d537193c30 (dispatched but failed to execute)
+- **Issue:** Subagent attempted to use unavailable "codegraph" agent type, then tried to spawn another agent
+- **Result:** No code changes made - KeyboardLayoutBuilders.swift still uses hardcoded Swift layouts
+- **Next:** Re-dispatch Task 2.3 with correct agent type, or execute manually
+- **Brief:** task-2.3-brief.md (created)
 
