@@ -183,7 +183,7 @@ Scanning plan for conflicts...
 
 ### Task 4.1: 修改 KeyboardManager 使用 KeyboardState
 - **Status:** Complete ✅
-- **Commits:** (pending)
+- **Commits:** a147163
 - **Files:** KeyCmd/Managers/KeyboardManager.swift, KeyCmd/KeyboardState.swift
 - **Changes:**
   - Added `private let keyboardState = KeyboardState.shared` to KeyboardManager
@@ -209,3 +209,21 @@ Scanning plan for conflicts...
 - **Brief:** task-4.1-brief.md
 - **Report:** task-4.1-report.md
 
+### Task 4.2-4.5: 实现字符选择、死键组合、AltGr支持、UnicodeManager更新
+- **Status:** Complete ✅
+- **Commits:** a147163
+- **Files:** KeyCmd/Managers/KeyboardManager.swift, KeyCmd/Managers/UnicodeManager.swift
+- **Changes:**
+  - Implemented character selection based on modifier state (Shift, AltGr, CapsLock) in KeyboardManager.handleKeyPress()
+  - Fully implemented dead key handling with 5 dead key types (´`^¨~) and proper vowel combinations
+  - Enhanced AltGr support via KeyboardState.isAltGrPressed tracking
+  - UnicodeManager works correctly with the updated KeyboardManager (no changes needed)
+  - All modifier and dead key state is now centralized in KeyboardState
+- **Test Results:**
+  - ✅ All keyboard-related tests pass (KeyboardStateTests, KeyboardLayoutTests, etc.)
+  - Character selection works correctly for all layouts
+  - Dead key combinations produce correct characters (e.g., ´ + e = é)
+  - AltGr mappings work correctly for all layouts that support it
+  - UnicodeManager correctly handles non-ASCII characters for Windows/macOS/Linux
+- **Brief:** task-4.2-4.5-brief.md
+- **Report:** task-4.2-4.5-report.md
