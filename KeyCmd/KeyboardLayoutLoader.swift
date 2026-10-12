@@ -16,17 +16,20 @@ struct KeyboardLayoutLoader {
         let filename = "\(locale.rawValue.lowercased())_\(targetOS.rawValue.lowercased()).json"
         var fileURL: URL?
 
-        // 1. Try bundle resource
-        if let url = Bundle.main.url(forResource: filename, withExtension: nil, subdirectory: "KeyboardLayouts") {
-            fileURL = url
-        } else if let url = Bundle.main.url(forResource: filename, withExtension: nil) {
-            fileURL = url
-        }
-
-        // 2. Try override directory (for testing)
-        if fileURL == nil, let override = layoutsDirectoryOverride {
+        // 1. Try override directory first (for testing - takes priority)
+        if let override = layoutsDirectoryOverride {
             let url = URL(fileURLWithPath: override).appendingPathComponent(filename)
             if FileManager.default.fileExists(atPath: url.path) {
+                // print("Using override: \(url.path)") // Debug
+                fileURL = url
+            }
+        }
+
+        // 2. Try bundle resource
+        if fileURL == nil {
+            if let url = Bundle.main.url(forResource: filename, withExtension: nil, subdirectory: "KeyboardLayouts") {
+                fileURL = url
+            } else if let url = Bundle.main.url(forResource: filename, withExtension: nil) {
                 fileURL = url
             }
         }

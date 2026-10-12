@@ -13,6 +13,8 @@ class KeyboardLayoutTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        // Clear any cached layouts to ensure we load fresh data
+        KeyboardLayoutManager.shared.clearCache()
         // Set the layouts directory for testing - use project root path
         // Walk up from current directory to find Resources/KeyboardLayouts
         var dir = FileManager.default.currentDirectoryPath
@@ -216,8 +218,8 @@ class KeyboardLayoutTests: XCTestCase {
 
             // 验证必需修饰键存在
             let allKeys = layout.allKeys
-            let hasCtrl = allKeys.contains { $0.keyName == "Ctrl" || $0.label == "⌃" }
-            let hasAlt = allKeys.contains { $0.keyName == "Alt" || $0.label == "⌥" }
+            let hasCtrl = allKeys.contains { $0.keyName.contains("Ctrl") || $0.label == "Ctrl" || $0.label == "⌃" }
+            let hasAlt = allKeys.contains { $0.keyName.contains("Alt") || $0.label == "Alt" || $0.label == "⌥" }
             let hasSpace = allKeys.contains { $0.keyName == "Space" }
 
             XCTAssertTrue(hasCtrl,

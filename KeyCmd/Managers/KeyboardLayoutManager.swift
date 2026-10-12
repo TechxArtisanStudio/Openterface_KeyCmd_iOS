@@ -136,6 +136,11 @@ final class KeyboardLayoutManager: ObservableObject {
         "\(layoutCache.count) layouts cached"
     }
 
+    /// Clear the layout cache (useful for testing)
+    func clearCache() {
+        layoutCache.removeAll()
+    }
+
     // MARK: - Layout Creation
 
     private static func cacheKey(_ os: TargetOS, _ locale: KeyboardLocale) -> String {

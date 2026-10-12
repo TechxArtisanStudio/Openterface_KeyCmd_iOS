@@ -133,7 +133,7 @@
     },
     {
       "hidUsageID": 53,
-      "keyName": "zenkaku",
+      "keyName": "半角/全角",
       "label": "半角/全角",
       "shiftLabel": "漢字",
       "row": 1,
@@ -693,7 +693,7 @@
     },
     {
       "hidUsageID": 137,
-      "keyName": "Henkan",
+      "keyName": "変換",
       "label": "変換",
       "row": 5,
       "column": 13,
@@ -701,7 +701,7 @@
     },
     {
       "hidUsageID": 138,
-      "keyName": "Muhenkan",
+      "keyName": "無変換",
       "label": "無変換",
       "row": 5,
       "column": 14,

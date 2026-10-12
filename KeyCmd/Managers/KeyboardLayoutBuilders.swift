@@ -45,13 +45,16 @@
                   var bottomRow = modifiedRows[bottomRowIndex]
                   for i in 0..<bottomRow.count {
                       let keyName = bottomRow[i].keyName
+                      let keyLabel = bottomRow[i].label
                       switch keyName {
                       case "Ctrl", "LeftCtrl", "RightCtrl":
                           bottomRow[i] = KeyDefinition.mod(keyName, label: "⌃")
                       case "Win", "LeftWin", "RightWin":
                           bottomRow[i] = KeyDefinition.mod(keyName, label: "⌘")
                       case "Alt", "LeftAlt", "RightAlt":
-                          bottomRow[i] = KeyDefinition.mod(keyName, label: "⌥")
+                          // Preserve "AltGr" label if it's actually an AltGr key
+                          let newLabel = (keyLabel == "AltGr") ? "AltGr" : "⌥"
+                          bottomRow[i] = KeyDefinition.mod(keyName, label: newLabel)
                       case "Menu":
                           // macOS doesn't have a Menu key, relabel to fn
                           bottomRow[i] = KeyDefinition.mod(keyName, label: "fn")
