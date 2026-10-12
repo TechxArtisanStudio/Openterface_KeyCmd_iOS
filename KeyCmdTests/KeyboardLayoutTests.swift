@@ -13,11 +13,23 @@ class KeyboardLayoutTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        // 在每个测试前执行
+        // Set the layouts directory for testing - use project root path
+        // Walk up from current directory to find Resources/KeyboardLayouts
+        var dir = FileManager.default.currentDirectoryPath
+        while dir != "/" {
+            let layoutsPath = (dir as NSString).appendingPathComponent("Resources/KeyboardLayouts")
+            if FileManager.default.fileExists(atPath: layoutsPath) {
+                KeyboardLayoutLoader.layoutsDirectoryOverride = layoutsPath
+                return
+            }
+            dir = (dir as NSString).deletingLastPathComponent
+        }
+        // Fallback: use absolute path (for CI/test environments)
+        KeyboardLayoutLoader.layoutsDirectoryOverride = "/Users/txa/project/Openterface_KeyCmd_iOS/Resources/KeyboardLayouts"
     }
 
     override func tearDown() {
-        // 在每个测试后执行
+        KeyboardLayoutLoader.layoutsDirectoryOverride = nil
         super.tearDown()
     }
 
