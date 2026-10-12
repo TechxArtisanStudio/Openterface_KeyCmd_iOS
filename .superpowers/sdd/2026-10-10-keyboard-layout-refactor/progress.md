@@ -147,3 +147,25 @@ Scanning plan for conflicts...
 - **Brief:** task-3.1-brief.md
 - **Report:** task-3.1-report.md
 
+### Task 3.3: 集成到 KeyboardLayoutManager
+- **Status:** Complete ✅
+- **Commits:** (pending)
+- **Files:** KeyCmd/Managers/KeyboardLayoutManager.swift, KeyCmdTests/KeyboardLayoutDetectionIntegrationTests.swift
+- **Changes:**
+  - Added `setupKeyboardLayoutDetection()` method to KeyboardLayoutManager
+  - Calls `KeyboardLocale.detectActiveKeyboardLayout()` during initialization
+  - Falls back to `KeyboardLocale.fromSystemLocale()` if detection fails
+  - Added `handleKeyboardLayoutChanged()` notification handler (iOS only)
+  - Monitors `UITextInputMode.currentInputModeDidChangeNotification` for layout changes
+  - Automatically updates `currentKeyboardLocale` when layout changes detected
+- **Test Results:**
+  - ✅ KeyboardLayoutDetectionIntegrationTests: All 6 tests pass
+  - testKeyboardLayoutManagerInitializesWithDetectedLayout: Validates manager initialization
+  - testClearCacheWorksWithDetection: Validates cache clearing still works
+  - testSupportedLocalesUnchanged: Validates supported locales count
+  - testLayoutForLocaleStillWorks: Validates layout retrieval
+  - testManualLocaleSettingStillWorks: Validates manual locale setting
+  - testAutoDetectLocaleSettingStillWorks: Validates auto-detect setting
+- **Brief:** task-3.3-brief.md
+- **Report:** task-3.3-report.md
+

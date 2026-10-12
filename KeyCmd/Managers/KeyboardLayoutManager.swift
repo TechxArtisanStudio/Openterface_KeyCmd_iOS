@@ -80,6 +80,7 @@ final class KeyboardLayoutManager: ObservableObject {
 
         loadAllLayouts()
         observeSettingsChanges()
+        setupKeyboardLayoutDetection()
     }
 
     // MARK: - Public API
@@ -179,6 +180,33 @@ final class KeyboardLayoutManager: ObservableObject {
         )
     }
 
+    private func setupKeyboardLayoutDetection() {
+        // 1. 首先尝试检测当前活动的键盘布局
+        if let detectedLayout = KeyboardLocale.detectActiveKeyboardLayout() {
+            currentKeyboardLocale = detectedLayout
+            logger.log("Detected active keyboard layout: \(detectedLayout.rawValue)", category: "Keyboard")
+            refreshCurrentLayout()
+            return
+        }
+
+        // 2. 如果检测失败，使用系统区域设置
+        if autoDetectLocale {
+            currentKeyboardLocale = KeyboardLocale.fromSystemLocale()
+            logger.log("Using system locale: \(currentKeyboardLocale.rawValue)", category: "Keyboard")
+            refreshCurrentLayout()
+        }
+
+        // 3. 监听键盘布局变化（iOS）
+        #if os(iOS)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleKeyboardLayoutChanged),
+            name: UITextInputMode.currentInputModeDidChangeNotification,
+            object: nil
+        )
+        #endif
+    }
+
     @objc private func handleTargetOSChanged() {
         let currentOS = AISettings.shared.targetOS
         let layoutOS = currentLayout.targetOS
@@ -186,6 +214,18 @@ final class KeyboardLayoutManager: ObservableObject {
             refreshCurrentLayout()
         }
     }
+
+    #if os(iOS)
+    @objc private func handleKeyboardLayoutChanged() {
+        if autoDetectLocale, let detected = KeyboardLocale.detectActiveKeyboardLayout() {
+            if detected != currentKeyboardLocale {
+                currentKeyboardLocale = detected
+                logger.log("Keyboard layout changed to: \(detected.rawValue)", category: "Keyboard")
+                objectWillChange.send()
+            }
+        }
+    }
+    #endif
 
     private func refreshCurrentLayout() {
         let newLayout = layout(for: AISettings.shared.targetOS, locale: currentKeyboardLocale)
