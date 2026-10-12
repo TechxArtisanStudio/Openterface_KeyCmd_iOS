@@ -36,6 +36,7 @@ class KeyboardManager: ObservableObject {
     let compositeKeyManager: CompositeKeyManager
     private let hapticManager = HapticFeedbackManager.shared
     private let logger = LogManager.shared
+    private let keyboardState = KeyboardState.shared
 
     /// Fn lock mapping: letter key → digit/F-key (matches Android CustomKeyboardView.resolveFnMapping).
     /// Row 1 (q-p) → 1-0, Row 2 (a-l) → F1-F9, Row 3 (z,x,c) → F10-F12.
@@ -372,16 +373,16 @@ class KeyboardManager: ObservableObject {
     // Handle key press events
     func handleKeyPress(_ key: String) {
         logger.log("Key pressed: \(key)", category: "Keyboard")
-        
+
         // Trigger haptic feedback for key press
         hapticManager.triggerButtonPress()
-        
+
         // Handle modifier keys with toggle behavior
         if modifierMask(for: key) != nil {
             handleModifierToggle(key)
             return
         }
-        
+
         // Handle Caps Lock
         if key == "Caps" {
             capsLockActive.toggle()
@@ -389,7 +390,7 @@ class KeyboardManager: ObservableObject {
             sendCapsLockState()
             return
         }
-        
+
         // Map common aliases to standard names
         let keyAlias = mapKeyAlias(key)
 
@@ -405,30 +406,58 @@ class KeyboardManager: ObservableObject {
         }
 
         logger.log("HID code for '\(effectiveKey)': 0x\(String(format: "%02X", keyCode))", category: "Keyboard")
-        
-        var modifierByte: UInt8 = 0x00
-        let keyCodes: [UInt8] = [keyCode, 0x00, 0x00, 0x00, 0x00, 0x00]
-        
-        // Apply active modifiers
-        for modifier in activeModifiers {
-            if let modifierMask = modifierMask(for: modifier) {
-                modifierByte |= modifierMask
+
+        // Check if this is a dead key
+        if isDeadKey(keyAlias) {
+            if let deadKey = deadKeyForDefinition(keyAlias) {
+                keyboardState.setDeadKey(deadKey)
+                logger.log("Dead key set: \(deadKey)", category: "Keyboard")
             }
+            return
         }
 
+        // Handle dead key combination
+        if let pendingDeadKey = keyboardState.pendingDeadKey {
+            if let firstChar = keyAlias.first, let combinedChar = pendingDeadKey.combine(with: firstChar) {
+                // Send the combined character via UnicodeManager
+                UnicodeManager.shared.sendChar(combinedChar, keyboardManager: self)
+                keyboardState.setDeadKey(nil)
+                logger.log("Dead key combination: \(combinedChar)", category: "Keyboard")
+                return
+            }
+            // Clear dead key if combination failed
+            keyboardState.setDeadKey(nil)
+        }
+
+        // Use KeyboardState for modifier byte
+        let modifierByte = keyboardState.modifierByte
+        let keyCodes: [UInt8] = [keyCode, 0x00, 0x00, 0x00, 0x00, 0x00]
 
         // Send key press
         sendKeyboardData(modifier: modifierByte, keyCodes: keyCodes)
 
         // Send key release after a short delay (but keep modifiers active)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            var releaseModifierByte: UInt8 = 0x00
-            for modifier in self.activeModifiers {
-                if let modifierMask = self.modifierMask(for: modifier) {
-                    releaseModifierByte |= modifierMask
-                }
-            }
+            let releaseModifierByte = self.keyboardState.modifierByte
             self.sendKeyboardData(modifier: releaseModifierByte, keyCodes: [0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+        }
+    }
+
+    /// Check if a key is a dead key
+    private func isDeadKey(_ key: String) -> Bool {
+        let deadKeyChars: Set<String> = ["´", "`", "^", "¨", "~"]
+        return deadKeyChars.contains(key)
+    }
+
+    /// Map a key to its DeadKey type
+    private func deadKeyForDefinition(_ key: String) -> DeadKey? {
+        switch key {
+        case "´": return .acute
+        case "`": return .grave
+        case "^": return .circumflex
+        case "¨": return .diaeresis
+        case "~": return .tilde
+        default: return nil
         }
     }
     
@@ -445,20 +474,49 @@ class KeyboardManager: ObservableObject {
             if modifierMask(for: key) != nil { handleModifierToggle(key); return }
             if key == "Caps" { capsLockActive.toggle(); sendCapsLockState(); return }
             let keyAlias = mapKeyAlias(key)
+
+            // Check if this is a dead key
+            if isDeadKey(keyAlias) {
+                if let deadKey = deadKeyForDefinition(keyAlias) {
+                    keyboardState.setDeadKey(deadKey)
+                    logger.log("Dead key set: \(deadKey)", category: "Keyboard")
+                }
+                return
+            }
+
+            // Handle dead key combination
+            if let pendingDeadKey = keyboardState.pendingDeadKey {
+                if let firstChar = keyAlias.first, let combinedChar = pendingDeadKey.combine(with: firstChar) {
+                    // Send the combined character via UnicodeManager
+                    UnicodeManager.shared.sendChar(combinedChar, keyboardManager: self)
+                    keyboardState.setDeadKey(nil)
+                    logger.log("Dead key combination: \(combinedChar)", category: "Keyboard")
+                    return
+                }
+                // Clear dead key if combination failed
+                keyboardState.setDeadKey(nil)
+            }
+
             // For single letter keys, use the uppercased form for HID lookup so that
             // both "a" and "A" resolve to the same key code. Original case is preserved
             // in keyAlias to determine whether Shift is required.
             let lookupAlias = (keyAlias.count == 1 && keyAlias.first?.isLetter == true)
                 ? keyAlias.uppercased() : keyAlias
             guard let keyCode = hidCode(forKey: lookupAlias) else { return }
-            var modByte: UInt8 = 0x00
-            for m in activeModifiers { modByte |= modifierMask(for: m) ?? 0 }
+
+            // Use KeyboardState for modifier byte
+            let modByte = keyboardState.modifierByte
+
+            // Add Shift for uppercase letters if needed
             if keyAlias.count == 1, let ch = keyAlias.first, ch.isLetter {
-                // Add Shift when the intended case differs from the CapsLock state.
                 let wantUppercase = ch.isUppercase
-                if wantUppercase != capsLockActive { modByte |= KMod.shift.rawValue }
+                if wantUppercase != capsLockActive {
+                    keyboardState.updateModifierState(key: .keyboardLeftShift, pressed: true)
+                }
             }
-            sendKeyboardData(modifier: modByte, keyCodes: [keyCode, 0, 0, 0, 0, 0])
+
+            let finalModByte = keyboardState.modifierByte
+            sendKeyboardData(modifier: finalModByte, keyCodes: [keyCode, 0, 0, 0, 0, 0])
         }
         // Hold for 50 ms on background thread — no main-queue involvement
         usleep(50_000)
@@ -529,6 +587,11 @@ class KeyboardManager: ObservableObject {
 
     // Handle modifier key toggling
     public func handleModifierToggle(_ modifier: String) {
+        // Update KeyboardState
+        let hidID = modifierToHIDUsageID(modifier)
+        let isPressed = !activeModifiers.contains(modifier)
+        keyboardState.updateModifierState(key: hidID, pressed: isPressed)
+
         if activeModifiers.contains(modifier) {
             activeModifiers.remove(modifier)
             logger.log("\(modifier) released", category: "Keyboard")
@@ -536,16 +599,22 @@ class KeyboardManager: ObservableObject {
             activeModifiers.insert(modifier)
             logger.log("\(modifier) pressed", category: "Keyboard")
         }
-        
-        // Send current modifier state
-        var modifierByte: UInt8 = 0x00
-        for activeModifier in activeModifiers {
-            if let modifierMask = modifierMask(for: activeModifier) {
-                modifierByte |= modifierMask
-            }
-        }
-        
+
+        // Send current modifier state using KeyboardState
+        let modifierByte = keyboardState.modifierByte
         sendKeyboardData(modifier: modifierByte, keyCodes: [0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+    }
+
+    /// Map modifier name to HID Usage ID
+    private func modifierToHIDUsageID(_ modifier: String) -> HIDUsageID {
+        switch modifier {
+        case "Shift": return .keyboardLeftShift
+        case "Ctrl": return .keyboardLeftCtrl
+        case "Alt": return .keyboardLeftAlt
+        case "AltGr": return .keyboardRightAlt
+        case "Cmd", "Win": return .keyboardLeftGUI
+        default: return .keyboardA // fallback
+        }
     }
     
     // Send caps lock state
@@ -570,19 +639,19 @@ class KeyboardManager: ObservableObject {
             return
         }
 
+        // Temporarily set modifiers in KeyboardState for this combo
         var modifierByte: UInt8 = 0x00
-        let keyCodes: [UInt8] = [keyCode, 0x00, 0x00, 0x00, 0x00, 0x00]
-
-        // Apply modifiers
         for modifier in modifiers {
             if let modifierMask = modifierMask(for: modifier) {
                 modifierByte |= modifierMask
             }
         }
-        
+
+        let keyCodes: [UInt8] = [keyCode, 0x00, 0x00, 0x00, 0x00, 0x00]
+
         // Send key combo press
         sendKeyboardData(modifier: modifierByte, keyCodes: keyCodes)
-        
+
         // Send key release after a short delay
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             self.sendKeyboardData(modifier: 0x00, keyCodes: [0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
@@ -751,9 +820,8 @@ class KeyboardManager: ObservableObject {
 
         logger.log("Key pressed: \(key)", category: "Keyboard")
 
+        // Calculate modifier byte from provided modifiers
         var modifierByte: UInt8 = 0x00
-
-        // Apply modifiers
         for modifier in modifiers {
             if let modifierMask = modifierMask(for: modifier) {
                 modifierByte |= modifierMask
@@ -875,6 +943,9 @@ class KeyboardManager: ObservableObject {
     
     func clearAllModifiers() {
         activeModifiers.removeAll()
+        lockedModifiers.removeAll()
+        // Clear KeyboardState modifier state
+        keyboardState.clearAllModifiers()
         sendKeyboardData(modifier: 0x00, keyCodes: [0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
         print("All modifiers cleared")
     }
@@ -890,8 +961,6 @@ class KeyboardManager: ObservableObject {
     func handleKeysDown(_ keys: [String]) {
         logger.log("Keys down: \(keys.joined(separator: ", "))", category: "Keyboard")
 
-        var modifierByte: UInt8 = 0x00
-
         // Process each key
         for key in keys {
             // Handle modifier keys with toggle behavior
@@ -900,6 +969,9 @@ class KeyboardManager: ObservableObject {
                     activeModifiers.insert(key)
                     logger.log("\(key) pressed", category: "Keyboard")
                 }
+                // Update KeyboardState
+                let hidID = modifierToHIDUsageID(key)
+                keyboardState.updateModifierState(key: hidID, pressed: true)
                 // Track AltGr state for European layouts
                 if key == "AltGr" {
                     isAltGrActive = true
@@ -932,12 +1004,8 @@ class KeyboardManager: ObservableObject {
             pressedKeys.insert(keyAlias)
         }
 
-        // Apply active modifiers
-        for modifier in activeModifiers {
-            if let modifierMask = modifierMask(for: modifier) {
-                modifierByte |= modifierMask
-            }
-        }
+        // Use KeyboardState for modifier byte
+        let modifierByte = keyboardState.modifierByte
 
         // Build key codes array with ALL currently pressed keys (up to 6 keys can be pressed simultaneously in HID)
         var keyCodesToSend: [UInt8] = []
@@ -975,6 +1043,9 @@ class KeyboardManager: ObservableObject {
                     activeModifiers.remove(key)
                     logger.log("\(key) released", category: "Keyboard")
                 }
+                // Update KeyboardState
+                let hidID = modifierToHIDUsageID(key)
+                keyboardState.updateModifierState(key: hidID, pressed: false)
                 // Track AltGr state for European layouts
                 if key == "AltGr" {
                     isAltGrActive = false
@@ -991,14 +1062,9 @@ class KeyboardManager: ObservableObject {
 
         // Send key release with current state of all remaining pressed keys
         var keyCodesToSend: [UInt8] = []
-        var modifierByte: UInt8 = 0x00
 
-        // Apply active modifiers
-        for modifier in activeModifiers {
-            if let modifierMask = modifierMask(for: modifier) {
-                modifierByte |= modifierMask
-            }
-        }
+        // Use KeyboardState for modifier byte
+        let modifierByte = keyboardState.modifierByte
 
         // Add remaining pressed keys (excluding the ones we're releasing)
         for pressedKey in pressedKeys {
@@ -1044,9 +1110,11 @@ class KeyboardManager: ObservableObject {
         lockedModifiers.insert(key)
         if !activeModifiers.contains(key) {
             activeModifiers.insert(key)
-            var modByte: UInt8 = 0x00
-            for m in activeModifiers { modByte |= modifierMask(for: m) ?? 0 }
-            sendKeyboardData(modifier: modByte, keyCodes: [0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+            // Update KeyboardState
+            let hidID = modifierToHIDUsageID(key)
+            keyboardState.updateModifierState(key: hidID, pressed: true)
+            let modifierByte = keyboardState.modifierByte
+            sendKeyboardData(modifier: modifierByte, keyCodes: [0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
         }
     }
 
@@ -1054,8 +1122,10 @@ class KeyboardManager: ObservableObject {
     func unlockModifier(_ key: String) {
         lockedModifiers.remove(key)
         activeModifiers.remove(key)
-        var modByte: UInt8 = 0x00
-        for m in activeModifiers { modByte |= modifierMask(for: m) ?? 0 }
+        // Update KeyboardState
+        let hidID = modifierToHIDUsageID(key)
+        keyboardState.updateModifierState(key: hidID, pressed: false)
+        let modifierByte = keyboardState.modifierByte
         // Maintain any currently pressed regular keys in the HID report
         var keyCodes: [UInt8] = []
         for pressedKey in pressedKeys {
@@ -1064,7 +1134,7 @@ class KeyboardManager: ObservableObject {
             }
         }
         while keyCodes.count < 6 { keyCodes.append(0x00) }
-        sendKeyboardData(modifier: modByte, keyCodes: keyCodes)
+        sendKeyboardData(modifier: modifierByte, keyCodes: keyCodes)
     }
 
     // MARK: - Long-press key repeat (KM Basic)

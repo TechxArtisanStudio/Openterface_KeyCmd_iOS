@@ -83,4 +83,12 @@ class KeyboardState {
         isAltPressed = false
         pendingDeadKey = nil
     }
+
+    /// 清除所有修饰键状态（保留死键状态）
+    func clearAllModifiers() {
+        isShiftPressed = false
+        isAltGrPressed = false
+        isCtrlPressed = false
+        isAltPressed = false
+    }
 }

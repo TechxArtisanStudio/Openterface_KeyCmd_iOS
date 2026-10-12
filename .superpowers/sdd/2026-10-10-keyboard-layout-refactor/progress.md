@@ -169,3 +169,43 @@ Scanning plan for conflicts...
 - **Brief:** task-3.3-brief.md
 - **Report:** task-3.3-report.md
 
+### Task 3.4: 布局检测集成测试
+- **Status:** Complete ✅
+- **Commits:** (covered in Tasks 3.1 and 3.3)
+- **Files:** KeyCmdTests/KeyboardLayoutDetectionTests.swift, KeyCmdTests/KeyboardLayoutDetectionIntegrationTests.swift
+- **Test Results:**
+  - ✅ KeyboardLayoutDetectionTests: All 7 tests pass (layout detection functionality)
+  - ✅ KeyboardLayoutDetectionIntegrationTests: All 6 tests pass (integration with KeyboardLayoutManager)
+- **Brief:** task-3.4-brief.md
+- **Report:** task-3.4-report.md
+
+## Phase 4: KeyboardState Integration
+
+### Task 4.1: 修改 KeyboardManager 使用 KeyboardState
+- **Status:** Complete ✅
+- **Commits:** (pending)
+- **Files:** KeyCmd/Managers/KeyboardManager.swift, KeyCmd/KeyboardState.swift
+- **Changes:**
+  - Added `private let keyboardState = KeyboardState.shared` to KeyboardManager
+  - Updated `handleModifierToggle()` to use `keyboardState.updateModifierState()` for modifier tracking
+  - Modified `handleKeyPress()` to:
+    * Check for dead keys using `isDeadKey()` helper
+    * Set dead key in KeyboardState when detected via `keyboardState.setDeadKey()`
+    * Handle dead key combinations by checking `keyboardState.pendingDeadKey` and using UnicodeManager
+    * Use `keyboardState.modifierByte` for modifier byte calculation
+  - Updated `handleKeysDown()` to use `keyboardState.updateModifierState()` for modifier tracking
+  - Updated `handleKeysUp()` to use `keyboardState.updateModifierState()` and `keyboardState.modifierByte`
+  - Modified `sendKeyPressSynchronous()` to handle dead keys and use KeyboardState
+  - Updated `handleKeyCombo()` to use KeyboardState for modifier byte calculation
+  - Updated `lockModifier()` and `unlockModifier()` to use KeyboardState
+  - Updated `clearAllModifiers()` to call `keyboardState.clearAllModifiers()`
+  - Added `clearAllModifiers()` method to KeyboardState to clear modifier state while preserving dead key state
+- **Test Results:**
+  - ✅ KeyboardStateTests: All 5 tests pass (modifier state, dead key handling, reset)
+  - ✅ KeyboardLayoutLoaderTests: All 7 tests pass (layout loading unchanged)
+  - ✅ KeyboardLayoutDetectionTests: All 7 tests pass (detection unchanged)
+  - ✅ KeyboardLayoutDetectionIntegrationTests: All 6 tests pass (integration unchanged)
+  - ✅ Build succeeded with no errors (only pre-existing warnings)
+- **Brief:** task-4.1-brief.md
+- **Report:** task-4.1-report.md
+
