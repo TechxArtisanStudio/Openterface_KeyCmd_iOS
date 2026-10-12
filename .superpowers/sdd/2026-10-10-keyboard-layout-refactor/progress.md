@@ -243,3 +243,28 @@ Scanning plan for conflicts...
     * Edge cases like invalid dead key combinations
 - **Brief:** task-4.6-brief.md
 - **Report:** task-4.6-report.md
+
+## Phase 5: 端到端测试与优化
+
+### Task 5.1: 完整流程集成测试
+- **Status:** Complete ✅
+- **Commits:** (pending)
+- **Files:** KeyCmdTests/KeyboardFullFlowTests.swift
+- **Test Results:**
+  - ✅ All 15 tests pass covering:
+    * Basic ASCII key flow
+    * Shifted key flow
+    * Ctrl+C (copy) flow
+    * Dead key flows (acute accent + e = é, dead key without base)
+    * Caps Lock flow
+    * Alt+Tab flow
+    * Ctrl+Alt+Del flow
+    * Unicode character flow
+    * Key repeat flow
+    * Concurrent modifier changes
+    * Rapid key presses
+    * Invalid modifier combinations
+    * Dead key with modifiers
+  - All tests verify state transitions and combinations correctly
+- **Brief:** task-5.1-brief.md
+- **Report:** task-5.1-report.md
