@@ -122,3 +122,28 @@ Scanning plan for conflicts...
 - **Brief:** task-2.4-brief.md
 - **Report:** task-2.4-report.md
 
+## Phase 3: Layout Detection Mechanism
+
+### Task 3.1: 实现 iOS/macOS 活动键盘检测
+- **Status:** Complete ✅
+- **Commits:** (pending)
+- **Files:** KeyCmd/KeyboardLocale.swift, KeyCmdTests/KeyboardLocaleDetectionTests.swift
+- **Changes:**
+  - Added `detectActiveKeyboardLayout()` static method to KeyboardLocale
+  - iOS implementation: Uses `Locale.preferredLanguages.first` for layout detection
+  - macOS implementation: Uses TIS API (`TISCopyCurrentKeyboardInputSource`) for input source detection
+  - Added `mapLanguageCodeToLocale()` for language code to KeyboardLocale mapping
+  - Added `mapInputSourceIDToLocale()` for macOS input source ID to KeyboardLocale mapping
+  - Supports all 14 locales with comprehensive language/region code mappings
+- **Test Results:**
+  - ✅ KeyboardLocaleDetectionTests: All 7 tests pass
+  - testDetectActiveKeyboardLayoutReturnsValidValue: Validates detection returns valid locale or nil
+  - testFromSystemLocaleReturnsValidValue: Validates system locale detection
+  - testLanguageCodeMapping: Validates language code mapping behavior
+  - testAllLocalesHaveDisplayNames: Validates all locales have display names
+  - testAllLocalesHaveLocaleIdentifiers: Validates all locales have locale identifiers
+  - testPhysicalStandardAssignment: Validates physical standard (ANSI/ISO/JIS) assignment
+  - testPreferredTargetOS: Validates preferred target OS assignment
+- **Brief:** task-3.1-brief.md
+- **Report:** task-3.1-report.md
+

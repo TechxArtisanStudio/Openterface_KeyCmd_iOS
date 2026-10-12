@@ -7,6 +7,9 @@
 //
 
 import Foundation
+#if os(macOS)
+import Carbon
+#endif
 
 /// 键盘布局区域枚举 - 表示不同国家/地区的物理键盘布局
 enum KeyboardLocale: String, CaseIterable, Codable, Identifiable {
@@ -136,6 +139,91 @@ enum KeyboardLocale: String, CaseIterable, Codable, Identifiable {
         }
 
         return .us // 默认回退
+    }
+
+    /// 检测当前活动的键盘布局
+    /// - Returns: 检测到的键盘布局，如果检测失败则返回 nil
+    static func detectActiveKeyboardLayout() -> KeyboardLocale? {
+        #if os(iOS)
+        // iOS: 使用系统语言偏好检测键盘布局
+        // Note: UITextInputMode.activeInputMode is deprecated, use system preferences instead
+        if let preferredLanguage = Locale.preferredLanguages.first {
+            return mapLanguageCodeToLocale(preferredLanguage)
+        }
+        #elseif os(macOS)
+        // macOS: 使用 TIS API 检测当前输入源
+        if let source = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() {
+            if let layoutIdPtr = TISGetInputSourceProperty(source, kTISPropertyInputSourceID) {
+                let layoutId = Unmanaged<CFString>.fromOpaque(layoutIdPtr).takeUnretainedValue() as String
+                return mapInputSourceIDToLocale(layoutId)
+            }
+        }
+        #endif
+
+        return nil
+    }
+
+    /// 将语言代码映射到 KeyboardLocale
+    /// - Parameter languageCode: 语言代码（如 "en-US", "de-DE"）
+    /// - Returns: 对应的 KeyboardLocale
+    private static func mapLanguageCodeToLocale(_ languageCode: String?) -> KeyboardLocale? {
+        guard let code = languageCode else { return nil }
+
+        let langCode = code.components(separatedBy: "-").first ?? code
+
+        switch langCode {
+        case "en":
+            if code.contains("GB") || code.contains("UK") { return .uk }
+            else if code.contains("AU") { return .au }
+            else if code.contains("CA") { return .ca }
+            return .us
+        case "de": return .de
+        case "fr":
+            if code.contains("BE") { return .be }
+            if code.contains("CA") { return .ca }
+            if code.contains("CH") { return .ch }
+            return .fr
+        case "es": return .es
+        case "it": return .it
+        case "pt": return .pt
+        case "ja": return .jp
+        case "zh": return .cn
+        case "sv", "no", "da", "fi": return .nordic
+        case "nl":
+            if code.contains("BE") { return .be }
+            return .us
+        default: return .us
+        }
+    }
+
+    /// 将 macOS 输入源 ID 映射到 KeyboardLocale
+    /// - Parameter inputSourceID: 输入源 ID（如 "com.apple.keylayout.US"）
+    /// - Returns: 对应的 KeyboardLocale
+    private static func mapInputSourceIDToLocale(_ inputSourceID: String) -> KeyboardLocale? {
+        if inputSourceID.contains("US") { return .us }
+        if inputSourceID.contains("German") { return .de }
+        if inputSourceID.contains("French") {
+            if inputSourceID.contains("Belgian") { return .be }
+            if inputSourceID.contains("Canadian") { return .ca }
+            if inputSourceID.contains("Swiss") { return .ch }
+            return .fr
+        }
+        if inputSourceID.contains("Spanish") { return .es }
+        if inputSourceID.contains("Italian") { return .it }
+        if inputSourceID.contains("Portuguese") { return .pt }
+        if inputSourceID.contains("Japanese") { return .jp }
+        if inputSourceID.contains("Chinese") { return .cn }
+        if inputSourceID.contains("British") { return .uk }
+        if inputSourceID.contains("Nordic") { return .nordic }
+        if inputSourceID.contains("Swiss") { return .ch }
+        if inputSourceID.contains("Belgian") { return .be }
+        if inputSourceID.contains("Australian") { return .au }
+        if inputSourceID.contains("Canadian") { return .ca }
+        if inputSourceID.contains("Swedish") { return .nordic }
+        if inputSourceID.contains("Norwegian") { return .nordic }
+        if inputSourceID.contains("Danish") { return .nordic }
+        if inputSourceID.contains("Finnish") { return .nordic }
+        return nil
     }
 
     /// 物理键盘标准
