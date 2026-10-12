@@ -227,3 +227,19 @@ Scanning plan for conflicts...
   - UnicodeManager correctly handles non-ASCII characters for Windows/macOS/Linux
 - **Brief:** task-4.2-4.5-brief.md
 - **Report:** task-4.2-4.5-report.md
+
+### Task 4.6: 修饰键/死键集成测试
+- **Status:** Complete ✅
+- **Commits:** (pending)
+- **Files:** KeyCmdTests/KeyboardModifierTests.swift
+- **Test Results:**
+  - ✅ All 15 tests pass covering:
+    * Modifier state tracking (Shift, Ctrl, Alt, AltGr) with left/right variants
+    * Modifier byte calculation for all combinations
+    * Dead key handling for all 5 types (´`^¨~) with correct vowel combinations
+    * Interaction between modifier and dead key states
+    * Clear all modifiers function preserves dead key state
+    * Reset function clears all state
+    * Edge cases like invalid dead key combinations
+- **Brief:** task-4.6-brief.md
+- **Report:** task-4.6-report.md
