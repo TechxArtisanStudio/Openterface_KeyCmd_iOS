@@ -493,97 +493,6 @@
       "width": 1.5
     },
     {
-      "hidUsageID": 28,
-      "keyName": "z",
-      "label": "Z",
-      "row": 4,
-      "column": 1,
-      "keyType": "regular"
-    },
-    {
-      "hidUsageID": 29,
-      "keyName": "y",
-      "label": "Y",
-      "row": 4,
-      "column": 2,
-      "keyType": "regular"
-    },
-    {
-      "hidUsageID": 27,
-      "keyName": "x",
-      "label": "X",
-      "row": 4,
-      "column": 3,
-      "keyType": "regular"
-    },
-    {
-      "hidUsageID": 6,
-      "keyName": "c",
-      "label": "C",
-      "row": 4,
-      "column": 4,
-      "keyType": "regular"
-    },
-    {
-      "hidUsageID": 25,
-      "keyName": "v",
-      "label": "V",
-      "row": 4,
-      "column": 5,
-      "keyType": "regular"
-    },
-    {
-      "hidUsageID": 5,
-      "keyName": "b",
-      "label": "B",
-      "row": 4,
-      "column": 6,
-      "keyType": "regular"
-    },
-    {
-      "hidUsageID": 17,
-      "keyName": "n",
-      "label": "N",
-      "row": 4,
-      "column": 7,
-      "keyType": "regular"
-    },
-    {
-      "hidUsageID": 16,
-      "keyName": "m",
-      "label": "M",
-      "row": 4,
-      "column": 8,
-      "keyType": "regular"
-    },
-    {
-      "hidUsageID": 54,
-      "keyName": ",",
-      "label": ",",
-      "shiftLabel": "<",
-      "row": 4,
-      "column": 9,
-      "keyType": "regular"
-    },
-    {
-      "hidUsageID": 55,
-      "keyName": ".",
-      "label": ".",
-      "shiftLabel": ">",
-      "row": 4,
-      "column": 10,
-      "keyType": "regular"
-    },
-    {
-      "hidUsageID": 56,
-      "keyName": "/",
-      "label": "/",
-      "shiftLabel": "?",
-      "row": 4,
-      "column": 11,
-      "keyType": "regular"
-    },
-    {
       "hidUsageID": 229,
       "keyName": "RightShift",
       "label": "Shift",
@@ -591,14 +500,6 @@
       "column": 12,
       "keyType": "modifier",
       "width": 1.5
-    },
-    {
-      "hidUsageID": 82,
-      "keyName": "Up",
-      "label": "↑",
-      "row": 4,
-      "column": 13,
-      "keyType": "regular"
     },
     {
       "hidUsageID": 224,
@@ -686,6 +587,86 @@
       "keyName": "Right",
       "label": "→",
       "row": 5,
+      "column": 10,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 29,
+      "keyName": "y",
+      "label": "Y",
+      "row": 4,
+      "column": 1,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 27,
+      "keyName": "x",
+      "label": "X",
+      "row": 4,
+      "column": 2,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 6,
+      "keyName": "c",
+      "label": "C",
+      "row": 4,
+      "column": 3,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 25,
+      "keyName": "v",
+      "label": "V",
+      "row": 4,
+      "column": 4,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 5,
+      "keyName": "b",
+      "label": "B",
+      "row": 4,
+      "column": 5,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 17,
+      "keyName": "n",
+      "label": "N",
+      "row": 4,
+      "column": 6,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 16,
+      "keyName": "m",
+      "label": "M",
+      "row": 4,
+      "column": 7,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 54,
+      "keyName": ",",
+      "label": ",",
+      "row": 4,
+      "column": 8,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 55,
+      "keyName": ".",
+      "label": ".",
+      "row": 4,
+      "column": 9,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 56,
+      "keyName": "/",
+      "label": "/",
+      "row": 4,
       "column": 10,
       "keyType": "regular"
     }
