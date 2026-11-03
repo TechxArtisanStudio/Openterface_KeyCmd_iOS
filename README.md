@@ -121,7 +121,7 @@ KeyCmd is the companion iOS app for [Openterface](https://openterface.com) hardw
 
 | Category | Options |
 |----------|---------|
-| **General** | Clipboard monitoring (send clipboard content to target via Unicode), haptic feedback toggle, theme selection |
+| **General** | Clipboard monitoring on the Compose page (send clipboard content to target via Unicode), haptic feedback toggle, theme selection |
 | **Keyboard** | Modifier behavior (sticky / momentary-chord), chord sustain, long-press repeat mode |
 | **Voice Input** | STT engine selection, Whisper model management |
 | **AI Settings** | Provider configuration (name, API base, model, API key), system prompt roles, custom prompt editing, API connection test, request history |

@@ -162,7 +162,7 @@ struct GeneralSettingsView: View {
                 Spacer()
                 Toggle("", isOn: $clipboardMonitoringEnabled)
             }
-            Text("Detects new clipboard content and asks if you want to send it to the target device")
+            Text("Detects new clipboard content on the Compose page and asks if you want to send it to the target device")
                 .font(.caption)
                 .foregroundColor(.secondary)
         }

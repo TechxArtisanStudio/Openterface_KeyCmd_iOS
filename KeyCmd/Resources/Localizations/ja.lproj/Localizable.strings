@@ -75,7 +75,7 @@
 
 "Clipboard Monitoring" = "クリップボード監視";
 "Enable Clipboard Monitoring" = "クリップボード監視を有効にする";
-"Detects new clipboard content and asks if you want to send it to the target device" = "新しいクリップボードコンテンツを検出し、ターゲットデバイスに送信するかどうかを確認します";
+"Detects new clipboard content on the Compose page and asks if you want to send it to the target device" = "作成ページを開いている間に新しいクリップボードコンテンツを検出し、ターゲットデバイスに送信するかどうかを確認します";
 
 "BLE Key Delay" = "BLEキー遅延";
 "Inter-key Delay" = "キー間遅延";

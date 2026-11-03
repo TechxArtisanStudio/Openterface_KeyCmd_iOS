@@ -82,7 +82,7 @@
 /* --- General – Clipboard --- */
 "Clipboard Monitoring" = "Clipboard Monitoring";
 "Enable Clipboard Monitoring" = "Enable Clipboard Monitoring";
-"Detects new clipboard content and asks if you want to send it to the target device" = "Detects new clipboard content and asks if you want to send it to the target device";
+"Detects new clipboard content on the Compose page and asks if you want to send it to the target device" = "Detects new clipboard content on the Compose page and asks if you want to send it to the target device";
 
 /* --- General – BLE --- */
 "BLE Key Delay" = "BLE Key Delay";

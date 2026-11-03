@@ -82,7 +82,7 @@
 /* --- 일반 – 클립보드 --- */
 "Clipboard Monitoring" = "클립보드 모니터링";
 "Enable Clipboard Monitoring" = "클립보드 모니터링 활성화";
-"Detects new clipboard content and asks if you want to send it to the target device" = "새 클립보드 내용을 감지하고 대상 기기에 보낼지 묻습니다";
+"Detects new clipboard content on the Compose page and asks if you want to send it to the target device" = "편집 페이지에서 새 클립보드 내용을 감지하고 대상 기기에 보낼지 묻습니다";
 
 /* --- 일반 – BLE --- */
 "BLE Key Delay" = "BLE 키 지연";

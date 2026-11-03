@@ -75,7 +75,7 @@
 
 "Clipboard Monitoring" = "剪貼簿監控";
 "Enable Clipboard Monitoring" = "啟用剪貼簿監控";
-"Detects new clipboard content and asks if you want to send it to the target device" = "偵測新的剪貼簿內容並詢問是否傳送到目標裝置";
+"Detects new clipboard content on the Compose page and asks if you want to send it to the target device" = "偵測編輯頁內的新剪貼簿內容，並詢問是否傳送到目標裝置";
 
 "BLE Key Delay" = "BLE 按鍵延遲";
 "Inter-key Delay" = "鍵間延遲";

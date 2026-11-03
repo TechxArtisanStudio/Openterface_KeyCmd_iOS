@@ -53,7 +53,7 @@ struct ContentView: View {
         _keyboardManager = StateObject(wrappedValue: keyboardManager)
         _orientationManager = StateObject(wrappedValue: OrientationManager())
         _viewManager = StateObject(wrappedValue: ViewManager())
-        _clipboardManager = StateObject(wrappedValue: ClipboardManager())
+        _clipboardManager = StateObject(wrappedValue: ClipboardManager.shared)
         let gyroManager = GyroMouseManager(mouseManager: mouseManager)
         gyroManager.sensitivity = UserDefaults.standard.double(forKey: "gyroMouseSensitivity") != 0 ? UserDefaults.standard.double(forKey: "gyroMouseSensitivity") : 1.0
         _gyroMouseManager = StateObject(wrappedValue: gyroManager)
@@ -1056,8 +1056,9 @@ struct ContentView: View {
                 keyboardManager.bleManager = bleManager
                 viewManager.setKeyboardManager(keyboardManager) // Set keyboard manager reference
 
-                // Start clipboard monitoring
-                clipboardManager.startMonitoring()
+                // Clipboard monitoring belongs to the Compose page only, so the
+                // pasteboard is never read at launch or on other screens.
+                syncClipboardMonitoring()
                 
                 // Auto-connect to Bluetooth on app startup (with delay to ensure BLE manager is ready)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
@@ -1131,7 +1132,11 @@ struct ContentView: View {
                     viewManager.switchToView(launchPanelManager.selectedMode)
                 }
             }
+            .onChange(of: viewManager.currentView) { _ in
+                syncClipboardMonitoring()
+            }
             .onChange(of: proSubmodeRaw) { newValue in
+                syncClipboardMonitoring()
                 let submode = ProKeyboardMouseView.ProSubmode(rawValue: newValue) ?? .keyboard
                 switch submode {
                 case .compose, .numpad:
@@ -1157,6 +1162,19 @@ struct ContentView: View {
                     }
                 }
             }
+        }
+    }
+
+    // MARK: - Clipboard
+
+    /// State-driven so the pasteboard is only ever read on the Compose page.
+    private func syncClipboardMonitoring() {
+        let isComposePage = viewManager.currentView == .keyboardMousePro
+            && (ProKeyboardMouseView.ProSubmode(rawValue: proSubmodeRaw) ?? .keyboard) == .compose
+        if isComposePage {
+            clipboardManager.startMonitoring()
+        } else {
+            clipboardManager.stopMonitoring()
         }
     }
 
