@@ -164,14 +164,104 @@ KeyCmd connects to the Openterface KVM device exclusively via **Bluetooth Low En
 
 ## Building from Source
 
+### Prerequisites
+
+| Requirement | Detail |
+|-------------|--------|
+| **Xcode** | Verified on Xcode 26.5 (Swift 6.3) |
+| **Submodule** | `KeyCmd/Openterface_Core` -- the shared Openterface C core |
+| **Sibling packages** | `../whisper.cpp`, `../SwiftTerm`, `../Libssh2Prebuild` (see below) |
+
 ```bash
-git clone --recurse-submodules https://github.com/TechxArtisan/Openterface_KeyCmd_iOS.git
+git clone --recurse-submodules https://github.com/TechxArtisanStudio/Openterface_KeyCmd_iOS.git
 cd Openterface_KeyCmd_iOS
+git submodule update --init --recursive   # if the clone above did not fetch it
 ```
+
+### Sibling local packages
+
+`KeyCmd.xcodeproj` references three Swift packages **by relative path, outside this
+repository** (`packageReferences` in `KeyCmd.xcodeproj/project.pbxproj`). They must sit
+next to this project, under the same parent directory. If any is missing, package
+resolution fails before a single source file is compiled.
+
+A working layout looks like this:
+
+```
+workspaces/
+├── whisper.cpp/          # voice input (Whisper STT)
+├── SwiftTerm/            # terminal emulator view
+├── Libssh2Prebuild/      # prebuilt libssh2 for SSH
+└── Openterface_KeyCmd_iOS/
+```
+
+### Build in Xcode
 
 1. Open `KeyCmd.xcodeproj` in Xcode
 2. Select your development team for code signing
 3. Build and run on a physical iPhone (BLE is not available on Simulator)
+
+### Build from the command line
+
+```bash
+xcodebuild -project KeyCmd.xcodeproj -scheme KeyCmd -configuration Debug \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  build CODE_SIGNING_ALLOWED=NO
+```
+
+This produces an unsigned Simulator build, which is enough to verify that the app
+compiles. It is not a substitute for a signed device build, because BLE cannot be
+exercised on the Simulator.
+
+### Building without GitHub access
+
+Beyond the sibling packages above, the project resolves **8 remote Swift packages** and
+clones **`mlx-swift`'s two C++ submodules** (`mlx`, `mlx-c`). Every one of those is
+fetched from GitHub during package resolution, and a single failed fetch aborts the
+build before any source is compiled. On a slow or unreliable connection to GitHub this
+makes the build effectively unbuildable.
+
+`scripts/offline-packages.sh` removes that dependency by serving every one of those
+URLs from a local Git mirror. It rewrites them with `url.<mirror>.insteadOf` injected
+into the build's environment only -- no repository or global Git configuration is
+touched -- and the mirror itself is gitignored.
+
+```bash
+./scripts/offline-packages.sh verify       # confirm the mirror covers Package.resolved
+./scripts/offline-packages.sh rules        # show the URL rewrites a build applies
+./scripts/offline-packages.sh build        # xcodebuild, entirely offline
+./scripts/offline-packages.sh refresh      # mirror the 8 packages from GitHub (online)
+./scripts/offline-packages.sh submodules   # re-mirror mlx / mlx-c at their pinned SHA
+./scripts/offline-packages.sh snapshot     # pack the mirror for a teammate or CI
+./scripts/offline-packages.sh restore      # unpack such a snapshot
+```
+
+First time, on a machine that can reach GitHub:
+
+```bash
+./scripts/offline-packages.sh refresh      # packages + submodules, retried automatically
+./scripts/offline-packages.sh snapshot     # writes .offline-packages/mirror-snapshot.tar.gz
+```
+
+Then, on any machine -- including one with no network at all:
+
+```bash
+./scripts/offline-packages.sh restore /path/to/mirror-snapshot.tar.gz
+./scripts/offline-packages.sh build
+```
+
+The mirror is about 55 MB, and the snapshot about 53 MB. `mlx` and `mlx-c` are mirrored
+shallow at their pinned commits, which keeps them near 3.5 MB instead of the 72 MB their
+full history would cost.
+
+Limits worth knowing:
+
+- **Xcode GUI builds are not covered.** They do not inherit the rewrite environment, so
+  they still contact GitHub. Use the `build` subcommand for offline work.
+- **The mirror follows `Package.resolved`.** After a dependency change, run `refresh`
+  (and `submodules` if `mlx-swift` itself moved); `verify` names the exact revision that
+  is missing.
+- **Signing is still disabled** in the scripted build, matching the command line above.
 
 ---
 

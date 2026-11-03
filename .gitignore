@@ -4,3 +4,4 @@ xcuserdata/
 KeyCmd.xcodeproj/project.xcworkspace/xcuserdata/*
 .claude/*
 build/*
+/.offline-packages/
