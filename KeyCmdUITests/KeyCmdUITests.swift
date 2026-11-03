@@ -21,7 +21,10 @@ final class KeyCmdUITests: XCTestCase {
         continueAfterFailure = false
 
         app = XCUIApplication()
-        app.launchArguments = ["-HasSeenLaunchPanel", "YES"]
+        // The remembered launch-panel mode is persisted by the app itself, so pin it here too:
+        // without it a previous run that picked Pro starts there and no test lands on Basic.
+        app.launchArguments = ["-HasSeenLaunchPanel", "YES",
+                               "-LaunchPanelSelectedMode", "Keyboard & Mouse"]
         app.launch()
     }
 
@@ -59,6 +62,18 @@ final class KeyCmdUITests: XCTestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         }
         return check()
+    }
+
+    /// Sidebar rows label themselves with the nav icon plus the title, so match the title
+    /// as a substring rather than by exact label.
+    private func sidebarRow(containing title: String) -> XCUIElement {
+        app.buttons.matching(NSPredicate(format: "label CONTAINS %@", title)).firstMatch
+    }
+
+    private func openSidebar() {
+        app.buttons["line.3.horizontal"].firstMatch.tap()
+        XCTAssertTrue(sidebarRow(containing: "Gamepad").waitForExistence(timeout: 5),
+                      "the sidebar did not open")
     }
 
     // MARK: - Tests
@@ -131,5 +146,25 @@ final class KeyCmdUITests: XCTestCase {
                        "the setup sheet stayed on screen after tapping Done")
         XCTAssertTrue(surface("km-submode-touchpad").waitForExistence(timeout: 10),
                       "the touchpad surface should still be there once setup dismisses")
+    }
+
+    /// Pro picks its layout from `orientationManager.isLandscape`, which used to stay pinned to
+    /// the landscape lock the Basic keyboard submode had applied — so the first switch drew the
+    /// landscape layout inside the portrait window.
+    @MainActor
+    func testProLaysOutForPortraitAfterLeavingLandscape() throws {
+        XCTAssertTrue(surface("km-submode-touchpad").waitForExistence(timeout: 15))
+
+        tab("keyboard").tap()
+        XCTAssertTrue(pollUntil { self.isLandscape },
+                      "expected the keyboard submode in landscape before switching")
+
+        openSidebar()
+        sidebarRow(containing: "Keyboard & Mouse Pro").tap()
+
+        XCTAssertTrue(pollUntil { !self.isLandscape },
+                      "Pro unlocks the landscape lock, so the window should return to portrait")
+        XCTAssertTrue(app.staticTexts["TouchPad"].waitForExistence(timeout: 10),
+                      "the Pro surface should render its portrait layout in a portrait window")
     }
 }

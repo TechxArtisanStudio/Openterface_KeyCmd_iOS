@@ -303,7 +303,15 @@ class OrientationManager: ObservableObject {
     }
 
     func unlockOrientation() {
+        // Clear the stale preference along with the app lock: updateOrientation() short-circuits
+        // on .landscape so a locked view keeps its layout while the window catches up, and a
+        // value left behind by the previous view would then pin isLandscape = true forever —
+        // the next view draws its landscape layout inside a portrait window.
+        preferredOrientation = .all
         Self.setOrientationLock(.all)
+        // Re-read now so the first frame is not still laid out for the orientation the
+        // previous view locked.
+        updateOrientation()
         // Also force rotation attempt — without this the UI stays in whatever
         // orientation it was locked to (e.g. landscape from gamepad) even though
         // the device may be held differently.
