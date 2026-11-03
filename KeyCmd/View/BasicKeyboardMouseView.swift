@@ -77,10 +77,13 @@ struct BasicKeyboardMouseView: View {
                     switch selectedSubmode {
                     case .keyboard:
                         landscapeKeyboardSubmode
+                            .accessibilityIdentifier("km-submode-keyboard")
                     case .touchpad:
                         touchpadSubmode
+                            .accessibilityIdentifier("km-submode-touchpad")
                     case .numpad:
                         numpadSubmode
+                            .accessibilityIdentifier("km-submode-numpad")
                     }
                 }
                 .id(selectedSubmode.rawValue)
@@ -165,6 +168,7 @@ struct BasicKeyboardMouseView: View {
                 )
         }
         .buttonStyle(PlainButtonStyle())
+        .accessibilityIdentifier("km-tab-\(submode.rawValue.lowercased())")
     }
 
     private func landscapeTabButton(for submode: Submode) -> some View {
@@ -191,6 +195,7 @@ struct BasicKeyboardMouseView: View {
                 )
         }
         .buttonStyle(PlainButtonStyle())
+        .accessibilityIdentifier("km-tab-\(submode.rawValue.lowercased())")
     }
 
     // MARK: - Landscape Keyboard Submode

@@ -213,6 +213,37 @@ This produces an unsigned Simulator build, which is enough to verify that the ap
 compiles. It is not a substitute for a signed device build, because BLE cannot be
 exercised on the Simulator.
 
+### UI tests
+
+`KeyCmdUITests` covers the Keyboard & Mouse Basic surface: the Touchpad / Keyboard /
+Numpad submode tabs (including the landscape lock the Keyboard tab applies and the
+portrait unlock on returning to Touchpad) and opening and dismissing the setup sheet
+from the gear button.
+
+```bash
+./scripts/offline-packages.sh test                    # offline, iPhone 17 Pro Simulator
+xcodebuild test -project KeyCmd.xcodeproj -scheme KeyCmdUITests \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' CODE_SIGNING_ALLOWED=NO
+```
+
+The `KeyCmdUITests` scheme is separate from `KeyCmd` on purpose: the app's own test
+action keeps running only unit tests, so nothing gets slower for people who are not
+touching the UI.
+
+Two conventions worth knowing before adding cases:
+
+- Elements are located by `accessibilityIdentifier` (`km-tab-*`, `km-submode-*`,
+  `km-setup-button`), not by key labels. The on-screen keyboard builds its keys from
+  custom buttons whose labels change with the target OS, so label-based queries would
+  break on the first layout change.
+- Tests launch with `-HasSeenLaunchPanel YES`. The first-run mode picker is a full-screen
+  overlay that swallows taps; the argument domain suppresses it without adding test-only
+  branches to the app.
+
+Cases cost a whole-tree accessibility snapshot per lookup, so their wall time tracks
+simulator state rather than logic: 5-17 s per case on a freshly booted device, and an
+order of magnitude worse after the simulator has been churned by many launches.
+
 ### Building without GitHub access
 
 Beyond the sibling packages above, the project resolves **8 remote Swift packages** and
@@ -230,6 +261,7 @@ touched -- and the mirror itself is gitignored.
 ./scripts/offline-packages.sh verify       # confirm the mirror covers Package.resolved
 ./scripts/offline-packages.sh rules        # show the URL rewrites a build applies
 ./scripts/offline-packages.sh build        # xcodebuild, entirely offline
+./scripts/offline-packages.sh test         # xcodebuild test (KeyCmdUITests), offline
 ./scripts/offline-packages.sh refresh      # mirror the 8 packages from GitHub (online)
 ./scripts/offline-packages.sh submodules   # re-mirror mlx / mlx-c at their pinned SHA
 ./scripts/offline-packages.sh snapshot     # pack the mirror for a teammate or CI

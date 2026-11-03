@@ -9,8 +9,11 @@ import XCTest
 
 final class KeyCmdUITestsLaunchTests: XCTestCase {
 
+    /// Left at the template default of `true`, this screenshot-only test re-runs once
+    /// per UI configuration -- 128 launches, ~588 s, against ~40 s for the whole rest of
+    /// the suite. One launch capture is all it is worth.
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
-        true
+        false
     }
 
     override func setUpWithError() throws {

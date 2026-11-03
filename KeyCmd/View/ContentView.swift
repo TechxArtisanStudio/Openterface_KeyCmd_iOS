@@ -419,6 +419,7 @@ struct ContentView: View {
         .frame(width: 34, height: 34)
         .background(Color.clear)
         .buttonStyle(.plain)
+        .accessibilityIdentifier("km-setup-button")
         .popover(isPresented: $showSetupSheet, arrowEdge: .top) {
             NavigationView {
                 Form {

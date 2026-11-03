@@ -12,6 +12,7 @@
 #   scripts/offline-packages.sh verify      # check the mirror covers Package.resolved
 #   scripts/offline-packages.sh rules       # show the URL rewrites build applies
 #   scripts/offline-packages.sh build       # xcodebuild entirely offline
+#   scripts/offline-packages.sh test        # xcodebuild test (KeyCmdUITests), offline
 #   scripts/offline-packages.sh refresh     # mirror all 8 packages from GitHub (online)
 #   scripts/offline-packages.sh submodules  # re-mirror mlx / mlx-c at their pinned SHA
 #   scripts/offline-packages.sh snapshot    # pack the mirror for a teammate or CI
@@ -205,6 +206,15 @@ cmd_build() {
     -derivedDataPath build/DD build CODE_SIGNING_ALLOWED=NO "$@"
 }
 
+# UI tests resolve the same package graph, so they need the identical rewrite.
+cmd_test() {
+  apply_rewrites
+  cd "$ROOT" || exit 2
+  exec xcodebuild -project KeyCmd.xcodeproj -scheme KeyCmdUITests \
+    -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+    -derivedDataPath build/DD test CODE_SIGNING_ALLOWED=NO "$@"
+}
+
 cmd_snapshot() {
   tar -czf "$SNAPSHOT" -C "$(dirname "$MIRROR")" "$(basename "$MIRROR")"
   echo "wrote $SNAPSHOT ($(du -h "$SNAPSHOT" | cut -f1))"
@@ -224,6 +234,7 @@ case "${1:-}" in
   refresh)  shift; cmd_refresh "$@" ;;
   submodules) shift; cmd_submodules "$@" ;;
   build)    shift; cmd_build "$@" ;;
+  test)     shift; cmd_test "$@" ;;
   snapshot) shift; cmd_snapshot "$@" ;;
   restore)  shift; cmd_restore "$@" ;;
   *) awk '/^# Usage:/{f=1} f && /^#/{sub(/^# ?/, ""); print; next} f{exit}' "$0"; exit 1 ;;
