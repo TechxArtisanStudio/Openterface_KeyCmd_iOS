@@ -1,10 +1,16 @@
 # BLE-Eth Protocol Specification
 
-> **Version**: 1.0
-> **Last updated**: 2026-06-20
+> **Version**: 2.0
+> **Last updated**: 2026-11-03 (audited against the iOS implementation; sections 2, 4 and
+> 6 now record where the device protocol and the iOS code differ from the Android original)
 > **Source**: Ported from Android `FrameParser.java`, `DataReassembler.java`, `BleEthTransport.java`
+> **iOS code**: `KeyCmd/Services/BleEth/` — `FrameParser`, `DataReassembler`,
+> `BleEthTransport`, `QueuePipe`, `TransportAdapter`; writes go through
+> `KeyCmd/Managers/BLEManager.swift`
 
-This document defines the wire protocol used by the Openterface KeyMod device to tunnel TCP traffic over BLE GATT. The iOS implementation must conform exactly to this spec.
+This document defines the wire protocol used by the Openterface device to tunnel TCP
+traffic over BLE GATT. Where the iOS client deviates from the Android description, the
+deviation is called out inline as **iOS**.
 
 ---
 
@@ -61,12 +67,12 @@ Commands are asymmetric — client→device uses `0x1x`, device→client uses `0
 | `0x10` | client → device | `CMD_CONNECT` | `[ip0, ip1, ip2, ip3, port_hi, port_lo]` (6 bytes, IPv4 big-endian) |
 | `0x11` | client → device | `CMD_DATA` | 3-byte frag header + chunk data |
 | `0x12` | client → device | `CMD_DISCONNECT` | `[connId]` (1 byte) |
-| `0x1F` | client → device | `CMD_INFO` | — (empty) |
+| `0x1F` | client → device | `CMD_INFO` | — (empty). **iOS never sends this**; the constant exists for parity with Android |
 | `0x90` | device → client | `CMD_CONNECT_RESP` | `[connId, status]` (≥2 bytes) |
 | `0x91` | device → client | `CMD_DATA_RESP` | Frag header + data (push) OR `[status]` (ACK) |
 | `0x92` | device → client | `CMD_DISCONN_RESP` | `[closedConnId]` |
 | `0xD2` | device → client | `CMD_CONN_CLOSED` | `[closedConnId]` — unsolicited close event |
-| `0x9F` | device → client | `CMD_INFO_RESP` | — (empty) |
+| `0x9F` | device → client | `CMD_INFO_RESP` | — (empty). **iOS only logs it**; no state change is driven by it |
 
 ### CONNECT Payload (6 bytes, big-endian)
 
@@ -145,20 +151,30 @@ Offset  Field   Bit Layout
   - Else: MORE bit is 0 → marks last fragment
 - Inter-fragment delay: `Thread.sleep(5)` ms between consecutive fragments (prevents overwhelming firmware BLE receive buffer).
 
+**iOS**: same arithmetic, but a message that fits in one fragment is sent with
+`flags = FRAG_FIRST | 0x01` (`0x41`) — an explicit count of 1, not `0x40`. The device
+does **not** normalize a received `count = 0` up to 1 the way the iOS receiver does, so
+sending `0x40` makes the firmware mis-handle the frame. See `BleEthTransport.sendFragmented`.
+Pacing matches Android: `Thread.sleep(0.005)` between fragments, plus a further 10 ms
+between 128-byte BLE chunks applied lower down in `BLEManager.sendRawData` — so one
+fragment larger than 128 bytes costs several paced writes.
+
 ### Reassembly Rules (Receiver)
 
-1. If `FRAG_FIRST` is set → start new reassembly: reset buffer, record `totalFrags`, set `nextSeq = 0`, mark `active = true`.
+1. If `FRAG_FIRST` is set → start new reassembly: reset buffer, record `totalFrags`, set `nextSeq = 0`, mark `active = true`, remember the fragment's `connId`.
 2. If not `active`, drop the fragment (return null).
-3. If `seq != nextSeq` → out of order → discard entire reassembly (`active = false`, return null). **No selective recovery.**
-4. Append `payload[3..]` to buffer, `nextSeq++`.
-5. If `FRAG_MORE == 0` (last fragment) → return `ReassembledData(connId, buffer)`, mark `!active`.
-6. Otherwise return null (waiting for more fragments).
+3. **iOS only**: if `connId != reassemblyConnId` → skip the fragment and keep reassembling. The device interleaves frames belonging to its other connections.
+4. **iOS only**: if `seq != nextSeq` → drop *that fragment* and **keep `active`**. Device ACKs can land inside a message; discarding the whole reassembly proved worse than losing one fragment.
+   *(Android reference behavior: out of order discarded the entire message — `active = false`, return null. No selective recovery there either.)*
+5. Append `payload[3..]` to buffer, `nextSeq++`.
+6. If `FRAG_MORE == 0` (last fragment) → return `ReassembledData(connId, buffer)`, mark `!active`.
+7. Otherwise return null (waiting for more fragments).
 
 ### Protocol Limits
 
 - **Fragment count field is only 4 bits** (`flags & 0x0F`), so maximum 15 fragments per message → max tunneled payload = 15 × 246 = **3,690 bytes** per fragmented message.
-- **Out-of-order fragments are fatal** — the reassembler drops the entire in-progress message and goes idle; there is no NACK / retransmit at this layer.
-- **Fragment count value `0` is normalized to `1`** on receive, so a single-fragment message can set count=0 (no MORE, FIRST set).
+- **Out-of-order fragments are fatal** in the Android reference — the reassembler drops the entire in-progress message and goes idle; there is no NACK / retransmit at this layer. **iOS instead drops only the offending fragment and continues** (rule 4 above), which keeps a session alive but can silently truncate a message: nothing re-requests it.
+- **Fragment count value `0` is normalized to `1`** on receive, so a single-fragment message can set count=0 (no MORE, FIRST set). **iOS does this normalization on receive but never emits count=0 on send** — see the sender note above.
 
 ---
 
@@ -231,25 +247,61 @@ Offset  Field   Bit Layout
 - `PipeOutputStream.close()` → sets `writerClosed=true`, pushes EOF sentinel.
 - `PipeInputStream.close()` → `queue.clear()` — unblocks writers by discarding buffered data.
 
+### iOS Implementation (`QueuePipe.swift`)
+
+The iOS class keeps the same shape (`writer` / `reader`, `Data?` chunks, `nil` as the EOF
+sentinel) but is built on `AsyncStream<Data?>` with
+`bufferingPolicy: .bufferingNewest(capacity)`, `capacity` defaulting to 256. Differences
+that matter to callers:
+
+| Android reference | iOS | Consequence |
+|---|---|---|
+| Unbounded-ish `LinkedBlockingQueue`, writer blocks on `offer(…, 1s)` and retries while `!writerClosed` | Bounded stream; when full the **oldest buffered chunk is dropped silently** | A slow reader causes data loss, not back-pressure. Never assumes "write blocks until read" |
+| `queue.take()` blocks the reader thread | `await reader.read()` suspends | No thread is parked; reading must happen in a Task |
+| Partial chunk consumption via `leftover` + `leftoverPos` | Each `read()` returns one whole chunk | Callers must not assume `read()` respects a requested length |
+| `write(len == 0)` rejected explicitly | `write` ignores empty data **and** silently returns once closed | Writes after `close()` vanish without an error |
+| Reader close clears the queue to unblock writers | Reader close sets a local `closed` flag; already-yielded elements stay in the stream | `close()` on the read side is not an immediate teardown of buffered payload |
+
+Both `writer.close()` and `QueuePipe.close()` yield the `nil` sentinel and then
+`continuation.finish()`, so a pending `read()` resolves to `nil` (EOF) rather than
+hanging.
+
 ---
 
 ## 7. iOS Implementation Notes
 
 ### BLEManager Integration
 
-Extend `BLEManager` (existing singleton) with:
+`BLEManager` (singleton, `KeyCmd/Managers/BLEManager.swift`) exposes the two members the
+transport needs — both already implemented:
 
 ```swift
-// Raw data write (mirrors sendTouchData but for arbitrary bytes)
+// Raw data write for the BLE-Eth tunnel
 func sendRawData(_ data: Data)
 
-// Raw data receive (bypasses HID parsing)
+// Raw data receive — one publisher, fed by FFF1 notifications
 let rawDataSubject = PassthroughSubject<Data, Never>()
 ```
 
-The existing `sendTouchData(data: Data)` writes to FFF2 characteristic `.withoutResponse`. `sendRawData` uses the same mechanism but accepts arbitrary payloads.
+The two write paths are deliberately **not** the same mechanism:
 
-When BLE notifications arrive from FFF1 (or whichever characteristic the device uses for TCP data — verify with firmware), publish the raw bytes to `rawDataSubject` instead of parsing them as HID reports.
+| Path | Used by | Write type |
+|---|---|---|
+| `sendTouchData(_:)` | HID keyboard/mouse reports | FFF2, `.withoutResponse` |
+| `sendRawData(_:)` | BLE-Eth frames | FFF2, `.withResponse` for every frame, 128-byte chunks, 10 ms pacing, serialized on a private write queue |
+
+Receiving is routed by characteristic, not by mode: `didUpdateValueFor` publishes **FFF1**
+notifications to `rawDataSubject` unconditionally and performs no HID parsing (so the
+earlier "verify with firmware which characteristic carries TCP data" question is settled —
+FFF1; FFF2 is write-only from the app's side).
+
+Consequences worth knowing:
+
+- There is no `isTerminalMode` flag. While the device is in HID mode nothing subscribes to
+  `rawDataSubject`, so incoming bytes are dropped rather than mis-parsed.
+- `sendRawData` still computes `isControlFrame` and logs `writeType=…withoutResponse` for
+  data frames. That log is stale: `writeType` is a hardcoded `.withResponse` and the value
+  never varies. Trust the code, not the debug line.
 
 ### Swift Equivalents
 
@@ -258,7 +310,7 @@ When BLE notifications arrive from FFF1 (or whichever characteristic the device 
 | `LinkedBlockingQueue<byte[]>` | `AsyncStream<Data>` or `DispatchQueue` + array |
 | `CountDownLatch` | `DispatchSemaphore` or `CheckedContinuation` |
 | `volatile boolean` | `@Atomic` property wrapper or `OSAllocatedUnfairLock` |
-| `Thread.sleep(ms)` | `Task.sleep(for: .milliseconds(ms))` in async context |
+| `Thread.sleep(ms)` | `Task.sleep(for: .milliseconds(ms))` in async context — **not** what ships: both the 5 ms fragment pace and the 10 ms chunk pace call `Thread.sleep` on a serial work queue, which parks that queue for the duration |
 
 ### Gotchas
 
@@ -406,11 +458,12 @@ These alignment changes ensure consistent, reliable BLE-Eth communication across
 
 | Constant | Value | Where Used |
 |----------|-------|------------|
-| `timeoutMs` | parameter (typically 20000) | `connect()` latch await |
-| `50 ms` | sleep interval | Output reader wait-for-tunnel loop |
-| `5 ms` | inter-fragment delay | Pacing between consecutive fragments |
-| `256` | queue capacity | `QueuePipe` instances per direction |
-| `1 second` | write backoff | `PipeOutputStream.write` re-check `writerClosed` |
+| `timeoutMs` | parameter; **iOS passes 30000** from `TerminalViewModel.connect` (Android reference used 20000), and `SSHClient` sets the libssh2 session timeout to 30000 ms | `connect()` latch await |
+| `100 ms × 50` | poll interval | iOS waits for `transport.isConnected` after `connect()` (Android sleeps 50 ms in its output-reader wait loop) |
+| `5 ms` | inter-fragment delay | Pacing between consecutive fragments (`Thread.sleep` on the sender) |
+| `10 ms` | inter-chunk delay | Pacing between 128-byte BLE writes in `BLEManager.sendRawData` |
+| `256` | queue capacity | `QueuePipe` instances per direction — note iOS `.bufferingNewest(256)` drops the oldest chunk on overflow |
+| `1 second` | write backoff | `PipeOutputStream.write` re-check `writerClosed` (Android only; iOS yields into the stream and never blocks) |
 | `246` | read buffer | Max read per outbound chunk (= `MAX_FRAG_DATA`). Limits each `transport.send()` to a single BLE-Eth fragment. The original Android spec uses 4096 which produces multi-fragment DATA frames, but the device firmware silently drops multi-fragment frames for client→server direction. |
 
 ---
@@ -419,6 +472,29 @@ These alignment changes ensure consistent, reliable BLE-Eth communication across
 
 ### Unit Test Fixtures
 
-1. **FrameParser**: Feed raw bytes `[0x57, 0xAB, 0x00, 0x10, 0x06, 0xC0, 0xA8, 0x01, 0x05, 0x00, 0x16, <checksum>]`, assert parsed frame has `addr=0, cmd=0x10, payload=[0xC0, 0xA8, 0x01, 0x05, 0x00, 0x16]`.
-2. **DataReassembler**: Feed two fragments (FIRST+MORE, then last), assert reassembled data matches original.
-3. **Out-of-order fragments**: Feed FIRST, then seq=2 (skipping seq=1), assert reassembly is discarded.
+Live in `KeyCmdTests/` and run as unit tests of the `KeyCmd` scheme (the separate
+`KeyCmdUITests` scheme covers UI only):
+
+1. **`FrameParserTests`** — feed raw bytes
+   `[0x57, 0xAB, 0x00, 0x10, 0x06, 0xC0, 0xA8, 0x01, 0x05, 0x00, 0x16, <checksum>]`,
+   assert `addr=0, cmd=0x10, payload=[0xC0, 0xA8, 0x01, 0x05, 0x00, 0x16]`; sync recovery
+   and checksum rejection are covered in the same file.
+2. **`DataReassemblerTests`** — `testSingleFragment`, `testMultipleFragments`
+   (FIRST+MORE then last) and `testOutOfOrderFragment` behavior.
+3. **Out-of-order fragments** — feed FIRST (seq=0), then seq=2 skipping seq=1. What iOS
+   actually guarantees is that **no message is emitted**; the in-progress reassembly stays
+   `active` rather than being discarded as the Android reference does. The test asserts
+   `results.count == 0` and its inline comment still says "should discard entire
+   reassembly" — that wording describes Android, not the shipped iOS behavior described in
+   [Section 4](#reassembly-rules-receiver).
+4. **`QueuePipeTests`** — chunk hand-off, `nil` EOF sentinel, post-close writes vanishing.
+5. **`BleEthTransportTests`** — encode the [Section 7](#7-ios-implementation-notes) rules,
+   in particular that every BLE write uses `.withResponse`.
+6. **`BLEManagerTests`** — scan filtering and characteristic discovery.
+
+### Manual / hardware
+
+BLE cannot be exercised on the Simulator. End-to-end verification is: pair with the
+device → open Terminal → connect to a known SSH host → confirm handshake, rendering,
+keystroke delivery to the server, and behavior under a large `cat` (throughput plus the
+246-byte single-fragment limit).
