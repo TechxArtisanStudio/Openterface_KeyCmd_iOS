@@ -1,5 +1,22 @@
 # Terminal Feature Implementation Summary
 
+> **ARCHIVED 2026-11-03 — build report from the first terminal pass, not current.**
+> Three things in the body below are actively wrong today:
+>
+> - **Paths.** Every file is listed under `KeyMod/`; the app target directory is
+>   `KeyCmd/` (the Swift module is still named `KeyCmd`).
+> - **Dependencies.** "Add these to Xcode before building" is done, and neither URL is
+>   what ships: `SwiftTerm`, `whisper.cpp` and `Libssh2Prebuild` are resolved as *local*
+>   package references from the sibling directories described in the top-level
+>   [README](../../README.md#sibling-local-packages). `CSSH` is a product of
+>   `Libssh2Prebuild`, not a standalone `nicklama/CSSH` package.
+> - **SSH bridge design.** `LocalTCPProxy` is not used by the shipped path (it has zero
+>   references); `SSHClient` talks to the transport through `POSIXSocketBridge`. The file
+>   list also omits `TerminalPrefs`, `CredentialManager`, `CredentialProfile`,
+>   `CredentialSettingsView` and the gamepad/AI modules added since.
+>
+> See [docs/README.md](../README.md) for the current documentation set.
+
 ## ✅ Completed Phases
 
 ### Phase 1: BLE-Eth Transport Layer (Complete)
@@ -178,7 +195,6 @@ Add these to Xcode before building:
 
 ## 📖 Documentation
 
-See docs/ folder for detailed specifications:
-- Protocol format and commands
-- Architecture diagrams
-- Implementation roadmap
+Current specifications live in [docs/README.md](../README.md):
+- [ble-eth-protocol-spec.md](../ble-eth-protocol-spec.md) - Protocol format and commands
+- [terminal-architecture.md](../terminal-architecture.md) - Architecture diagrams and data flow

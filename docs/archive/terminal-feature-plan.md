@@ -1,5 +1,27 @@
 # Terminal Feature — iOS Implementation Plan
 
+> **ARCHIVED 2026-11-03 — plan of record, now superseded.** Phases 3-5 marked "In
+> progress" / "Not started" below are all shipped: the terminal lives in
+> `KeyCmd/View/Terminal/` and is reachable from the mode sidebar
+> (`KeyCmd/Managers/ViewManager.swift`, `KeyCmd/View/ContentView.swift`), though it is
+> still absent from the first-run launch panel. Library choices also changed: no
+> `NMSSH` -- `SSHClient` is a direct `import CSSH` (a product of the local
+> `../Libssh2Prebuild` package) plus `import Network`. Several planned names never
+> landed: `Services/Terminal/`, `Views/Terminal/`, `SSHClientError.swift`,
+> `TerminalInputHandler.swift`, `CredentialStore.swift`, `Views/MainView.swift` and
+> `KeyModApp.swift` do not exist; the real equivalents are `KeyCmd/View/Terminal/`,
+> the nested `SSHClient.SSHError`, inline key mapping in the bottom bar, and
+> `CredentialManager` + `CredentialProfile`.
+>
+> One planned item was still open when this banner was written, and has since been fixed:
+> **`UIBackgroundModes = [bluetooth-central]`** is now declared in
+> [`KeyCmd-Info.plist`](../../KeyCmd-Info.plist), so a BLE-backed session can survive
+> backgrounding. (Note for whoever revisits it: setting
+> `INFOPLIST_KEY_UIBackgroundModes` as a build setting does nothing — Xcode silently
+> drops that key.)
+>
+> See [docs/README.md](../README.md) for the current documentation set.
+
 ## Overview
 
 Port the Android terminal feature to iOS, enabling SSH connectivity to remote systems over the BLE-Eth transport (custom frame protocol tunneled over BLE GATT). Includes a full VT100/ANSI terminal emulator with color support.
@@ -132,5 +154,5 @@ Port the BLE-Eth frame protocol from Java to Swift.
 
 ## Reference Docs
 
-- `docs/ble-eth-protocol-spec.md` — Wire protocol specification
-- `docs/terminal-architecture.md` — Terminal subsystem design
+- [../ble-eth-protocol-spec.md](../ble-eth-protocol-spec.md) — Wire protocol specification
+- [../terminal-architecture.md](../terminal-architecture.md) — Terminal subsystem design
