@@ -447,6 +447,7 @@
 					"KeyCmd/Openterface_Core/cli/*.c",
 				);
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "KeyCmd-Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "KeyCmd needs microphone access for voice input.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "KeyCmd uses speech recognition to convert your voice into text that can be typed on the target device.";
@@ -488,6 +489,7 @@
 					"KeyCmd/Openterface_Core/cli/*.c",
 				);
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "KeyCmd-Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "KeyCmd needs microphone access for voice input.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "KeyCmd uses speech recognition to convert your voice into text that can be typed on the target device.";
