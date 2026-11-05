@@ -1,5 +1,23 @@
 # Keyboard & Mouse Layout TODO
 
+> **ARCHIVED 2026-11-03 — historical checklist, not current.** Every item below is now
+> implemented, so all boxes read `[ ]` while the code already has the behavior. Do not
+> use this file to decide what is missing. See [docs/README.md](../README.md) for the
+> current documentation set.
+>
+> Current state of each item:
+>
+> | Item in this checklist | Where it lives now |
+> |---|---|
+> | 1. Symbol mode keyboard | `KeyCmd/Managers/KeyboardManager.swift` (`isSymbolMode`, `KeyDef.symbolLabel`), rendered by `KeyCmd/View/ProKeyboardMouseView.swift` |
+> | 2. Fn lock | `KeyboardManager.fnMapping` (`q`-`p` → `1`-`0`, `a`-`l` → F1-F9, `z`/`x`/`c` → F10-F12, Backspace → Delete), toggled in `ProKeyboardMouseView.swift` |
+> | 3. Long-press alternates popup | `KeyCmd/View/KeyAlternatesPopup.swift` + `AlternatePopupGeometry.swift` (up to three cells, not the 3×3 grid this file assumed) |
+> | 4. Swipeable shortcut panels | `KeyCmd/View/ShortcutPanel.swift` (`ShortcutStripPager`, `SharedShortcutPanel`) |
+> | 5. Key repeat on long-press | `KeyboardManager.startKeyRepeat/stopKeyRepeat` (0.4 s delay, 0.08 s interval), gated by `KeyRepeatController.repeatableKeys` |
+> | 6. Target OS key labels | `KeyCmd/TargetOS.swift` — stored as `AISettings.targetOS`, not the `target_os` UserDefaults key this file proposes |
+> | 7. Split keyboard mode | Implemented in `ProKeyboardMouseView.swift` (left/right columns around a center touchpad) |
+> | 8. Corner hints on keys | `ProKeyboardMouseView.keyHints(for:)`, behind `prefs.alternateHintsEnabled` |
+
 > Feature parity checklist: port Android keyboard/mouse capabilities into iOS.
 > Reference Android project: `../Openterface_KeyMod_Android/`
 

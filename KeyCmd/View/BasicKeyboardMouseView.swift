@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: Copyright (C) 2025-2026 Openterface KeyCmd contributors
+// See LICENSE for the full license text.
+
 //
 //  BasicKeyboardMouseView.swift
 //  KeyMod
@@ -277,10 +281,13 @@ struct BasicKeyboardMouseView: View {
                     switch selectedSubmode {
                     case .keyboard:
                         landscapeKeyboardSubmode
+                            .accessibilityIdentifier("km-submode-keyboard")
                     case .touchpad:
                         touchpadSubmode
+                            .accessibilityIdentifier("km-submode-touchpad")
                     case .numpad:
                         numpadSubmode
+                            .accessibilityIdentifier("km-submode-numpad")
                     }
                 }
                 .id(selectedSubmode.rawValue)
@@ -365,6 +372,7 @@ struct BasicKeyboardMouseView: View {
                 )
         }
         .buttonStyle(PlainButtonStyle())
+        .accessibilityIdentifier("km-tab-\(submode.rawValue.lowercased())")
     }
 
     private func landscapeTabButton(for submode: Submode) -> some View {
@@ -391,6 +399,7 @@ struct BasicKeyboardMouseView: View {
                 )
         }
         .buttonStyle(PlainButtonStyle())
+        .accessibilityIdentifier("km-tab-\(submode.rawValue.lowercased())")
     }
 
     // MARK: - Landscape Keyboard Submode

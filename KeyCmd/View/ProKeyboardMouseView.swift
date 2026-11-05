@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: Copyright (C) 2025-2026 Openterface KeyCmd contributors
+// See LICENSE for the full license text.
+
 //
 //  ProKeyboardMouseView.swift
 //  KeyMod
@@ -451,7 +455,7 @@ struct ProKeyboardMouseView: View {
                     }
                 }
                 .offset(y: isTextInputMode ? (keyboardHeight > 0 ? -keyboardHeight * 0.65 : 30) : 0)
-                .animation(.easeOut(duration: 0.3), value: keyboardHeight).animation(.easeOut(duration: 0.3), value: isTextInputMode)
+                .animation(.easeOut(duration: 0.3), value: isTextInputMode ? keyboardHeight : 0)
                 .onAppear {
                     isSplitLayout = persistedLandscapeLayout == .split; isImeSurface = persistedPortraitInput == .ime
                     NotificationCenter.default.addObserver(forName: UIResponder.keyboardWillShowNotification, object: nil, queue: .main) { n in

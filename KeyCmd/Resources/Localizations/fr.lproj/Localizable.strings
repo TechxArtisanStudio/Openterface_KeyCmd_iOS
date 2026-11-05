@@ -110,7 +110,7 @@
 
 "Clipboard Monitoring" = "Surveillance du presse-papiers";
 "Enable Clipboard Monitoring" = "Activer la surveillance du presse-papiers";
-"Detects new clipboard content and asks if you want to send it to the target device" = "Détecte le nouveau contenu du presse-papiers et demande si vous souhaitez l'envoyer à l'appareil cible";
+"Detects new clipboard content on the Compose page and asks if you want to send it to the target device" = "Détecte le nouveau contenu du presse-papiers sur la page Composer et demande si vous souhaitez l'envoyer à l'appareil cible";
 
 "BLE Key Delay" = "Délai de touche BLE";
 "Inter-key Delay" = "Délai entre les touches";

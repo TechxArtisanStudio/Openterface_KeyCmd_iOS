@@ -102,8 +102,7 @@
                   appleOrder.append("かな")
               }
               appleOrder.append(contentsOf: ["RightWin", "RightAlt", "RightCtrl"])
-              // The remaining keys are the arrow cluster and JIS-specific keys;
-              // RightCtrl has no Apple equivalent on compact keyboards.
+              // Anything else in the row is the arrow cluster and JIS-specific keys.
               let pcModifierKeys: Set<String> = [
                   "LeftCtrl", "LeftWin", "LeftAlt", "Space",
                   "RightAlt", "RightWin", "Fn", "RightCtrl"
@@ -112,9 +111,16 @@
               var reordered: [KeyDefinition] = []
               var placed: Set<String> = []
               for name in appleOrder {
-                  guard let key = labeledRow.first(where: { $0.keyName == name }) else { continue }
+                  // Apple's fn key reuses the PC Menu slot, and most layouts still
+                  // carry that name; match the slot so it never falls off the row.
+                  let isFnSlot: (KeyDefinition) -> Bool = {
+                      $0.keyName == "Fn" || $0.keyName == "Menu"
+                  }
+                  guard let key = labeledRow.first(where: name == "Fn" ? isFnSlot: { $0.keyName == name }) else {
+                      continue
+                  }
                   reordered.append(key)
-                  placed.insert(name)
+                  placed.insert(key.keyName)
               }
               reordered.append(contentsOf: labeledRow.filter {
                   !pcModifierKeys.contains($0.keyName) && !placed.contains($0.keyName)

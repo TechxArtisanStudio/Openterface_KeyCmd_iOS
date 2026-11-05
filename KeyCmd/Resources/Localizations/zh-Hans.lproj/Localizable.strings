@@ -117,7 +117,7 @@
 /* --- 通用 – 剪贴板 --- */
 "Clipboard Monitoring" = "剪贴板监控";
 "Enable Clipboard Monitoring" = "启用剪贴板监控";
-"Detects new clipboard content and asks if you want to send it to the target device" = "检测新的剪贴板内容并询问是否发送到目标设备";
+"Detects new clipboard content on the Compose page and asks if you want to send it to the target device" = "检测编辑页内的新剪贴板内容，并询问是否发送到目标设备";
 
 /* --- 通用 – BLE --- */
 "BLE Key Delay" = "BLE 按键延迟";

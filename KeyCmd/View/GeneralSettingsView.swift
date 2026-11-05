@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: Copyright (C) 2025-2026 Openterface KeyCmd contributors
+// See LICENSE for the full license text.
+
 //
 //  GeneralSettingsView.swift
 //  KeyMod
@@ -162,7 +166,7 @@ struct GeneralSettingsView: View {
                 Spacer()
                 Toggle("", isOn: $clipboardMonitoringEnabled)
             }
-            Text("Detects new clipboard content and asks if you want to send it to the target device")
+            Text("Detects new clipboard content on the Compose page and asks if you want to send it to the target device")
                 .font(.caption)
                 .foregroundColor(.secondary)
         }

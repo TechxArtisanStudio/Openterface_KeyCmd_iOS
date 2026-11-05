@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: Copyright (C) 2025-2026 Openterface KeyCmd contributors
+// See LICENSE for the full license text.
+
 import XCTest
 @testable import KeyCmd
 
@@ -31,11 +35,11 @@ final class DataReassemblerTests: XCTestCase {
         reassembler.feed(payload: frag1)
         XCTAssertEqual(results.count, 0)  // Not complete yet
 
-        // Fragment 2: flags=0x02 (LAST+count=2), seq=1, connId=3
+        // Fragment 2: flags=0x02 (count=2, LAST — FRAG_MORE clear), seq=1, connId=3
         let frag2 = Data([0x02, 0x01, 0x03, 0x33, 0x44])
         reassembler.feed(payload: frag2)
         XCTAssertEqual(results.count, 1)
-        XCTAssertEqual(results[0].data, Data([0x11, 0x22, 0x33, 0x44]))
+        XCTAssertEqual(results.first?.data, Data([0x11, 0x22, 0x33, 0x44]))
     }
 
     func testOutOfOrderFragments() {

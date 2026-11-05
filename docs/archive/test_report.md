@@ -1,8 +1,19 @@
 # Keyboard & Mouse Layout - Implementation Test Report
 
+> **ARCHIVED 2026-11-03 — session log, not current documentation.** This records one
+> implementation pass on 2026-04-28. Its file and API names no longer match the code:
+> `KeyboardMouseView.swift` was since split into `KeyCmd/View/BasicKeyboardMouseView.swift`
+> and `KeyCmd/View/ProKeyboardMouseView.swift`; `symbolKeysPortrait` /
+> `symbolKeysLandscape` / `buildDefaultShortcutPages()` / `mapAsciiAlternate()` do not
+> exist, and `KeyRepeatController.shared` is never instantiated (only its static
+> `repeatableKeys` list is used). Its "Known Limitations" entry "Split keyboard mode:
+> Not implemented" is also outdated -- split layout ships in Pro mode. Treat every
+> verification box below as unverified against today's code.
+> See [docs/README.md](../README.md) for the current documentation set.
+
 > Date: 2026-04-28
 > Branch: main
-> Commit: After implementing features from docs/todo.md
+> Commit: After implementing features from [todo.md](todo.md)
 > Build: `xcodebuild` BUILD SUCCEEDED for iPhone 16 simulator
 
 ---

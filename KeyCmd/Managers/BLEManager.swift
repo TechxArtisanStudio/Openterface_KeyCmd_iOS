@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: Copyright (C) 2025-2026 Openterface KeyCmd contributors
+// See LICENSE for the full license text.
+
 import CoreBluetooth
 import Combine
 import SwiftUI
@@ -43,6 +47,8 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     @Published var connectionState: ConnectionState = .disconnected
     @Published var isReconnecting: Bool = false
     @Published var lastConnectedDeviceName: String?
+    /// Flipped on when user tries to send HID without a BLE connection; drives a one-time warning alert.
+    @Published var showNoConnectionWarning: Bool = false
 
     // ponytail: mirrors Android's auto-connect checkbox
     var autoConnectEnabled: Bool {
@@ -397,8 +403,15 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     }
 
     func sendTouchData(data: Data) {
-        guard let connectedPeripheral = connectedPeripheral else {
-            logger.log("No connected peripheral", category: "BLE", level: .error)
+        guard connectionState == .connected,
+              let connectedPeripheral = connectedPeripheral else {
+            // ponytail: one-time warning — only if user hasn't dismissed it before
+            if !UserDefaults.standard.bool(forKey: "didWarnNoBLEConnection") {
+                DispatchQueue.main.async {
+                    UserDefaults.standard.set(true, forKey: "didWarnNoBLEConnection")
+                    self.showNoConnectionWarning = true
+                }
+            }
             return
         }
 

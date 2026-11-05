@@ -5,3 +5,4 @@ KeyCmd.xcodeproj/project.xcworkspace/xcuserdata/*
 .claude/*
 build/*
 .worktrees/
+/.offline-packages/

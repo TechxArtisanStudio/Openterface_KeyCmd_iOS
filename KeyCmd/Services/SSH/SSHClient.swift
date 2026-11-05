@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: Copyright (C) 2025-2026 Openterface KeyCmd contributors
+// See LICENSE for the full license text.
+
 import Foundation
 import Network
 import CSSH
@@ -16,6 +20,15 @@ class SSHClient {
     private var password: String
 
     private let sshQueue = DispatchQueue(label: "ssh.client.queue", qos: .userInitiated)
+
+    /// Guards `session` / `channel` against teardown while the output reader is inside a
+    /// libssh2 call. The reader parks in `poll()` *outside* this lock, so a blocked
+    /// `disconnect()` waits at most one libssh2 call, not one poll timeout.
+    private let libssh2Lock = NSLock()
+
+    /// Signalled when the output reader loop exits. `disconnect()` waits on it so a
+    /// reconnect can never overlap a still-running reader.
+    private var readerDidExit: DispatchSemaphore?
 
     // Connection state
     private(set) var isConnected = false
@@ -210,54 +223,82 @@ class SSHClient {
     }
 
     private func startReadingOutput() {
-        // Use a global concurrent queue — the serial sshQueue can't host an infinite loop
-        LogManager.shared.log("SSH: output reader starting", category: "SSH", level: .info)
+        let exitSignal = DispatchSemaphore(value: 0)
+        let socketFd: Int32
+        libssh2Lock.lock()
+        socketFd = bridge?.libssh2Fd ?? -1
+        if socketFd >= 0 { readerDidExit = exitSignal }
+        libssh2Lock.unlock()
+
+        // Without a socket to wait on, the loop would re-issue reads with no way to park.
+        guard socketFd >= 0 else {
+            LogManager.shared.log("SSH: output reader skipped — bridge socket unavailable", category: "SSH", level: .error)
+            return
+        }
+
+        // The serial sshQueue hosts connect/write/teardown, so the reader needs its own thread.
+        LogManager.shared.log("SSH: output reader starting (fd=\(socketFd))", category: "SSH", level: .info)
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self = self, let channel = self.channel else {
-                LogManager.shared.log("SSH: output reader — channel nil, exiting", category: "SSH", level: .error)
-                return
-            }
+            guard let self = self else { exitSignal.signal(); return }
 
             var buffer = [UInt8](repeating: 0, count: 4096)
-            var eagainCount = 0
+            var idleWaits = 0
 
-            while self.isConnected {
-                let bytesRead = libssh2_channel_read_ex(channel, 0, &buffer, buffer.count)
+            while true {
+                var bytesRead = 0
+                var errorCode: Int32 = 0
+                var blockDirs: Int32 = 0
+                var alive = false
+
+                self.libssh2Lock.lock()
+                if self.isConnected, let channel = self.channel, let session = self.session {
+                    alive = true
+                    bytesRead = Int(libssh2_channel_read_ex(channel, 0, &buffer, buffer.count))
+                    if bytesRead < 0 {
+                        errorCode = Int32(libssh2_session_last_errno(session))
+                        blockDirs = libssh2_session_block_directions(session)
+                    }
+                }
+                self.libssh2Lock.unlock()
+
+                guard alive else { break }   // torn down while we were parked
 
                 if bytesRead > 0 {
                     let data = Data(bytes: buffer, count: bytesRead)
-                    LogManager.shared.log("SSH: channel read \(bytesRead) bytes (total eagain=\(eagainCount)) hex=\(data.hexString)", category: "SSH", level: .debug)
-                    eagainCount = 0
+                    LogManager.shared.log("SSH: channel read \(bytesRead) bytes (idle waits=\(idleWaits)) hex=\(data.hexString)", category: "SSH", level: .debug)
+                    idleWaits = 0
                     self.onOutput?(data)
+                    continue                 // more may already be buffered — do not wait
                 } else if bytesRead == 0 {
-                    // Channel closed
                     LogManager.shared.log("SSH: channel closed (read returned 0)", category: "SSH", level: .info)
                     break
-                } else if bytesRead < 0 {
-                    let errorCode = libssh2_session_last_errno(self.session)
-                    if errorCode == LIBSSH2_ERROR_EAGAIN {
-                        eagainCount += 1
-                        if eagainCount == 1 || eagainCount % 500 == 0 {
-                            LogManager.shared.log("SSH: channel read EAGAIN (no data yet, poll #\(eagainCount))", category: "SSH", level: .debug)
-                        }
-                        // Non-blocking mode, no data available yet
-                        Thread.sleep(forTimeInterval: 0.01)
-                        continue
-                    } else {
-                        // Error
-                        LogManager.shared.log("SSH: channel read error \(errorCode)", category: "SSH", level: .error)
-                        self.onError?("Read error: \(errorCode)")
-                        break
+                } else if errorCode == LIBSSH2_ERROR_EAGAIN {
+                    idleWaits += 1
+                    if idleWaits == 1 || idleWaits % 200 == 0 {
+                        LogManager.shared.log("SSH: channel read EAGAIN, parked \(idleWaits) times", category: "SSH", level: .debug)
                     }
+                    // Sleep in the kernel until the bridge writes BLE payload into the socket
+                    // (POLLIN) or libssh2 can flush again (POLLOUT), instead of spinning here.
+                    if blockDirs == 0 {
+                        self.waitOnSocket(socketFd, events: Int16(POLLIN), timeoutMs: 50)
+                    } else {
+                        self.waitOnSocket(socketFd, events: self.pollEvents(for: blockDirs), timeoutMs: 1000)
+                    }
+                    continue
+                } else {
+                    LogManager.shared.log("SSH: channel read error \(errorCode)", category: "SSH", level: .error)
+                    self.onError?("Read error: \(errorCode)")
+                    break
                 }
             }
             LogManager.shared.log("SSH: output reader exited", category: "SSH", level: .info)
+            exitSignal.signal()
         }
     }
 
     /// Write data to SSH channel
     func write(_ data: Data) {
-        guard let channel = self.channel, isConnected else {
+        guard isConnected else {
             LogManager.shared.log("SSH: write() dropped — channel=\(channel != nil) connected=\(isConnected)", category: "SSH", level: .warning)
             return
         }
@@ -270,6 +311,12 @@ class SSHClient {
             }
             LogManager.shared.log("SSH: write async block executing", category: "SSH", level: .info)
 
+            // Resolved once, outside the loop: the channel/session pointers are re-read per
+            // attempt so a teardown queued behind us can never leave a freed channel in use.
+            self.libssh2Lock.lock()
+            let socketFd = self.bridge?.libssh2Fd ?? -1
+            self.libssh2Lock.unlock()
+
             data.withUnsafeBytes { bufferPointer in
                 guard let baseAddress = bufferPointer.baseAddress else {
                     LogManager.shared.log("SSH: write baseAddress is nil", category: "SSH", level: .error)
@@ -278,20 +325,47 @@ class SSHClient {
                 let bytesToWrite = baseAddress.assumingMemoryBound(to: Int8.self)
 
                 var totalWritten = 0
+                var idleWaits = 0
                 while totalWritten < data.count {
-                    let bytesWritten = libssh2_channel_write_ex(
-                        channel,
-                        0,
-                        bytesToWrite.advanced(by: totalWritten),
-                        data.count - totalWritten
-                    )
+                    var bytesWritten = 0
+                    var errorCode: Int32 = 0
+                    var blockDirs: Int32 = 0
+                    var usable = false
+
+                    self.libssh2Lock.lock()
+                    if self.isConnected, let channel = self.channel, let session = self.session {
+                        usable = true
+                        bytesWritten = Int(libssh2_channel_write_ex(
+                            channel,
+                            0,
+                            bytesToWrite.advanced(by: totalWritten),
+                            data.count - totalWritten
+                        ))
+                        if bytesWritten < 0 {
+                            errorCode = Int32(libssh2_session_last_errno(session))
+                            blockDirs = libssh2_session_block_directions(session)
+                        }
+                    }
+                    self.libssh2Lock.unlock()
+
+                    guard usable else {
+                        LogManager.shared.log("SSH: write stopped — session closed after \(totalWritten)/\(data.count) bytes", category: "SSH", level: .warning)
+                        break
+                    }
 
                     if bytesWritten < 0 {
-                        let errorCode = libssh2_session_last_errno(self.session)
                         if errorCode == LIBSSH2_ERROR_EAGAIN {
-                            // Non-blocking mode, retry
-                            LogManager.shared.log("SSH: write EAGAIN — retrying", category: "SSH", level: .info)
-                            Thread.sleep(forTimeInterval: 0.01)
+                            // The server window is full: park on the socket instead of spinning,
+                            // and never while holding the lock the output reader needs.
+                            idleWaits += 1
+                            if idleWaits == 1 || idleWaits % 100 == 0 {
+                                LogManager.shared.log("SSH: write EAGAIN — parked \(idleWaits) times (\(totalWritten)/\(data.count))", category: "SSH", level: .info)
+                            }
+                            if blockDirs == 0 {
+                                self.waitOnSocket(socketFd, events: Int16(POLLIN), timeoutMs: 50)
+                            } else {
+                                self.waitOnSocket(socketFd, events: self.pollEvents(for: blockDirs), timeoutMs: 1000)
+                            }
                             continue
                         } else {
                             LogManager.shared.log("SSH: write error \(errorCode)", category: "SSH", level: .error)
@@ -300,6 +374,7 @@ class SSHClient {
                         }
                     } else {
                         totalWritten += bytesWritten
+                        idleWaits = 0
                         LogManager.shared.log("SSH: wrote \(bytesWritten) bytes (total \(totalWritten)/\(data.count))", category: "SSH", level: .debug)
                     }
                 }
@@ -318,8 +393,11 @@ class SSHClient {
         sshQueue.async { [weak self] in
             guard let self = self else { return }
 
+            // Outside the lock first, so a parked reader can bail as soon as it wakes.
             self.isConnected = false
+            let readerDidExit = self.readerDidExit
 
+            self.libssh2Lock.lock()
             if let channel = self.channel {
                 libssh2_channel_free(channel)
                 self.channel = nil
@@ -330,9 +408,19 @@ class SSHClient {
                 libssh2_session_free(session)
                 self.session = nil
             }
+            self.readerDidExit = nil
+            self.libssh2Lock.unlock()
 
+            // Closing the socketpair makes any in-flight poll() return immediately.
             self.bridge?.stop()
             self.bridge = nil
+
+            // libssh2 objects are freed above, so the reader must be gone before a
+            // reconnect installs a new session on this instance.
+            if let readerDidExit = readerDidExit,
+               case .timedOut = readerDidExit.wait(timeout: .now() + 1.5) {
+                LogManager.shared.log("SSH: output reader did not exit within 1.5s", category: "SSH", level: .warning)
+            }
 
             // NOTE: Do NOT call libssh2_exit() here — it tears down global state
             // and causes issues on reconnect. libssh2_init() is ref-counted, so
@@ -341,19 +429,29 @@ class SSHClient {
         }
     }
 
-    /// Wait for socket to be ready for reading and/or writing based on libssh2's block directions.
-    private func waitForSocket(_ socketFd: Int32, session: OpaquePointer) {
-        let dirs = libssh2_session_block_directions(session)
+    /// Map libssh2's block directions onto poll() events.
+    private func pollEvents(for dirs: Int32) -> Int16 {
         var events: Int16 = 0
         if (dirs & LIBSSH2_SESSION_BLOCK_INBOUND)  != 0 { events |= Int16(POLLIN) }
         if (dirs & LIBSSH2_SESSION_BLOCK_OUTBOUND) != 0 { events |= Int16(POLLOUT) }
         if events == 0 { events = Int16(POLLIN) }  // default: wait for readable
+        return events
+    }
 
+    /// Park this thread until `socketFd` is ready. Caller must already hold the resolved
+    /// event mask — this touches no libssh2 state, so it is safe to run unlocked.
+    private func waitOnSocket(_ socketFd: Int32, events: Int16, timeoutMs: Int32) {
+        guard socketFd >= 0 else { return }
         var pfd = pollfd(fd: socketFd, events: events, revents: 0)
-        let rc = poll(&pfd, 1, 1000)  // 1s timeout
+        let rc = poll(&pfd, 1, timeoutMs)
         if rc < 0 && errno != EINTR {
             LogManager.shared.log("SSH: poll() failed errno=\(errno)", category: "SSH", level: .error)
         }
+    }
+
+    /// Wait for socket to be ready for reading and/or writing based on libssh2's block directions.
+    private func waitForSocket(_ socketFd: Int32, session: OpaquePointer) {
+        waitOnSocket(socketFd, events: pollEvents(for: libssh2_session_block_directions(session)), timeoutMs: 1000)
     }
 
     /// Retry a libssh2 call while it returns LIBSSH2_ERROR_EAGAIN.
@@ -467,9 +565,13 @@ final class POSIXSocketBridge: TransportListener {
 extension SSHClient {
     /// Resize terminal window
     func resizeTerminal(width: Int, height: Int) {
-        guard let channel = self.channel, isConnected else { return }
+        guard isConnected else { return }
         sshQueue.async { [weak self] in
-            guard self != nil else { return }
+            guard let self = self else { return }
+            // Single non-blocking call — hold the lock for the call itself, nothing more.
+            self.libssh2Lock.lock()
+            defer { self.libssh2Lock.unlock() }
+            guard self.isConnected, let channel = self.channel else { return }
             libssh2_channel_request_pty_size_ex(channel, Int32(width), Int32(height), 0, 0)
         }
     }

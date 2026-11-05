@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: Copyright (C) 2025-2026 Openterface KeyCmd contributors
+// See LICENSE for the full license text.
+
 import Foundation
 
 /// Executes a sequence of AgentLLMSteps via SSH (terminal), BLE HID (keyboard), and/or MacroManager.

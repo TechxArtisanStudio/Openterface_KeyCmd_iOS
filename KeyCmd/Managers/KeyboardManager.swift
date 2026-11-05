@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: Copyright (C) 2025-2026 Openterface KeyCmd contributors
+// See LICENSE for the full license text.
+
 //
 //  KeyboardManager.swift
 //  KeyMod
@@ -505,20 +509,34 @@ class KeyboardManager: ObservableObject {
             if key == "Caps" { capsLockActive.toggle(); sendCapsLockState(); return }
             let keyAlias = mapKeyAlias(key)
 
-            guard let hid = hidUsageID(forKey: keyAlias) else { return }
-
-            // Add Shift for uppercase letters if needed. HID key identity is
-            // position-based, so "A" and "a" resolve to the same key; only the
-            // shift bit distinguishes them.
-            if keyAlias.count == 1, let ch = keyAlias.first, ch.isLetter {
-                let wantUppercase = ch.isUppercase
-                if wantUppercase != capsLockActive {
-                    keyboardState.updateModifierState(key: .keyboardLeftShift, pressed: true)
+            // The active layout is authoritative: it decides which physical key a
+            // name refers to, so QWERTZ/AZERTY/JIS need no string remapping.
+            var hid = hidUsageID(forKey: keyAlias)
+            var needsShift = false
+            if hid == nil, keyAlias.count == 1, let ch = keyAlias.first, !ch.isLetter {
+                // Symbols the layout does not name fall back to the ASCII table,
+                // which also reports whether the character needs Shift ("@", "#").
+                let result = Keymod.hidCode(for: ch)
+                if let code = UInt8(exactly: result.code) {
+                    hid = HIDUsageID(rawValue: code)
+                    needsShift = result.needsShift
                 }
             }
+            guard let hid else { return }
 
-            let finalModByte = keyboardState.modifierByte
-            sendKeyboardData(modifier: finalModByte, keyCodes: [hid.rawValue, 0, 0, 0, 0, 0])
+            // Shift is derived per key and OR'd into this report only: uppercase
+            // letters need it unless Caps Lock already provides it, ASCII symbols
+            // carry their own flag. Deliberately not written back to keyboardState,
+            // so an explicit <SHIFT> tag stays latched across the tokens it wraps.
+            let wantShift: Bool
+            if keyAlias.count == 1, let ch = keyAlias.first, ch.isLetter {
+                wantShift = ch.isUppercase != capsLockActive
+            } else {
+                wantShift = needsShift
+            }
+            let modByte = keyboardState.modifierByte | (wantShift ? KMod.shift.rawValue : 0)
+
+            sendKeyboardData(modifier: modByte, keyCodes: [hid.rawValue, 0, 0, 0, 0, 0])
         }
         // Hold for 50 ms on background thread — no main-queue involvement
         usleep(50_000)

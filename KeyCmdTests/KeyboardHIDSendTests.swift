@@ -190,12 +190,17 @@ final class KeyboardHIDSendTests: XCTestCase {
 
         XCTAssertEqual(
             Array(bottomRow.prefix(7).map(\.keyName)),
-            ["Menu", "LeftCtrl", "LeftAlt", "LeftWin", "Space", "RightWin", "RightAlt"]
+            ["Fn", "LeftCtrl", "LeftAlt", "LeftWin", "Space", "RightWin", "RightAlt"]
         )
-        XCTAssertEqual(layout.keyDefinition(for: "Menu")?.label, "fn")
+        XCTAssertEqual(layout.keyDefinition(for: "Fn")?.label, "fn")
         XCTAssertEqual(layout.keyDefinition(for: "LeftCtrl")?.label, "⌃")
         XCTAssertEqual(layout.keyDefinition(for: "LeftAlt")?.label, "⌥")
         XCTAssertEqual(layout.keyDefinition(for: "LeftWin")?.label, "⌘")
-        XCTAssertNil(layout.keyDefinition(for: "RightCtrl"), "Apple compact keyboards have no right Control")
+
+        // Relabelling must not disturb the usage ID the key actually sends.
+        XCTAssertEqual(layout.keyDefinition(for: "Fn")?.hidUsageID, .keyboardFn)
+        XCTAssertEqual(layout.keyDefinition(for: "LeftWin")?.hidUsageID, .keyboardLeftGUI)
+        // The bundled ANSI row keeps a right Control — full-size Apple keyboards have one.
+        XCTAssertEqual(layout.keyDefinition(for: "RightCtrl")?.hidUsageID, .keyboardRightCtrl)
     }
 }

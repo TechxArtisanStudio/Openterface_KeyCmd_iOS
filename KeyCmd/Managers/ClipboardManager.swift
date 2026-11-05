@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: Copyright (C) 2025-2026 Openterface KeyCmd contributors
+// See LICENSE for the full license text.
+
 //
 //  ClipboardManager.swift
 //  KeyMod
@@ -9,6 +13,8 @@ import SwiftUI
 import UIKit
 
 class ClipboardManager: NSObject, ObservableObject {
+    static let shared = ClipboardManager()
+
     @Published var lastClipboardContent: String = ""
     @Published var showClipboardPrompt = false
     @Published var pendingClipboardContent: String = ""
@@ -18,15 +24,10 @@ class ClipboardManager: NSObject, ObservableObject {
     private var monitoringTimer: Timer?
     private let logger = LogManager.shared
     
-    override init() {
-        super.init()
-        // Initialize with current clipboard content
-        updateClipboardContent()
-    }
-    
     // MARK: - Clipboard Monitoring
     
-    /// Start monitoring clipboard changes
+    /// Start monitoring clipboard changes. Only the Compose page may call this,
+    /// so the pasteboard is never read anywhere else in the app.
     func startMonitoring() {
         // Check if monitoring is enabled in settings
         let defaults = UserDefaults.standard
@@ -124,9 +125,19 @@ class ClipboardManager: NSObject, ObservableObject {
         logger.log("Clipboard content set to: \(content.prefix(50))...", category: "Clipboard")
     }
     
-    /// Get current clipboard content
+    /// Read the current clipboard content.
+    ///
+    /// Reuses the snapshot the monitor already read when the pasteboard has not
+    /// changed since, so one copy does not trigger two system paste notices.
     func getClipboardContent() -> String {
-        return UIPasteboard.general.string ?? ""
+        let board = UIPasteboard.general
+        if isMonitoring, board.changeCount == changeCount, !lastClipboardContent.isEmpty {
+            return lastClipboardContent
+        }
+        let content = board.string ?? ""
+        changeCount = board.changeCount
+        lastClipboardContent = content
+        return content
     }
     
     /// Clear clipboard

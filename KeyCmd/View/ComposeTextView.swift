@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: Copyright (C) 2025-2026 Openterface KeyCmd contributors
+// See LICENSE for the full license text.
+
 import SwiftUI
 
 struct SavedTextItem: Identifiable, Hashable {
@@ -300,6 +304,7 @@ struct ComposeTextView: View {
     @ObservedObject private var aiSettings = AISettings.shared
     @ObservedObject private var profileMgr = ShortcutProfileManager.shared
     @ObservedObject private var store: SavedTextStore = SavedTextStore.shared
+    private let clipboardManager = ClipboardManager.shared
 
     @State private var text: String = ""
     @State private var sending = false
@@ -393,6 +398,9 @@ struct ComposeTextView: View {
                         }
                         actionBtn(icon: "bookmark.fill", color: .secondary) {
                             showLibrarySheet = true
+                        }
+                        actionBtn(icon: "doc.on.clipboard", color: .secondary) {
+                            pasteFromClipboard()
                         }
                         Spacer()
                         let btnDisabled = !canSend
@@ -543,6 +551,14 @@ struct ComposeTextView: View {
         let asciiText = fullText.unicodeScalars.filter { $0.value <= 127 }.map { String($0) }.joined()
         keyboardManager.handleTextInput(asciiText)
         pendingSendText = ""
+    }
+
+    // MARK: - Clipboard
+
+    private func pasteFromClipboard() {
+        let content = clipboardManager.getClipboardContent()
+        guard !content.isEmpty else { return }
+        text = text.isEmpty ? content : text + content
     }
 
     // MARK: - Alerts

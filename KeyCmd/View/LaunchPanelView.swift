@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: Copyright (C) 2025-2026 Openterface KeyCmd contributors
+// See LICENSE for the full license text.
+
 //
 //  LaunchPanelView.swift
 //  KeyCmd
@@ -9,6 +13,7 @@ import SwiftUI
 
 struct LaunchPanelView: View {
     @ObservedObject var launchPanelManager: LaunchPanelManager
+    @ObservedObject private var themeManager = ThemeManager.shared
     @State private var selectedMode: ViewType = .keyboardMouseBasic
     @State private var rememberChoice = true
     
@@ -103,7 +108,7 @@ struct LaunchPanelView: View {
                 HStack(spacing: 12) {
                     Image(systemName: rememberChoice ? "checkmark.square.fill" : "square")
                         .font(.system(size: 20))
-                        .foregroundColor(rememberChoice ? .blue : .gray)
+                        .foregroundColor(rememberChoice ? themeManager.accentColor : .gray)
                     
                     Text("Remember this choice and auto-enter this mode")
                         .font(.system(size: 14, weight: .regular))
@@ -137,7 +142,7 @@ struct LaunchPanelView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .frame(height: 52)
-                        .background(Color.blue)
+                        .background(themeManager.accentColor)
                         .foregroundColor(.white)
                         .cornerRadius(12)
                     }
@@ -151,7 +156,7 @@ struct LaunchPanelView: View {
                             .frame(maxWidth: .infinity)
                             .frame(height: 48)
                             .background(Color(UIColor.secondarySystemBackground))
-                            .foregroundColor(.blue)
+                            .foregroundColor(themeManager.accentColor)
                             .cornerRadius(12)
                     }
                 }
@@ -175,6 +180,7 @@ struct ModeCard: View {
     let isSelected: Bool
     let isBeta: Bool
     let action: () -> Void
+    @ObservedObject private var themeManager = ThemeManager.shared
     
     init(title: LocalizedStringKey, icon: String, isSelected: Bool, isBeta: Bool = false, action: @escaping () -> Void) {
         self.title = title
@@ -190,7 +196,7 @@ struct ModeCard: View {
                 VStack(spacing: 12) {
                     Image(systemName: icon)
                         .font(.system(size: 28))
-                        .foregroundColor(isSelected ? .white : .blue)
+                        .foregroundColor(isSelected ? .white : themeManager.accentColor)
                     
                     HStack(spacing: 4) {
                         Text(title)
@@ -208,7 +214,7 @@ struct ModeCard: View {
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 110)
-                .background(isSelected ? Color.blue : Color(UIColor.secondarySystemBackground))
+                .background(isSelected ? themeManager.accentColor : Color(UIColor.secondarySystemBackground))
                 .cornerRadius(12)
             }
         }

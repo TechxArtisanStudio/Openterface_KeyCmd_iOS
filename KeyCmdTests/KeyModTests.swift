@@ -1,9 +1,6 @@
-//
-//  KeyModTests.swift
-//  KeyModTests
-//
-//  Created by 彭志坚 on 2025/6/19.
-//
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: Copyright (C) 2025-2026 Openterface KeyCmd contributors
+// See LICENSE for the full license text.
 
 import Testing
 @testable import KeyCmd
@@ -21,13 +18,14 @@ struct KeyModTests {
     }
 
     @Test func parsesNestedModifierToken() {
-        // Nested modifier tags form a macro, not a single token; parseToken
-        // only understands one tag/character at a time.
+        // km_parse_token resolves one token in isolation; nested modifier tags are a
+        // compound expression, which is km_parse_macro's job (open ORs the modifier in,
+        // close ANDs it out).
         let tokens = Keymod.parseMacro("<CTRL><SHIFT>A</SHIFT></CTRL>")
 
         #expect(tokens.count == 1)
-        #expect(tokens[0].hidCode == 0x04)
-        #expect(tokens[0].modifiers == KMod.ctrl.union(.shift).rawValue)
+        #expect(tokens.first?.hidCode == 0x04)
+        #expect(tokens.first?.modifiers == KMod.ctrl.union(.shift).rawValue)
     }
 
     @Test func parsesMacroAndSkipsDelayTokens() {

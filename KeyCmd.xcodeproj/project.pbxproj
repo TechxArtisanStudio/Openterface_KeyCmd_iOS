@@ -452,6 +452,7 @@
 				);
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = "$(SRCROOT)/KeyCmd/Openterface_Core/include";
+				INFOPLIST_FILE = "KeyCmd-Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "KeyCmd needs microphone access for voice input.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "KeyCmd uses speech recognition to convert your voice into text that can be typed on the target device.";
@@ -473,7 +474,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_OBJC_BRIDGING_HEADER = "KeyCmd/KeyCmd-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -494,6 +495,7 @@
 				);
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = "$(SRCROOT)/KeyCmd/Openterface_Core/include";
+				INFOPLIST_FILE = "KeyCmd-Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "KeyCmd needs microphone access for voice input.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "KeyCmd uses speech recognition to convert your voice into text that can be typed on the target device.";
@@ -515,7 +517,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_OBJC_BRIDGING_HEADER = "KeyCmd/KeyCmd-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
