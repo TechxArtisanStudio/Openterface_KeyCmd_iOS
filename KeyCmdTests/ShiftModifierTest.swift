@@ -139,7 +139,9 @@ class ShiftModifierTest: XCTestCase {
 
         // 手动添加 Shift 到 activeModifiers（模拟按下 Shift）
         keyboardManager.activeModifiers.insert("Shift")
-        print("Manually added Shift to activeModifiers")
+        // Also update KeyboardState to match (since handleKeyDown now reads from keyboardState)
+        keyboardManager.keyboardState.updateModifierState(key: .keyboardLeftShift, pressed: true)
+        print("Manually added Shift to activeModifiers and keyboardState")
 
         // 按下 A 键
         print("\n--- Press A (with Shift in activeModifiers) ---")
@@ -160,6 +162,7 @@ class ShiftModifierTest: XCTestCase {
         // 清理
         keyboardManager.handleKeyUp("a")
         keyboardManager.activeModifiers.remove("Shift")
+        keyboardManager.keyboardState.updateModifierState(key: .keyboardLeftShift, pressed: false)
 
         print("========== Test Complete ==========\n")
     }

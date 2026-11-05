@@ -6,6 +6,8 @@ struct MultiTouchKeyboardContainer: UIViewRepresentable {
 
     /// Layout description for computing key frames.
     let layout: KeyboardLayoutDescription
+    /// Frames measured from the rendered key views. Empty until the first layout pass.
+    let measuredFrames: [KeyRegistration]
     /// Maps key names to their KeyType.
     let keyTypeResolver: (String) -> KeyType
     /// Called when a key is pressed.
@@ -20,7 +22,7 @@ struct MultiTouchKeyboardContainer: UIViewRepresentable {
         view.onPress = onPress
         view.onRelease = onRelease
         view.onMoved = onMoved
-        view.registry.computeFrames(from: layout, keyTypeResolver: keyTypeResolver)
+        syncFrames(into: view)
         return view
     }
 
@@ -30,6 +32,14 @@ struct MultiTouchKeyboardContainer: UIViewRepresentable {
         uiView.onRelease = onRelease
         uiView.onMoved = onMoved
         // Recompute frames when layout changes (rotation, resize)
-        uiView.registry.computeFrames(from: layout, keyTypeResolver: keyTypeResolver)
+        syncFrames(into: uiView)
+    }
+
+    private func syncFrames(into view: MultiTouchKeyboardContainerView) {
+        if measuredFrames.isEmpty {
+            view.registry.computeFrames(from: layout, keyTypeResolver: keyTypeResolver)
+        } else {
+            view.registry.setRegistrations(measuredFrames)
+        }
     }
 }

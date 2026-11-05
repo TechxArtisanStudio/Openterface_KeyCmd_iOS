@@ -12,46 +12,86 @@ struct KeyboardLayoutLoader {
     /// Optional override for the layouts directory (used in tests).
     static var layoutsDirectoryOverride: String?
 
-    static func load(locale: KeyboardLocale, targetOS: TargetOS) throws -> KeyboardLayoutDefinition {
-        let filename = "\(locale.rawValue.lowercased())_\(targetOS.rawValue.lowercased()).json"
+    /// Loads a layout, preferring a file that matches the physical keyboard standard.
+    ///
+    /// A locale can ship several physical variants (for Japanese: ANSI and JIS).
+    /// The variant file is `\(locale)_\(os)_\(standard).json`; the plain
+    /// `\(locale)_\(os).json` is the fallback when no variant exists.
+    static func load(
+        locale: KeyboardLocale,
+        targetOS: TargetOS,
+        physicalStandard: KeyboardLocale.PhysicalStandard? = nil
+    ) throws -> KeyboardLayoutDefinition {
+        let candidates = filenames(locale: locale, targetOS: targetOS, physicalStandard: physicalStandard)
         var fileURL: URL?
-
-        // 1. Try override directory first (for testing - takes priority)
-        if let override = layoutsDirectoryOverride {
-            let url = URL(fileURLWithPath: override).appendingPathComponent(filename)
-            if FileManager.default.fileExists(atPath: url.path) {
-                // print("Using override: \(url.path)") // Debug
+        for filename in candidates {
+            if let url = resolveURL(filename: filename) {
                 fileURL = url
+                break
             }
         }
 
-        // 2. Try bundle resource
-        if fileURL == nil {
-            if let url = Bundle.main.url(forResource: filename, withExtension: nil, subdirectory: "KeyboardLayouts") {
-                fileURL = url
-            } else if let url = Bundle.main.url(forResource: filename, withExtension: nil) {
-                fileURL = url
-            }
-        }
-
-        // 3. Try filesystem relative to project root
-        if fileURL == nil {
-            let root = findProjectRoot()
-            let url = URL(fileURLWithPath: root).appendingPathComponent("Resources/KeyboardLayouts/").appendingPathComponent(filename)
-            if FileManager.default.fileExists(atPath: url.path) {
-                fileURL = url
-            }
-        }
-
-        guard let url = fileURL, FileManager.default.fileExists(atPath: url.path) else {
-            throw KeyboardLayoutError.fileNotFound(filename)
+        guard let url = fileURL else {
+            throw KeyboardLayoutError.fileNotFound(candidates.last ?? "")
         }
 
         let data = try Data(contentsOf: url)
         let decoder = JSONDecoder()
         let jsonLayout = try decoder.decode(JSONKeyboardLayout.self, from: data)
 
-        return try convert(jsonLayout)
+        let layout = try convert(jsonLayout)
+
+        // Validate layout
+        let validation = KeyboardLayoutValidator.validate(layout)
+        if !validation.isValid {
+            let msg = validation.errors.map(\.localizedDescription).joined(separator: "; ")
+            throw KeyboardLayoutError.invalidFormat(msg)
+        }
+        #if DEBUG
+        for w in validation.warnings {
+            print("⚠️ Layout warning: \(w)")
+        }
+        #endif
+
+        return layout
+    }
+
+    private static func filenames(
+        locale: KeyboardLocale,
+        targetOS: TargetOS,
+        physicalStandard: KeyboardLocale.PhysicalStandard?
+    ) -> [String] {
+        let base = "\(locale.rawValue.lowercased())_\(targetOS.rawValue.lowercased())"
+        let standard = physicalStandard ?? locale.physicalStandard
+        return ["\(base)_\(standard.rawValue.lowercased()).json", "\(base).json"]
+    }
+
+    private static func resolveURL(filename: String) -> URL? {
+        // 1. Try override directory first (for testing - takes priority)
+        if let override = layoutsDirectoryOverride {
+            let url = URL(fileURLWithPath: override).appendingPathComponent(filename)
+            if FileManager.default.fileExists(atPath: url.path) {
+                return url
+            }
+        }
+
+        // 2. Try bundle resource
+        if let url = Bundle.main.url(forResource: filename, withExtension: nil, subdirectory: "KeyboardLayouts") {
+            return url
+        }
+        if let url = Bundle.main.url(forResource: filename, withExtension: nil) {
+            return url
+        }
+
+        // 3. Try filesystem relative to project root
+        let root = findProjectRoot()
+        let url = URL(fileURLWithPath: root)
+            .appendingPathComponent("Resources/KeyboardLayouts/")
+            .appendingPathComponent(filename)
+        if FileManager.default.fileExists(atPath: url.path) {
+            return url
+        }
+        return nil
     }
 
     /// Find project root by walking up from current directory or using environment variable
@@ -97,6 +137,21 @@ struct KeyboardLayoutLoader {
             }
         }
 
+        // A physical keyboard cannot have two keys in the same slot. Catch
+        // authoring mistakes such as a missing Y key leaving a duplicate
+        // column, which otherwise silently shifts a row's layout.
+        for (rowIndex, entries) in tempRows.enumerated() {
+            var seen: [Int: String] = [:]
+            for (column, def) in entries {
+                if let existing = seen[column] {
+                    throw KeyboardLayoutError.invalidFormat(
+                        "Duplicate position (row \(rowIndex), column \(column)): \(existing), \(def.keyName)"
+                    )
+                }
+                seen[column] = def.keyName
+            }
+        }
+
         let rows: [KeyRow] = tempRows.map { $0.sorted { $0.0 < $1.0 }.map { $0.1 } }
 
         let metadata = LayoutMetadata(
@@ -133,6 +188,13 @@ struct KeyboardLayoutLoader {
         } else {
             type = .regular
         }
+        // Parse deadKey field from JSON
+        let deadKey: DeadKey?
+        if let deadKeyStr = json.deadKey {
+            deadKey = DeadKey(rawValue: deadKeyStr)
+        } else {
+            deadKey = nil
+        }
         return KeyDefinition(
             keyName: json.keyName,
             label: json.label,
@@ -141,6 +203,7 @@ struct KeyboardLayoutLoader {
             keyCode: json.keyCode,
             hidUsageID: uid,
             keyType: type,
+            deadKey: deadKey,
             widthMultiplier: json.width,
             heightMultiplier: json.height
         )
@@ -179,6 +242,7 @@ private struct JSONKeyDefinition: Decodable {
     let height: CGFloat?
     let row: Int
     let column: Int
+    let deadKey: String?
 }
 
 /// Error types for layout loading.

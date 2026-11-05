@@ -17,8 +17,9 @@ final class KeyboardLayoutManager: ObservableObject {
 
     // MARK: - Constants
 
-    private static let keyboardLocaleKey = "AISettings.keyboardLocale"
-    private static let keyboardAutoDetectKey = "AISettings.keyboardAutoDetect"
+    static let keyboardLocaleKey = "AISettings.keyboardLocale"
+    static let keyboardAutoDetectKey = "AISettings.keyboardAutoDetect"
+    static let physicalStandardKey = "AISettings.physicalKeyboardStandard"
 
     // MARK: - Published Properties
 
@@ -30,6 +31,22 @@ final class KeyboardLayoutManager: ObservableObject {
         didSet {
             guard currentKeyboardLocale != oldValue else { return }
             UserDefaults.standard.set(currentKeyboardLocale.rawValue, forKey: Self.keyboardLocaleKey)
+            if !Self.supportedPhysicalStandards(for: currentKeyboardLocale).contains(physicalStandard) {
+                physicalStandard = currentKeyboardLocale.physicalStandard
+            }
+            refreshCurrentLayout()
+        }
+    }
+
+    /// Physical keyboard standard of the hardware in front of the user.
+    ///
+    /// A locale can have several physical variants (Japanese ships ANSI and JIS
+    /// files). This describes the keyboard, not the target machine, so the
+    /// target OS's input source stays untouched.
+    @Published var physicalStandard: KeyboardLocale.PhysicalStandard {
+        didSet {
+            guard physicalStandard != oldValue else { return }
+            UserDefaults.standard.set(physicalStandard.rawValue, forKey: Self.physicalStandardKey)
             refreshCurrentLayout()
         }
     }
@@ -56,25 +73,26 @@ final class KeyboardLayoutManager: ObservableObject {
     // MARK: - Init
 
     private init() {
-        // Restore saved layout settings
-        let savedLocaleRaw = UserDefaults.standard.string(forKey: Self.keyboardLocaleKey)
-        let savedSavedLocale = savedLocaleRaw.flatMap { KeyboardLocale(rawValue: $0) } ?? .us
-        let savedAutoDetect = UserDefaults.standard.object(forKey: Self.keyboardAutoDetectKey) as? Bool
-
-        // If auto-detection is enabled and no saved settings, use system locale
-        let resolvedLocale: KeyboardLocale
-        if savedAutoDetect == true && savedLocaleRaw == nil {
-            resolvedLocale = KeyboardLocale.fromSystemLocale()
-        } else {
-            resolvedLocale = savedSavedLocale
-        }
+        // Restore the last used layout. A saved locale is authoritative: it must
+        // survive relaunches regardless of the auto-detect toggle.
+        let resolvedLocale = Self.restoreLocale()
+        let savedAutoDetect = UserDefaults.standard.object(forKey: Self.keyboardAutoDetectKey) as? Bool ?? false
+        let resolvedStandard = Self.restorePhysicalStandard(for: resolvedLocale)
 
         let targetOS = AISettings.shared.targetOS
 
         // Initialize all stored properties first
         self.currentKeyboardLocale = resolvedLocale
-        self.autoDetectLocale = savedAutoDetect ?? false
-        self.currentLayout = Self.createLayout(for: targetOS, locale: resolvedLocale)
+        self.autoDetectLocale = savedAutoDetect
+        self.physicalStandard = resolvedStandard
+        self.currentLayout = Self.createLayout(
+            for: targetOS,
+            locale: resolvedLocale,
+            physicalStandard: resolvedStandard
+        )
+
+        // Record the effective layout so the next launch restores exactly this one.
+        UserDefaults.standard.set(resolvedLocale.rawValue, forKey: Self.keyboardLocaleKey)
 
         logger.log("KeyboardLayoutManager initialized: \(resolvedLocale.rawValue) layout for \(targetOS.rawValue)", category: "Keyboard")
 
@@ -83,18 +101,59 @@ final class KeyboardLayoutManager: ObservableObject {
         setupKeyboardLayoutDetection()
     }
 
+    /// Locale to restore at launch.
+    ///
+    /// A locale the user has selected before always wins. Auto-detection only
+    /// provides the initial value on first launch, when nothing has been saved yet.
+    static func restoreLocale(defaults: UserDefaults = .standard) -> KeyboardLocale {
+        if let raw = defaults.string(forKey: keyboardLocaleKey),
+           let saved = KeyboardLocale(rawValue: raw) {
+            return saved
+        }
+        let autoDetect = defaults.object(forKey: keyboardAutoDetectKey) as? Bool ?? false
+        return autoDetect ? KeyboardLocale.fromSystemLocale() : .us
+    }
+
+    /// Physical keyboard standard to restore at launch, defaulting to the
+    /// locale's own standard (Japanese → JIS, US → ANSI, others → ISO).
+    static func restorePhysicalStandard(
+        for locale: KeyboardLocale,
+        defaults: UserDefaults = .standard
+    ) -> KeyboardLocale.PhysicalStandard {
+        if let raw = defaults.string(forKey: physicalStandardKey),
+           let saved = KeyboardLocale.PhysicalStandard(rawValue: raw),
+           supportedPhysicalStandards(for: locale).contains(saved) {
+            return saved
+        }
+        return locale.physicalStandard
+    }
+
+    /// Physical standards authored for a locale. Japanese has both the JIS
+    /// keyboard and the ANSI keyboard used with a Japanese input source.
+    static func supportedPhysicalStandards(
+        for locale: KeyboardLocale
+    ) -> [KeyboardLocale.PhysicalStandard] {
+        locale == .jp ? [.jis, .ansi] : [locale.physicalStandard]
+    }
+
     // MARK: - Public API
 
     /// Get all supported layouts
     var supportedLocales: [KeyboardLocale] { KeyboardLocale.allCases }
 
-    /// Get layout for specified OS and Locale (with caching)
-    func layout(for targetOS: TargetOS, locale: KeyboardLocale) -> KeyboardLayoutDefinition {
-        let key = Self.cacheKey(targetOS, locale)
+    /// Get layout for specified OS and Locale (with caching).
+    /// Omitting `physicalStandard` yields the locale's default variant.
+    func layout(
+        for targetOS: TargetOS,
+        locale: KeyboardLocale,
+        physicalStandard: KeyboardLocale.PhysicalStandard? = nil
+    ) -> KeyboardLayoutDefinition {
+        let standard = physicalStandard ?? locale.physicalStandard
+        let key = Self.cacheKey(targetOS, locale, standard)
         if let cached = layoutCache[key] {
             return cached
         }
-        let layout = Self.createLayout(for: targetOS, locale: locale)
+        let layout = Self.createLayout(for: targetOS, locale: locale, physicalStandard: standard)
         layoutCache[key] = layout
         return layout
     }
@@ -107,12 +166,7 @@ final class KeyboardLayoutManager: ObservableObject {
     /// Resolve display key name to HID key name using current layout
     func hidKeyName(for keyName: String) -> String {
         if keyName == "Esc" { return "Escape" }
-        let keyDef = currentLayout.keyDefinition(for: keyName)
-        let resolved = keyDef?.keyCode ?? keyName
-        if keyName == "¥" || keyName == "\\" || keyName == "@" || keyName == "^" || keyName == ":" {
-            print("DEBUG LayoutManager hidKeyName: keyName=\(keyName), keyDef=\(keyDef != nil ? "found" : "nil"), keyCode=\(keyDef?.keyCode ?? "nil"), resolved=\(resolved)")
-        }
-        return resolved
+        return currentLayout.keyDefinition(for: keyName)?.keyCode ?? keyName
     }
 
     /// Preload all layout combinations
@@ -120,7 +174,7 @@ final class KeyboardLayoutManager: ObservableObject {
         DispatchQueue.global(qos: .utility).async {
             for os in TargetOS.allCases {
                 for locale in KeyboardLocale.allCases {
-                    _ = self.layout(for: os, locale: locale)
+                    _ = self.layout(for: os, locale: locale, physicalStandard: locale.physicalStandard)
                 }
             }
             self.logger.log("All keyboard layouts preloaded", category: "Keyboard")
@@ -130,6 +184,15 @@ final class KeyboardLayoutManager: ObservableObject {
     /// Get current active layout name
     var activeLayoutName: String {
         currentLayout.metadata.name
+    }
+
+    /// Physical keyboard standards offered in the UI. Only variants that are
+    /// actually authored for the current locale + target OS are listed.
+    var availablePhysicalStandards: [KeyboardLocale.PhysicalStandard] {
+        if currentKeyboardLocale == .jp, AISettings.shared.targetOS == .macOS {
+            return [.jis, .ansi]
+        }
+        return [currentKeyboardLocale.physicalStandard]
     }
 
     /// Cache statistics
@@ -144,19 +207,28 @@ final class KeyboardLayoutManager: ObservableObject {
 
     // MARK: - Layout Creation
 
-    private static func cacheKey(_ os: TargetOS, _ locale: KeyboardLocale) -> String {
-        "\(os.rawValue)_\(locale.rawValue)"
+    private static func cacheKey(
+        _ os: TargetOS,
+        _ locale: KeyboardLocale,
+        _ physicalStandard: KeyboardLocale.PhysicalStandard
+    ) -> String {
+        "\(os.rawValue)_\(locale.rawValue)_\(physicalStandard.rawValue)"
     }
 
     /// Create layout for specified OS and Locale (delegated to corresponding builder)
-    static func createLayout(for targetOS: TargetOS, locale: KeyboardLocale) -> KeyboardLayoutDefinition {
+    static func createLayout(
+        for targetOS: TargetOS,
+        locale: KeyboardLocale,
+        physicalStandard: KeyboardLocale.PhysicalStandard? = nil
+    ) -> KeyboardLayoutDefinition {
+        let standard = physicalStandard ?? locale.physicalStandard
         switch targetOS {
         case .windows:
-            return WindowsLayoutBuilder.build(for: locale)
+            return WindowsLayoutBuilder.build(for: locale, physicalStandard: standard)
         case .macOS:
-            return MacLayoutBuilder.build(for: locale)
+            return MacLayoutBuilder.build(for: locale, physicalStandard: standard)
         case .linux:
-            return LinuxLayoutBuilder.build(for: locale)
+            return LinuxLayoutBuilder.build(for: locale, physicalStandard: standard)
         }
     }
 
@@ -166,7 +238,19 @@ final class KeyboardLayoutManager: ObservableObject {
         // Preload commonly used locales for current targetOS
         let priorityLocales: [KeyboardLocale] = [.us, .uk, .de, .fr, .jp, .cn]
         for locale in priorityLocales {
-            _ = layout(for: AISettings.shared.targetOS, locale: locale)
+            _ = layout(
+                for: AISettings.shared.targetOS,
+                locale: locale,
+                physicalStandard: locale.physicalStandard
+            )
+            // Warm the user's own variant too when it differs from the default.
+            if locale == currentKeyboardLocale, physicalStandard != locale.physicalStandard {
+                _ = layout(
+                    for: AISettings.shared.targetOS,
+                    locale: locale,
+                    physicalStandard: physicalStandard
+                )
+            }
         }
     }
 
@@ -181,22 +265,9 @@ final class KeyboardLayoutManager: ObservableObject {
     }
 
     private func setupKeyboardLayoutDetection() {
-        // 1. 首先尝试检测当前活动的键盘布局
-        if let detectedLayout = KeyboardLocale.detectActiveKeyboardLayout() {
-            currentKeyboardLocale = detectedLayout
-            logger.log("Detected active keyboard layout: \(detectedLayout.rawValue)", category: "Keyboard")
-            refreshCurrentLayout()
-            return
-        }
-
-        // 2. 如果检测失败，使用系统区域设置
-        if autoDetectLocale {
-            currentKeyboardLocale = KeyboardLocale.fromSystemLocale()
-            logger.log("Using system locale: \(currentKeyboardLocale.rawValue)", category: "Keyboard")
-            refreshCurrentLayout()
-        }
-
-        // 3. 监听键盘布局变化（iOS）
+        // Do not run detection here: the saved locale was already restored by init,
+        // and re-detecting at launch would silently overwrite the user's choice.
+        // Live input-mode changes are handled by the notification observer below.
         #if os(iOS)
         NotificationCenter.default.addObserver(
             self,
@@ -228,9 +299,16 @@ final class KeyboardLayoutManager: ObservableObject {
     #endif
 
     private func refreshCurrentLayout() {
-        let newLayout = layout(for: AISettings.shared.targetOS, locale: currentKeyboardLocale)
+        let newLayout = layout(
+            for: AISettings.shared.targetOS,
+            locale: currentKeyboardLocale,
+            physicalStandard: physicalStandard
+        )
         currentLayout = newLayout
-        logger.log("Keyboard layout refreshed: \(currentKeyboardLocale.rawValue) for \(AISettings.shared.targetOS.rawValue)", category: "Keyboard")
+        logger.log(
+            "Keyboard layout refreshed: \(currentKeyboardLocale.rawValue) \(physicalStandard.rawValue) for \(AISettings.shared.targetOS.rawValue)",
+            category: "Keyboard"
+        )
         objectWillChange.send()
         notifyLayoutChanged()
     }
@@ -277,6 +355,16 @@ extension AISettings {
         }
         set {
             KeyboardLayoutManager.shared.autoDetectLocale = newValue
+        }
+    }
+
+    /// Convenient access to the physical keyboard standard (ANSI / ISO / JIS)
+    var keyboardPhysicalStandard: KeyboardLocale.PhysicalStandard {
+        get {
+            KeyboardLayoutManager.shared.physicalStandard
+        }
+        set {
+            KeyboardLayoutManager.shared.physicalStandard = newValue
         }
     }
 }

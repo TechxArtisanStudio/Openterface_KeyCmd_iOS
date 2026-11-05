@@ -363,7 +363,7 @@
       "keyType": "regular"
     },
     {
-      "hidUsageID": 49,
+      "hidUsageID": 100,
       "keyName": "\\",
       "label": "¥",
       "shiftLabel": "|",
@@ -566,7 +566,7 @@
       "label": "/",
       "shiftLabel": "?",
       "row": 4,
-      "column": 10,
+      "column": 11,
       "keyType": "regular"
     },
     {
@@ -574,7 +574,7 @@
       "keyName": "RightShift",
       "label": "Shift",
       "row": 4,
-      "column": 11,
+      "column": 12,
       "keyType": "modifier",
       "width": 1.5
     },
@@ -583,7 +583,7 @@
       "keyName": "Up",
       "label": "↑",
       "row": 4,
-      "column": 12,
+      "column": 10,
       "keyType": "regular"
     },
     {
@@ -689,23 +689,23 @@
       "label": "かな",
       "row": 5,
       "column": 12,
-      "keyType": "regular"
+      "keyType": "japaneseSpecial"
     },
     {
-      "hidUsageID": 137,
+      "hidUsageID": 138,
       "keyName": "変換",
       "label": "変換",
       "row": 5,
       "column": 13,
-      "keyType": "regular"
+      "keyType": "japaneseSpecial"
     },
     {
-      "hidUsageID": 138,
+      "hidUsageID": 139,
       "keyName": "無変換",
       "label": "無変換",
       "row": 5,
       "column": 14,
-      "keyType": "regular"
+      "keyType": "japaneseSpecial"
     }
   ]
 }

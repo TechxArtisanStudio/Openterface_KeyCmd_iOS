@@ -154,7 +154,7 @@
       "hidUsageID": 31,
       "keyName": "2",
       "label": "2",
-      "shiftLabel": "@",
+      "shiftLabel": "\"",
       "row": 1,
       "column": 2,
       "keyType": "regular"
@@ -321,7 +321,7 @@
       "keyName": "u",
       "label": "U",
       "row": 2,
-      "column": 8,
+      "column": 7,
       "keyType": "regular"
     },
     {
@@ -329,7 +329,7 @@
       "keyName": "i",
       "label": "I",
       "row": 2,
-      "column": 9,
+      "column": 8,
       "keyType": "regular"
     },
     {
@@ -337,7 +337,7 @@
       "keyName": "o",
       "label": "O",
       "row": 2,
-      "column": 10,
+      "column": 9,
       "keyType": "regular"
     },
     {
@@ -360,8 +360,8 @@
     {
       "hidUsageID": 48,
       "keyName": "]",
-      "label": "]",
-      "shiftLabel": "}",
+      "label": "+",
+      "shiftLabel": "*",
       "row": 2,
       "column": 12,
       "keyType": "regular"
@@ -369,8 +369,8 @@
     {
       "hidUsageID": 49,
       "keyName": "\\",
-      "label": "\\",
-      "shiftLabel": "|",
+      "label": "#",
+      "shiftLabel": "'",
       "row": 2,
       "column": 13,
       "keyType": "regular"

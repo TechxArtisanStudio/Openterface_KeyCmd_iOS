@@ -51,6 +51,7 @@ struct KeyDefinition: Codable, Equatable, Hashable {
     let keyCode: String           // Key name for HID key code lookup
     let hidUsageID: HIDUsageID    // USB HID Usage ID for this key
     let keyType: KeyType          // Key type (from KeyType.swift)
+    let deadKey: DeadKey?         // Dead key type (if this key is a dead key)
     let widthMultiplier: CGFloat? // Width multiplier (relative to standard key), nil means auto
     let heightMultiplier: CGFloat? // Height multiplier (relative to standard row), nil means auto
 
@@ -61,6 +62,7 @@ struct KeyDefinition: Codable, Equatable, Hashable {
          keyCode: String? = nil,
          hidUsageID: HIDUsageID,
          keyType: KeyType = .regular,
+         deadKey: DeadKey? = nil,
          widthMultiplier: CGFloat? = nil,
          heightMultiplier: CGFloat? = nil) {
         self.keyName = keyName
@@ -70,6 +72,7 @@ struct KeyDefinition: Codable, Equatable, Hashable {
         self.keyCode = keyCode ?? keyName
         self.hidUsageID = hidUsageID
         self.keyType = keyType
+        self.deadKey = deadKey
         self.widthMultiplier = widthMultiplier
         self.heightMultiplier = heightMultiplier
     }
@@ -191,27 +194,32 @@ struct KeyboardLayoutDefinition: Codable, Equatable, Hashable {
 extension KeyDefinition {
     /// Create a standard character key
     static func key(_ name: String, _ label: String, shift: String? = nil, altGr: String? = nil,
-                    keyCode: String? = nil, hid: HIDUsageID = .keyboardA, type: KeyType = .regular, width: CGFloat? = nil, height: CGFloat? = nil) -> KeyDefinition {
+                    keyCode: String? = nil, hid: HIDUsageID = .keyboardA, type: KeyType = .regular,
+                    deadKey: DeadKey? = nil, width: CGFloat? = nil, height: CGFloat? = nil) -> KeyDefinition {
         KeyDefinition(keyName: name, label: label, shiftLabel: shift, altGrLabel: altGr,
-                      keyCode: keyCode ?? name, hidUsageID: hid, keyType: type, widthMultiplier: width, heightMultiplier: height)
+                      keyCode: keyCode ?? name, hidUsageID: hid, keyType: type, deadKey: deadKey,
+                      widthMultiplier: width, heightMultiplier: height)
     }
 
     /// Create a modifier key
     static func mod(_ name: String, label: String? = nil, keyCode: String? = nil, hid: HIDUsageID = .keyboardA, width: CGFloat? = nil, height: CGFloat? = nil) -> KeyDefinition {
         KeyDefinition(keyName: name, label: label ?? name, shiftLabel: nil, altGrLabel: nil,
-                      keyCode: keyCode ?? name, hidUsageID: hid, keyType: .modifier, widthMultiplier: width, heightMultiplier: height)
+                      keyCode: keyCode ?? name, hidUsageID: hid, keyType: .modifier, deadKey: nil,
+                      widthMultiplier: width, heightMultiplier: height)
     }
 
     /// Create a special key
     static func special(_ name: String, label: String? = nil, keyCode: String? = nil, hid: HIDUsageID = .keyboardA, width: CGFloat? = nil, height: CGFloat? = nil) -> KeyDefinition {
         KeyDefinition(keyName: name, label: label ?? name, shiftLabel: nil, altGrLabel: nil,
-                      keyCode: keyCode ?? name, hidUsageID: hid, keyType: .special, widthMultiplier: width, heightMultiplier: height)
+                      keyCode: keyCode ?? name, hidUsageID: hid, keyType: .special, deadKey: nil,
+                      widthMultiplier: width, heightMultiplier: height)
     }
 
     /// Create a Japanese special key
     static func jpSpecial(_ name: String, label: String, hid: HIDUsageID = .keyboardA, width: CGFloat? = nil) -> KeyDefinition {
         KeyDefinition(keyName: name, label: label, shiftLabel: nil, altGrLabel: nil,
-                      keyCode: name, hidUsageID: hid, keyType: .japaneseSpecial, widthMultiplier: width)
+                      keyCode: name, hidUsageID: hid, keyType: .japaneseSpecial, deadKey: nil,
+                      widthMultiplier: width)
     }
 }
 

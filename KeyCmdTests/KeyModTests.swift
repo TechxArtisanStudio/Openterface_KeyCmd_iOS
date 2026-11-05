@@ -21,10 +21,13 @@ struct KeyModTests {
     }
 
     @Test func parsesNestedModifierToken() {
-        let token = Keymod.parseToken("<CTRL><SHIFT>A</SHIFT></CTRL>")
+        // Nested modifier tags form a macro, not a single token; parseToken
+        // only understands one tag/character at a time.
+        let tokens = Keymod.parseMacro("<CTRL><SHIFT>A</SHIFT></CTRL>")
 
-        #expect(token.hidCode == 0x04)
-        #expect(token.modifiers == KMod.ctrl.union(.shift).rawValue)
+        #expect(tokens.count == 1)
+        #expect(tokens[0].hidCode == 0x04)
+        #expect(tokens[0].modifiers == KMod.ctrl.union(.shift).rawValue)
     }
 
     @Test func parsesMacroAndSkipsDelayTokens() {

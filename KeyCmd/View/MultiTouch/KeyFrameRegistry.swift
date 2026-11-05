@@ -63,6 +63,14 @@ final class KeyFrameRegistry {
 }
 
 extension KeyFrameRegistry {
+    /// Replace all registrations with frames measured from the rendered views.
+    /// The bottom row uses a custom inverted-T arrow cluster and fixed-width Space
+    /// that cannot be reconstructed from the layout's row grid, so the visual
+    /// geometry is the source of truth for hit-testing.
+    func setRegistrations(_ registrations: [KeyRegistration]) {
+        self.registrations = registrations
+    }
+
     /// Compute key frames from a layout description and register all keys.
     /// - Parameters:
     ///   - layout: The keyboard layout description.

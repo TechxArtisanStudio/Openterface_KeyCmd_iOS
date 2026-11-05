@@ -18,6 +18,14 @@ final class KeyboardPerformanceTests: XCTestCase {
         keyboardState = KeyboardState.shared
         keyboardState.reset()
 
+        // Set up layouts directory for testing
+        let projectRoot = URL(fileURLWithPath: #file)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .path
+        let layoutsPath = "\(projectRoot)/Resources/KeyboardLayouts"
+        KeyboardLayoutLoader.layoutsDirectoryOverride = layoutsPath
+
         // Create a translation table for performance testing
         let manager = KeyboardLayoutManager.shared
         let layout = manager.layout(for: .windows, locale: .us)
@@ -26,6 +34,7 @@ final class KeyboardPerformanceTests: XCTestCase {
 
     override func tearDown() {
         keyboardState.reset()
+        KeyboardLayoutLoader.layoutsDirectoryOverride = nil
         super.tearDown()
     }
 

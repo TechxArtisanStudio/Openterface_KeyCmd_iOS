@@ -25,18 +25,32 @@ class KeyboardManager: ObservableObject {
     @Published var activeModifiers: Set<String> = []
     @Published var lockedModifiers: Set<String> = []
     @Published var capsLockActive: Bool = false
-    @Published var pressedKeys: Set<String> = [] // Track currently pressed keys
+    @Published var pressedKeys: Set<HIDUsageID> = [] // Track currently pressed keys by HID usage ID
+    /// Original HID → HID actually sent while Fn was held. Releases must use the
+    /// mapped value even if Fn was lifted first, otherwise the mapped key sticks.
+    private var fnMappedHIDs: [HIDUsageID: HIDUsageID] = [:]
     @Published var isGameMode: Bool = false // Track current mode
     @Published var isFnLocked: Bool = false // Fn lock for F1-F12 mapping
+    /// True while the Apple Fn key is held. Fn has no USB HID usage of its own
+    /// (Apple carries it in a vendor report), so it only remaps the keys the
+    /// Mac keyboard would translate locally (arrows → Home/End/PgUp/PgDn,
+    /// Backspace → forward delete).
+    @Published private(set) var isFnPressed: Bool = false
     @Published var isSymbolMode: Bool = false // Symbol mode keyboard layout
     @Published var isSending: Bool = false    // True while handleTextInput is in-flight
-    @Published var isAltGrActive: Bool = false // AltGr modifier state for European layouts
+
+    /// AltGr is active whenever the right Alt layer is held or latched.
+    var isAltGrActive: Bool {
+        activeModifiers.contains("AltGr")
+            || activeModifiers.contains("RightAlt")
+            || keyboardState.isAltGrPressed
+    }
     private var sendCancelFlag = false
     private let sendLock = NSLock()
     let compositeKeyManager: CompositeKeyManager
     private let hapticManager = HapticFeedbackManager.shared
     private let logger = LogManager.shared
-    private let keyboardState = KeyboardState.shared
+    let keyboardState = KeyboardState.shared
 
     /// Fn lock mapping: letter key → digit/F-key (matches Android CustomKeyboardView.resolveFnMapping).
     /// Row 1 (q-p) → 1-0, Row 2 (a-l) → F1-F9, Row 3 (z,x,c) → F10-F12.
@@ -351,21 +365,77 @@ class KeyboardManager: ObservableObject {
     /// Slightly longer delay used after modifier release / character commit.
     private var commitDelayUs: UInt32 { UInt32(AISettings.shared.bleKeyDelayMs + 20) * 1_000 }
     
-    // HID keyboard usage code lookup via OpenterfaceCore
+    // HID keyboard usage code lookup via OpenterfaceCore (legacy fallback)
     private func hidCode(forKey key: String) -> UInt8? {
         let code = Keymod.hidCode(forKey: key)
         guard code >= 0 else { return nil }
         return UInt8(code)
     }
 
+    /// Resolve a key name to the active layout's authoritative HID usage ID.
+    /// The layout is the source of truth: its HID usage ID decides which physical
+    /// key is sent, so QWERTZ/AZERTY/JIS need no string remapping.
+    func hidUsageID(forKey key: String) -> HIDUsageID? {
+        let layout = KeyboardLayoutManager.shared.currentLayout
+
+        if let def = layout.keyDefinition(for: key) {
+            return def.hidUsageID
+        }
+        let lowered = key.lowercased()
+        if let def = layout.allKeys.first(where: { $0.keyName.lowercased() == lowered }) {
+            return def.hidUsageID
+        }
+        if let named = Self.namedHIDUsageIDs[key] {
+            return named
+        }
+        if let code = hidCode(forKey: key) {
+            return HIDUsageID(rawValue: code)
+        }
+        return nil
+    }
+
+    /// Static HID names used by shortcuts/macros that may not appear in a layout.
+    private static let namedHIDUsageIDs: [String: HIDUsageID] = [
+        "Escape": .keyboardEscape, "Esc": .keyboardEscape,
+        "Return": .keyboardEnter, "Enter": .keyboardEnter,
+        "Space": .keyboardSpace, "Tab": .keyboardTab,
+        "Backspace": .keyboardBackspace, "Delete": .keyboardDelete,
+        "Insert": .keyboardInsert, "Home": .keyboardHome, "End": .keyboardEnd,
+        "PageUp": .keyboardPageUp, "PageDown": .keyboardPageDown,
+        "Up": .keyboardUpArrow, "Down": .keyboardDownArrow,
+        "Left": .keyboardLeftArrow, "Right": .keyboardRightArrow,
+        "Menu": .keyboardApplication,
+        "LeftCtrl": .keyboardLeftCtrl, "RightCtrl": .keyboardRightCtrl,
+        "LeftShift": .keyboardLeftShift, "RightShift": .keyboardRightShift,
+        "LeftAlt": .keyboardLeftAlt, "RightAlt": .keyboardRightAlt, "AltGr": .keyboardRightAlt,
+        "LeftWin": .keyboardLeftGUI, "RightWin": .keyboardRightGUI,
+        "Cmd": .keyboardLeftGUI, "Win": .keyboardLeftGUI, "Super": .keyboardLeftGUI
+    ]
+
+    /// Canonical modifier name for a modifier HID usage ID, or nil for non-modifiers.
+    func modifierName(forHID hid: HIDUsageID) -> String? {
+        switch hid {
+        case .keyboardLeftCtrl:  return "LeftCtrl"
+        case .keyboardRightCtrl: return "RightCtrl"
+        case .keyboardLeftShift: return "LeftShift"
+        case .keyboardRightShift: return "RightShift"
+        case .keyboardLeftAlt:   return "LeftAlt"
+        case .keyboardRightAlt:  return "RightAlt"
+        case .keyboardLeftGUI:   return "LeftWin"
+        case .keyboardRightGUI:  return "RightWin"
+        default: return nil
+        }
+    }
+
     // Modifier key bitmasks via KMod
     private func modifierMask(for key: String) -> UInt8? {
         switch key {
-        case "Ctrl":  return KMod.ctrl.rawValue
-        case "Shift": return KMod.shift.rawValue
-        case "Alt", "Option": return KMod.alt.rawValue
-        case "AltGr": return KMod.rAlt.rawValue // AltGr = Right Alt (0x40)
-        case "Cmd", "Win", "Super": return KMod.gui.rawValue
+        case "Ctrl", "LeftCtrl", "RightCtrl":  return KMod.ctrl.rawValue
+        case "Shift", "LeftShift", "RightShift": return KMod.shift.rawValue
+        case "Alt", "Option", "LeftAlt": return KMod.alt.rawValue
+        case "RightAlt", "AltGr": return KMod.rAlt.rawValue // AltGr = Right Alt (0x40)
+        case "RightWin", "RightCmd": return KMod.rGui.rawValue
+        case "Cmd", "Win", "Super", "LeftWin": return KMod.gui.rawValue
         default:      return nil
         }
     }
@@ -400,38 +470,16 @@ class KeyboardManager: ObservableObject {
 
         logger.log("Looking up HID code for key: '\(key)' -> alias: '\(keyAlias)' -> effective: '\(effectiveKey)'", category: "Keyboard")
 
-        guard let keyCode = hidCode(forKey: effectiveKey) else {
+        guard let hid = hidUsageID(forKey: effectiveKey) else {
             logger.log("Unknown key: \(key) (resolved: \(effectiveKey))", category: "Keyboard", level: .warning)
             return
         }
 
-        logger.log("HID code for '\(effectiveKey)': 0x\(String(format: "%02X", keyCode))", category: "Keyboard")
-
-        // Check if this is a dead key
-        if isDeadKey(keyAlias) {
-            if let deadKey = deadKeyForDefinition(keyAlias) {
-                keyboardState.setDeadKey(deadKey)
-                logger.log("Dead key set: \(deadKey)", category: "Keyboard")
-            }
-            return
-        }
-
-        // Handle dead key combination
-        if let pendingDeadKey = keyboardState.pendingDeadKey {
-            if let firstChar = keyAlias.first, let combinedChar = pendingDeadKey.combine(with: firstChar) {
-                // Send the combined character via UnicodeManager
-                UnicodeManager.shared.sendChar(combinedChar, keyboardManager: self)
-                keyboardState.setDeadKey(nil)
-                logger.log("Dead key combination: \(combinedChar)", category: "Keyboard")
-                return
-            }
-            // Clear dead key if combination failed
-            keyboardState.setDeadKey(nil)
-        }
+        logger.log("HID usage for '\(effectiveKey)': 0x\(String(format: "%02X", hid.rawValue))", category: "Keyboard")
 
         // Use KeyboardState for modifier byte
         let modifierByte = keyboardState.modifierByte
-        let keyCodes: [UInt8] = [keyCode, 0x00, 0x00, 0x00, 0x00, 0x00]
+        let keyCodes: [UInt8] = [hid.rawValue, 0x00, 0x00, 0x00, 0x00, 0x00]
 
         // Send key press
         sendKeyboardData(modifier: modifierByte, keyCodes: keyCodes)
@@ -440,24 +488,6 @@ class KeyboardManager: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             let releaseModifierByte = self.keyboardState.modifierByte
             self.sendKeyboardData(modifier: releaseModifierByte, keyCodes: [0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
-        }
-    }
-
-    /// Check if a key is a dead key
-    private func isDeadKey(_ key: String) -> Bool {
-        let deadKeyChars: Set<String> = ["´", "`", "^", "¨", "~"]
-        return deadKeyChars.contains(key)
-    }
-
-    /// Map a key to its DeadKey type
-    private func deadKeyForDefinition(_ key: String) -> DeadKey? {
-        switch key {
-        case "´": return .acute
-        case "`": return .grave
-        case "^": return .circumflex
-        case "¨": return .diaeresis
-        case "~": return .tilde
-        default: return nil
         }
     }
     
@@ -475,39 +505,11 @@ class KeyboardManager: ObservableObject {
             if key == "Caps" { capsLockActive.toggle(); sendCapsLockState(); return }
             let keyAlias = mapKeyAlias(key)
 
-            // Check if this is a dead key
-            if isDeadKey(keyAlias) {
-                if let deadKey = deadKeyForDefinition(keyAlias) {
-                    keyboardState.setDeadKey(deadKey)
-                    logger.log("Dead key set: \(deadKey)", category: "Keyboard")
-                }
-                return
-            }
+            guard let hid = hidUsageID(forKey: keyAlias) else { return }
 
-            // Handle dead key combination
-            if let pendingDeadKey = keyboardState.pendingDeadKey {
-                if let firstChar = keyAlias.first, let combinedChar = pendingDeadKey.combine(with: firstChar) {
-                    // Send the combined character via UnicodeManager
-                    UnicodeManager.shared.sendChar(combinedChar, keyboardManager: self)
-                    keyboardState.setDeadKey(nil)
-                    logger.log("Dead key combination: \(combinedChar)", category: "Keyboard")
-                    return
-                }
-                // Clear dead key if combination failed
-                keyboardState.setDeadKey(nil)
-            }
-
-            // For single letter keys, use the uppercased form for HID lookup so that
-            // both "a" and "A" resolve to the same key code. Original case is preserved
-            // in keyAlias to determine whether Shift is required.
-            let lookupAlias = (keyAlias.count == 1 && keyAlias.first?.isLetter == true)
-                ? keyAlias.uppercased() : keyAlias
-            guard let keyCode = hidCode(forKey: lookupAlias) else { return }
-
-            // Use KeyboardState for modifier byte
-            let modByte = keyboardState.modifierByte
-
-            // Add Shift for uppercase letters if needed
+            // Add Shift for uppercase letters if needed. HID key identity is
+            // position-based, so "A" and "a" resolve to the same key; only the
+            // shift bit distinguishes them.
             if keyAlias.count == 1, let ch = keyAlias.first, ch.isLetter {
                 let wantUppercase = ch.isUppercase
                 if wantUppercase != capsLockActive {
@@ -516,7 +518,7 @@ class KeyboardManager: ObservableObject {
             }
 
             let finalModByte = keyboardState.modifierByte
-            sendKeyboardData(modifier: finalModByte, keyCodes: [keyCode, 0, 0, 0, 0, 0])
+            sendKeyboardData(modifier: finalModByte, keyCodes: [hid.rawValue, 0, 0, 0, 0, 0])
         }
         // Hold for 50 ms on background thread — no main-queue involvement
         usleep(50_000)
@@ -533,7 +535,9 @@ class KeyboardManager: ObservableObject {
     /// affect the next key press — no standalone modifier-press TX is sent.
     /// Must be called on the main thread.
     func addModifierSilently(_ modifier: String) {
+        guard modifierMask(for: modifier) != nil else { return }
         activeModifiers.insert(modifier)
+        keyboardState.updateModifierState(key: modifierToHIDUsageID(modifier), pressed: true)
         logger.log("\(modifier) queued (silent)", category: "Keyboard")
     }
 
@@ -543,16 +547,20 @@ class KeyboardManager: ObservableObject {
     /// is sent to the host until a key is chorded.
     /// Must be called on the main thread.
     func addModifierTrackedOnly(_ modifier: String) {
-        if modifierMask(for: modifier) != nil {
-            activeModifiers.insert(modifier)
-            logger.log("\(modifier) tracked (no HID report)", category: "Keyboard")
-        }
+        guard modifierMask(for: modifier) != nil else { return }
+        activeModifiers.insert(modifier)
+        // No standalone report is sent, but the state must be recorded: the next
+        // regular key's 6KRO report takes its modifier byte from keyboardState.
+        // Without this, Cmd+Tab reaches the host as a bare Tab.
+        keyboardState.updateModifierState(key: modifierToHIDUsageID(modifier), pressed: true)
+        logger.log("\(modifier) tracked (no HID report)", category: "Keyboard")
     }
 
     /// Remove a modifier from activeModifiers without sending a BLE report.
     /// Must be called on the main thread.
     func removeModifierSilently(_ modifier: String) {
         activeModifiers.remove(modifier)
+        keyboardState.updateModifierState(key: modifierToHIDUsageID(modifier), pressed: false)
     }
 
     /// Clear all modifier and key tracking state without sending a BLE report.
@@ -562,6 +570,10 @@ class KeyboardManager: ObservableObject {
     func clearKeyStateSilently() {
         activeModifiers.removeAll()
         pressedKeys.removeAll()
+        fnMappedHIDs.removeAll()
+        isFnPressed = false
+        keyboardState.clearAllModifiers()
+        keyboardState.clearDeadKey()
         logger.log("Key state cleared (silent)", category: "Keyboard")
     }
 
@@ -572,7 +584,7 @@ class KeyboardManager: ObservableObject {
     func sendKeyComboSynchronous(modifiers: [String], key: String) {
         DispatchQueue.main.sync {
             logger.log("Key combo: \(modifiers.joined(separator: "+"))+\(key)", category: "Keyboard")
-            guard let keyCode = hidCode(forKey: key) else { return }
+            guard let keyCode = hidUsageID(forKey: key)?.rawValue else { return }
             var modByte: UInt8 = 0x00
             for m in modifiers { modByte |= modifierMask(for: m) ?? 0 }
             sendKeyboardData(modifier: modByte, keyCodes: [keyCode, 0, 0, 0, 0, 0])
@@ -609,18 +621,25 @@ class KeyboardManager: ObservableObject {
     private func modifierToHIDUsageID(_ modifier: String) -> HIDUsageID {
         switch modifier {
         case "Shift": return .keyboardLeftShift
+        case "LeftShift": return .keyboardLeftShift
+        case "RightShift": return .keyboardRightShift
         case "Ctrl": return .keyboardLeftCtrl
+        case "LeftCtrl": return .keyboardLeftCtrl
+        case "RightCtrl": return .keyboardRightCtrl
         case "Alt": return .keyboardLeftAlt
+        case "LeftAlt": return .keyboardLeftAlt
+        case "RightAlt": return .keyboardRightAlt
         case "AltGr": return .keyboardRightAlt
         case "Cmd", "Win": return .keyboardLeftGUI
+        case "LeftWin": return .keyboardLeftGUI
+        case "RightWin": return .keyboardRightGUI
         default: return .keyboardA // fallback
         }
     }
     
     // Send caps lock state
     private func sendCapsLockState() {
-        guard let capsKeyCode = hidCode(forKey: "Caps") else { return }
-        let keyCodes: [UInt8] = [capsKeyCode, 0x00, 0x00, 0x00, 0x00, 0x00]
+        let keyCodes: [UInt8] = [HIDUsageID.keyboardCapsLock.rawValue, 0x00, 0x00, 0x00, 0x00, 0x00]
         
         sendKeyboardData(modifier: 0x00, keyCodes: keyCodes)
         
@@ -634,7 +653,7 @@ class KeyboardManager: ObservableObject {
     func handleKeyCombo(modifiers: [String], key: String) {
         logger.log("Key combo: \(modifiers.joined(separator: "+"))+\(key)", category: "Keyboard")
 
-        guard let keyCode = hidCode(forKey: key) else {
+        guard let keyCode = hidUsageID(forKey: key)?.rawValue else {
             logger.log("Unknown key: \(key)", category: "Keyboard", level: .warning)
             return
         }
@@ -672,6 +691,30 @@ class KeyboardManager: ObservableObject {
         let packet = Keymod.buildKeyboard(modifiers: modifier, keys: keyCodes)
         bleManager.sendTouchData(data: packet)
     }
+
+    /// Send a Consumer page media key report (CMD=0x03).
+    /// bitmap: (byte1, byte2, byte3) — see firmware usbd_desc.c Report ID 0x02
+    func sendMediaKey(bitmap: (UInt8, UInt8, UInt8)) {
+        let press = Keymod.buildMedia(reportId: 0x02, bitmap: bitmap)
+        bleManager.sendTouchData(data: press)
+        // Release: all zeros
+        let release = Keymod.buildMedia(reportId: 0x02, bitmap: (0, 0, 0))
+        bleManager.sendTouchData(data: release)
+    }
+
+    /// Send an Apple function row report (CMD=0x03, Report ID 0x03).
+    /// bitmap: 8-bit bitmap for F1-F4 Apple-specific functions
+    ///   bit0: F1 Display Brightness Decrement
+    ///   bit1: F2 Display Brightness Increment
+    ///   bit2: F3 Mission Control
+    ///   bit3: F4 Launchpad
+    func sendAppleFnKey(bitmap: UInt8) {
+        let press = Keymod.buildAppleFn(bitmap: bitmap)
+        bleManager.sendTouchData(data: press)
+        // Release: bitmap = 0
+        let release = Keymod.buildAppleFn(bitmap: 0)
+        bleManager.sendTouchData(data: release)
+    }
     
     // Handle special keys that might need different behavior
     func handleSpecialKey(_ key: String) {
@@ -685,7 +728,30 @@ class KeyboardManager: ObservableObject {
         }
     }
 
-    // MARK: - Fn Lock & Key Resolution
+    // MARK: - Fn Layer & Fn Lock
+
+    /// Press/release the momentary Apple Fn key. Fn itself is never sent as a
+    /// HID key; only the combos below produce a report.
+    func setFnPressed(_ pressed: Bool) {
+        guard isFnPressed != pressed else { return }
+        isFnPressed = pressed
+        logger.log("Fn \(pressed ? "pressed" : "released")", category: "Keyboard")
+    }
+
+    /// HID to send for a key while Fn is held, or nil when Fn does not alter it.
+    /// Mirrors Apple's local Fn layer: the Mac keyboard emits these usages
+    /// itself, so a generic HID keyboard must do the translation app-side.
+    private func fnLayerHID(for hid: HIDUsageID) -> HIDUsageID? {
+        guard isFnPressed else { return nil }
+        switch hid {
+        case .keyboardLeftArrow:  return .keyboardHome
+        case .keyboardRightArrow: return .keyboardEnd
+        case .keyboardUpArrow:    return .keyboardPageUp
+        case .keyboardDownArrow:  return .keyboardPageDown
+        case .keyboardBackspace:  return .keyboardDelete
+        default:                  return nil
+        }
+    }
 
     /// Resolve the effective key name when Fn lock is active.
     /// Matches Android CustomKeyboardView.resolveFnMapping(): q→F1, w→F2, ..., a→F11, s→F12.
@@ -738,6 +804,10 @@ class KeyboardManager: ObservableObject {
         sendLock.unlock()
         isSending = true
 
+        // Capture the active layout once so every character in this batch uses
+        // the same mapping, even if the user switches layout mid-send.
+        let table = KeyboardTranslationTable(layout: KeyboardLayoutManager.shared.currentLayout)
+
         DispatchQueue.global(qos: .userInitiated).async {
             for char in text {
                 self.sendLock.lock()
@@ -745,44 +815,45 @@ class KeyboardManager: ObservableObject {
                 self.sendLock.unlock()
                 if cancelled { break }
 
+                // Line-control characters are layout-independent.
+                if char == "\n" || char == "\r" {
+                    self.sendKeyPressAndRelease(hid: .keyboardEnter)
+                    usleep(self.keyDelayUs)
+                    continue
+                }
+                if char == "\t" {
+                    self.sendKeyPressAndRelease(hid: .keyboardTab)
+                    usleep(self.keyDelayUs)
+                    continue
+                }
+
+                // Prefer the layout's physical mapping (exact layer included).
+                // This covers non-ASCII characters that exist on the selected
+                // layout (é, ü, ß, …) without Unicode injection.
+                if let stroke = table.stroke(forCharacter: char) {
+                    if stroke.isDeadKey {
+                        // Type a literal dead accent: dead key + Space.
+                        self.sendKeyPressAndRelease(hid: stroke.hidUsageID, modifiers: stroke.modifiers)
+                        self.sendKeyPressAndRelease(hid: .keyboardSpace)
+                    } else {
+                        self.sendKeyPressAndRelease(hid: stroke.hidUsageID, modifiers: stroke.modifiers)
+                    }
+                    usleep(self.keyDelayUs)
+                    continue
+                }
+
                 let scalar = char.unicodeScalars.first?.value ?? 0
-                // Non-ASCII Unicode — delegate to UnicodeManager (already on bg thread)
                 if scalar > 0x7E {
                     UnicodeManager.shared.sendChar(char, keyboardManager: self)
                     usleep(self.keyDelayUs)
                     continue
                 }
-                // ASCII characters — send directly from background thread.
-                // sendKeyPressAndRelease is thread-safe (builds HID packets, no UI access).
-                // Using main.sync here would deadlock when the main thread is blocked
-                // (gesture gate timeout, haptic engine, etc.).
-                if char.isLetter {
-                    let key = String(char).uppercased()
-                    if char.isUppercase {
-                        self.sendKeyPressAndRelease(modifiers: ["Shift"], key: key)
-                    } else {
-                        self.sendKeyPressAndRelease(key: key)
-                    }
-                } else if char == " " {
-                    self.sendKeyPressAndRelease(key: "Space")
-                } else if char == "\n" || char == "\r" {
-                    self.sendKeyPressAndRelease(key: "Enter")
-                } else if char == "\t" {
-                    self.sendKeyPressAndRelease(key: "Tab")
-                } else {
-                    let (code, needsShift) = Keymod.hidCode(for: char)
-                    if code >= 0 {
-                        if needsShift {
-                            self.sendKeyPressAndRelease(modifiers: ["Shift"], key: String(char), rawHidCode: UInt8(code))
-                        } else {
-                            self.sendKeyPressAndRelease(key: String(char), rawHidCode: UInt8(code))
-                        }
-                    } else {
-                        // Fallback for unmappable chars
-                        self.sendKeyPressAndRelease(key: String(char).uppercased())
-                    }
+
+                // Characters absent from the layout fall back to US ASCII.
+                let (code, needsShift) = Keymod.hidCode(for: char)
+                if code >= 0, let hid = HIDUsageID(rawValue: UInt8(code)) {
+                    self.sendKeyPressAndRelease(hid: hid, modifiers: needsShift ? KMod.shift.rawValue : 0)
                 }
-                // Wait between characters for proper timing
                 usleep(self.keyDelayUs)
             }
             
@@ -811,11 +882,11 @@ class KeyboardManager: ObservableObject {
         if let code = rawHidCode {
             keyCode = code
         } else {
-            guard let code = hidCode(forKey: key) else {
+            guard let hid = hidUsageID(forKey: key) else {
                 logger.log("Unknown key: \(key)", category: "Keyboard", level: .warning)
                 return
             }
-            keyCode = code
+            keyCode = hid.rawValue
         }
 
         logger.log("Key pressed: \(key)", category: "Keyboard")
@@ -828,44 +899,45 @@ class KeyboardManager: ObservableObject {
             }
         }
 
-        // Send key press
         sendKeyboardData(modifier: modifierByte, keyCodes: [keyCode, 0x00, 0x00, 0x00, 0x00, 0x00])
-
-        // Wait 100ms for key to be held
         usleep(commitDelayUs)
-
-        // Send key release
         sendKeyboardData(modifier: 0x00, keyCodes: [0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
     }
-    
-    /// Send a single printable ASCII character, handling case, space, enter, tab,
-    /// and shift-symbols correctly. Thread-safe — calls sendKeyPressAndRelease
-    /// which builds HID packets without touching UI. Blocking via usleep only
-    /// affects the calling thread.
+
+    /// Send a press+release for an exact HID usage ID and modifier byte.
+    /// Thread-safe: only builds HID packets, never touches UI.
+    func sendKeyPressAndRelease(hid: HIDUsageID, modifiers: UInt8 = 0) {
+        sendKeyboardData(modifier: modifiers, keyCodes: [hid.rawValue, 0x00, 0x00, 0x00, 0x00, 0x00])
+        usleep(commitDelayUs)
+        sendKeyboardData(modifier: 0x00, keyCodes: [0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+    }
+
+    /// Send a single printable ASCII character using the active layout's
+    /// character-to-key mapping. Thread-safe — calls sendKeyPressAndRelease
+    /// which builds HID packets without touching UI.
     func sendASCIICharInline(_ char: Character) {
-        if char.isLetter {
-            let key = String(char).uppercased()
-            if char.isUppercase {
-                sendKeyPressAndRelease(modifiers: ["Shift"], key: key)
+        let table = KeyboardTranslationTable(layout: KeyboardLayoutManager.shared.currentLayout)
+        if let stroke = table.stroke(forCharacter: char) {
+            if stroke.isDeadKey {
+                sendKeyPressAndRelease(hid: stroke.hidUsageID, modifiers: stroke.modifiers)
+                sendKeyPressAndRelease(hid: .keyboardSpace)
             } else {
-                sendKeyPressAndRelease(key: key)
+                sendKeyPressAndRelease(hid: stroke.hidUsageID, modifiers: stroke.modifiers)
             }
-        } else if char == " " {
-            sendKeyPressAndRelease(key: "Space")
-        } else if char == "\n" || char == "\r" {
-            sendKeyPressAndRelease(key: "Enter")
-        } else if char == "\t" {
-            sendKeyPressAndRelease(key: "Tab")
-        } else {
+            return
+        }
+
+        switch char {
+        case "\n", "\r":
+            sendKeyPressAndRelease(hid: .keyboardEnter)
+        case "\t":
+            sendKeyPressAndRelease(hid: .keyboardTab)
+        case " ":
+            sendKeyPressAndRelease(hid: .keyboardSpace)
+        default:
             let (code, needsShift) = Keymod.hidCode(for: char)
-            if code >= 0 {
-                if needsShift {
-                    sendKeyPressAndRelease(modifiers: ["Shift"], key: String(char), rawHidCode: UInt8(code))
-                } else {
-                    sendKeyPressAndRelease(key: String(char), rawHidCode: UInt8(code))
-                }
-            } else {
-                sendKeyPressAndRelease(key: String(char))
+            if code >= 0, let hid = HIDUsageID(rawValue: UInt8(code)) {
+                sendKeyPressAndRelease(hid: hid, modifiers: needsShift ? KMod.shift.rawValue : 0)
             }
         }
     }
@@ -956,30 +1028,29 @@ class KeyboardManager: ObservableObject {
     func handleKeyDown(_ key: String) {
         handleKeysDown([key])
     }
+
+    /// HID-keyed key-down. Use this for on-screen keys: the layout's HID usage
+    /// ID is authoritative and is sent verbatim.
+    func handleKeyDown(hid: HIDUsageID) {
+        handleKeysDown(hids: [hid])
+    }
     
     // Handle multiple keys press down simultaneously (for composite directions)
     func handleKeysDown(_ keys: [String]) {
         logger.log("Keys down: \(keys.joined(separator: ", "))", category: "Keyboard")
 
-        // Process each key
+        var hids: [HIDUsageID] = []
         for key in keys {
-            // Handle modifier keys with toggle behavior
+            // Modifiers are tracked by name so the UI's sticky/locked sets work.
             if modifierMask(for: key) != nil {
                 if !activeModifiers.contains(key) {
                     activeModifiers.insert(key)
                     logger.log("\(key) pressed", category: "Keyboard")
                 }
-                // Update KeyboardState
-                let hidID = modifierToHIDUsageID(key)
-                keyboardState.updateModifierState(key: hidID, pressed: true)
-                // Track AltGr state for European layouts
-                if key == "AltGr" {
-                    isAltGrActive = true
-                }
+                keyboardState.updateModifierState(key: modifierToHIDUsageID(key), pressed: true)
                 continue
             }
 
-            // Handle Caps Lock
             if key == "Caps" {
                 capsLockActive.toggle()
                 logger.log("Caps Lock: \(capsLockActive ? "ON" : "OFF")", category: "Keyboard")
@@ -987,98 +1058,100 @@ class KeyboardManager: ObservableObject {
                 continue
             }
 
-            // Map common aliases to standard names
             let keyAlias = mapKeyAlias(key)
-
-            guard let hidCode = hidCode(forKey: keyAlias) else {
+            guard let hid = hidUsageID(forKey: keyAlias) else {
                 logger.log("Unknown key: \(key)", category: "Keyboard", level: .warning)
                 continue
             }
+            hids.append(hid)
+        }
 
-            // Debug logging for special keys
-            if key == "¥" || keyAlias == "¥" || key == "\\" || keyAlias == "\\" {
-                logger.log("DEBUG: key=\(key), keyAlias=\(keyAlias), hidCode=0x\(String(format: "%02X", hidCode))", category: "Keyboard")
+        handleKeysDown(hids: hids)
+    }
+
+    func handleKeysDown(hids: [HIDUsageID]) {
+        for hid in hids {
+            if let modifier = modifierName(forHID: hid) {
+                if !activeModifiers.contains(modifier) {
+                    activeModifiers.insert(modifier)
+                    logger.log("\(modifier) pressed", category: "Keyboard")
+                }
+                keyboardState.updateModifierState(key: hid, pressed: true)
+                continue
             }
-
-            // Add to pressed keys set
-            pressedKeys.insert(keyAlias)
-        }
-
-        // Use KeyboardState for modifier byte
-        let modifierByte = keyboardState.modifierByte
-
-        // Build key codes array with ALL currently pressed keys (up to 6 keys can be pressed simultaneously in HID)
-        var keyCodesToSend: [UInt8] = []
-        for pressedKey in pressedKeys {
-            if let keyCode = hidCode(forKey: pressedKey), keyCodesToSend.count < 6 {
-                keyCodesToSend.append(keyCode)
+            if hid == .keyboardCapsLock {
+                capsLockActive.toggle()
+                logger.log("Caps Lock: \(capsLockActive ? "ON" : "OFF")", category: "Keyboard")
+                sendCapsLockState()
+                continue
             }
+            let sentHID = fnLayerHID(for: hid) ?? hid
+            if sentHID != hid {
+                fnMappedHIDs[hid] = sentHID
+            }
+            pressedKeys.insert(sentHID)
         }
-
-        // Pad key codes array to 6 elements
-        while keyCodesToSend.count < 6 {
-            keyCodesToSend.append(0x00)
-        }
-
-        // Send key press (stay pressed until explicitly released)
-        sendKeyboardData(modifier: modifierByte, keyCodes: keyCodesToSend)
+        sendPressedKeysReport()
     }
     
     // Handle key release - supports single key
     func handleKeyUp(_ key: String) {
         handleKeysUp([key])
     }
+
+    /// HID-keyed key-up, paired with `handleKeyDown(hid:)`.
+    func handleKeyUp(hid: HIDUsageID) {
+        handleKeysUp(hids: [hid])
+    }
     
     // Handle multiple keys release simultaneously
     func handleKeysUp(_ keys: [String]) {
         logger.log("Keys up: \(keys.joined(separator: ", "))", category: "Keyboard")
 
-        // Process each key
         for key in keys {
-            // Handle modifier keys
             if modifierMask(for: key) != nil {
-                // Don't release if locked
                 if lockedModifiers.contains(key) { continue }
                 if activeModifiers.contains(key) {
                     activeModifiers.remove(key)
                     logger.log("\(key) released", category: "Keyboard")
                 }
-                // Update KeyboardState
-                let hidID = modifierToHIDUsageID(key)
-                keyboardState.updateModifierState(key: hidID, pressed: false)
-                // Track AltGr state for European layouts
-                if key == "AltGr" {
-                    isAltGrActive = false
-                }
+                keyboardState.updateModifierState(key: modifierToHIDUsageID(key), pressed: false)
                 continue
             }
 
-            // Map common aliases to standard names
             let keyAlias = mapKeyAlias(key)
-
-            // Remove from pressed keys set
-            pressedKeys.remove(keyAlias)
-        }
-
-        // Send key release with current state of all remaining pressed keys
-        var keyCodesToSend: [UInt8] = []
-
-        // Use KeyboardState for modifier byte
-        let modifierByte = keyboardState.modifierByte
-
-        // Add remaining pressed keys (excluding the ones we're releasing)
-        for pressedKey in pressedKeys {
-            if let keyCode = hidCode(forKey: pressedKey), keyCodesToSend.count < 6 {
-                keyCodesToSend.append(keyCode)
+            if let hid = hidUsageID(forKey: keyAlias) {
+                pressedKeys.remove(fnMappedHIDs.removeValue(forKey: hid) ?? hid)
             }
         }
 
-        // Pad key codes array to 6 elements
-        while keyCodesToSend.count < 6 {
-            keyCodesToSend.append(0x00)
-        }
+        sendPressedKeysReport()
+    }
 
-        sendKeyboardData(modifier: modifierByte, keyCodes: keyCodesToSend)
+    func handleKeysUp(hids: [HIDUsageID]) {
+        for hid in hids {
+            if let modifier = modifierName(forHID: hid) {
+                if lockedModifiers.contains(modifier) { continue }
+                activeModifiers.remove(modifier)
+                keyboardState.updateModifierState(key: hid, pressed: false)
+                continue
+            }
+            pressedKeys.remove(fnMappedHIDs.removeValue(forKey: hid) ?? hid)
+        }
+        sendPressedKeysReport()
+    }
+
+    /// Send one 6KRO report containing every currently held HID key.
+    /// No name lookup happens here, so any layout's HID codes pass through.
+    private func sendPressedKeysReport() {
+        var keyCodes: [UInt8] = []
+        for hid in pressedKeys where keyCodes.count < 6 {
+            keyCodes.append(hid.rawValue)
+        }
+        while keyCodes.count < 6 {
+            keyCodes.append(0x00)
+        }
+        sendKeyboardData(modifier: keyboardState.modifierByte, keyCodes: keyCodes)
     }
     
     // Helper method to map key aliases
@@ -1101,6 +1174,9 @@ class KeyboardManager: ObservableObject {
         pressedKeys.removeAll()
         activeModifiers.removeAll()
         lockedModifiers.removeAll()
+        fnMappedHIDs.removeAll()
+        isFnPressed = false
+        keyboardState.reset()
         sendKeyboardData(modifier: 0x00, keyCodes: [0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
         logger.log("All keys released", category: "Keyboard")
     }
@@ -1125,16 +1201,7 @@ class KeyboardManager: ObservableObject {
         // Update KeyboardState
         let hidID = modifierToHIDUsageID(key)
         keyboardState.updateModifierState(key: hidID, pressed: false)
-        let modifierByte = keyboardState.modifierByte
-        // Maintain any currently pressed regular keys in the HID report
-        var keyCodes: [UInt8] = []
-        for pressedKey in pressedKeys {
-            if let code = hidCode(forKey: pressedKey), keyCodes.count < 6 {
-                keyCodes.append(code)
-            }
-        }
-        while keyCodes.count < 6 { keyCodes.append(0x00) }
-        sendKeyboardData(modifier: modifierByte, keyCodes: keyCodes)
+        sendPressedKeysReport()
     }
 
     // MARK: - Long-press key repeat (KM Basic)
@@ -1145,24 +1212,51 @@ class KeyboardManager: ObservableObject {
     private let repeatInterval: TimeInterval = 0.08
 
     private var repeatTimer: Timer?
-    private var repeatKey: String?
+    private enum RepeatTarget {
+        case name(String)
+        case hid(HIDUsageID)
+    }
+    private var repeatTarget: RepeatTarget?
 
     /// Start sending a key-down HID report and schedule auto-repeat.
     /// Call on the main thread. Sends the first key-down immediately, then
     /// after `repeatInitialDelay` fires repeated press-release cycles.
     func startKeyRepeat(_ key: String) {
+        startRepeat(.name(key))
+    }
+
+    /// HID-keyed repeat used by on-screen keys so the layout's key passes through.
+    func startKeyRepeat(hid: HIDUsageID) {
+        startRepeat(.hid(hid))
+    }
+
+    private func startRepeat(_ target: RepeatTarget) {
         stopKeyRepeat()
-        repeatKey = key
-        handleKeyDown(key)
+        repeatTarget = target
+        pressRepeatTarget(target)
         repeatTimer = Timer.scheduledTimer(withTimeInterval: repeatInitialDelay, repeats: false) { [weak self] _ in
             guard let self = self else { return }
             self.repeatTimer = Timer.scheduledTimer(withTimeInterval: self.repeatInterval, repeats: true) { [weak self] _ in
-                guard let self = self, let k = self.repeatKey else { return }
+                guard let self = self, let target = self.repeatTarget else { return }
                 // Bounce the key: up then down — generates a new key event on the host
                 // without asyncAfter so there is no overlap between repeat ticks.
-                self.handleKeyUp(k)
-                self.handleKeyDown(k)
+                self.releaseRepeatTarget(target)
+                self.pressRepeatTarget(target)
             }
+        }
+    }
+
+    private func pressRepeatTarget(_ target: RepeatTarget) {
+        switch target {
+        case .name(let key): handleKeyDown(key)
+        case .hid(let hid):  handleKeyDown(hid: hid)
+        }
+    }
+
+    private func releaseRepeatTarget(_ target: RepeatTarget) {
+        switch target {
+        case .name(let key): handleKeyUp(key)
+        case .hid(let hid):  handleKeyUp(hid: hid)
         }
     }
 
@@ -1171,16 +1265,30 @@ class KeyboardManager: ObservableObject {
     func stopKeyRepeat() {
         repeatTimer?.invalidate()
         repeatTimer = nil
-        if let k = repeatKey {
-            handleKeyUp(k)
-            repeatKey = nil
+        if let target = repeatTarget {
+            releaseRepeatTarget(target)
+            repeatTarget = nil
         }
     }
 
     // Check if a key is currently pressed
     func isKeyPressed(_ key: String) -> Bool {
         let keyAlias = mapKeyAlias(key)
-        return pressedKeys.contains(keyAlias) || activeModifiers.contains(keyAlias)
+        if activeModifiers.contains(keyAlias) || lockedModifiers.contains(keyAlias) {
+            return true
+        }
+        if let hid = hidUsageID(forKey: keyAlias) {
+            return pressedKeys.contains(hid)
+        }
+        return false
+    }
+
+    func isKeyPressed(hid: HIDUsageID) -> Bool {
+        if pressedKeys.contains(hid) { return true }
+        if let mapped = fnMappedHIDs[hid] {
+            return pressedKeys.contains(mapped)
+        }
+        return false
     }
     
     // MARK: - Text Input with Special Token Support

@@ -74,8 +74,15 @@ class KeyboardLayoutTests: XCTestCase {
 
         switch locale {
         case .jp:
-            // 日文布局特殊按键
-            let jpKeys = ["半角/全角", "変換", "無変換", "Ro"]
+            // Japanese layouts share 半角/全角 and Ro; conversion keys differ:
+            // Windows/Linux expose 変換/無変換, Apple JIS exposes 英数/かな.
+            var jpKeys = ["半角/全角", "Ro"]
+            switch layout.targetOS {
+            case .windows, .linux:
+                jpKeys += ["変換", "無変換"]
+            case .macOS:
+                jpKeys += ["英数", "かな"]
+            }
             for keyName in jpKeys {
                 let found = allKeys.contains { $0.keyName == keyName }
                 XCTAssertTrue(found,

@@ -6,18 +6,24 @@ import Foundation
 /// HID usage IDs, physical key positions, and printable characters.
 ///
 /// It is built from a KeyboardLayoutDefinition.
-/// All lookups are case-sensitive for characters.
-/// The character mapping uses the first character of
-/// `label`, `shiftLabel`, and `altGrLabel` for each key.
-/// For example:
-///   * key("q", "Q") -> label first = "Q"'
-///   * key("1", "1", shift: "!") -> shiftLabel first = "!"
+/// `stroke(forCharacter:)` returns the exact key and modifier layer needed to
+/// type a character on the layout: Shift and AltGr are resolved from the JSON
+/// labels instead of being guessed from the character's case.
 ///
-/// The table does not store any type information beyond
-/// these three maps; additional lookup (e.g., key type)
-/// can be derived from KeyboardLayoutDefinition if needed.
+/// `hidUsageID(forCharacter:)` is kept as a case-folding convenience lookup for
+/// callers that only need the physical key.
 
 struct KeyboardTranslationTable {
+
+    /// Everything needed to type one character on the target host.
+    struct KeyStroke: Equatable {
+        let hidUsageID: HIDUsageID
+        /// HID modifier byte bits (0x02 Shift, 0x40 AltGr/Right Alt).
+        let modifiers: UInt8
+        /// True when the character lives on a dead key.
+        let isDeadKey: Bool
+    }
+
     // MARK: Public API
 
     /// HID Usage ID → (row, column)
@@ -29,12 +35,16 @@ struct KeyboardTranslationTable {
     /// Character → HID Usage ID
     private let charToHid: [Character: HIDUsageID]
 
+    /// Character → exact key + layer
+    private let charToStroke: [Character: KeyStroke]
+
     // MARK: Initialise from layout
 
     init(layout: KeyboardLayoutDefinition) {
         var hidToPos = [HIDUsageID: (Int, Int)]()
         var posToHid = [String: HIDUsageID]()
         var charToH = [Character: HIDUsageID]()
+        var charToS = [Character: KeyStroke]()
 
         for (rowIndex, row) in layout.rows.enumerated() {
             for (colIndex, keyDef) in row.enumerated() {
@@ -47,15 +57,48 @@ struct KeyboardTranslationTable {
                 let posKey = "\(rowIndex)_\(colIndex)"
                 posToHid[posKey] = hid
 
-                // Character → HID
-                if let first = keyDef.label.first {
-                    charToH[first] = hid
+                // Modifier and special keys don't produce characters. Labels
+                // such as "Menu" or "変換" are not typable characters either.
+                guard keyDef.keyType == .regular || keyDef.keyType == .japaneseSpecial else { continue }
+
+                let isDead = keyDef.deadKey != nil
+
+                func record(_ char: Character, modifiers: UInt8) {
+                    if let existing = charToS[char] {
+                        // A dead-key mapping is the more faithful description of
+                        // the same character, so it may replace a plain one.
+                        guard isDead && !existing.isDeadKey else { return }
+                    }
+                    charToH[char] = hid
+                    charToS[char] = KeyStroke(hidUsageID: hid, modifiers: modifiers, isDeadKey: isDead)
                 }
-                if let shift = keyDef.shiftLabel?.first {
-                    charToH[shift] = hid
+
+                if keyDef.label.count == 1, let base = keyDef.label.first {
+                    if base.isLetter {
+                        // JSON letter labels are uppercase caps, but the
+                        // unshifted layer types the lowercase character.
+                        // Guard against letters whose case expansion is not
+                        // one character (e.g. ß → "SS").
+                        let lowerString = String(base).lowercased()
+                        let upperString = String(base).uppercased()
+                        if lowerString.count == 1, let lower = lowerString.first {
+                            record(lower, modifiers: 0)
+                        }
+                        if upperString.count == 1, let upper = upperString.first,
+                           upperString != lowerString {
+                            record(upper, modifiers: KMod.shift.rawValue)
+                        }
+                    } else {
+                        record(base, modifiers: 0)
+                    }
                 }
-                if let altGr = keyDef.altGrLabel?.first {
-                    charToH[altGr] = hid
+
+                if let shiftLabel = keyDef.shiftLabel, shiftLabel.count == 1, let shift = shiftLabel.first {
+                    record(shift, modifiers: KMod.shift.rawValue)
+                }
+
+                if let altGrLabel = keyDef.altGrLabel, altGrLabel.count == 1, let altGr = altGrLabel.first {
+                    record(altGr, modifiers: KMod.rAlt.rawValue)
                 }
             }
         }
@@ -63,6 +106,7 @@ struct KeyboardTranslationTable {
         self.hidToPosition = hidToPos
         self.positionToHid = posToHid
         self.charToHid = charToH
+        self.charToStroke = charToS
     }
 
     // MARK: Public lookup helpers
@@ -83,5 +127,10 @@ struct KeyboardTranslationTable {
     /// Returns the HID Usage ID for a given printable character.
     func hidUsageID(forCharacter char: Character) -> HIDUsageID? {
         return charToHid[char]
+    }
+
+    /// Returns the exact key + modifier layer for a character on this layout.
+    func stroke(forCharacter char: Character) -> KeyStroke? {
+        return charToStroke[char]
     }
 }

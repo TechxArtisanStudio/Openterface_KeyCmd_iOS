@@ -8,6 +8,42 @@
 import SwiftUI
 import UIKit
 
+/// Collects the actual rendered frame of every key in "keyboardLayout" space.
+private struct KeyFramePreferenceKey: PreferenceKey {
+    static var defaultValue: [KeyRegistration] { [] }
+
+    static func reduce(value: inout [KeyRegistration], nextValue: () -> [KeyRegistration]) {
+        value.append(contentsOf: nextValue())
+    }
+}
+
+private struct KeyFrameReporter: ViewModifier {
+    let keyName: String
+    let keyType: KeyType
+
+    func body(content: Content) -> some View {
+        content.background(
+            GeometryReader { geo in
+                Color.clear.preference(
+                    key: KeyFramePreferenceKey.self,
+                    value: [KeyRegistration(
+                        keyId: keyName,
+                        keyName: keyName,
+                        keyType: keyType,
+                        frame: geo.frame(in: .named("keyboardLayout"))
+                    )]
+                )
+            }
+        )
+    }
+}
+
+private extension View {
+    func reportKeyFrame(_ keyName: String, _ keyType: KeyType) -> some View {
+        modifier(KeyFrameReporter(keyName: keyName, keyType: keyType))
+    }
+}
+
 struct BasicKeyboardMouseView: View {
     @ObservedObject var mouseManager: MouseManager
     @ObservedObject var keyboardManager: KeyboardManager
@@ -17,6 +53,13 @@ struct BasicKeyboardMouseView: View {
     @ObservedObject private var themeManager = ThemeManager.shared
     @ObservedObject private var prefs = KmBasicKeyboardPrefs.shared
     @ObservedObject private var layoutManager = KeyboardLayoutManager.shared
+    /// Key frames reported by the rendered key views, in "keyboardLayout" space.
+    /// The visual bottom row (inverted-T arrows, fixed-width Space) is not a plain
+    /// grid, so the touch registry must follow the real geometry.
+    @State private var measuredKeyFrames: [KeyRegistration] = []
+
+    // Keyboard backlight level (0=off, 1=low, 2=high) for F5/F6 dynamic icons
+    @State private var keyboardBacklightLevel: Int = 0
 
     enum Submode: String, CaseIterable {
         case touchpad = "Touchpad"
@@ -35,6 +78,12 @@ struct BasicKeyboardMouseView: View {
     // Dynamic Island on iPhone 14/15/16 Pro creates ~59pt of safe area in landscape.
     // Used as a fallback when GeometryReader reports zero safe area insets.
     static let cameraSafeInset: CGFloat = 60
+
+    /// Space reserved under the bottom row. The keyboard ignores the bottom safe area
+    /// and would otherwise end flush with the physical edge, inside the home-indicator
+    /// gesture strip, where the system delays or cancels taps — the short ↓ key was
+    /// effectively unresponsive there on notched devices.
+    static let bottomGestureInset: CGFloat = 24
 
     // Landscape keyboard rows matching Android keyboard_lower_landscape.xml
     let landscapeKeys: [[String]] = [
@@ -67,22 +116,32 @@ struct BasicKeyboardMouseView: View {
 
     /// QWERTY/AZERTY/QWERTZ row
     private var currentRow3: [String] {
-        currentLayoutRows.count > 2 ? currentLayoutRows[2] : []
+        gridRow(2)
     }
 
     /// ASDF row
     private var currentRow4: [String] {
-        currentLayoutRows.count > 3 ? currentLayoutRows[3] : []
+        gridRow(3)
     }
 
     /// ZXCV row
     private var currentRow5: [String] {
-        currentLayoutRows.count > 4 ? currentLayoutRows[4] : []
+        gridRow(4)
     }
 
     /// Bottom modifier row
     private var currentRow6: [String] {
-        currentLayoutRows.count > 5 ? currentLayoutRows[5] : []
+        gridRow(5)
+    }
+
+    /// Arrow keys are drawn by the dedicated inverted-T cluster, never as grid keys.
+    /// Layout files still carry Up/Down/Left/Right for their HID metadata, but several
+    /// place "Up" inside the ZXCV row, which used to render a second up-arrow key.
+    private static let gridArrowKeyNames: Set<String> = ["Up", "Down", "Left", "Right"]
+
+    private func gridRow(_ index: Int) -> [String] {
+        guard currentLayoutRows.count > index else { return [] }
+        return currentLayoutRows[index].filter { !Self.gridArrowKeyNames.contains($0) }
     }
 
     /// Look up the KeyDefinition for a given key name from the current layout
@@ -103,6 +162,86 @@ struct BasicKeyboardMouseView: View {
     /// Get the AltGr label for a key from the layout definition
     private func layoutAltGrLabel(for keyName: String) -> String? {
         return keyDefinition(for: keyName)?.altGrLabel
+    }
+
+    /// The Mac layout relabels the PC Menu key as "fn". Fn has no HID usage of
+    /// its own, so it is handled as a local layer rather than a sent key.
+    private func isFnKey(_ keyName: String) -> Bool {
+        layoutLabel(for: keyName).lowercased() == "fn"
+    }
+
+    /// Check if a key is a function key (F1-F12)
+    private func isFunctionKey(_ keyName: String) -> Bool {
+        ["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"].contains(keyName)
+    }
+
+    /// Check if a key has media/Apple function support (F1-F4, F7-F12).
+    /// F1-F4: Apple function row (brightness, Mission Control, Launchpad)
+    /// F5-F6: Regular F-keys (keyboard backlight not supported by firmware)
+    /// F7-F12: Consumer Page media keys (volume, playback)
+    private func isMediaKey(_ keyName: String) -> Bool {
+        ["F1", "F2", "F3", "F4", "F7", "F8", "F9", "F10", "F11", "F12"].contains(keyName)
+    }
+
+    /// Return SF Symbol name for macOS media icons on F7-F12.
+    /// F1-F6 are Apple-specific (brightness, Mission Control, etc.) and not
+    /// supported by standard Consumer Page — show as regular F-keys.
+    @ViewBuilder
+    private func mediaIcon(for keyName: String) -> some View {
+        let symbol = mediaSymbolName(for: keyName)
+        Image(systemName: symbol)
+            .font(.system(size: 14, weight: .medium))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func mediaSymbolName(for keyName: String) -> String {
+        switch keyName {
+        case "F1":  return "sun.min"           // Display brightness down
+        case "F2":  return "sun.max"           // Display brightness up
+        case "F3":  return "rectangle.3.group" // Mission Control
+        case "F4":  return "square.grid.3x3"   // Launchpad
+        case "F7":  return "backward"          // Rewind
+        case "F8":  return "playpause"         // Play/Pause
+        case "F9":  return "forward"           // Fast forward
+        case "F10": return "speaker.slash"     // Mute
+        case "F11": return "speaker.minus"     // Volume down
+        case "F12": return "speaker.plus"      // Volume up
+        default:    return "circle"
+        }
+    }
+
+    /// Map F-key names to Consumer page media key bitmaps (Report ID 0x02).
+    /// Bitmap layout from firmware usbd_desc.c:
+    ///   byte1: Vol+(bit0), Vol-(bit1), Mute(bit2), Play/Pause(bit3),
+    ///          Next(bit4), Prev(bit5), Stop(bit6), Eject(bit7)
+    ///   byte2: Email, Search, Bookmarks, Home, Back, Forward, Stop, Refresh
+    ///   byte3: Media, Browser, Calculator, ScreenSaver, MyComputer, Minimize, Record, Rewind
+    private func mediaKeyBitmap(for keyName: String) -> (UInt8, UInt8, UInt8)? {
+        switch keyName {
+        case "F7":  return (0, 0, 1 << 7)           // Rewind (byte3 bit7)
+        case "F8":  return (1 << 3, 0, 0)           // Play/Pause (byte1 bit3)
+        case "F9":  return (1 << 4, 0, 0)           // Scan Next Track (byte1 bit4)
+        case "F10": return (1 << 2, 0, 0)           // Mute (byte1 bit2)
+        case "F11": return (1 << 1, 0, 0)           // Volume Decrement (byte1 bit1)
+        case "F12": return (1 << 0, 0, 0)           // Volume Increment (byte1 bit0)
+        default:    return nil
+        }
+    }
+
+    /// Map F1-F4 to Apple function row bitmap (Report ID 0x03).
+    /// Firmware maps these to Consumer page HID usages:
+    ///   bit0: F1 → 0x0070 Display Brightness Decrement
+    ///   bit1: F2 → 0x006F Display Brightness Increment
+    ///   bit2: F3 → 0x029F Mission Control
+    ///   bit3: F4 → 0x02A2 Launchpad
+    private func appleFnBitmap(for keyName: String) -> UInt8? {
+        switch keyName {
+        case "F1": return 1 << 0  // Display brightness down
+        case "F2": return 1 << 1  // Display brightness up
+        case "F3": return 1 << 2  // Mission Control
+        case "F4": return 1 << 3  // Launchpad
+        default:   return nil
+        }
     }
 
     // Windows-style layout rows (kept for backward compatibility, will be removed)
@@ -276,6 +415,11 @@ struct BasicKeyboardMouseView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
             .coordinateSpace(name: "keyboardLayout")
+            .onPreferenceChange(KeyFramePreferenceKey.self) { frames in
+                if frames != measuredKeyFrames {
+                    measuredKeyFrames = frames
+                }
+            }
             .overlayPreferenceValue(KeyCalloutInfoKey.self) { info in
                 if let info = info {
                     Text(info.text)
@@ -402,7 +546,7 @@ struct BasicKeyboardMouseView: View {
                         let key = currentRow6[idx]
                         if key == "Space" {
                             // Special handling for Space key with logo
-                            let isSpacePressed = keyboardManager.pressedKeys.contains("Space")
+                            let isSpacePressed = keyboardManager.isKeyPressed(hid: .keyboardSpace)
                             Image("openterface_wordmark")
                                 .resizable()
                                 .renderingMode(.template)
@@ -413,8 +557,7 @@ struct BasicKeyboardMouseView: View {
                                 .background(isSpacePressed ? themeManager.accentColor : Self.functionKeyBg)
                                 .cornerRadius(6)
                                 .foregroundColor(isSpacePressed ? Self.keyIconPressed : Self.keyIconIdle)
-                        } else if ["Left", "Right", "Up", "Down"].contains(key) {
-                            // Arrow keys are handled separately below
+                                .reportKeyFrame("Space", keyType(for: "Space"))
                         } else {
                             windowsBottomKey(key)
                         }
@@ -437,6 +580,23 @@ struct BasicKeyboardMouseView: View {
             }
             .padding(.leading, 8)
             .padding(.top, 8)
+            .padding(.bottom, Self.bottomGestureInset)
+            .overlay(
+                MultiTouchKeyboardContainer(
+                    layout: buildLayoutDescription(for: geo.size, isWindowsLayout: false),
+                    measuredFrames: measuredKeyFrames,
+                    keyTypeResolver: keyType(for:),
+                    onPress: { keyName, keyType in
+                        handleMultiTouchPress(keyName: keyName, keyType: keyType)
+                    },
+                    onRelease: { keyName, keyType in
+                        handleMultiTouchRelease(keyName: keyName, keyType: keyType)
+                    },
+                    onMoved: { point, keyName in
+                        handleMultiTouchMoved(point: point, keyName: keyName)
+                    }
+                )
+            )
         }
     }
 
@@ -500,7 +660,7 @@ struct BasicKeyboardMouseView: View {
                             let key = currentRow6[idx]
                             if key == "Space" {
                                 // Special handling for Space key with logo
-                                let isSpacePressed = keyboardManager.pressedKeys.contains("Space")
+                                let isSpacePressed = keyboardManager.isKeyPressed(hid: .keyboardSpace)
                                 Image("openterface_wordmark")
                                     .resizable()
                                     .renderingMode(.template)
@@ -511,8 +671,7 @@ struct BasicKeyboardMouseView: View {
                                     .background(isSpacePressed ? themeManager.accentColor : Self.functionKeyBg)
                                     .cornerRadius(6)
                                     .foregroundColor(isSpacePressed ? Self.keyIconPressed : Self.keyIconIdle)
-                            } else if ["Left", "Right", "Up", "Down"].contains(key) {
-                                // Arrow keys are handled separately below
+                                    .reportKeyFrame("Space", keyType(for: "Space"))
                             } else {
                                 windowsBottomKey(key)
                             }
@@ -530,10 +689,12 @@ struct BasicKeyboardMouseView: View {
                 }
                 .padding(.leading, 8)
                 .padding(.top, 8)
+                .padding(.bottom, Self.bottomGestureInset)
 
                 // Multi-touch overlay — unified container handles all touch events
                 MultiTouchKeyboardContainer(
                     layout: buildLayoutDescription(for: geo.size, isWindowsLayout: false),
+                    measuredFrames: measuredKeyFrames,
                     keyTypeResolver: keyType(for:),
                     onPress: { keyName, keyType in
                         handleMultiTouchPress(keyName: keyName, keyType: keyType)
@@ -630,7 +791,7 @@ struct BasicKeyboardMouseView: View {
                             let key = currentRow6[idx]
                             if key == "Space" {
                                 // Special handling for Space key with logo
-                                let isSpacePressed = keyboardManager.pressedKeys.contains("Space")
+                                let isSpacePressed = keyboardManager.isKeyPressed(hid: .keyboardSpace)
                                 Image("openterface_wordmark")
                                     .resizable()
                                     .renderingMode(.template)
@@ -641,8 +802,7 @@ struct BasicKeyboardMouseView: View {
                                     .background(isSpacePressed ? themeManager.accentColor : Self.functionKeyBg)
                                     .cornerRadius(6)
                                     .foregroundColor(isSpacePressed ? Self.keyIconPressed : Self.keyIconIdle)
-                            } else if ["Left", "Right", "Up", "Down"].contains(key) {
-                                // Arrow keys are handled separately below
+                                    .reportKeyFrame("Space", keyType(for: "Space"))
                             } else {
                                 windowsBottomKey(key)
                             }
@@ -666,10 +826,12 @@ struct BasicKeyboardMouseView: View {
                 }
                 .padding(.leading, 8)
                 .padding(.top, 8)
+                .padding(.bottom, Self.bottomGestureInset)
 
                 // Multi-touch overlay — unified container handles all touch events
                 MultiTouchKeyboardContainer(
                     layout: buildLayoutDescription(for: geo.size, isWindowsLayout: true),
+                    measuredFrames: measuredKeyFrames,
                     keyTypeResolver: keyType(for:),
                     onPress: { keyName, keyType in
                         handleMultiTouchPress(keyName: keyName, keyType: keyType)
@@ -687,21 +849,26 @@ struct BasicKeyboardMouseView: View {
 
     @ViewBuilder
     private func windowsBottomKey(_ key: String) -> some View {
+        // Mirror the layout's user-facing label instead of the internal key
+        // name, so LeftCtrl/RightCtrl render as "Ctrl" rather than "LeftCtrl".
         let displayLabel: String = {
+            if let label = keyDefinition(for: key)?.label { return label }
             switch key {
             case "Cmd": return "⌘"
             case "Option": return "⌥"
             default: return key
             }
         }()
-        let isSuperKey = key == "Super" || key == "Win"
-        let isModifierKey = ["Ctrl", "Alt", "Cmd", "Win", "Option", "Super", "Shift"].contains(key)
+        let isSuperKey = ["Super", "Win", "LeftWin", "RightWin"].contains(key)
+        let isModifierKey = keyDefinition(for: key)?.keyType == .modifier
         // Visual-only: touch handled by MultiTouchKeyboardContainer overlay
         let isPressed: Bool
         if isModifierKey {
             isPressed = keyboardManager.activeModifiers.contains(key) || keyboardManager.lockedModifiers.contains(key)
+        } else if isFnKey(key) {
+            isPressed = keyboardManager.isFnPressed
         } else {
-            isPressed = keyboardManager.pressedKeys.contains(hidKeyName(for: key))
+            isPressed = keyboardManager.isKeyPressed(key)
         }
         return Group {
             if isSuperKey && aiSettings.targetOS == .windows {
@@ -727,6 +894,7 @@ struct BasicKeyboardMouseView: View {
         .background(isPressed ? themeManager.accentColor : Self.functionKeyBg)
         .cornerRadius(6)
         .foregroundColor(isPressed ? Self.keyLabelPressed : Self.keyLabelIdle)
+        .reportKeyFrame(key, keyType(for: key))
     }
 
     @ViewBuilder
@@ -741,7 +909,7 @@ struct BasicKeyboardMouseView: View {
             }
         }()
         // Visual-only: touch handled by MultiTouchKeyboardContainer overlay
-        let isPressed = keyboardManager.pressedKeys.contains(action)
+        let isPressed = keyboardManager.isKeyPressed(action)
         return KeyboardArrow(direction: dir)
             .fill(isPressed ? Self.keyIconPressed : Self.keyIconIdle)
             .frame(width: 24, height: 24)
@@ -749,6 +917,7 @@ struct BasicKeyboardMouseView: View {
             .frame(maxHeight: .infinity)
             .background(isPressed ? themeManager.accentColor : Self.functionKeyBg)
             .cornerRadius(6)
+            .reportKeyFrame(action, .regular)
     }
 
     @ViewBuilder
@@ -767,10 +936,18 @@ struct BasicKeyboardMouseView: View {
             Text("Tab").font(.system(size: 12, weight: .bold))
         } else if key == "Caps" {
             Text("Caps").font(.system(size: 12, weight: .bold))
-        } else if ["Ctrl", "Alt", "Win", "Cmd", "Option", "Super"].contains(key) {
+        } else if keyDefinition(for: key)?.keyType == .modifier
+                    || ["Ctrl", "Alt", "Win", "Cmd", "Option", "Super"].contains(key) {
             Text(displayText).font(.system(size: 12, weight: .bold))
         } else if key == "Space" {
             Text("").frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if isMediaKey(key) {
+            // F7-F12: show media icons, switch to F7-F12 labels when Fn is pressed
+            if keyboardManager.isFnPressed {
+                Text(displayText).font(.system(size: 14, weight: .bold))
+            } else {
+                mediaIcon(for: key)
+            }
         } else {
             // Use layout definition for labels
             let shiftLabel = layoutShiftLabel(for: key)
@@ -801,11 +978,16 @@ struct BasicKeyboardMouseView: View {
                     // Main label centered
                     Text(displayText)
                         .font(.system(size: 14, weight: .bold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                Text(displayText).font(.system(size: 14, weight: .bold))
+                Text(displayText)
+                    .font(.system(size: 14, weight: .bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
         }
     }
@@ -818,11 +1000,11 @@ struct BasicKeyboardMouseView: View {
             .foregroundColor(isPressed ? Self.keyIconPressed : Self.keyIconIdle)
     }
 
-    @ViewBuilder
     private func windowsKeyButton(key: String) -> some View {
         let keyLabel = windowsLabelOnKey(for: key)
         let previewText = windowsDisplayValue(for: key)
-        let modifierKeys: Set<String> = ["Ctrl", "Alt", "Cmd", "Win", "Option", "Super", "Shift"]
+        let isModifierKey = keyDefinition(for: key)?.keyType == .modifier
+            || ["Ctrl", "Alt", "Cmd", "Win", "Option", "Super", "Shift"].contains(key)
         let isCapsActive = key == "Caps" && keyboardManager.capsLockActive
         // First two rows: left-half keys popup RIGHT (left hand), right-half keys popup LEFT (right hand).
         // Rows 3-6: popup ABOVE.
@@ -832,19 +1014,22 @@ struct BasicKeyboardMouseView: View {
         let previewLeft = rightSideFirstTwoRows.contains(key)
         let previewBelow = false
 
-        if modifierKeys.contains(key) {
-            // Visual-only: touch handled by MultiTouchKeyboardContainer overlay
-            let isPressed = keyboardManager.activeModifiers.contains(key) || keyboardManager.lockedModifiers.contains(key)
-            windowsKeyVisual(key: key, displayText: keyLabel, isPressed: isPressed)
-        } else if key == "Caps" {
-            // Visual-only: touch handled by MultiTouchKeyboardContainer overlay
-            windowsKeyVisual(key: key, displayText: keyLabel, isPressed: isCapsActive)
-        } else {
-            // Visual-only: touch handled by MultiTouchKeyboardContainer overlay
-            let effectiveKey = hidKeyName(for: key)
-            let isPressed = keyboardManager.pressedKeys.contains(effectiveKey)
-            windowsKeyVisual(key: key, displayText: keyLabel, isPressed: isPressed)
+        return Group {
+            if isModifierKey {
+                // Visual-only: touch handled by MultiTouchKeyboardContainer overlay
+                let isPressed = keyboardManager.activeModifiers.contains(key) || keyboardManager.lockedModifiers.contains(key)
+                windowsKeyVisual(key: key, displayText: keyLabel, isPressed: isPressed)
+            } else if key == "Caps" {
+                // Visual-only: touch handled by MultiTouchKeyboardContainer overlay
+                windowsKeyVisual(key: key, displayText: keyLabel, isPressed: isCapsActive)
+            } else {
+                // Visual-only: touch handled by MultiTouchKeyboardContainer overlay
+                let isPressed = isFnKey(key) ? keyboardManager.isFnPressed
+                                             : keyboardManager.isKeyPressed(key)
+                windowsKeyVisual(key: key, displayText: keyLabel, isPressed: isPressed)
+            }
         }
+        .reportKeyFrame(key, keyType(for: key))
     }
 
     /// Base label shown ON the key (physical-keyboard style: uppercase letters, raw symbols).
@@ -871,15 +1056,16 @@ struct BasicKeyboardMouseView: View {
             let isCapsActive = keyboardManager.capsLockActive
             let isAltGrActive = keyboardManager.isAltGrActive
 
+            // AltGr layer takes precedence: it can add symbols to letter keys
+            // (e.g. DE q → @, e → €).
+            if isAltGrActive, let altGrLabel = keyDef.altGrLabel {
+                return altGrLabel
+            }
+
             // For letter keys, handle caps lock and shift
             if key.count == 1 && key.first!.isLetter {
                 let shouldBeUppercase = (isShiftActive && !isCapsActive) || (!isShiftActive && isCapsActive)
                 return shouldBeUppercase ? key.uppercased() : key.lowercased()
-            }
-
-            // For AltGr active, return altGr label
-            if isAltGrActive, let altGrLabel = keyDef.altGrLabel {
-                return altGrLabel
             }
 
             // For other keys, return shift label if shift is active
@@ -942,8 +1128,7 @@ struct BasicKeyboardMouseView: View {
                 .foregroundColor(isCapsActive ? Self.keyLabelPressed : Self.keyLabelIdle)
         } else {
             // Visual-only: touch handled by MultiTouchKeyboardContainer overlay
-            let effectiveKey = hidKeyName(for: key)
-            let isPressed = keyboardManager.pressedKeys.contains(effectiveKey)
+            let isPressed = keyboardManager.isKeyPressed(key)
             landscapeKeyContent(for: key, displayText: keyLabel)
                 .font(.system(size: 14, weight: .bold))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1030,14 +1215,14 @@ struct BasicKeyboardMouseView: View {
             let isCapsActive = keyboardManager.capsLockActive
             let isAltGrActive = keyboardManager.isAltGrActive
 
+            // AltGr layer takes precedence over the base letter cap.
+            if isAltGrActive, let altGrLabel = keyDef.altGrLabel {
+                return altGrLabel
+            }
+
             if key.count == 1 && key.first!.isLetter {
                 let shouldBeUppercase = (isShiftActive && !isCapsActive) || (!isShiftActive && isCapsActive)
                 return shouldBeUppercase ? key.uppercased() : key.lowercased()
-            }
-
-            // For AltGr active, return altGr label
-            if isAltGrActive, let altGrLabel = keyDef.altGrLabel {
-                return altGrLabel
             }
 
             if isShiftActive, let shiftLabel = keyDef.shiftLabel {
@@ -1084,16 +1269,9 @@ struct BasicKeyboardMouseView: View {
         return layoutManager.currentLayout.keyTypeResolver()(keyName)
     }
 
-    /// Resolve the HID key code for a given key name from the layout definition.
-    /// Falls back to the key name itself if no definition is found.
-    /// Special-cases "Esc" → "Escape" for HID lookup.
-    private func hidKeyName(for keyName: String) -> String {
-        if keyName == "Esc" { return "Escape" }
-        let resolved = layoutManager.currentLayout.keyDefinition(for: keyName)?.keyCode ?? keyName
-        if keyName == "¥" || keyName == "\\" {
-            print("DEBUG hidKeyName: keyName=\(keyName), resolved=\(resolved)")
-        }
-        return resolved
+    /// Resolve the layout's authoritative HID usage ID for an on-screen key.
+    private func hidUsageID(for keyName: String) -> HIDUsageID? {
+        keyboardManager.hidUsageID(forKey: keyName)
     }
 
     // MARK: - Multi-touch event handlers
@@ -1106,25 +1284,52 @@ struct BasicKeyboardMouseView: View {
             case .sticky:
                 break // Toggle fires on release
             case .momentaryChord:
-                if prefs.chordSustainHid {
-                    keyboardManager.handleKeyDown(hidKeyName(for: keyName))
+                if prefs.chordSustainHid, let hid = hidUsageID(for: keyName) {
+                    keyboardManager.handleKeyDown(hid: hid)
                 } else {
                     keyboardManager.addModifierTrackedOnly(keyName)
                 }
             }
         case .regular:
+            if isFnKey(keyName) {
+                keyboardManager.setFnPressed(true)
+                return
+            }
+            // F5/F6 adjust keyboard backlight level locally for dynamic icons
+            if !keyboardManager.isFnPressed {
+                if keyName == "F5" {
+                    keyboardBacklightLevel = max(0, keyboardBacklightLevel - 1)
+                } else if keyName == "F6" {
+                    keyboardBacklightLevel = min(2, keyboardBacklightLevel + 1)
+                }
+            }
+            // F1-F4 send Apple function row reports when Fn is not pressed.
+            // Firmware CMD=0x03 Report ID 0x03 maps to Consumer page Apple usages.
+            if !keyboardManager.isFnPressed,
+               let appleBitmap = appleFnBitmap(for: keyName) {
+                keyboardManager.sendAppleFnKey(bitmap: appleBitmap)
+                return
+            }
+            // F7-F12 send Consumer page media keys when Fn is not pressed.
+            // Consumer page is standard USB HID — works for any target OS.
+            if !keyboardManager.isFnPressed,
+               let mediaBitmap = mediaKeyBitmap(for: keyName) {
+                keyboardManager.sendMediaKey(bitmap: mediaBitmap)
+                return
+            }
             let repeatMode = KmBasicKeyboardPrefs.shared.isLongPressRepeatMode
-            let effectiveKey = hidKeyName(for: keyName)
+            guard let hid = hidUsageID(for: keyName) else { return }
             if repeatMode {
-                keyboardManager.startKeyRepeat(effectiveKey)
+                keyboardManager.startKeyRepeat(hid: hid)
             } else {
-                keyboardManager.handleKeyDown(effectiveKey)
+                keyboardManager.handleKeyDown(hid: hid)
             }
         case .special:
             keyboardManager.handleSpecialKey(keyName)
         case .japaneseSpecial:
-            // Japanese special keys (変換, 無変換, ひらがな) — treat as regular key for now
-            keyboardManager.handleKeyDown(hidKeyName(for: keyName))
+            // Japanese special keys (変換, 無変換, ひらがな) are ordinary HID keys.
+            guard let hid = hidUsageID(for: keyName) else { return }
+            keyboardManager.handleKeyDown(hid: hid)
         }
     }
 
@@ -1141,20 +1346,32 @@ struct BasicKeyboardMouseView: View {
                     keyboardManager.lockModifier(keyName)
                 }
             case .momentaryChord:
-                keyboardManager.handleKeyUp(hidKeyName(for: keyName))
+                guard let hid = hidUsageID(for: keyName) else { return }
+                keyboardManager.handleKeyUp(hid: hid)
             }
         case .regular:
+            if isFnKey(keyName) {
+                keyboardManager.setFnPressed(false)
+                return
+            }
+            // Apple function row (F1-F4) and media keys (F7-F12) were already
+            // press+released on key down; skip release
+            if !keyboardManager.isFnPressed,
+               appleFnBitmap(for: keyName) != nil || mediaKeyBitmap(for: keyName) != nil {
+                return
+            }
             let repeatMode = KmBasicKeyboardPrefs.shared.isLongPressRepeatMode
-            let effectiveKey = hidKeyName(for: keyName)
+            guard let hid = hidUsageID(for: keyName) else { return }
             if repeatMode {
                 keyboardManager.stopKeyRepeat()
             } else {
-                keyboardManager.handleKeyUp(effectiveKey)
+                keyboardManager.handleKeyUp(hid: hid)
             }
         case .special:
             break // Caps has no release behavior
         case .japaneseSpecial:
-            keyboardManager.handleKeyUp(hidKeyName(for: keyName))
+            guard let hid = hidUsageID(for: keyName) else { return }
+            keyboardManager.handleKeyUp(hid: hid)
         }
     }
 

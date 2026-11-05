@@ -65,7 +65,23 @@ struct KeyboardLayoutSettingsView: View {
                 HStack {
                     Text(languageManager.localizedString("Physical Standard"))
                     Spacer()
-                    Text(layoutManager.currentKeyboardLocale.physicalStandard.rawValue)
+                    Text(layoutManager.activeLayout.metadata.physicalStandard.rawValue)
+                        .foregroundColor(.secondary)
+                }
+
+                if layoutManager.availablePhysicalStandards.count > 1 {
+                    Picker(
+                        languageManager.localizedString("Physical Keyboard"),
+                        selection: $layoutManager.physicalStandard
+                    ) {
+                        ForEach(layoutManager.availablePhysicalStandards, id: \.self) { standard in
+                            Text(physicalStandardName(standard)).tag(standard)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    Text(languageManager.localizedString("Choose the physical keyboard in front of you. A Japanese Mac can use either an ANSI (US) or a JIS keyboard."))
+                        .font(.caption)
                         .foregroundColor(.secondary)
                 }
 
@@ -93,6 +109,14 @@ struct KeyboardLayoutSettingsView: View {
             }
         }
         .navigationTitle(languageManager.localizedString("Keyboard Layout"))
+    }
+
+    private func physicalStandardName(_ standard: KeyboardLocale.PhysicalStandard) -> String {
+        switch standard {
+        case .ansi: return languageManager.localizedString("ANSI (US)")
+        case .iso:  return languageManager.localizedString("ISO")
+        case .jis:  return languageManager.localizedString("JIS (Japanese)")
+        }
     }
 }
 

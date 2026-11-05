@@ -10,6 +10,7 @@
 		6B20A1B22E058000004331F6 /* whisper in Frameworks */ = {isa = PBXBuildFile; productRef = 6B20A1B12E058000004331F6 /* whisper */; };
 		6B56FFDD2FEA7E220089C59F /* CSSH in Frameworks */ = {isa = PBXBuildFile; productRef = 6BAFF1012E040AD6004331F6 /* CSSH */; };
 		6B56FFDE2FEA7E220089C59F /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 6EDFAC2B8A6844B7AB7D4C71 /* SwiftTerm */; };
+		6BAFF0B22E040AD6004331F6 /* KeyboardLayouts in Resources */ = {isa = PBXBuildFile; fileRef = 6BAFF0B12E040AD6004331F6 /* KeyboardLayouts */; };
 		6BDE435D300129A800A20A41 /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 6BDE435C300129A800A20A41 /* MLXLLM */; };
 		6BDE435F300129A800A20A41 /* MLXVLM in Frameworks */ = {isa = PBXBuildFile; productRef = 6BDE435E300129A800A20A41 /* MLXVLM */; };
 		6BDE4361300129A800A20A41 /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = 6BDE4360300129A800A20A41 /* MLXLMCommon */; };
@@ -36,6 +37,7 @@
 		6BAFF02B2E040AD6004331F6 /* KeyCmd.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KeyCmd.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6BAFF03B2E040AD8004331F6 /* KeyCmdTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KeyCmdTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		6BAFF0452E040AD8004331F6 /* KeyCmdUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KeyCmdUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		6BAFF0B12E040AD6004331F6 /* KeyboardLayouts */ = {isa = PBXFileReference; lastKnownFileType = folder; name = KeyboardLayouts; path = Resources/KeyboardLayouts; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -93,6 +95,7 @@
 				6BAFF02D2E040AD6004331F6 /* KeyCmd */,
 				6BAFF03E2E040AD8004331F6 /* KeyCmdTests */,
 				6BAFF0482E040AD8004331F6 /* KeyCmdUITests */,
+				6BAFF0B12E040AD6004331F6 /* KeyboardLayouts */,
 				6BAFF02C2E040AD6004331F6 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -245,6 +248,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				6BAFF0B22E040AD6004331F6 /* KeyboardLayouts in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

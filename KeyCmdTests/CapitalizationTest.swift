@@ -12,9 +12,16 @@ class CapitalizationTest: XCTestCase {
 
     var keyboardManager: KeyboardManager!
     var capturedReports: [(modifier: UInt8, keyCodes: [UInt8])] = []
+    private var originalLocale: KeyboardLocale!
 
     override func setUp() {
         super.setUp()
+
+        // These assertions describe the US physical key positions, so pin the
+        // active layout instead of inheriting whichever locale a prior test used.
+        originalLocale = KeyboardLayoutManager.shared.currentKeyboardLocale
+        KeyboardLayoutManager.shared.currentKeyboardLocale = .us
+
         // 创建 KeyboardManager（需要 BLEManager）
         let bleManager = BLEManager()
         keyboardManager = KeyboardManager(bleManager: bleManager)
@@ -30,6 +37,7 @@ class CapitalizationTest: XCTestCase {
         keyboardManager.hidReportCapture = nil
         keyboardManager = nil
         capturedReports.removeAll()
+        KeyboardLayoutManager.shared.currentKeyboardLocale = originalLocale
         super.tearDown()
     }
 

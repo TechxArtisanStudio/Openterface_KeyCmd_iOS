@@ -40,7 +40,7 @@ struct ContentView: View {
     @StateObject private var terminalViewModel: TerminalViewModel
     @AppStorage("gyroMouseEnabled") private var gyroMouseEnabled = false
     @AppStorage("gyroMouseSensitivity") private var gyroMouseSensitivity: Double = 1.0
-    @State private var basicSubmode: BasicKeyboardMouseView.Submode = .touchpad
+    @State private var basicSubmode: BasicKeyboardMouseView.Submode = .keyboard
     @AppStorage("km_pro_submode") private var proSubmodeRaw: Int = 0
     
     init(launchPanelManager: LaunchPanelManager) {

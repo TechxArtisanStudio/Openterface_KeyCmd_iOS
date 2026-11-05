@@ -15,7 +15,7 @@ enum KeyType: String, Codable, CaseIterable {
 }
 
 /// A registered key with its identity, type, and frame in the touch container's coordinate space.
-struct KeyRegistration {
+struct KeyRegistration: Equatable {
     let keyId: String
     let keyName: String
     let keyType: KeyType

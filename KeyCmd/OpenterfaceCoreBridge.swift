@@ -42,6 +42,8 @@ enum KMPacketSize {
     static let keyboard:     Int = 14  // 5 header + 8 data + 1 checksum
     static let mouseRel:     Int = 11  // 5 header + 5 data + 1 checksum
     static let pressRelease: Int = 2 * 14
+    static let media:        Int = 10  // 5 header + 4 data + 1 checksum
+    static let appleFn:      Int = 8   // 5 header + 2 data + 1 checksum
 }
 
 // ── Parsed token result ────────────────────────────────────────────────
@@ -86,12 +88,13 @@ enum Keymod {
     // MARK: - Packet Builders
 
     /// Build a CH9329 keyboard packet (14 bytes).
-    static func buildKeyboard(modifiers: UInt8, keys: [UInt8]) -> Data {
+    /// flags: 0 = standard mode, 1 = CH9329 workaround (expand modifiers into key slots)
+    static func buildKeyboard(modifiers: UInt8, keys: [UInt8], flags: UInt8 = 0) -> Data {
         var out = Data(count: KMPacketSize.keyboard)
         _ = out.withUnsafeMutableBytes { buf in
             op_input_build_keyboard(
                 buf.baseAddress!.assumingMemoryBound(to: UInt8.self),
-                modifiers, keys, Int32(keys.count)
+                modifiers, keys, Int32(keys.count), flags
             )
         }
         return out
@@ -110,12 +113,44 @@ enum Keymod {
     }
 
     /// Build a press+release keyboard sequence (28 bytes = 2 × 14).
-    static func buildPressRelease(modifiers: UInt8, hidCode: UInt8) -> Data {
+    static func buildPressRelease(modifiers: UInt8, hidCode: UInt8, flags: UInt8 = 0) -> Data {
         var out = Data(count: KMPacketSize.pressRelease)
         _ = out.withUnsafeMutableBytes { buf in
             op_input_build_press_release(
                 buf.baseAddress!.assumingMemoryBound(to: UInt8.self),
-                modifiers, hidCode
+                modifiers, hidCode, flags
+            )
+        }
+        return out
+    }
+
+    /// Build a CH9329 media/consumer key packet (10 bytes, CMD=0x03).
+    /// report_id: 0x01=ACPI, 0x02=Consumer Control
+    /// bitmap: 3-byte media key bitmap
+    static func buildMedia(reportId: UInt8, bitmap: (UInt8, UInt8, UInt8)) -> Data {
+        var out = Data(count: KMPacketSize.media)
+        _ = out.withUnsafeMutableBytes { buf in
+            var bmp = [bitmap.0, bitmap.1, bitmap.2]
+            op_input_build_media(
+                buf.baseAddress!.assumingMemoryBound(to: UInt8.self),
+                reportId, &bmp
+            )
+        }
+        return out
+    }
+
+    /// Build a CH9329 Apple function row packet (8 bytes, CMD=0x03, Report ID 0x03).
+    /// bitmap: 8-bit bitmap for F1-F4 Apple-specific functions
+    ///   bit0: F1 Display Brightness Decrement
+    ///   bit1: F2 Display Brightness Increment
+    ///   bit2: F3 Mission Control
+    ///   bit3: F4 Launchpad
+    static func buildAppleFn(bitmap: UInt8) -> Data {
+        var out = Data(count: KMPacketSize.appleFn)
+        _ = out.withUnsafeMutableBytes { buf in
+            op_input_build_apple_fn(
+                buf.baseAddress!.assumingMemoryBound(to: UInt8.self),
+                bitmap
             )
         }
         return out

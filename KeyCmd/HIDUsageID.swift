@@ -90,8 +90,15 @@ enum HIDUsageID: UInt8, CaseIterable, Codable {
     case keyboardDownArrow = 0x51
     case keyboardUpArrow = 0x52
 
+    // 非 US 键盘特殊键 (0x64)
+    case keyboardNonUSBackslash = 0x64  // Non-US \ and | (Japanese pipe/underscore key)
+
     // 应用键 (0x65)
     case keyboardApplication = 0x65  // Menu key
+
+    // Power and Fn keys
+    case keyboardPower = 0x66
+    case keyboardFn = 0x6A
 
     // 修饰键 (0xE0 - 0xE7)
     case keyboardLeftCtrl = 0xE0
@@ -104,16 +111,16 @@ enum HIDUsageID: UInt8, CaseIterable, Codable {
     case keyboardRightGUI = 0xE7
 
     // 日语特殊键 (0x87 - 0x92)
-    case keyboardInternational1 = 0x87  // Ro
-    case keyboardInternational2 = 0x88  // かな
-    case keyboardInternational3 = 0x89  // 変換
-    case keyboardInternational4 = 0x8A  // 無変換
-    case keyboardInternational5 = 0x8B  // katakana/hiragana
+    case keyboardInternational1 = 0x87  // ろ (Ro)
+    case keyboardInternational2 = 0x88  // かな (Katakana/Hiragana)
+    case keyboardInternational3 = 0x89  // 円 (Yen)
+    case keyboardInternational4 = 0x8A  // 変換 (Henkan)
+    case keyboardInternational5 = 0x8B  // 無変換 (Muhenkan)
     case keyboardInternational6 = 0x8C  // Reserved for future use
     case keyboardInternational7 = 0x8D  // Reserved for future use
     case keyboardInternational8 = 0x8E  // Reserved for future use
     case keyboardInternational9 = 0x8F  // Reserved for future use
     case keyboardLANG1 = 0x90           // Hangul/English toggle
     case keyboardLANG2 = 0x91           // Hanja conversion
-    case keyboardLANG3 = 0x92           // Reserved for future use
+    case keyboardLANG3 = 0x92           // カタカナ (Katakana)
 }

@@ -154,7 +154,7 @@
       "hidUsageID": 31,
       "keyName": "2",
       "label": "2",
-      "shiftLabel": "@",
+      "shiftLabel": "\"",
       "row": 1,
       "column": 2,
       "keyType": "regular"
@@ -360,8 +360,8 @@
     {
       "hidUsageID": 48,
       "keyName": "]",
-      "label": "]",
-      "shiftLabel": "}",
+      "label": "+",
+      "shiftLabel": "*",
       "row": 2,
       "column": 12,
       "keyType": "regular"
@@ -369,8 +369,8 @@
     {
       "hidUsageID": 49,
       "keyName": "\\",
-      "label": "\\",
-      "shiftLabel": "|",
+      "label": "#",
+      "shiftLabel": "'",
       "row": 2,
       "column": 13,
       "keyType": "regular"

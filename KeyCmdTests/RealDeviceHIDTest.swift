@@ -13,12 +13,31 @@ class RealDeviceHIDTest: XCTestCase {
 
     var keyboardManager: KeyboardManager!
     var capturedReports: [(modifier: UInt8, keyCodes: [UInt8])] = []
+    private var originalLocale: KeyboardLocale!
 
     override func setUp() {
         super.setUp()
+
+        let projectRoot = URL(fileURLWithPath: #file)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .path
+        KeyboardLayoutLoader.layoutsDirectoryOverride = "\(projectRoot)/Resources/KeyboardLayouts"
+        KeyboardLayoutManager.shared.clearCache()
+
+        // Force a known starting locale so each test's locale switch refreshes
+        // the active layout even when a previous test already selected it.
+        originalLocale = KeyboardLayoutManager.shared.currentKeyboardLocale
+        KeyboardLayoutManager.shared.currentKeyboardLocale = .us
+
         // 创建 KeyboardManager（需要 BLEManager）
         let bleManager = BLEManager()
         keyboardManager = KeyboardManager(bleManager: bleManager)
+
+        // Reset the shared keyboard state to ensure clean state for each test
+        keyboardManager.keyboardState.reset()
+        keyboardManager.activeModifiers.removeAll()
+        keyboardManager.pressedKeys.removeAll()
 
         // 设置测试钩子捕获 HID 报告
         capturedReports.removeAll()
@@ -31,6 +50,9 @@ class RealDeviceHIDTest: XCTestCase {
         keyboardManager.hidReportCapture = nil
         keyboardManager = nil
         capturedReports.removeAll()
+        KeyboardLayoutManager.shared.currentKeyboardLocale = originalLocale
+        KeyboardLayoutLoader.layoutsDirectoryOverride = nil
+        KeyboardLayoutManager.shared.clearCache()
         super.tearDown()
     }
 
@@ -74,15 +96,15 @@ class RealDeviceHIDTest: XCTestCase {
             XCTAssertEqual(last.modifier, 0x02, "Modifier byte should include Shift (0x02)")
         }
 
-        // Step 2: 程序化按下 & 键
-        print("\n--- Step 2: Press & key ---")
-        let charKeyName = "&"
-        // 模拟 BasicKeyboardMouseView 的 hidKeyName 解析
-        let resolvedKeyCode = frLayout.keyDefinition(for: charKeyName)?.keyCode ?? charKeyName
-        print("hidKeyName(for: '\(charKeyName)') → '\(resolvedKeyCode)'")
+        // Step 2: 程序化按下 & 键 (which is keyName "1" on French AZERTY)
+        print("\n--- Step 2: Press & key (keyName '1') ---")
+        let charKeyName = "1"  // On French AZERTY, the "1" key has label "&"
+        // 模拟 BasicKeyboardMouseView：屏幕按键直接使用布局中的 HID
+        let charHID = try! XCTUnwrap(frLayout.keyDefinition(for: charKeyName)?.hidUsageID)
+        print("HID for '\(charKeyName)' → 0x\(String(format: "%02X", charHID.rawValue))")
 
         clearCapturedReports()
-        keyboardManager.handleKeyDown(resolvedKeyCode)
+        keyboardManager.handleKeyDown(hid: charHID)
 
         // 验证发送的报告包含 Shift 修饰键
         if let last = lastReport {
@@ -103,7 +125,7 @@ class RealDeviceHIDTest: XCTestCase {
         // Step 3: 释放 & 键
         print("\n--- Step 3: Release & key ---")
         clearCapturedReports()
-        keyboardManager.handleKeyUp(resolvedKeyCode)
+        keyboardManager.handleKeyUp(hid: charHID)
 
         if let last = lastReport {
             print("  Sent HID report: modifier=0x\(String(format: "%02X", last.modifier)), keyCodes=\(last.keyCodes.map { String(format: "0x%02X", $0) }.joined(separator: ", "))")
@@ -162,13 +184,13 @@ class RealDeviceHIDTest: XCTestCase {
         }
 
         // Step 2: 按下 à 键（在法语布局中，AltGr+à = @）
-        print("\n--- Step 2: Press à key ---")
-        let charKeyName = "à"
-        let resolvedKeyCode = frLayout.keyDefinition(for: charKeyName)?.keyCode ?? charKeyName
-        print("hidKeyName(for: '\(charKeyName)') → '\(resolvedKeyCode)'")
+        print("\n--- Step 2: Press à key (keyName '0') ---")
+        let charKeyName = "0"  // On French AZERTY, the "0" key has label "à"
+        let charHID = try! XCTUnwrap(frLayout.keyDefinition(for: charKeyName)?.hidUsageID)
+        print("HID for '\(charKeyName)' → 0x\(String(format: "%02X", charHID.rawValue))")
 
         clearCapturedReports()
-        keyboardManager.handleKeyDown(resolvedKeyCode)
+        keyboardManager.handleKeyDown(hid: charHID)
 
         if let last = lastReport {
             print("  Sent HID report: modifier=0x\(String(format: "%02X", last.modifier)), keyCodes=\(last.keyCodes.map { String(format: "0x%02X", $0) }.joined(separator: ", "))")
@@ -197,40 +219,43 @@ class RealDeviceHIDTest: XCTestCase {
         layoutManager.currentKeyboardLocale = .fr
         let frLayout = layoutManager.layout(for: .windows, locale: .fr)
 
-        // 测试所有法语数字行的特殊字符
-        let testChars: [(String, UInt8, String)] = [
-            ("&", 30, "1"),
-            ("é", 31, "2"),
-            ("\"", 32, "3"),
-            ("'", 33, "4"),
-            ("(", 34, "5"),
-            ("-", 35, "6"),
-            ("è", 36, "7"),
-            ("_", 37, "8"),
-            ("ç", 38, "9"),
-            ("à", 39, "0"),
+        // 测试所有法语数字行的特殊字符 (using keyName, not label)
+        // Format: (keyName, expectedHIDCode, label, shiftLabel)
+        let testChars: [(String, UInt8, String, String)] = [
+            ("1", 30, "&", "1"),
+            ("2", 31, "é", "2"),
+            ("3", 32, "\"", "3"),
+            ("4", 33, "'", "4"),
+            ("5", 34, "(", "5"),
+            ("6", 35, "-", "6"),
+            ("7", 36, "è", "7"),
+            ("8", 37, "_", "8"),
+            ("9", 38, "ç", "9"),
+            ("0", 39, "à", "0"),
         ]
 
         var allPassed = true
 
-        for (charName, expectedHidCode, expectedShiftChar) in testChars {
+        for (keyName, expectedHidCode, label, shiftLabel) in testChars {
             clearCapturedReports()
 
-            // 解析 keyCode
-            let resolvedKeyCode = frLayout.keyDefinition(for: charName)?.keyCode ?? charName
+            guard let charHID = frLayout.keyDefinition(for: keyName)?.hidUsageID else {
+                XCTFail("French layout has no key '\(keyName)'")
+                continue
+            }
 
             // 按下字符键
-            keyboardManager.handleKeyDown(resolvedKeyCode)
+            keyboardManager.handleKeyDown(hid: charHID)
 
             if let last = lastReport {
                 let passed = last.keyCodes[0] == expectedHidCode
                 let status = passed ? "✅" : "❌"
                 if !passed { allPassed = false }
-                print("\(status) '\(charName)' → keyCode '\(resolvedKeyCode)' → HID \(last.keyCodes[0]) (期望 \(expectedHidCode)) → Shift+'\(charName)' = '\(expectedShiftChar)'")
+                print("\(status) keyName '\(keyName)' (label: '\(label)') → HID \(last.keyCodes[0]) (期望 \(expectedHidCode)) → Shift = '\(shiftLabel)'")
             }
 
             // 释放字符键
-            keyboardManager.handleKeyUp(resolvedKeyCode)
+            keyboardManager.handleKeyUp(hid: charHID)
         }
 
         print("-" + String(repeating: "-", count: 70))
@@ -251,7 +276,7 @@ class RealDeviceHIDTest: XCTestCase {
         keyboardManager.handleKeyDown("Ctrl")
         keyboardManager.handleKeyDown("Shift")
         clearCapturedReports()
-        keyboardManager.handleKeyDown("a")
+        keyboardManager.handleKeyDown(hid: .keyboardA)
 
         if let last = lastReport {
             print("Modifier byte: 0x\(String(format: "%02X", last.modifier))")
@@ -265,7 +290,7 @@ class RealDeviceHIDTest: XCTestCase {
         }
 
         // 释放所有键
-        keyboardManager.handleKeyUp("a")
+        keyboardManager.handleKeyUp(hid: .keyboardA)
         keyboardManager.handleKeyUp("Shift")
         keyboardManager.handleKeyUp("Ctrl")
 

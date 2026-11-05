@@ -3,7 +3,7 @@
   "targetOS": "macos",
   "metadata": {
     "name": "US QWERTY",
-    "description": "Standard US QWERTY layout (ANSI)",
+    "description": "Standard US QWERTY layout (ANSI) matching macOS Keyboard Viewer",
     "physicalStandard": "ANSI",
     "hasAltGr": false,
     "rowHeights": [
@@ -30,7 +30,7 @@
     {
       "hidUsageID": 41,
       "keyName": "Esc",
-      "label": "Esc",
+      "label": "esc",
       "row": 0,
       "column": 0,
       "keyType": "regular"
@@ -129,6 +129,14 @@
       "label": "F12",
       "row": 0,
       "column": 12,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 101,
+      "keyName": "Menu",
+      "label": "\u2261",
+      "row": 0,
+      "column": 13,
       "keyType": "regular"
     },
     {
@@ -251,7 +259,7 @@
     {
       "hidUsageID": 42,
       "keyName": "Backspace",
-      "label": "Backspace",
+      "label": "\u232b",
       "row": 1,
       "column": 13,
       "keyType": "regular"
@@ -259,7 +267,7 @@
     {
       "hidUsageID": 43,
       "keyName": "Tab",
-      "label": "Tab",
+      "label": "\u21e5",
       "row": 2,
       "column": 0,
       "keyType": "regular"
@@ -267,7 +275,7 @@
     {
       "hidUsageID": 20,
       "keyName": "q",
-      "label": "Q",
+      "label": "q",
       "row": 2,
       "column": 1,
       "keyType": "regular"
@@ -275,7 +283,7 @@
     {
       "hidUsageID": 26,
       "keyName": "w",
-      "label": "W",
+      "label": "w",
       "row": 2,
       "column": 2,
       "keyType": "regular"
@@ -283,7 +291,7 @@
     {
       "hidUsageID": 8,
       "keyName": "e",
-      "label": "E",
+      "label": "e",
       "row": 2,
       "column": 3,
       "keyType": "regular"
@@ -291,7 +299,7 @@
     {
       "hidUsageID": 21,
       "keyName": "r",
-      "label": "R",
+      "label": "r",
       "row": 2,
       "column": 4,
       "keyType": "regular"
@@ -299,7 +307,7 @@
     {
       "hidUsageID": 23,
       "keyName": "t",
-      "label": "T",
+      "label": "t",
       "row": 2,
       "column": 5,
       "keyType": "regular"
@@ -307,7 +315,7 @@
     {
       "hidUsageID": 28,
       "keyName": "y",
-      "label": "Y",
+      "label": "y",
       "row": 2,
       "column": 6,
       "keyType": "regular"
@@ -315,7 +323,7 @@
     {
       "hidUsageID": 24,
       "keyName": "u",
-      "label": "U",
+      "label": "u",
       "row": 2,
       "column": 7,
       "keyType": "regular"
@@ -323,7 +331,7 @@
     {
       "hidUsageID": 12,
       "keyName": "i",
-      "label": "I",
+      "label": "i",
       "row": 2,
       "column": 8,
       "keyType": "regular"
@@ -331,7 +339,7 @@
     {
       "hidUsageID": 18,
       "keyName": "o",
-      "label": "O",
+      "label": "o",
       "row": 2,
       "column": 9,
       "keyType": "regular"
@@ -339,7 +347,7 @@
     {
       "hidUsageID": 19,
       "keyName": "p",
-      "label": "P",
+      "label": "p",
       "row": 2,
       "column": 10,
       "keyType": "regular"
@@ -372,9 +380,17 @@
       "keyType": "regular"
     },
     {
+      "hidUsageID": 76,
+      "keyName": "ForwardDelete",
+      "label": "\u2326",
+      "row": 2,
+      "column": 14,
+      "keyType": "regular"
+    },
+    {
       "hidUsageID": 57,
       "keyName": "Caps",
-      "label": "Caps",
+      "label": "\u21ea",
       "row": 3,
       "column": 0,
       "keyType": "special"
@@ -382,7 +398,7 @@
     {
       "hidUsageID": 4,
       "keyName": "a",
-      "label": "A",
+      "label": "a",
       "row": 3,
       "column": 1,
       "keyType": "regular"
@@ -390,7 +406,7 @@
     {
       "hidUsageID": 22,
       "keyName": "s",
-      "label": "S",
+      "label": "s",
       "row": 3,
       "column": 2,
       "keyType": "regular"
@@ -398,7 +414,7 @@
     {
       "hidUsageID": 7,
       "keyName": "d",
-      "label": "D",
+      "label": "d",
       "row": 3,
       "column": 3,
       "keyType": "regular"
@@ -406,7 +422,7 @@
     {
       "hidUsageID": 9,
       "keyName": "f",
-      "label": "F",
+      "label": "f",
       "row": 3,
       "column": 4,
       "keyType": "regular"
@@ -414,7 +430,7 @@
     {
       "hidUsageID": 10,
       "keyName": "g",
-      "label": "G",
+      "label": "g",
       "row": 3,
       "column": 5,
       "keyType": "regular"
@@ -422,7 +438,7 @@
     {
       "hidUsageID": 11,
       "keyName": "h",
-      "label": "H",
+      "label": "h",
       "row": 3,
       "column": 6,
       "keyType": "regular"
@@ -430,7 +446,7 @@
     {
       "hidUsageID": 13,
       "keyName": "j",
-      "label": "J",
+      "label": "j",
       "row": 3,
       "column": 7,
       "keyType": "regular"
@@ -438,7 +454,7 @@
     {
       "hidUsageID": 14,
       "keyName": "k",
-      "label": "K",
+      "label": "k",
       "row": 3,
       "column": 8,
       "keyType": "regular"
@@ -446,7 +462,7 @@
     {
       "hidUsageID": 15,
       "keyName": "l",
-      "label": "L",
+      "label": "l",
       "row": 3,
       "column": 9,
       "keyType": "regular"
@@ -472,7 +488,7 @@
     {
       "hidUsageID": 40,
       "keyName": "Enter",
-      "label": "Enter",
+      "label": "\u21a9",
       "row": 3,
       "column": 12,
       "keyType": "regular"
@@ -480,7 +496,7 @@
     {
       "hidUsageID": 225,
       "keyName": "LeftShift",
-      "label": "Shift",
+      "label": "\u21e7",
       "row": 4,
       "column": 0,
       "keyType": "modifier",
@@ -489,7 +505,7 @@
     {
       "hidUsageID": 29,
       "keyName": "z",
-      "label": "Z",
+      "label": "z",
       "row": 4,
       "column": 1,
       "keyType": "regular"
@@ -497,7 +513,7 @@
     {
       "hidUsageID": 27,
       "keyName": "x",
-      "label": "X",
+      "label": "x",
       "row": 4,
       "column": 2,
       "keyType": "regular"
@@ -505,7 +521,7 @@
     {
       "hidUsageID": 6,
       "keyName": "c",
-      "label": "C",
+      "label": "c",
       "row": 4,
       "column": 3,
       "keyType": "regular"
@@ -513,7 +529,7 @@
     {
       "hidUsageID": 25,
       "keyName": "v",
-      "label": "V",
+      "label": "v",
       "row": 4,
       "column": 4,
       "keyType": "regular"
@@ -521,7 +537,7 @@
     {
       "hidUsageID": 5,
       "keyName": "b",
-      "label": "B",
+      "label": "b",
       "row": 4,
       "column": 5,
       "keyType": "regular"
@@ -529,7 +545,7 @@
     {
       "hidUsageID": 17,
       "keyName": "n",
-      "label": "N",
+      "label": "n",
       "row": 4,
       "column": 6,
       "keyType": "regular"
@@ -537,7 +553,7 @@
     {
       "hidUsageID": 16,
       "keyName": "m",
-      "label": "M",
+      "label": "m",
       "row": 4,
       "column": 7,
       "keyType": "regular"
@@ -572,32 +588,24 @@
     {
       "hidUsageID": 229,
       "keyName": "RightShift",
-      "label": "Shift",
+      "label": "\u21e7",
       "row": 4,
       "column": 11,
       "keyType": "modifier",
       "width": 1.5
     },
     {
-      "hidUsageID": 82,
-      "keyName": "Up",
-      "label": "↑",
-      "row": 4,
-      "column": 12,
+      "hidUsageID": 106,
+      "keyName": "Fn",
+      "label": "fn",
+      "row": 5,
+      "column": 0,
       "keyType": "regular"
     },
     {
       "hidUsageID": 224,
       "keyName": "LeftCtrl",
-      "label": "Ctrl",
-      "row": 5,
-      "column": 0,
-      "keyType": "modifier"
-    },
-    {
-      "hidUsageID": 227,
-      "keyName": "LeftWin",
-      "label": "Win",
+      "label": "\u2303",
       "row": 5,
       "column": 1,
       "keyType": "modifier"
@@ -605,9 +613,17 @@
     {
       "hidUsageID": 226,
       "keyName": "LeftAlt",
-      "label": "Alt",
+      "label": "\u2325",
       "row": 5,
       "column": 2,
+      "keyType": "modifier"
+    },
+    {
+      "hidUsageID": 227,
+      "keyName": "LeftWin",
+      "label": "\u2318",
+      "row": 5,
+      "column": 3,
       "keyType": "modifier"
     },
     {
@@ -615,64 +631,64 @@
       "keyName": "Space",
       "label": " ",
       "row": 5,
-      "column": 3,
-      "keyType": "regular",
-      "width": 6.0
-    },
-    {
-      "hidUsageID": 230,
-      "keyName": "RightAlt",
-      "label": "Alt",
-      "row": 5,
       "column": 4,
-      "keyType": "modifier"
+      "keyType": "regular",
+      "width": 5.0
     },
     {
       "hidUsageID": 231,
       "keyName": "RightWin",
-      "label": "Win",
+      "label": "\u2318",
       "row": 5,
-      "column": 5,
+      "column": 9,
       "keyType": "modifier"
     },
     {
-      "hidUsageID": 101,
-      "keyName": "Menu",
-      "label": "Menu",
+      "hidUsageID": 230,
+      "keyName": "RightAlt",
+      "label": "\u2325",
       "row": 5,
-      "column": 6,
-      "keyType": "regular"
+      "column": 10,
+      "keyType": "modifier"
     },
     {
       "hidUsageID": 228,
       "keyName": "RightCtrl",
-      "label": "Ctrl",
+      "label": "\u2303",
       "row": 5,
-      "column": 7,
+      "column": 11,
       "keyType": "modifier"
     },
     {
       "hidUsageID": 80,
       "keyName": "Left",
-      "label": "←",
+      "label": "\u2190",
       "row": 5,
-      "column": 8,
+      "column": 12,
+      "keyType": "regular"
+    },
+    {
+      "hidUsageID": 82,
+      "keyName": "Up",
+      "label": "\u2191",
+      "row": 5,
+      "column": 13,
       "keyType": "regular"
     },
     {
       "hidUsageID": 81,
       "keyName": "Down",
-      "label": "↓",
+      "label": "\u2193",
       "row": 5,
-      "column": 9,
+      "column": 14,
       "keyType": "regular"
     },
     {
       "hidUsageID": 79,
       "keyName": "Right",
-      "label": "→",
+      "label": "\u2192",
       "row": 5,
-      "column": 10,
+      "column": 15,
       "keyType": "regular"
     }
   ]

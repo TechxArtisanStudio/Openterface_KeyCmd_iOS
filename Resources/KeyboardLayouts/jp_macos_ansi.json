@@ -2,9 +2,9 @@
   "locale": "jp",
   "targetOS": "macos",
   "metadata": {
-    "name": "Japanese JIS",
-    "description": "Japanese JIS layout with special keys",
-    "physicalStandard": "JIS",
+    "name": "Japanese (ANSI)",
+    "description": "Japanese input on an ANSI physical keyboard: US key legends and HID codes",
+    "physicalStandard": "ANSI",
     "hasAltGr": false,
     "rowHeights": [
       0.1,
@@ -133,9 +133,9 @@
     },
     {
       "hidUsageID": 53,
-      "keyName": "半角/全角",
-      "label": "半角/全角",
-      "shiftLabel": "漢字",
+      "keyName": "`",
+      "label": "`",
+      "shiftLabel": "~",
       "row": 1,
       "column": 0,
       "keyType": "regular"
@@ -346,9 +346,9 @@
     },
     {
       "hidUsageID": 47,
-      "keyName": "atmark",
-      "label": "@",
-      "shiftLabel": "`",
+      "keyName": "[",
+      "label": "[",
+      "shiftLabel": "{",
       "row": 2,
       "column": 11,
       "keyType": "regular"
@@ -356,8 +356,8 @@
     {
       "hidUsageID": 48,
       "keyName": "]",
-      "label": "[",
-      "shiftLabel": "{",
+      "label": "]",
+      "shiftLabel": "}",
       "row": 2,
       "column": 12,
       "keyType": "regular"
@@ -365,7 +365,7 @@
     {
       "hidUsageID": 49,
       "keyName": "\\",
-      "label": "¥",
+      "label": "\\",
       "shiftLabel": "|",
       "row": 2,
       "column": 13,
@@ -673,38 +673,6 @@
       "label": "→",
       "row": 5,
       "column": 10,
-      "keyType": "regular"
-    },
-    {
-      "hidUsageID": 135,
-      "keyName": "Ro",
-      "label": "Ro",
-      "row": 5,
-      "column": 11,
-      "keyType": "regular"
-    },
-    {
-      "hidUsageID": 136,
-      "keyName": "Kana",
-      "label": "かな",
-      "row": 5,
-      "column": 12,
-      "keyType": "regular"
-    },
-    {
-      "hidUsageID": 137,
-      "keyName": "変換",
-      "label": "変換",
-      "row": 5,
-      "column": 13,
-      "keyType": "regular"
-    },
-    {
-      "hidUsageID": 138,
-      "keyName": "無変換",
-      "label": "無変換",
-      "row": 5,
-      "column": 14,
       "keyType": "regular"
     }
   ]

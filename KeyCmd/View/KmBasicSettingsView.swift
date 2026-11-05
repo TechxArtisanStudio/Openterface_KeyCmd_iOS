@@ -31,6 +31,19 @@ struct KmBasicSettingsView: View {
                 .pickerStyle(.menu)
             }
 
+            if layoutManager.availablePhysicalStandards.count > 1 {
+                Picker("Physical Keyboard", selection: $layoutManager.physicalStandard) {
+                    ForEach(layoutManager.availablePhysicalStandards, id: \.self) { standard in
+                        Text(standard == .ansi ? "ANSI (US)" : "JIS (Japanese)")
+                            .tag(standard)
+                    }
+                }
+                .pickerStyle(.menu)
+                Text("Choose the keyboard in front of you. A Japanese Mac can use either an ANSI (US) or a JIS keyboard.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
             HStack {
                 Text("Current")
                 Spacer()

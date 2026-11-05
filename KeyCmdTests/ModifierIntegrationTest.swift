@@ -75,17 +75,22 @@ class ModifierIntegrationTest: XCTestCase {
         print("  Active modifiers: {Shift}")
         print("  Modifier byte: 0x\(String(format: "%02X", shiftMask))")
 
-        // Step 2: Press & key → resolve to keyCode "1" → HID 30
-        let charKeyName = "&"
+        // Step 2: Press & key (which is keyName "1" on French AZERTY) → HID 30
+        let charKeyName = "1"  // On French AZERTY, the "1" key has label "&"
         let resolvedKeyCode = frLayout.keyDefinition(for: charKeyName)?.keyCode ?? charKeyName
-        let hidCode = Keymod.hidCode(forKey: resolvedKeyCode)
-        print("\nStep 2: Press '\(charKeyName)' key")
+        let hidCodeInt = Keymod.hidCode(forKey: resolvedKeyCode)
+        guard hidCodeInt >= 0 else {
+            XCTFail("Failed to resolve HID code for '\(charKeyName)' -> '\(resolvedKeyCode)'")
+            return
+        }
+        let hidCode = UInt8(hidCodeInt)
+        print("\nStep 2: Press '\(charKeyName)' key (label: '&')")
         print("  hidKeyName(for: '\(charKeyName)') → '\(resolvedKeyCode)'")
         print("  HID code for '\(resolvedKeyCode)': \(hidCode) (0x\(String(format: "%02X", hidCode)))")
 
         // Step 3: Build HID report
         let modifierByte = shiftMask
-        let keyCodes: [UInt8] = [UInt8(hidCode), 0, 0, 0, 0, 0]
+        let keyCodes: [UInt8] = [hidCode, 0, 0, 0, 0, 0]
         print("\nStep 3: Send HID report")
         print("  Modifier byte: 0x\(String(format: "%02X", modifierByte))")
         print("  Key codes: \(keyCodes.map { String(format: "0x%02X", $0) }.joined(separator: ", "))")
@@ -118,17 +123,22 @@ class ModifierIntegrationTest: XCTestCase {
         print("  Active modifiers: {AltGr}")
         print("  Modifier byte: 0x\(String(format: "%02X", altGrMask))")
 
-        // Step 2: Press à key → resolve to keyCode "0" → HID 39
-        let charKeyName = "à"
+        // Step 2: Press à key (which is keyName "0" on French AZERTY) → HID 39
+        let charKeyName = "0"  // On French AZERTY, the "0" key has label "à"
         let resolvedKeyCode = frLayout.keyDefinition(for: charKeyName)?.keyCode ?? charKeyName
-        let hidCode = Keymod.hidCode(forKey: resolvedKeyCode)
-        print("\nStep 2: Press '\(charKeyName)' key")
+        let hidCodeInt = Keymod.hidCode(forKey: resolvedKeyCode)
+        guard hidCodeInt >= 0 else {
+            XCTFail("Failed to resolve HID code for '\(charKeyName)' -> '\(resolvedKeyCode)'")
+            return
+        }
+        let hidCode = UInt8(hidCodeInt)
+        print("\nStep 2: Press '\(charKeyName)' key (label: 'à')")
         print("  hidKeyName(for: '\(charKeyName)') → '\(resolvedKeyCode)'")
         print("  HID code for '\(resolvedKeyCode)': \(hidCode) (0x\(String(format: "%02X", hidCode)))")
 
         // Step 3: Build HID report
         let modifierByte = altGrMask
-        let keyCodes: [UInt8] = [UInt8(hidCode), 0, 0, 0, 0, 0]
+        let keyCodes: [UInt8] = [hidCode, 0, 0, 0, 0, 0]
         print("\nStep 3: Send HID report")
         print("  Modifier byte: 0x\(String(format: "%02X", modifierByte))")
         print("  Key codes: \(keyCodes.map { String(format: "0x%02X", $0) }.joined(separator: ", "))")
