@@ -112,8 +112,12 @@ class KeyboardLayoutTests: XCTestCase {
             }
 
         case .fr, .be:
-            // 法文和比利时布局：应该有 AltGr 修饰键
-            let altGrKey = allKeys.first { $0.keyName == "AltGr" || $0.label == "AltGr" }
+            // 法文和比利时布局：应该有 AltGr 修饰键。
+            // macOS 变体遵循 Apple 习惯：右 Option（RightAlt/⌥）即 AltGr。
+            let altGrKey = allKeys.first {
+                $0.keyName == "AltGr" || $0.label == "AltGr" ||
+                (layout.targetOS == .macOS && $0.keyName == "RightAlt")
+            }
             XCTAssertNotNil(altGrKey,
                             "\(locale.rawValue) layout missing AltGr key")
 

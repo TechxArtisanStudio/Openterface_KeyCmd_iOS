@@ -135,125 +135,134 @@
       "hidUsageID": 53,
       "keyName": "半角/全角",
       "label": "半角/全角",
-      "shiftLabel": "漢字",
       "row": 1,
       "column": 0,
-      "keyType": "regular"
+      "keyType": "regular",
+      "shiftLabel": "漢字"
     },
     {
       "hidUsageID": 30,
       "keyName": "1",
       "label": "1",
-      "shiftLabel": "!",
       "row": 1,
       "column": 1,
-      "keyType": "regular"
+      "keyType": "regular",
+      "shiftLabel": "!"
     },
     {
       "hidUsageID": 31,
       "keyName": "2",
       "label": "2",
-      "shiftLabel": "@",
       "row": 1,
       "column": 2,
-      "keyType": "regular"
+      "keyType": "regular",
+      "shiftLabel": "\""
     },
     {
       "hidUsageID": 32,
       "keyName": "3",
       "label": "3",
-      "shiftLabel": "#",
       "row": 1,
       "column": 3,
-      "keyType": "regular"
+      "keyType": "regular",
+      "shiftLabel": "#"
     },
     {
       "hidUsageID": 33,
       "keyName": "4",
       "label": "4",
-      "shiftLabel": "$",
       "row": 1,
       "column": 4,
-      "keyType": "regular"
+      "keyType": "regular",
+      "shiftLabel": "$"
     },
     {
       "hidUsageID": 34,
       "keyName": "5",
       "label": "5",
-      "shiftLabel": "%",
       "row": 1,
       "column": 5,
-      "keyType": "regular"
+      "keyType": "regular",
+      "shiftLabel": "%"
     },
     {
       "hidUsageID": 35,
       "keyName": "6",
       "label": "6",
-      "shiftLabel": "^",
       "row": 1,
       "column": 6,
-      "keyType": "regular"
+      "keyType": "regular",
+      "shiftLabel": "&"
     },
     {
       "hidUsageID": 36,
       "keyName": "7",
       "label": "7",
-      "shiftLabel": "&",
       "row": 1,
       "column": 7,
-      "keyType": "regular"
+      "keyType": "regular",
+      "shiftLabel": "'"
     },
     {
       "hidUsageID": 37,
       "keyName": "8",
       "label": "8",
-      "shiftLabel": "*",
       "row": 1,
       "column": 8,
-      "keyType": "regular"
+      "keyType": "regular",
+      "shiftLabel": "("
     },
     {
       "hidUsageID": 38,
       "keyName": "9",
       "label": "9",
-      "shiftLabel": "(",
       "row": 1,
       "column": 9,
-      "keyType": "regular"
+      "keyType": "regular",
+      "shiftLabel": ")"
     },
     {
       "hidUsageID": 39,
       "keyName": "0",
       "label": "0",
-      "shiftLabel": ")",
       "row": 1,
       "column": 10,
-      "keyType": "regular"
+      "keyType": "regular",
+      "shiftLabel": "を"
     },
     {
       "hidUsageID": 45,
       "keyName": "-",
       "label": "-",
-      "shiftLabel": "_",
       "row": 1,
       "column": 11,
-      "keyType": "regular"
+      "keyType": "regular",
+      "shiftLabel": "="
     },
     {
       "hidUsageID": 46,
-      "keyName": "=",
-      "label": "=",
-      "shiftLabel": "+",
+      "keyName": "^",
+      "label": "^",
       "row": 1,
       "column": 12,
-      "keyType": "regular"
+      "keyType": "regular",
+      "shiftLabel": "~"
+    },
+    {
+      "hidUsageID": 137,
+      "keyName": "¥",
+      "label": "¥",
+      "row": 1,
+      "column": 13,
+      "keyType": "regular",
+      "shiftLabel": "|"
     },
     {
       "hidUsageID": 42,
       "keyName": "Backspace",
       "label": "Backspace",
       "row": 1,
-      "column": 13,
+      "column": 14,
       "keyType": "regular"
     },
     {
@@ -346,30 +355,21 @@
     },
     {
       "hidUsageID": 47,
-      "keyName": "atmark",
+      "keyName": "@",
       "label": "@",
-      "shiftLabel": "`",
       "row": 2,
       "column": 11,
-      "keyType": "regular"
+      "keyType": "regular",
+      "shiftLabel": "`"
     },
     {
       "hidUsageID": 48,
-      "keyName": "]",
+      "keyName": "[",
       "label": "[",
-      "shiftLabel": "{",
       "row": 2,
       "column": 12,
-      "keyType": "regular"
-    },
-    {
-      "hidUsageID": 100,
-      "keyName": "\\",
-      "label": "¥",
-      "shiftLabel": "|",
-      "row": 2,
-      "column": 13,
-      "keyType": "regular"
+      "keyType": "regular",
+      "shiftLabel": "{"
     },
     {
       "hidUsageID": 57,
@@ -455,26 +455,35 @@
       "hidUsageID": 51,
       "keyName": ";",
       "label": ";",
-      "shiftLabel": ":",
       "row": 3,
       "column": 10,
-      "keyType": "regular"
+      "keyType": "regular",
+      "shiftLabel": "+"
     },
     {
       "hidUsageID": 52,
-      "keyName": "'",
-      "label": "'",
-      "shiftLabel": "\"",
+      "keyName": ":",
+      "label": ":",
       "row": 3,
       "column": 11,
-      "keyType": "regular"
+      "keyType": "regular",
+      "shiftLabel": "*"
+    },
+    {
+      "hidUsageID": 49,
+      "keyName": "]",
+      "label": "]",
+      "row": 3,
+      "column": 12,
+      "keyType": "regular",
+      "shiftLabel": "}"
     },
     {
       "hidUsageID": 40,
       "keyName": "Enter",
       "label": "Enter",
       "row": 3,
-      "column": 12,
+      "column": 13,
       "keyType": "regular"
     },
     {
@@ -546,35 +555,35 @@
       "hidUsageID": 54,
       "keyName": ",",
       "label": ",",
-      "shiftLabel": "<",
       "row": 4,
       "column": 8,
-      "keyType": "regular"
+      "keyType": "regular",
+      "shiftLabel": "<"
     },
     {
       "hidUsageID": 55,
       "keyName": ".",
       "label": ".",
-      "shiftLabel": ">",
       "row": 4,
       "column": 9,
-      "keyType": "regular"
+      "keyType": "regular",
+      "shiftLabel": ">"
     },
     {
       "hidUsageID": 56,
       "keyName": "/",
       "label": "/",
-      "shiftLabel": "?",
       "row": 4,
-      "column": 11,
-      "keyType": "regular"
+      "column": 10,
+      "keyType": "regular",
+      "shiftLabel": "?"
     },
     {
       "hidUsageID": 229,
       "keyName": "RightShift",
       "label": "Shift",
       "row": 4,
-      "column": 12,
+      "column": 11,
       "keyType": "modifier",
       "width": 1.5
     },
@@ -583,7 +592,7 @@
       "keyName": "Up",
       "label": "↑",
       "row": 4,
-      "column": 10,
+      "column": 12,
       "keyType": "regular"
     },
     {

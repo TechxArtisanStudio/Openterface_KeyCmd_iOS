@@ -98,7 +98,7 @@ class RealDeviceHIDTest: XCTestCase {
 
         // Step 2: 程序化按下 & 键 (which is keyName "1" on French AZERTY)
         print("\n--- Step 2: Press & key (keyName '1') ---")
-        let charKeyName = "1"  // On French AZERTY, the "1" key has label "&"
+        let charKeyName = "&"  // keyName 跟随 plain 输出；Shift + & = 1
         // 模拟 BasicKeyboardMouseView：屏幕按键直接使用布局中的 HID
         let charHID = try! XCTUnwrap(frLayout.keyDefinition(for: charKeyName)?.hidUsageID)
         print("HID for '\(charKeyName)' → 0x\(String(format: "%02X", charHID.rawValue))")
@@ -185,7 +185,7 @@ class RealDeviceHIDTest: XCTestCase {
 
         // Step 2: 按下 à 键（在法语布局中，AltGr+à = @）
         print("\n--- Step 2: Press à key (keyName '0') ---")
-        let charKeyName = "0"  // On French AZERTY, the "0" key has label "à"
+        let charKeyName = "agrave"  // à 键的 keyName；AltGr + à = @
         let charHID = try! XCTUnwrap(frLayout.keyDefinition(for: charKeyName)?.hidUsageID)
         print("HID for '\(charKeyName)' → 0x\(String(format: "%02X", charHID.rawValue))")
 
@@ -220,18 +220,19 @@ class RealDeviceHIDTest: XCTestCase {
         let frLayout = layoutManager.layout(for: .windows, locale: .fr)
 
         // 测试所有法语数字行的特殊字符 (using keyName, not label)
+        // keyName 跟随 plain 输出（&/é/…），不再是 Shift 层数字。
         // Format: (keyName, expectedHIDCode, label, shiftLabel)
         let testChars: [(String, UInt8, String, String)] = [
-            ("1", 30, "&", "1"),
-            ("2", 31, "é", "2"),
-            ("3", 32, "\"", "3"),
-            ("4", 33, "'", "4"),
-            ("5", 34, "(", "5"),
-            ("6", 35, "-", "6"),
-            ("7", 36, "è", "7"),
-            ("8", 37, "_", "8"),
-            ("9", 38, "ç", "9"),
-            ("0", 39, "à", "0"),
+            ("&", 30, "&", "1"),
+            ("eacute", 31, "é", "2"),
+            ("\"", 32, "\"", "3"),
+            ("'", 33, "'", "4"),
+            ("(", 34, "(", "5"),
+            ("-", 35, "-", "6"),
+            ("egrave", 36, "è", "7"),
+            ("_", 37, "_", "8"),
+            ("ccedilla", 38, "ç", "9"),
+            ("agrave", 39, "à", "0"),
         ]
 
         var allPassed = true

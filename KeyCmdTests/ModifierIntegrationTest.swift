@@ -75,18 +75,16 @@ class ModifierIntegrationTest: XCTestCase {
         print("  Active modifiers: {Shift}")
         print("  Modifier byte: 0x\(String(format: "%02X", shiftMask))")
 
-        // Step 2: Press & key (which is keyName "1" on French AZERTY) → HID 30
-        let charKeyName = "1"  // On French AZERTY, the "1" key has label "&"
-        let resolvedKeyCode = frLayout.keyDefinition(for: charKeyName)?.keyCode ?? charKeyName
-        let hidCodeInt = Keymod.hidCode(forKey: resolvedKeyCode)
-        guard hidCodeInt >= 0 else {
-            XCTFail("Failed to resolve HID code for '\(charKeyName)' -> '\(resolvedKeyCode)'")
+        // Step 2: Press & key (keyName "&"，plain 输出命名) → HID 30
+        let charKeyName = "&"  // On French AZERTY, the & key is the physical 1 key
+        // 与应用触摸路径一致：布局的 hidUsageID 是唯一权威来源。
+        guard let charHID = frLayout.keyDefinition(for: charKeyName)?.hidUsageID else {
+            XCTFail("French layout has no key '\(charKeyName)'")
             return
         }
-        let hidCode = UInt8(hidCodeInt)
+        let hidCode = charHID.rawValue
         print("\nStep 2: Press '\(charKeyName)' key (label: '&')")
-        print("  hidKeyName(for: '\(charKeyName)') → '\(resolvedKeyCode)'")
-        print("  HID code for '\(resolvedKeyCode)': \(hidCode) (0x\(String(format: "%02X", hidCode)))")
+        print("  HID code: \(hidCode) (0x\(String(format: "%02X", hidCode)))")
 
         // Step 3: Build HID report
         let modifierByte = shiftMask
@@ -123,18 +121,15 @@ class ModifierIntegrationTest: XCTestCase {
         print("  Active modifiers: {AltGr}")
         print("  Modifier byte: 0x\(String(format: "%02X", altGrMask))")
 
-        // Step 2: Press à key (which is keyName "0" on French AZERTY) → HID 39
-        let charKeyName = "0"  // On French AZERTY, the "0" key has label "à"
-        let resolvedKeyCode = frLayout.keyDefinition(for: charKeyName)?.keyCode ?? charKeyName
-        let hidCodeInt = Keymod.hidCode(forKey: resolvedKeyCode)
-        guard hidCodeInt >= 0 else {
-            XCTFail("Failed to resolve HID code for '\(charKeyName)' -> '\(resolvedKeyCode)'")
+        // Step 2: Press à key (keyName "agrave"，plain 输出命名；label "à") → HID 39
+        let charKeyName = "agrave"  // On French AZERTY, the à key is the physical 0 key
+        guard let charHID = frLayout.keyDefinition(for: charKeyName)?.hidUsageID else {
+            XCTFail("French layout has no key '\(charKeyName)'")
             return
         }
-        let hidCode = UInt8(hidCodeInt)
+        let hidCode = charHID.rawValue
         print("\nStep 2: Press '\(charKeyName)' key (label: 'à')")
-        print("  hidKeyName(for: '\(charKeyName)') → '\(resolvedKeyCode)'")
-        print("  HID code for '\(resolvedKeyCode)': \(hidCode) (0x\(String(format: "%02X", hidCode)))")
+        print("  HID code: \(hidCode) (0x\(String(format: "%02X", hidCode)))")
 
         // Step 3: Build HID report
         let modifierByte = altGrMask

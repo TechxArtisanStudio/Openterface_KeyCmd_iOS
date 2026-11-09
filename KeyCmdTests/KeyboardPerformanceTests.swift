@@ -301,6 +301,10 @@ final class KeyboardPerformanceTests: XCTestCase {
         // Test rapid layout switching performance
         let manager = KeyboardLayoutManager.shared
         let locales = KeyboardLocale.allCases
+        // The locale setter persists to UserDefaults; restore it so later
+        // tests (and later test processes) don't inherit the last locale.
+        let originalLocale = manager.currentKeyboardLocale
+        defer { manager.currentKeyboardLocale = originalLocale }
 
         measure {
             for _ in 0..<100 {
