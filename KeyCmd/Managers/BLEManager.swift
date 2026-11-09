@@ -14,6 +14,22 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         case disconnected, connecting, connected, reconnecting
     }
 
+    enum RenameFailure: Equatable {
+        case notConnected
+        case noResponse
+        case rejected(UInt8)
+        case disconnected
+        case reconnectTimeout
+    }
+
+    enum RenameState: Equatable {
+        case idle
+        case sending
+        case waitingForReboot
+        case success
+        case failure(RenameFailure)
+    }
+
     // MARK: - Constants (aligned with Android BluetoothService)
 
     private enum BLEConstants {
@@ -37,6 +53,7 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         static let lastConnectedUUID = "ble_last_connected_uuid"
         static let lastConnectedName = "ble_last_connected_name"
         static let autoConnectEnabled = "ble_auto_connect_enabled"
+        static let knownDeviceUUIDs = "ble_known_device_uuids"
     }
 
     // MARK: - Published State
@@ -49,6 +66,7 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     @Published var lastConnectedDeviceName: String?
     /// Flipped on when user tries to send HID without a BLE connection; drives a one-time warning alert.
     @Published var showNoConnectionWarning: Bool = false
+    @Published private(set) var renameState: RenameState = .idle
 
     // ponytail: mirrors Android's auto-connect checkbox
     var autoConnectEnabled: Bool {
@@ -74,6 +92,13 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     private var rssiTimer: Timer?
     private var pendingConnectionStartedAt: Date?
     private var discoveryTimestamps: [UUID: Date] = [:]  // Track last discovery time per device
+
+    // Rename flow state — accessed on bleQueue only, except @Published renameState (main).
+    private var renameScanner: BLENameCommand.ResponseScanner?
+    private var pendingRenameName: String?
+    private var renameRebootIdentifier: UUID?
+    private var renameResponseTimeout: DispatchWorkItem?
+    private var renameRebootTimeout: DispatchWorkItem?
 
     /// Raw data publish/subscribe for BLE-Eth transport (bypasses HID parsing).
     let rawDataSubject = PassthroughSubject<Data, Never>()
@@ -159,6 +184,32 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         return false
     }
 
+    // MARK: - Known Devices
+
+    /// UUIDs of every device this app has connected to. A renamed device may lose
+    /// its known name prefix, and a manual disconnect clears lastConnectedUUID —
+    /// this list keeps such devices discoverable afterwards.
+    static var knownDeviceUUIDs: Set<String> {
+        Set(UserDefaults.standard.stringArray(forKey: Keys.knownDeviceUUIDs) ?? [])
+    }
+
+    static func rememberDeviceUUID(_ identifier: UUID) {
+        var known = knownDeviceUUIDs
+        guard !known.contains(identifier.uuidString) else { return }
+        known.insert(identifier.uuidString)
+        UserDefaults.standard.set(Array(known), forKey: Keys.knownDeviceUUIDs)
+    }
+
+    static func isDiscoverableDevice(name: String?, identifier: UUID) -> Bool {
+        let deviceName = (name ?? "").lowercased()
+        let hasKnownPrefix = !deviceName.isEmpty &&
+            (deviceName.hasPrefix("openterface") || deviceName.hasPrefix("kvm") || deviceName.hasPrefix("keymod"))
+        if hasKnownPrefix { return true }
+        let uuidString = identifier.uuidString
+        return uuidString == UserDefaults.standard.string(forKey: Keys.lastConnectedUUID)
+            || knownDeviceUUIDs.contains(uuidString)
+    }
+
     private func beginConnecting(to peripheral: CBPeripheral, isReconnecting: Bool = false) {
         connectedPeripheral = peripheral
         peripheral.delegate = self
@@ -181,11 +232,8 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         // and on iOS the cached peripheral.name can be stale/wrong for previously-seen-but-unconnected devices.
         let advName = advertisementData[CBAdvertisementDataLocalNameKey] as? String
         let displayName = advName ?? peripheral.name
-        let deviceName = (displayName ?? "").lowercased()
 
-        let isKnownDevice = !deviceName.isEmpty &&
-            (deviceName.hasPrefix("openterface") || deviceName.hasPrefix("kvm") || deviceName.hasPrefix("keymod"))
-        guard isKnownDevice else { return }
+        guard Self.isDiscoverableDevice(name: displayName, identifier: peripheral.identifier) else { return }
 
         // Calculate time delta since last discovery
         let now = Date()
@@ -216,6 +264,13 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
                 self.discoveredDevices.append((peripheral, RSSI, advName))
                 self.logger.log("Added \(displayName ?? "Unknown") to discoveredDevices (total: \(self.discoveredDevices.count))", category: "BLE", level: .debug)
             }
+        }
+
+        // After a rename the firmware reboots; reconnect by UUID regardless of name or auto-connect setting.
+        if let renameID = renameRebootIdentifier, peripheral.identifier == renameID {
+            logger.log("Rename target back online, reconnecting...", category: "BLE")
+            beginConnecting(to: peripheral, isReconnecting: true)
+            return
         }
 
         guard shouldAutoConnect(to: peripheral, advertisementName: advName) else {
@@ -274,7 +329,15 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
 
         // Persist last connected device for auto-reconnect
         UserDefaults.standard.set(peripheral.identifier.uuidString, forKey: Keys.lastConnectedUUID)
-        let deviceName = peripheral.name ?? "Unknown"
+        Self.rememberDeviceUUID(peripheral.identifier)
+        let deviceName: String
+        if renameRebootIdentifier == peripheral.identifier {
+            // iOS can report a stale cached peripheral.name right after the rename reboot.
+            deviceName = pendingRenameName ?? peripheral.name ?? "Unknown"
+            finishRename(.success)
+        } else {
+            deviceName = peripheral.name ?? "Unknown"
+        }
         UserDefaults.standard.set(deviceName, forKey: Keys.lastConnectedName)
         DispatchQueue.main.async {
             self.connectedDevices.insert(peripheral.identifier)
@@ -354,6 +417,11 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
 
     func disconnectDevice(_ peripheral: CBPeripheral) {
         logger.log("Disconnecting from \(peripheral.name ?? "Unknown") (id=\(peripheral.identifier.uuidString.prefix(8))...)", category: "BLE", level: .info)
+        // User-initiated disconnect cancels an in-flight rename before the delegate
+        // callback can mistake it for the expected rename reboot.
+        bleQueue.async { [self] in
+            if pendingRenameName != nil { finishRename(.failure(.disconnected)) }
+        }
         cancelConnectionTimeout()
         pendingConnectionStartedAt = nil
         cancelReconnect()
@@ -376,6 +444,95 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         } else {
             logger.log("No connected device to disconnect", category: "BLE", level: .warning)
         }
+    }
+
+    // MARK: - Device Rename
+
+    func renameDevice(to newName: String) {
+        guard let bytes = BLENameCommand.validatedNameBytes(newName),
+              let trimmed = String(bytes: bytes, encoding: .utf8) else { return }
+        beginRename(frame: BLENameCommand.frame(cmd: BLENameCommand.cmdSetName, payload: bytes), newName: trimmed)
+    }
+
+    func resetDeviceName() {
+        beginRename(frame: BLENameCommand.resetNameFrame(), newName: "KVM-GO")
+    }
+
+    func dismissRenameResult() {
+        switch renameState {
+        case .success, .failure:
+            renameState = .idle
+        default:
+            break
+        }
+    }
+
+    private func beginRename(frame: Data, newName: String) {
+        bleQueue.async { [self] in
+            guard connectionState == .connected, fff2Characteristic != nil else {
+                DispatchQueue.main.async { self.renameState = .failure(.notConnected) }
+                return
+            }
+            guard pendingRenameName == nil, renameRebootIdentifier == nil else { return }
+            pendingRenameName = newName
+            renameScanner = BLENameCommand.ResponseScanner()
+            DispatchQueue.main.async { self.renameState = .sending }
+            sendRawData(frame)
+
+            let timeout = DispatchWorkItem { [weak self] in
+                guard let self, self.pendingRenameName != nil else { return }
+                self.logger.log("Rename response timed out", category: "BLE", level: .warning)
+                self.finishRename(.failure(.noResponse))
+            }
+            renameResponseTimeout = timeout
+            bleQueue.asyncAfter(deadline: .now() + 5, execute: timeout)
+        }
+    }
+
+    /// Runs on bleQueue. Success means the firmware will reboot in 500ms;
+    /// keep the pending name until didConnect finalizes with the fresh identity.
+    private func handleRenameResponse(_ response: BLENameCommand.Response) {
+        renameResponseTimeout?.cancel()
+        renameResponseTimeout = nil
+        guard let newName = pendingRenameName, renameRebootIdentifier == nil else { return }
+
+        guard response.isSuccess else {
+            logger.log("Rename rejected, status=0x\(String(format: "%02X", response.status))", category: "BLE", level: .error)
+            finishRename(.failure(.rejected(response.status)))
+            return
+        }
+
+        logger.log("Rename accepted, waiting for device reboot", category: "BLE", level: .success)
+        UserDefaults.standard.set(newName, forKey: Keys.lastConnectedName)
+        renameRebootIdentifier = connectedPeripheral?.identifier
+        DispatchQueue.main.async {
+            self.lastConnectedDeviceName = newName
+            self.renameState = .waitingForReboot
+        }
+
+        let timeout = DispatchWorkItem { [weak self] in
+            guard let self, self.renameRebootIdentifier != nil else { return }
+            self.logger.log("Rename reconnect timed out", category: "BLE", level: .warning)
+            self.finishRename(.failure(.reconnectTimeout))
+        }
+        renameRebootTimeout = timeout
+        bleQueue.asyncAfter(deadline: .now() + 20, execute: timeout)
+    }
+
+    /// Runs on bleQueue.
+    private func finishRename(_ state: RenameState) {
+        renameResponseTimeout?.cancel()
+        renameResponseTimeout = nil
+        renameRebootTimeout?.cancel()
+        renameRebootTimeout = nil
+        pendingRenameName = nil
+        renameRebootIdentifier = nil
+        if var scanner = renameScanner {
+            let remainder = scanner.flush()
+            if !remainder.isEmpty { rawDataSubject.send(remainder) }
+        }
+        renameScanner = nil
+        DispatchQueue.main.async { self.renameState = state }
     }
 
     func startScanning() {
@@ -535,8 +692,17 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
 
         if characteristic.uuid == CBUUID(string: "FFF1") {
             logger.log("FFF1 notification: \(data.count) bytes", category: "BLE")
-            // Raw data from BLE-Eth tunnel — publish to subscribers
-            rawDataSubject.send(data)
+            if var scanner = renameScanner {
+                let result = scanner.feed(data)
+                renameScanner = scanner
+                if !result.passthrough.isEmpty { rawDataSubject.send(result.passthrough) }
+                if let response = result.responses.first {
+                    handleRenameResponse(response)
+                }
+            } else {
+                // Raw data from BLE-Eth tunnel — publish to subscribers
+                rawDataSubject.send(data)
+            }
         }
     }
 
@@ -609,6 +775,22 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             connectedPeripheral = nil
             fff2Characteristic = nil
             fff1Characteristic = nil
+        }
+
+        if pendingRenameName != nil {
+            if peripheral.identifier == renameRebootIdentifier {
+                // Expected firmware reboot after rename: rescan and match by UUID,
+                // skipping the normal 1s/2s/4s backoff which would expire mid-boot.
+                DispatchQueue.main.async {
+                    self.connectedDevices.remove(peripheral.identifier)
+                    self.connectionState = .reconnecting
+                }
+                bleQueue.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                    self?.startScanning()
+                }
+                return
+            }
+            finishRename(.failure(.disconnected))
         }
 
         // ponytail: auto-reconnect on unexpected disconnect (error != nil means not user-initiated)
@@ -690,9 +872,17 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             guard let self = self else { return }
             self.logger.log("Connection timeout for \(name), resetting state", category: "BLE", level: .warning)
             self.pendingConnectionStartedAt = nil
-            DispatchQueue.main.async {
-                self.connectionState = .disconnected
-                self.isReconnecting = false
+            self.bleQueue.async {
+                if self.renameRebootIdentifier != nil {
+                    // Renamed device still booting: keep scanning until the rename deadline.
+                    DispatchQueue.main.async { self.connectionState = .reconnecting }
+                    self.startScanning()
+                } else {
+                    DispatchQueue.main.async {
+                        self.connectionState = .disconnected
+                        self.isReconnecting = false
+                    }
+                }
             }
         }
         connectionTimeoutWorkItem = workItem

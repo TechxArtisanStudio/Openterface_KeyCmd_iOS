@@ -499,3 +499,18 @@
 "terminal_cdc_ecm_notice" = "KeyModデバイスはCDC-ECMモードを使用 — ドライバーなしでLinuxとmacOSで動作します。Windows RNDISサポートは近日公開予定です。";
 
 "Report a Bug" = "不具合を報告";
+
+/* --- BLE Device Rename --- */
+"Rename Device" = "デバイス名の変更";
+"Device Name" = "デバイス名";
+"New name" = "新しい名前";
+"Reset to Factory Name" = "出荷時の名前に戻す";
+"The device will restart and reconnect automatically." = "デバイスは自動的に再起動して再接続されます。";
+"Renaming..." = "変更中...";
+"Waiting for device to restart..." = "デバイスの再起動を待っています...";
+"Use 1–20 UTF-8 bytes. Control characters are not allowed." = "1〜20バイトのUTF-8で入力してください。制御文字は使用できません。";
+"No response from the device. Its firmware may not support renaming." = "デバイスから応答がありません。ファームウェアが名前変更に対応していない可能性があります。";
+"The device rejected the new name." = "デバイスが新しい名前を拒否しました。";
+"Disconnected before the device confirmed the rename." = "デバイスが名前変更を確認する前に切断されました。";
+"The device restarted but could not be found again. Please scan manually." = "デバイスは再起動しましたが、再検出できませんでした。手動でスキャンしてください。";
+"Connect to a device first." = "先にデバイスを接続してください。";

@@ -10,6 +10,7 @@ struct ConnectionDialogView: View {
     @ObservedObject var bleManager: BLEManager
     @ObservedObject var themeManager = ThemeManager.shared
     @State private var showScanner = false
+    @State private var showRename = false
 
     var body: some View {
         ZStack {
@@ -67,6 +68,25 @@ struct ConnectionDialogView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
 
+                // Rename entry (connected devices only)
+                if bleManager.connectionState == .connected {
+                    Button(action: { showRename = true }) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "pencil")
+                                .font(.system(size: 13))
+                            Text("Rename Device")
+                                .font(.system(size: 14))
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                        }
+                        .foregroundColor(themeManager.accentColor)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                    }
+                }
+
                 // Auto-connect toggle
                 Toggle(isOn: Binding(
                     get: { bleManager.autoConnectEnabled },
@@ -104,6 +124,9 @@ struct ConnectionDialogView: View {
         }
         .sheet(isPresented: $showScanner) {
             BluetoothScannerView(bleManager: bleManager)
+        }
+        .sheet(isPresented: $showRename) {
+            RenameDeviceSheet(bleManager: bleManager)
         }
     }
 

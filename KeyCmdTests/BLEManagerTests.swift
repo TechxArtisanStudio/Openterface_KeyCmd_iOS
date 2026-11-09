@@ -17,6 +17,31 @@ import CoreBluetooth
 /// data (keystrokes) never reaches the server.
 final class BLEManagerTests: XCTestCase {
 
+    private let knownUUIDsKey = "ble_known_device_uuids"
+    private let lastUUIDKey = "ble_last_connected_uuid"
+    private var savedKnownUUIDs: [String]?
+    private var savedLastUUID: String?
+
+    override func setUp() {
+        super.setUp()
+        savedKnownUUIDs = UserDefaults.standard.stringArray(forKey: knownUUIDsKey)
+        savedLastUUID = UserDefaults.standard.string(forKey: lastUUIDKey)
+    }
+
+    override func tearDown() {
+        if let savedKnownUUIDs {
+            UserDefaults.standard.set(savedKnownUUIDs, forKey: knownUUIDsKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: knownUUIDsKey)
+        }
+        if let savedLastUUID {
+            UserDefaults.standard.set(savedLastUUID, forKey: lastUUIDKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: lastUUIDKey)
+        }
+        super.tearDown()
+    }
+
     // MARK: - Write Type Requirement
 
     /// Documents the BLE write type requirement discovered during debugging.
@@ -127,5 +152,58 @@ final class BLEManagerTests: XCTestCase {
         // 2. Chunked writes with inter-chunk delays work correctly
         // 3. Control and data frames maintain ordering
         XCTAssertTrue(true, "Serial write queue prevents concurrent BLE writes")
+    }
+
+    // MARK: - Known Device UUIDs / Discoverability
+
+    func testRememberDeviceUUIDPersistsAndDeduplicates() {
+        UserDefaults.standard.removeObject(forKey: knownUUIDsKey)
+        let a = UUID()
+        let b = UUID()
+        BLEManager.rememberDeviceUUID(a)
+        BLEManager.rememberDeviceUUID(b)
+        BLEManager.rememberDeviceUUID(a)
+        XCTAssertEqual(BLEManager.knownDeviceUUIDs, [a.uuidString, b.uuidString])
+        XCTAssertEqual(UserDefaults.standard.stringArray(forKey: knownUUIDsKey)?.count, 2)
+    }
+
+    func testDiscoverableByKnownPrefix() {
+        UserDefaults.standard.removeObject(forKey: knownUUIDsKey)
+        UserDefaults.standard.removeObject(forKey: lastUUIDKey)
+        let stranger = UUID()
+        XCTAssertTrue(BLEManager.isDiscoverableDevice(name: "KVM-GO", identifier: stranger))
+        XCTAssertTrue(BLEManager.isDiscoverableDevice(name: "openterface-Mini", identifier: stranger))
+        XCTAssertTrue(BLEManager.isDiscoverableDevice(name: "KeyMod-123", identifier: stranger))
+        XCTAssertFalse(BLEManager.isDiscoverableDevice(name: "MyDevice", identifier: stranger))
+        XCTAssertFalse(BLEManager.isDiscoverableDevice(name: "", identifier: stranger))
+        XCTAssertFalse(BLEManager.isDiscoverableDevice(name: nil, identifier: stranger))
+    }
+
+    func testDiscoverableByKnownUUIDAfterRename() {
+        UserDefaults.standard.removeObject(forKey: knownUUIDsKey)
+        UserDefaults.standard.removeObject(forKey: lastUUIDKey)
+        let device = UUID()
+        XCTAssertFalse(BLEManager.isDiscoverableDevice(name: "MyDevice", identifier: device))
+        BLEManager.rememberDeviceUUID(device)
+        XCTAssertTrue(BLEManager.isDiscoverableDevice(name: "MyDevice", identifier: device))
+        XCTAssertTrue(BLEManager.isDiscoverableDevice(name: nil, identifier: device))
+    }
+
+    func testDiscoverableByLastConnectedUUID() {
+        UserDefaults.standard.removeObject(forKey: knownUUIDsKey)
+        let device = UUID()
+        UserDefaults.standard.set(device.uuidString, forKey: lastUUIDKey)
+        XCTAssertTrue(BLEManager.isDiscoverableDevice(name: "Whatever", identifier: device))
+    }
+
+    /// Regression: renaming to a prefix-less name then manually disconnecting clears
+    /// lastConnectedUUID; the known-UUID list must keep the device discoverable.
+    func testManualDisconnectAfterRenameKeepsDeviceDiscoverable() {
+        UserDefaults.standard.removeObject(forKey: knownUUIDsKey)
+        let device = UUID()
+        BLEManager.rememberDeviceUUID(device)
+        UserDefaults.standard.set(device.uuidString, forKey: lastUUIDKey)
+        UserDefaults.standard.removeObject(forKey: lastUUIDKey)  // what disconnectDevice does
+        XCTAssertTrue(BLEManager.isDiscoverableDevice(name: "Renamed", identifier: device))
     }
 }

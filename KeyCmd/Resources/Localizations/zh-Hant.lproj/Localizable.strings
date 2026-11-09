@@ -499,3 +499,18 @@
 "terminal_cdc_ecm_notice" = "KeyMod 設備使用 CDC-ECM 模式 — 支援 Linux 和 macOS，無需驅動程式。Windows RNDIS 支援即將推出。";
 
 "Report a Bug" = "回報問題";
+
+/* --- BLE Device Rename --- */
+"Rename Device" = "修改裝置名稱";
+"Device Name" = "裝置名稱";
+"New name" = "新名稱";
+"Reset to Factory Name" = "恢復出廠名稱";
+"The device will restart and reconnect automatically." = "裝置將自動重啟並重新連線。";
+"Renaming..." = "正在修改...";
+"Waiting for device to restart..." = "等待裝置重啟...";
+"Use 1–20 UTF-8 bytes. Control characters are not allowed." = "長度限 1–20 個 UTF-8 位元組，不允許控制字元。";
+"No response from the device. Its firmware may not support renaming." = "裝置無回應，其韌體可能不支援改名。";
+"The device rejected the new name." = "裝置拒絕了新名稱。";
+"Disconnected before the device confirmed the rename." = "裝置確認改名之前連線已中斷。";
+"The device restarted but could not be found again. Please scan manually." = "裝置已重啟但未能重新找到，請手動掃描。";
+"Connect to a device first." = "請先連線裝置。";
