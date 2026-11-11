@@ -13,15 +13,38 @@
           physicalStandard: KeyboardLocale.PhysicalStandard? = nil
       ) -> KeyboardLayoutDefinition {
           do {
-              return try KeyboardLayoutLoader.load(
+              return addFnLayerKey(to: try KeyboardLayoutLoader.load(
                   locale: locale,
                   targetOS: .windows,
                   physicalStandard: physicalStandard
-              )
+              ))
           } catch {
               // Fallback to US layout if specific locale layout fails
               return buildFallbackUSLayout()
           }
+      }
+
+      /// PC keyboard files only list physically printed keys, but this app needs
+      /// an Fn key to reach the media/function layer. Fn is a local layer toggle
+      /// (like the Mac layout's fn), so inject it without disturbing the JSON.
+      private static func addFnLayerKey(to layout: KeyboardLayoutDefinition) -> KeyboardLayoutDefinition {
+          var rows = layout.rows
+          guard let bottomIndex = rows.indices.last,
+                !rows[bottomIndex].contains(where: { $0.keyName == "Fn" })
+          else { return layout }
+
+          let fnKey = KeyDefinition(keyName: "Fn", label: "fn", hidUsageID: .keyboardFn)
+          // Surface-style placement: between the left Control and Windows keys.
+          let insertionIndex = rows[bottomIndex].firstIndex { $0.keyName == "LeftCtrl" }
+              .map { $0 + 1 } ?? 0
+          rows[bottomIndex].insert(fnKey, at: insertionIndex)
+
+          return KeyboardLayoutDefinition(
+              locale: layout.locale,
+              targetOS: layout.targetOS,
+              rows: rows,
+              metadata: layout.metadata
+          )
       }
   }
 
@@ -258,6 +281,7 @@
           // Bottom modifier row
           [
               KeyDefinition.mod("Ctrl", hid: .keyboardLeftCtrl),
+              KeyDefinition(keyName: "Fn", label: "fn", hidUsageID: .keyboardFn),
               KeyDefinition.mod("Win", hid: .keyboardLeftGUI),
               KeyDefinition.mod("Alt", hid: .keyboardLeftAlt),
               KeyDefinition.key("Space", " ", hid: .keyboardSpace, width: 6.0),

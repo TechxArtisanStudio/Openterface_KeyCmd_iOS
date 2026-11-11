@@ -171,4 +171,55 @@ final class KeyCmdUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["TouchPad"].waitForExistence(timeout: 10),
                       "the Pro surface should render its portrait layout in a portrait window")
     }
+
+    /// Pro's keyboard submode supports both orientations, so it needs an in-app toggle —
+    /// before this, the only way out of landscape was physically rotating the device.
+    @MainActor
+    func testProOrientationToggleSwitchesBothWays() throws {
+        relaunch(into: "Keyboard & Mouse Pro")
+
+        XCTAssertTrue(pollUntil { !self.isLandscape },
+                      "Pro should open unlocked in the portrait the device is held in")
+
+        let toggle = app.buttons["km-orientation-toggle"].firstMatch
+        XCTAssertTrue(toggle.waitForExistence(timeout: 10),
+                      "the Pro top bar has no orientation toggle")
+
+        toggle.tap()
+        XCTAssertTrue(pollUntil { self.isLandscape },
+                      "the orientation toggle did not rotate to landscape")
+
+        toggle.tap()
+        XCTAssertTrue(pollUntil { !self.isLandscape },
+                      "the orientation toggle did not rotate back to portrait")
+    }
+
+    /// Windows targets reach the media layer through Fn, and their function row
+    /// is a plain F1-F12 row: Mission Control and Launchpad are macOS-only.
+    @MainActor
+    func testWindowsLayoutShowsFnKeyAndPlainFunctionRow() throws {
+        app.terminate()
+        app.launchArguments = ["-HasSeenLaunchPanel", "YES",
+                               "-LaunchPanelSelectedMode", "Keyboard & Mouse",
+                               "-AISettings.targetOS", "windows",
+                               "-AISettings.keyboardLocale", "us"]
+        app.launch()
+
+        XCTAssertTrue(surface("km-submode-keyboard").waitForExistence(timeout: 15),
+                      "expected the keyboard submode on launch")
+
+        XCTAssertTrue(app.staticTexts["fn"].firstMatch.waitForExistence(timeout: 10),
+                      "the Windows bottom row has no Fn key")
+        XCTAssertTrue(app.staticTexts["F3"].firstMatch.exists,
+                      "F3 should be a plain F-key label on Windows")
+        XCTAssertTrue(app.staticTexts["F4"].firstMatch.exists,
+                      "F4 should be a plain F-key label on Windows")
+    }
+
+    private func relaunch(into mode: String) {
+        app.terminate()
+        app.launchArguments = ["-HasSeenLaunchPanel", "YES",
+                               "-LaunchPanelSelectedMode", mode]
+        app.launch()
+    }
 }

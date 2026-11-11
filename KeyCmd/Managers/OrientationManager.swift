@@ -13,8 +13,11 @@ import SwiftUI
 import UIKit
 
 class OrientationManager: ObservableObject {
-    @Published var isLandscape: Bool = true
-    @Published var preferredOrientation: UIInterfaceOrientationMask = .landscape
+    // Start unlocked and portrait: the app's launch mask is portrait, and a landscape
+    // default here used to pin the layout to landscape until something explicitly
+    // re-read the window (or worse, forever while the window itself stayed portrait).
+    @Published var isLandscape: Bool = false
+    @Published var preferredOrientation: UIInterfaceOrientationMask = .all
 
     // True when the camera bump/Dynamic Island is on the RIGHT side of the screen
     // (device rotated so its top edge points to the right — UIDeviceOrientation.landscapeRight).
@@ -188,10 +191,15 @@ class OrientationManager: ObservableObject {
         
         // After a delay, check if the change was successful
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            let currentOrientation = UIDevice.current.orientation
-            let didChangeSuccessfully = (newIsLandscape && currentOrientation.isLandscape) || 
-                                      (!newIsLandscape && (currentOrientation == .portrait || currentOrientation == .portraitUpsideDown))
-            
+            // Compare the window's interface orientation, not UIDevice.orientation:
+            // a successful in-app rotation leaves the physical device untouched, so
+            // the device-orientation check reported failure and showed the manual
+            // "please rotate" hint on top of an already rotated layout.
+            let interfaceOrientation = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.interfaceOrientation
+            let didChangeSuccessfully = newIsLandscape
+                ? (interfaceOrientation?.isLandscape ?? false)
+                : (interfaceOrientation == .portrait || interfaceOrientation == .portraitUpsideDown)
+
             if !didChangeSuccessfully {
                 // Show instruction to user
                 self.instructionText = newIsLandscape ? 
@@ -316,13 +324,19 @@ class OrientationManager: ObservableObject {
         // Re-read now so the first frame is not still laid out for the orientation the
         // previous view locked.
         updateOrientation()
-        // Also force rotation attempt — without this the UI stays in whatever
-        // orientation it was locked to (e.g. landscape from gamepad) even though
-        // the device may be held differently.
+        // Unlocking only widens the supported mask — it does not undo a window that a
+        // previous view already forced into landscape while the device was held upright.
+        // Request the physical orientation so leaving that view actually rotates back.
+        let target: UIInterfaceOrientationMask
+        switch UIDevice.current.orientation {
+        case .landscapeLeft, .landscapeRight: target = .landscape
+        default: target = .portrait
+        }
+        isLandscape = target == .landscape
         UIViewController.attemptRotationToDeviceOrientation()
         if #available(iOS 16.0, *) {
             if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-                windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .all)) { _ in }
+                windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: target)) { _ in }
             }
         }
         // Clear stale saved orientation

@@ -139,6 +139,16 @@ final class KeyboardHIDSendTests: XCTestCase {
     // MARK: - Text input path
 
     func testInlineTextUsesLayoutStrokes() {
+        // The expected strokes are the German Windows ones. Without pinning the
+        // target, this test inherits whatever OS the simulator used last and a
+        // macOS target moves "@" onto Option+L.
+        let originalTargetOS = AISettings.shared.targetOS
+        AISettings.shared.targetOS = .windows
+        defer {
+            AISettings.shared.targetOS = originalTargetOS
+            KeyboardLayoutManager.shared.clearCache()
+        }
+
         KeyboardLayoutManager.shared.currentKeyboardLocale = .de
 
         keyboardManager.sendASCIICharInline("z")
@@ -202,5 +212,21 @@ final class KeyboardHIDSendTests: XCTestCase {
         XCTAssertEqual(layout.keyDefinition(for: "LeftWin")?.hidUsageID, .keyboardLeftGUI)
         // The bundled ANSI row keeps a right Control — full-size Apple keyboards have one.
         XCTAssertEqual(layout.keyDefinition(for: "RightCtrl")?.hidUsageID, .keyboardRightCtrl)
+    }
+
+    func testWindowsBottomRowIncludesLocalFnLayerKey() throws {
+        let layout = KeyboardLayoutManager.createLayout(for: .windows, locale: .us)
+        let bottomRow = try XCTUnwrap(layout.rows.last)
+
+        let leftCtrlIndex = try XCTUnwrap(bottomRow.firstIndex { $0.keyName == "LeftCtrl" })
+        let fnIndex = try XCTUnwrap(bottomRow.firstIndex { $0.keyName == "Fn" })
+        XCTAssertEqual(fnIndex, leftCtrlIndex + 1,
+                       "Fn sits between the left Control and Windows keys")
+
+        let fnKey = bottomRow[fnIndex]
+        XCTAssertEqual(fnKey.label, "fn")
+        XCTAssertEqual(fnKey.hidUsageID, .keyboardFn)
+        XCTAssertEqual(fnKey.keyType, .regular,
+                       "Fn is a local layer toggle and must never be sent as a key")
     }
 }

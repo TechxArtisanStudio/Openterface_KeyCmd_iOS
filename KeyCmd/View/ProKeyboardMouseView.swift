@@ -510,6 +510,9 @@ struct ProKeyboardMouseView: View {
 
     // MARK: - Landscape layout
 
+    /// ShortcutStripPager (40) + VStack spacing (6) + FixedRowsPager (88).
+    private static let landscapeShortcutHeight: CGFloat = 40 + 6 + 88
+
     @ViewBuilder
     private func landscapeContent(_ geometry: GeometryProxy) -> some View {
         ZStack {
@@ -525,8 +528,18 @@ struct ProKeyboardMouseView: View {
             }
             submodeView(active: .keyboard) {
                 let barWidth: CGFloat = 50
+                // Taps inside the home-indicator strip are delayed or cancelled by the
+                // system, so keep the bottom keyboard row clear of it (same 24pt the
+                // Basic surface reserves).
+                let bottomInset: CGFloat = 24
                 HStack(spacing: 0) {
-                    Color(UIColor.secondarySystemBackground).frame(width: barWidth)
+                    Color(UIColor.secondarySystemBackground)
+                        .frame(width: barWidth)
+                        .overlay(alignment: .bottom) {
+                            // ponytail: keep the layout toggle off the keys — the bottom
+                            // keyboard row extends to the very bottom edge in full layout.
+                            landscapeHandleButton.padding(.bottom, bottomInset + 8)
+                        }
                     VStack(spacing: 0) {
                         if displayMode == .touchpad {
                             VStack(spacing: 0) { landscapeShortcutPanel; touchpadOverlay() }
@@ -536,14 +549,17 @@ struct ProKeyboardMouseView: View {
                                 splitSideColumn(side: .left, width: sw); touchpadOverlay().frame(width: tw); splitSideColumn(side: .right, width: sw)
                             }
                         } else {
-                            VStack(spacing: 0) { landscapeShortcutPanel; keyboardRows.layoutPriority(1) }
+                            // The shortcut panel has a fixed height; the 4 keyboard rows
+                            // must be sized from what is left, otherwise they overflow the
+                            // screen bottom and the last row (Ctrl/Win/Alt/Space) is cut off.
+                            let shortcutHeight = Self.landscapeShortcutHeight
+                            let spacing: CGFloat = 6
+                            let rows = CGFloat(max(1, currentKeys.count))
+                            let rowHeight = min(56, max(28, (geometry.size.height - bottomInset - shortcutHeight - spacing * (rows - 1)) / rows))
+                            VStack(spacing: 0) { landscapeShortcutPanel; keyboardRows(rowHeight: rowHeight).layoutPriority(1) }
                         }
                     }
-                    .overlay(alignment: .bottomTrailing) {
-                        // ponytail: handle button must be visible in every displayMode
-                        // (touchpad-only, split, keyboard-only), not just when touchpad shows.
-                        landscapeHandleButton.padding(8)
-                    }
+                    .padding(.bottom, bottomInset)
                 }.background(Color(UIColor.secondarySystemBackground))
             }
         }
@@ -564,14 +580,15 @@ struct ProKeyboardMouseView: View {
         let keys = side == .left ? splitLeftKeys : splitRightKeys
         GeometryReader { g in
             VStack(spacing: 0) {
+                let rowHeight = g.size.height / CGFloat(max(1, keys.count))
                 ForEach(keys.indices, id: \.self) { r in
                     let row = keys[r]
                     HStack(spacing: 0) {
                         ForEach(row.indices, id: \.self) { c in
                             let kd = row[c], w = keyWidthSplit(for: kd, row: row, side: side, rowIndex: r)
-                            keyButton(for: kd, width: w).frame(width: g.size.width * w)
+                            keyButton(for: kd, width: w, height: rowHeight).frame(width: g.size.width * w)
                         }
-                    }.frame(maxHeight: g.size.height / CGFloat(keys.count))
+                    }.frame(maxHeight: rowHeight)
                 }
             }
         }
@@ -681,7 +698,7 @@ struct ProKeyboardMouseView: View {
         }.frame(width: width, height: height)
     }
 
-    private var keyboardRows: some View {
+    private func keyboardRows(rowHeight: CGFloat = 56) -> some View {
         VStack(spacing: 6) {
             ForEach(currentKeys.indices, id: \.self) { r in
                 let row = currentKeys[r]
@@ -690,13 +707,13 @@ struct ProKeyboardMouseView: View {
                         ForEach(row.indices, id: \.self) { c in
                             let kd = row[c]
                             let widthFraction = keyWidth(for: kd, row: row)
-                            keyButton(for: kd, width: widthFraction)
+                            keyButton(for: kd, width: widthFraction, height: rowHeight)
                                 .frame(width: max(0, rowGeo.size.width * widthFraction))
                         }
                     }
                     .frame(width: rowGeo.size.width, height: rowGeo.size.height, alignment: .leading)
                 }
-                .frame(height: 56)
+                .frame(height: rowHeight)
             }
         }
         .frame(maxWidth: .infinity)
@@ -773,7 +790,7 @@ struct ProKeyboardMouseView: View {
         VStack(spacing: 6) {
             ShortcutStripPager(pages: shortcutPages).id("\(profileMgr.activeProfileId)-\(profileMgr.myShortcutsVersion)").padding(.horizontal, 4)
             FixedRowsPager(pages: fixedRowsPages, defaultPageIndex: 1, refreshKey: fixedRowsLocalFnLocked).padding(.horizontal, 4)
-            if !isImeSurface { keyboardRows.frame(height: 360).padding(.top, -40).padding(.bottom, 10) }
+            if !isImeSurface { keyboardRows().frame(height: 360).padding(.top, -40).padding(.bottom, 10) }
         }
     }
 
@@ -851,7 +868,7 @@ struct ProKeyboardMouseView: View {
         return keyWeight(for: kd, row: row) / totalWeight
     }
 
-    private func keyButton(for kd: KeyboardManager.KeyDef, width: CGFloat) -> AnyView {
+    private func keyButton(for kd: KeyboardManager.KeyDef, width: CGFloat, height: CGFloat? = nil) -> AnyView {
         let displayText = displayLabel(for: kd)
         // When Fn is locked, Shift becomes an alternate hints toggle (not a modifier)
         let shiftIsAltToggle = kd.label == "Shift" && keyboardManager.isFnLocked
@@ -860,7 +877,7 @@ struct ProKeyboardMouseView: View {
         let isPressed = (isModifier && !visualOnlyModifier && keyboardManager.activeModifiers.contains(kd.label)) ||
                         ((visualOnlyModifier || !isModifier) && keyPressInProgress && currentlyPressedKey == kd.label)
         let isActive = (kd.label == "Caps" && keyboardManager.capsLockActive) || (kd.label == "Fn" && keyboardManager.isFnLocked)
-        let h = orientationManager.isLandscape ? 56.0 : 72.0
+        let h = height ?? (orientationManager.isLandscape ? 56.0 : 72.0)
         let bg = GeometryReader { g in DispatchQueue.main.async { keyFrames[kd.label] = g.frame(in: .named("proKMView")) }; return Color.clear }
         let content = keyContent(for: kd, displayText: displayText)
             .frame(maxWidth: .infinity, maxHeight: h)

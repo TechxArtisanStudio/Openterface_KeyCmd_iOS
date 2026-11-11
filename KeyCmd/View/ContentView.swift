@@ -49,7 +49,14 @@ struct ContentView: View {
         _mouseManager = StateObject(wrappedValue: mouseManager)
         _keyboardManager = StateObject(wrappedValue: keyboardManager)
         _orientationManager = StateObject(wrappedValue: OrientationManager())
-        _viewManager = StateObject(wrappedValue: ViewManager())
+        // Seed the first frame with the remembered launch mode. Otherwise the default
+        // Basic surface mounts (and its keyboard submode forces landscape) for one frame
+        // before onAppear switches to the saved view — leaving Pro in a landscape window.
+        let viewManager = ViewManager()
+        if !launchPanelManager.showLaunchPanel {
+            viewManager.currentView = launchPanelManager.selectedMode
+        }
+        _viewManager = StateObject(wrappedValue: viewManager)
         _clipboardManager = StateObject(wrappedValue: ClipboardManager.shared)
         let gyroManager = GyroMouseManager(mouseManager: mouseManager)
         gyroManager.sensitivity = UserDefaults.standard.double(forKey: "gyroMouseSensitivity") != 0 ? UserDefaults.standard.double(forKey: "gyroMouseSensitivity") : 1.0
@@ -285,6 +292,10 @@ struct ContentView: View {
                     }
                     if viewManager.currentView == .keyboardMousePro {
                         proSubmodeSelector
+                        if (ProKeyboardMouseView.ProSubmode(rawValue: proSubmodeRaw) ?? .keyboard) == .keyboard {
+                            orientationToggleDivider
+                            orientationToggleButton
+                        }
                     }
                 }
             }
@@ -335,7 +346,7 @@ struct ContentView: View {
     private var orientationToggleDivider: some View {
         Divider()
             .frame(height: 24)
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 4)
     }
 
     @ViewBuilder private var orientationToggleButton: some View {
@@ -344,11 +355,18 @@ struct ContentView: View {
             Button {
                 orientationManager.toggleOrientationWithInstruction()
             } label: {
-                Image(systemName: orientationManager.isLandscape ? "rectangle.portrait.arrowtriangle.2.inout" : "rectangle.arrowtriangle.2.inout")
-                    .font(.system(size: 16, weight: .medium))
+                // The previously used "rectangle…arrowtriangle.2.inout" names are not
+                // real SF Symbols: the label rendered empty, which left the button
+                // invisible and with no hit area.
+                Image(systemName: orientationManager.isLandscape ? "rectangle.portrait.rotate" : "rectangle.landscape.rotate")
+                    .font(.system(size: 17, weight: .medium))
                     .foregroundColor(.secondary)
                     .frame(width: 34, height: 34)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("km-orientation-toggle")
+            .accessibilityLabel(orientationManager.isLandscape ? "Switch to portrait" : "Switch to landscape")
         }
     }
 
@@ -980,6 +998,11 @@ struct ContentView: View {
             }
             .onChange(of: geometry.size) { newSize in
                 LogManager.shared.log("Geometry changed: \(newSize.width) x \(newSize.height)", category: "UI")
+                // The window resizes when the interface rotates. The device-orientation
+                // notification fires before the interface finishes rotating, so
+                // updateOrientation() can read the old interface and leave the layout
+                // locked to the wrong orientation. Re-read once the window is final.
+                orientationManager.updateOrientation()
             }
             .overlay(
                 // Orientation instruction overlay

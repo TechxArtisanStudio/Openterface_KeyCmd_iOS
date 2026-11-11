@@ -214,6 +214,19 @@ struct BasicKeyboardMouseView: View {
         }
     }
 
+    /// Whether a function-row key should draw a media glyph instead of its
+    /// F-key label. macOS reaches the media layer directly (Fn shows F-keys);
+    /// Windows puts the layer behind Fn and never shows the Apple-only
+    /// Mission Control / Launchpad glyphs.
+    private func showsMediaGlyph(for keyName: String) -> Bool {
+        if aiSettings.targetOS == .windows {
+            // Only the standard Consumer Page media keys live on the Fn layer.
+            return keyboardManager.isFnPressed
+                && ["F7", "F8", "F9", "F10", "F11", "F12"].contains(keyName)
+        }
+        return !keyboardManager.isFnPressed
+    }
+
     /// Map F-key names to Consumer page media key bitmaps (Report ID 0x02).
     /// Bitmap layout from firmware usbd_desc.c:
     ///   byte1: Vol+(bit0), Vol-(bit1), Mute(bit2), Play/Pause(bit3),
@@ -951,11 +964,11 @@ struct BasicKeyboardMouseView: View {
         } else if key == "Space" {
             Text("").frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if isMediaKey(key) {
-            // F7-F12: show media icons, switch to F7-F12 labels when Fn is pressed
-            if keyboardManager.isFnPressed {
-                Text(displayText).font(.system(size: 14, weight: .bold))
-            } else {
+            // Media glyphs replace the F-key label while the media layer is active.
+            if showsMediaGlyph(for: key) {
                 mediaIcon(for: key)
+            } else {
+                Text(displayText).font(.system(size: 14, weight: .bold))
             }
         } else {
             // Use layout definition for labels
@@ -1313,15 +1326,20 @@ struct BasicKeyboardMouseView: View {
                 }
             }
             // F1-F4 send Apple function row reports when Fn is not pressed.
-            // Firmware CMD=0x03 Report ID 0x03 maps to Consumer page Apple usages.
-            if !keyboardManager.isFnPressed,
+            // Firmware CMD=0x03 Report ID 0x03 maps to Consumer page Apple usages,
+            // which only macOS understands; Windows keeps plain F-keys.
+            if aiSettings.targetOS != .windows,
+               !keyboardManager.isFnPressed,
                let appleBitmap = appleFnBitmap(for: keyName) {
                 keyboardManager.sendAppleFnKey(bitmap: appleBitmap)
                 return
             }
-            // F7-F12 send Consumer page media keys when Fn is not pressed.
+            // On macOS the media layer is the default; Windows moves it onto Fn.
             // Consumer page is standard USB HID — works for any target OS.
-            if !keyboardManager.isFnPressed,
+            let mediaLayerActive = aiSettings.targetOS == .windows
+                ? keyboardManager.isFnPressed
+                : !keyboardManager.isFnPressed
+            if mediaLayerActive,
                let mediaBitmap = mediaKeyBitmap(for: keyName) {
                 keyboardManager.sendMediaKey(bitmap: mediaBitmap)
                 return
@@ -1364,11 +1382,17 @@ struct BasicKeyboardMouseView: View {
                 return
             }
             // Apple function row (F1-F4) and media keys (F7-F12) were already
-            // press+released on key down; skip release
-            if !keyboardManager.isFnPressed,
-               appleFnBitmap(for: keyName) != nil || mediaKeyBitmap(for: keyName) != nil {
-                return
+            // press+released on key down; skip release. Windows only routes
+            // media keys through Fn, so a plain F-key still needs its key up.
+            let consumedOnPress: Bool
+            if aiSettings.targetOS == .windows {
+                consumedOnPress = keyboardManager.isFnPressed
+                    && mediaKeyBitmap(for: keyName) != nil
+            } else {
+                consumedOnPress = !keyboardManager.isFnPressed
+                    && (appleFnBitmap(for: keyName) != nil || mediaKeyBitmap(for: keyName) != nil)
             }
+            if consumedOnPress { return }
             let repeatMode = KmBasicKeyboardPrefs.shared.isLongPressRepeatMode
             guard let hid = hidUsageID(for: keyName) else { return }
             if repeatMode {
