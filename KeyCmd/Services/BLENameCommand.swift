@@ -44,15 +44,17 @@ enum BLENameCommand {
     struct Response: Equatable {
         let cmd: UInt8
         let status: UInt8
+        /// Payload bytes after the status byte (ECM GET data; empty for rename replies).
+        let payload: Data
 
         var isSuccess: Bool {
             (cmd == 0xA3 || cmd == 0xB1) && status == 0x00
         }
     }
 
-    /// Incrementally scans FFF1 notification bytes for rename responses while
-    /// passing everything else through untouched, so an active BLE-Eth tunnel
-    /// keeps working during the rename window.
+    /// Incrementally scans FFF1 notification bytes for command responses
+    /// (rename or ECM IP) while passing everything else through untouched, so
+    /// an active BLE-Eth tunnel keeps working during the response window.
     struct ResponseScanner {
         private var buffer = Data()
         private let targetCommands: Set<UInt8>
@@ -92,7 +94,8 @@ enum BLENameCommand {
                     let cmd = frame[frame.startIndex + 3]
                     if targetCommands.contains(cmd) {
                         let status = frameLength > 6 ? frame[frame.startIndex + 5] : 0
-                        responses.append(Response(cmd: cmd, status: status))
+                        let payload = frameLength > 7 ? Data(frame[(frame.startIndex + 6)..<(frame.startIndex + frameLength - 1)]) : Data()
+                        responses.append(Response(cmd: cmd, status: status, payload: payload))
                     } else {
                         passthrough.append(frame)
                     }

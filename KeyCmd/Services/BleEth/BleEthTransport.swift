@@ -6,11 +6,14 @@ import Foundation
 import Combine
 
 /// BLE-Eth transport implementation.
-/// Ports Android's BleEthTransport.java — tunnels TCP traffic over BLE GATT
-/// using the custom frame protocol defined in FrameParser.
+/// Tunnels TCP traffic over BLE GATT using the custom frame protocol defined in
+/// FrameParser. The Openterface KeyMod device acts as a BLE-to-TCP bridge.
 ///
-/// Connects to a remote host via the Openterface device's BLE-Eth tunnel.
-/// The device acts as a BLE-to-TCP bridge.
+/// Flow control mirrors the proven Opf_test reference (eth_tunnel.py): every
+/// outbound DATA fragment is paced by the firmware's cumulative metadata ACK
+/// ([status][conn][seq][expected_seq][rx_window]) with a sliding window and
+/// retransmission. Fire-and-forget sending overruns the firmware's ~6-fragment
+/// reassembly/TX queue and silently stalls the SSH handshake.
 final class BleEthTransport: TransportAdapter {
 
     // MARK: - Command Codes
@@ -24,6 +27,19 @@ final class BleEthTransport: TransportAdapter {
     static let CMD_DISCONN_RESP  = UInt8(0x92)
     static let CMD_CONN_CLOSED   = UInt8(0xD2)
     static let CMD_INFO_RESP     = UInt8(0x9F)
+
+    // MARK: - Flow-control Constants
+
+    /// Firmware reassembles at most 6 fragments per message.
+    private static let maxFragsPerMessage = 6
+    /// One reassembled message is forwarded as a single TCP segment; keep it
+    /// below the MTU margin (1460) so the device's segment is not dropped.
+    private static let safeMessageLen = 1440
+    /// Per-fragment ACK budget; doubles on each retry (2s, 4s, 8s, 16s).
+    private static let ackTimeoutSeconds = 2.0
+    private static let ackRetries = 3
+    /// Gap between frames so the firmware's parser/queue is not overwhelmed.
+    private static let frameGapNs: UInt64 = 1_000_000  // 1ms
 
     // MARK: - TransportAdapter
 
@@ -45,6 +61,9 @@ final class BleEthTransport: TransportAdapter {
     private var running: Bool = false
     private var inputPipeClosed: Bool = false
 
+    /// Human-readable reason from the most recent connect() failure (nil on success).
+    private(set) var lastConnectError: String?
+
     /// Pipe for SSH → BLE direction (app sends data to remote)
     private var outboundPipe: QueuePipe?
 
@@ -56,11 +75,59 @@ final class BleEthTransport: TransportAdapter {
     private var pendingConnStatus: UInt8 = 0
     private var connectSemaphore: DispatchSemaphore?
 
+    /// Firmware-advertised RX headroom (1...15); sliding window is capped at 6.
+    private var rxWindow: Int = 1
+    /// Outstanding outbound fragments awaiting their metadata ACK.
+    private var ackWaiters: [AckKey: AckFuture] = [:]
+
     /// Combine subscriptions
     private var cancellables = Set<AnyCancellable>()
 
     /// Background queue for output reader task
     private var outputReaderTask: Task<Void, Never>?
+
+    // MARK: - ACK Primitives
+
+    private struct AckKey: Hashable {
+        let connId: UInt8
+        let seq: UInt8
+    }
+
+    /// One-shot thread-safe result holder for a fragment ACK.
+    private final class AckFuture {
+        enum Result {
+            case acked(UInt8)   // firmware status byte (0x00 = success)
+            case timeout
+            case aborted        // transport disconnected / link lost
+        }
+
+        private let lock = NSLock()
+        private var result: Result?
+        private var continuation: CheckedContinuation<Result, Never>?
+
+        func resolve(_ r: Result) {
+            lock.lock()
+            guard result == nil else { lock.unlock(); return }
+            result = r
+            let c = continuation
+            continuation = nil
+            lock.unlock()
+            c?.resume(returning: r)
+        }
+
+        func wait() async -> Result {
+            await withCheckedContinuation { c in
+                lock.lock()
+                if let r = result {
+                    lock.unlock()
+                    c.resume(returning: r)
+                    return
+                }
+                continuation = c
+                lock.unlock()
+            }
+        }
+    }
 
     // MARK: - Init
 
@@ -77,47 +144,24 @@ final class BleEthTransport: TransportAdapter {
 
     func connect(host: String, port: Int, timeoutMs: Int) {
         logger.log("BLE-Eth: connect(\(host):\(port), timeout=\(timeoutMs)ms)", category: "BLE-Eth", level: .info)
+
         // 1. Reset state
         stateLock.lock()
         closePipes()
         inputPipeClosed = false
         running = false
         connId = -1
+        lastConnectError = nil
+        connectSemaphore = nil
+        pendingConnId = 0
+        pendingConnStatus = 0
+        rxWindow = 1
+        let staleWaiters = Array(ackWaiters.values)
+        ackWaiters.removeAll()
         stateLock.unlock()
+        for w in staleWaiters { w.resolve(.aborted) }
 
-        // 2. Clear any stale connection state on the device
-        // Send DISCONNECT for common stale connIds (255 and 0) to ensure device releases orphaned connections
-        // This prevents 0xE7 errors when device has stale state from previous sessions
-        logger.log("BLE-Eth: sending cleanup DISCONNECT for stale connIds", category: "BLE-Eth", level: .info)
-        for staleConnId in [UInt8(255), UInt8(0)] {
-            let cleanupPayload = Data([staleConnId])
-            sendFrame(addr: 0x00, cmd: Self.CMD_DISCONNECT, payload: cleanupPayload)
-            // 50ms delay between DISCONNECT frames to avoid overwhelming firmware
-            Thread.sleep(forTimeInterval: 0.05)
-        }
-        // Wait for firmware to process DISCONNECT frames and send responses
-        Thread.sleep(forTimeInterval: 0.5)
-
-        // 2. Create pipes
-        outboundPipe = QueuePipe(capacity: 256)
-        inboundPipe = QueuePipe(capacity: 256)
-
-        // 3. Start output reader — polls outbound pipe and sends fragments via BLE
-        outputReaderTask = Task { [weak self] in
-            await self?.runOutputReader()
-        }
-
-        // 4. Build and send CONNECT frame
-        let semaphore = DispatchSemaphore(value: 0)
-        self.connectSemaphore = semaphore
-
-        guard let hostData = host.data(using: .utf8) else {
-            listener?.onError(message: "BLE-Eth: invalid host")
-            return
-        }
-        _ = hostData  // We parse the IP manually below
-
-        // Parse IPv4 address
+        // 2. Parse IPv4 address (validate before touching the device)
         let parts = host.split(separator: ".")
         guard parts.count == 4,
               let ip0 = UInt8(parts[0]),
@@ -127,45 +171,70 @@ final class BleEthTransport: TransportAdapter {
             listener?.onError(message: "BLE-Eth: invalid IPv4 address: \(host)")
             return
         }
-
         let portHi = UInt8((port >> 8) & 0xFF)
         let portLo = UInt8(port & 0xFF)
 
-        var payload = Data([ip0, ip1, ip2, ip3, portHi, portLo])
+        // 3. Clear any stale connection state on the device.
+        // DISCONNECT common stale connIds (255 and 0) so the device releases
+        // orphaned connections — prevents 0xE7 on retry.
+        logger.log("BLE-Eth: sending cleanup DISCONNECT for stale connIds", category: "BLE-Eth", level: .info)
+        for staleConnId in [UInt8(255), UInt8(0)] {
+            sendFrame(addr: 0x00, cmd: Self.CMD_DISCONNECT, payload: Data([staleConnId]))
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+        Thread.sleep(forTimeInterval: 0.5)
+
+        // 4. Create pipes
+        outboundPipe = QueuePipe(capacity: 256)
+        inboundPipe = QueuePipe(capacity: 256)
+
+        // 5. Start output reader — polls outbound pipe, paces fragments by ACK
+        outputReaderTask = Task { [weak self] in
+            await self?.runOutputReader()
+        }
+
+        // 6. Build and send CONNECT frame
+        let semaphore = DispatchSemaphore(value: 0)
+        stateLock.lock()
+        connectSemaphore = semaphore
+        stateLock.unlock()
+
+        let payload = Data([ip0, ip1, ip2, ip3, portHi, portLo])
         logger.log("BLE-Eth: sending CONNECT frame payloadLen=\(payload.count)", category: "BLE-Eth", level: .debug)
         sendFrame(addr: 0x00, cmd: Self.CMD_CONNECT, payload: payload)
 
-        // 5. Wait for CONNECT_RESP or timeout
+        // 7. Wait for CONNECT_RESP or timeout
         logger.log("BLE-Eth: waiting for CONNECT_RESP (semaphore)", category: "BLE-Eth", level: .debug)
         let result = semaphore.wait(timeout: .now() + .milliseconds(timeoutMs))
+
+        stateLock.lock()
+        connectSemaphore = nil
+        let status = pendingConnStatus
+        let cid = pendingConnId
+        stateLock.unlock()
+
         if result == .timedOut {
             logger.log("BLE-Eth CONNECT timed out after \(timeoutMs)ms", category: "BLE-Eth", level: .error)
+            lastConnectError = "CONNECT timed out after \(timeoutMs / 1000)s — device did not answer (target may be unreachable)"
             listener?.onError(message: "BLE-Eth CONNECT timed out")
             return
         }
-        logger.log("BLE-Eth: got CONNECT_RESP pendingConnId=\(pendingConnId) pendingConnStatus=\(pendingConnStatus)", category: "BLE-Eth", level: .debug)
+        logger.log("BLE-Eth: got CONNECT_RESP connId=\(cid) status=\(status)", category: "BLE-Eth", level: .debug)
 
-        // 6. Check response status
-        if pendingConnStatus != 0x00 {
-            let statusHex = String(format: "0x%02X", pendingConnStatus)
-            logger.log("BLE-Eth CONNECT failed: status=\(statusHex) connId=\(pendingConnId) — sending DISCONNECT to clear stale state", category: "BLE-Eth", level: .error)
-
-            // Send DISCONNECT for the rejected connId to clear device's stale state
-            // This prevents 0xE7 on retry (device thinks connId is still allocated)
-            let payload = Data([pendingConnId])
-            sendFrame(addr: 0x00, cmd: Self.CMD_DISCONNECT, payload: payload)
-
-            listener?.onError(message: "BLE-Eth CONNECT failed: status=\(statusHex)")
+        // 8. Check response status
+        if status != 0x00 {
+            let statusHex = String(format: "0x%02X", status)
+            let reason = Self.connectStatusText(status)
+            logger.log("BLE-Eth CONNECT failed: status=\(statusHex) (\(reason)) connId=\(cid) — sending DISCONNECT to clear stale state", category: "BLE-Eth", level: .error)
+            lastConnectError = "\(reason) (\(statusHex))"
+            sendFrame(addr: 0x00, cmd: Self.CMD_DISCONNECT, payload: Data([cid]))
+            listener?.onError(message: "BLE-Eth CONNECT failed: \(reason) (\(statusHex))")
             return
         }
 
-        // 7. Connected
-        stateLock.lock()
-        connId = Int(pendingConnId)
-        running = true
-        stateLock.unlock()
-
-        logger.log("BLE-Eth connected: connId=\(pendingConnId)", category: "BLE-Eth", level: .success)
+        // running/connId were already set in handleConnectResponse so the banner
+        // (pushed immediately after CONNECT_RESP) is delivered, not dropped.
+        logger.log("BLE-Eth connected: connId=\(cid)", category: "BLE-Eth", level: .success)
     }
 
     func send(data: Data) {
@@ -195,8 +264,14 @@ final class BleEthTransport: TransportAdapter {
         let disconnectConnId = connId
         connId = -1
         inputPipeClosed = true
+        rxWindow = 1
+        let waiters = Array(ackWaiters.values)
+        ackWaiters.removeAll()
         closePipes()
         stateLock.unlock()
+
+        // Wake any blocked sender so the output reader can exit.
+        for w in waiters { w.resolve(.aborted) }
 
         // Cancel output reader
         outputReaderTask?.cancel()
@@ -281,20 +356,31 @@ final class BleEthTransport: TransportAdapter {
 
     private func handleConnectResponse(_ payload: Data) {
         guard payload.count >= 2 else { return }
-        pendingConnId = payload[0]
-        pendingConnStatus = payload[1]
+        let cid = payload[0]
+        let status = payload[1]
+        stateLock.lock()
+        pendingConnId = cid
+        pendingConnStatus = status
+        if status == 0x00 {
+            // Mark connected BEFORE signaling the semaphore. The device pushes
+            // the SSH banner immediately after CONNECT_RESP on the same serial
+            // BLE queue; deliverReassembledData must already see running/connId
+            // set or the banner is dropped and libssh2 waits forever.
+            connId = Int(cid)
+            running = true
+        }
+        stateLock.unlock()
         connectSemaphore?.signal()
     }
 
     private func handleDataResponse(_ payload: Data) {
-        let hex = payload.map { String(format: "%02X", $0) }.joined(separator: " ")
-        // Match Android: filter ACKs before feeding to reassembler
-        // ACKs are status frames (payload[0]==0x00 or 0xE0-0xEF), not data fragments
+        // 0x91 carries both metadata ACKs (for our outbound data) and inbound
+        // DATA_PUSH fragments. Discriminate by payload shape, like Opf_test.
         if looksLikeDataAck(payload) {
-            let hex = payload.map { String(format: "%02X", $0) }.joined(separator: " ")
-            logger.log("BLE-Eth: DATA ACK — ignored (hex=\(hex))", category: "BLE-Eth", level: .debug)
+            handleDataAck(payload)
             return
         }
+        let hex = payload.map { String(format: "%02X", $0) }.joined(separator: " ")
         logger.log("BLE-Eth: DATA_RESP payloadLen=\(payload.count) hex=\(hex)", category: "BLE-Eth", level: .debug)
         dataReassembler.feed(payload: payload)
     }
@@ -305,6 +391,50 @@ final class BleEthTransport: TransportAdapter {
         if first == 0x00 { return true }
         if (first & 0xF0) == 0xE0 { return true }
         return false
+    }
+
+    /// Parse and apply a firmware metadata ACK.
+    /// Format: [status] / [status,conn,seq,expected_seq] / +[rx_window].
+    /// expected_seq is cumulative: it releases every waiter with seq < expected.
+    private func handleDataAck(_ payload: Data) {
+        let status = payload[0]
+        var conn: UInt8 = 0
+        var seq: UInt8 = 0
+        var expected: UInt8 = 0
+        var windowText = "-"
+        if payload.count >= 4 {
+            conn = payload[1]
+            seq = payload[2]
+            expected = payload[3]
+            if payload.count >= 5 {
+                let w = max(1, min(Int(payload[4]), 15))
+                stateLock.lock()
+                rxWindow = w
+                stateLock.unlock()
+                windowText = String(w)
+            }
+        }
+        logger.log("BLE-Eth: DATA ACK status=0x\(String(format: "%02X", status)) conn=\(conn) seq=\(seq) expected=\(expected) window=\(windowText)", category: "BLE-Eth", level: .debug)
+
+        var resolved: [AckFuture] = []
+        var exact: AckFuture?
+        stateLock.lock()
+        if status == 0x00 && payload.count >= 4 {
+            let matching = ackWaiters.filter { $0.key.connId == conn && $0.key.seq < expected }
+            for (key, fut) in matching {
+                resolved.append(fut)
+                ackWaiters[key] = nil
+            }
+        }
+        if resolved.isEmpty {
+            let key = AckKey(connId: conn, seq: seq)
+            exact = ackWaiters[key]
+            ackWaiters[key] = nil
+        }
+        stateLock.unlock()
+
+        for fut in resolved { fut.resolve(.acked(status)) }
+        if let fut = exact { fut.resolve(.acked(status)) }
     }
 
     private func handleRemoteClose(_ payload: Data) {
@@ -323,7 +453,9 @@ final class BleEthTransport: TransportAdapter {
         } else if isConnecting {
             // Device rejected connection - signal connect semaphore with error
             logger.log("BLE-Eth: device rejected connection with CMD_DISCONN_RESP", category: "BLE-Eth", level: .error)
+            stateLock.lock()
             pendingConnStatus = 0xE7 // Generic rejection status
+            stateLock.unlock()
             connectSemaphore?.signal()
         }
     }
@@ -349,7 +481,8 @@ final class BleEthTransport: TransportAdapter {
 
     // MARK: - Private: Output Reader
 
-    /// Background task that reads from outbound pipe and sends fragmented DATA frames.
+    /// Background task that reads from the outbound pipe and sends DATA
+    /// fragments paced by the firmware's metadata ACK window.
     private func runOutputReader() async {
         logger.log("BLE-Eth: output reader started", category: "BLE-Eth", level: .info)
         guard let pipe = outboundPipe else {
@@ -361,78 +494,156 @@ final class BleEthTransport: TransportAdapter {
         while !Task.isCancelled {
             // Wait until connected
             while !Task.isCancelled {
-                stateLock.lock()
-                let ready = running && connId >= 0
-                stateLock.unlock()
+                let ready = stateLock.withLock { running && connId >= 0 }
                 if ready { break }
                 try? await Task.sleep(nanoseconds: 50_000_000)
             }
-
             guard !Task.isCancelled else { break }
 
-            // Read next chunk from SSH output
             let chunk = await reader.read()
             guard let data = chunk else {
-                // EOF — pipe closed
                 logger.log("BLE-Eth: output reader EOF", category: "BLE-Eth", level: .info)
                 break
             }
 
-            logger.log("BLE-Eth: output reader got \(data.count) bytes → sendFragmented", category: "BLE-Eth", level: .debug)
-            // Fragment and send
-            sendFragmented(data: data)
+            logger.log("BLE-Eth: output reader got \(data.count) bytes → sendWithAcks", category: "BLE-Eth", level: .debug)
+            let payloads = buildDataPayloads(data)
+            let ok = await sendWithAcks(payloads)
+            if !ok {
+                logger.log("BLE-Eth: send failed (ACK exhausted/aborted) — disconnecting", category: "BLE-Eth", level: .error)
+                listener?.onError(message: "BLE-Eth data send failed (no ACK)")
+                disconnect()
+                break
+            }
         }
         logger.log("BLE-Eth: output reader exited", category: "BLE-Eth", level: .info)
     }
 
-    // MARK: - Private: Frame Building & Sending
+    // MARK: - Private: Fragment Building
 
-    /// Send data as fragmented DATA frames (if needed).
-    private func sendFragmented(data: Data) {
-        let maxFragData = DataReassembler.MAX_FRAG_DATA  // 246
+    /// Split a byte stream into BLE-Eth DATA payloads: messages ≤1440B, each
+    /// fragmented into ≤246B pieces. Single fragments use flags 0x41
+    /// (FRAG_FIRST | count=1) — the device drops count=0 payloads.
+    private func buildDataPayloads(_ data: Data) -> [Data] {
+        let cId: UInt8 = stateLock.withLock { connId >= 0 ? UInt8(connId) : 0 }
+        let maxFrag = DataReassembler.MAX_FRAG_DATA  // 246
+        var payloads: [Data] = []
 
-        guard connId >= 0 else { return }
-        let cId = UInt8(connId)
+        var msgStart = data.startIndex
+        while msgStart < data.endIndex {
+            let msgEnd = min(msgStart + Self.safeMessageLen, data.endIndex)
+            let message = data[msgStart..<msgEnd]
+            msgStart = msgEnd
 
-        if data.count <= maxFragData {
-            // Single fragment — match device format: FRAG_FIRST | count=1 (0x41)
-            // Device doesn't normalize count=0→1 like our reassembler does
-            let flags: UInt8 = DataReassembler.FRAG_FIRST | 0x01  // 0x41
-            var payload = Data([flags, 0x00, cId])  // flags, seq=0, connId
-            payload.append(data)
-            let payloadHex = payload.prefix(16).map { String(format: "%02X", $0) }.joined(separator: " ")
-            logger.log("BLE-Eth: single frag flags=0x\(String(format: "%02X", flags)) seq=0 connId=\(cId) dataLen=\(data.count) payload(\(payload.count))=\(payloadHex)", category: "BLE-Eth", level: .debug)
-            sendFrame(addr: 0x00, cmd: Self.CMD_DATA, payload: payload)
-        } else {
-            // Multiple fragments
-            let totalFrags = (data.count + maxFragData - 1) / maxFragData
-            var offset = 0
-
-            for seq in 0..<totalFrags {
-                let end = min(offset + maxFragData, data.count)
-                let chunk = data[offset..<end]
-
-                var flags = UInt8(totalFrags & 0x0F)
-                if seq == 0 {
-                    flags |= DataReassembler.FRAG_FIRST
-                }
-                if seq < totalFrags - 1 {
-                    flags |= DataReassembler.FRAG_MORE
-                }
-
-                var payload = Data([flags, UInt8(seq), cId])
-                payload.append(chunk)
-                sendFrame(addr: 0x00, cmd: Self.CMD_DATA, payload: payload)
-
-                offset = end
-
-                // Inter-fragment delay (5ms)
-                if seq < totalFrags - 1 {
-                    Thread.sleep(forTimeInterval: 0.005)
+            if message.count <= maxFrag {
+                let flags = DataReassembler.FRAG_FIRST | 0x01  // 0x41
+                var p = Data([flags, 0x00, cId])
+                p.append(message)
+                payloads.append(p)
+            } else {
+                let totalFrags = (message.count + maxFrag - 1) / maxFrag
+                var offset = message.startIndex
+                for seq in 0..<totalFrags {
+                    let end = min(offset + maxFrag, message.endIndex)
+                    var flags = UInt8(totalFrags & 0x0F)
+                    if seq == 0 { flags |= DataReassembler.FRAG_FIRST }
+                    if seq < totalFrags - 1 { flags |= DataReassembler.FRAG_MORE }
+                    var p = Data([flags, UInt8(seq), cId])
+                    p.append(message[offset..<end])
+                    payloads.append(p)
+                    offset = end
                 }
             }
         }
+        return payloads
     }
+
+    private static func dataFrameKey(_ payload: Data) -> AckKey? {
+        guard payload.count >= 3 else { return nil }
+        return AckKey(connId: payload[2], seq: payload[1])
+    }
+
+    // MARK: - Private: ACK-paced Sending
+
+    /// Send DATA payloads with a sliding window bounded by the firmware's RX
+    /// headroom. Mirrors Opf_test _send_with_acks: register the waiter before
+    /// sending, pace by window, drain outstanding ACKs at the end.
+    private func sendWithAcks(_ payloads: [Data]) async -> Bool {
+        var pending: [(key: AckKey, payload: Data, future: AckFuture)] = []
+
+        for payload in payloads {
+            let window = stateLock.withLock { max(1, min(rxWindow, Self.maxFragsPerMessage)) }
+            while pending.count >= window {
+                let item = pending.removeFirst()
+                guard await awaitAck(key: item.key, payload: item.payload, future: item.future) else { return false }
+            }
+            guard let key = Self.dataFrameKey(payload) else {
+                sendFrame(addr: 0x00, cmd: Self.CMD_DATA, payload: payload)
+                continue
+            }
+            let future = AckFuture()
+            stateLock.lock()
+            ackWaiters[key] = future
+            stateLock.unlock()
+            pending.append((key, payload, future))
+            sendFrame(addr: 0x00, cmd: Self.CMD_DATA, payload: payload)
+            try? await Task.sleep(nanoseconds: Self.frameGapNs)
+        }
+
+        while !pending.isEmpty {
+            let item = pending.removeFirst()
+            guard await awaitAck(key: item.key, payload: item.payload, future: item.future) else { return false }
+        }
+        return true
+    }
+
+    /// Await one fragment's ACK with exponential-backoff retransmission.
+    /// On timeout/FRAME_ERR the firmware's reassembly is invalidated, so the
+    /// identical frame must be resent. Mirrors Opf_test _await_ack.
+    private func awaitAck(key: AckKey, payload: Data, future initialFuture: AckFuture) async -> Bool {
+        var future = initialFuture
+        for attempt in 0...Self.ackRetries {
+            let timeout = Self.ackTimeoutSeconds * Double(1 << attempt)
+            let currentFuture = future
+            let timeoutTask = Task {
+                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                currentFuture.resolve(.timeout)
+            }
+            let result = await future.wait()
+            timeoutTask.cancel()
+
+            switch result {
+            case .acked(0x00):
+                return true
+            case .aborted:
+                return false
+            case .acked(let status):
+                logger.log("BLE-Eth: DATA ACK conn=\(key.connId) seq=\(key.seq) status=0x\(String(format: "%02X", status)) — retransmit", category: "BLE-Eth", level: .warning)
+            case .timeout:
+                logger.log("BLE-Eth: DATA ACK conn=\(key.connId) seq=\(key.seq) timeout (attempt \(attempt))", category: "BLE-Eth", level: .debug)
+            }
+
+            stateLock.lock()
+            if ackWaiters[key] === future { ackWaiters[key] = nil }
+            stateLock.unlock()
+
+            if attempt >= Self.ackRetries {
+                logger.log("BLE-Eth: DATA conn=\(key.connId) seq=\(key.seq) ACK exhausted after \(Self.ackRetries) retries", category: "BLE-Eth", level: .error)
+                return false
+            }
+
+            let newFuture = AckFuture()
+            stateLock.lock()
+            ackWaiters[key] = newFuture
+            stateLock.unlock()
+            future = newFuture
+            sendFrame(addr: 0x00, cmd: Self.CMD_DATA, payload: payload)
+            try? await Task.sleep(nanoseconds: Self.frameGapNs)
+        }
+        return false
+    }
+
+    // MARK: - Private: Frame Building & Sending
 
     /// Build and send a single BLE-Eth frame.
     private func sendFrame(addr: UInt8, cmd: UInt8, payload: Data) {
@@ -465,6 +676,19 @@ final class BleEthTransport: TransportAdapter {
     }
 
     // MARK: - Private: Helpers
+
+    /// Decode a CONNECT_RESP status byte (firmware ble_eth_protocol.h).
+    private static func connectStatusText(_ status: UInt8) -> String {
+        switch status {
+        case 0x00: return "success"
+        case 0xE1: return "target unreachable — ARP/SYN timeout, check target IP is on the device ECM subnet and host is connected"
+        case 0xE5: return "parameter error"
+        case 0xE6: return "frame error"
+        case 0xE7: return "connection slots full"
+        case 0xE8: return "no route — ECM link down or target not reachable"
+        default:   return "device error"
+        }
+    }
 
     private func closePipes() {
         outboundPipe?.close()

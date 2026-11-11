@@ -72,6 +72,19 @@ class TerminalViewModel: ObservableObject {
 
     // MARK: - Public API
 
+    /// Default SSH host for new profiles: the target PC IP read from the device
+    /// over BLE, falling back to the firmware default until a read succeeds.
+    var defaultSSHHost: String {
+        let config = bleManager.lastECMIPConfig ?? ECMIPCommand.defaultConfig
+        return ECMIPCommand.formatIPv4(config.targetHostIP)
+    }
+
+    /// Refresh the device's ECM IP config so defaultSSHHost reflects the device.
+    func refreshECMIPConfig() {
+        guard bleManager.connectionState == .connected else { return }
+        bleManager.fetchECMIP()
+    }
+
     /// Connect to remote host via BLE-Eth transport
     func connect(host: String, port: Int = 22, username: String, password: String) async {
         LogManager.shared.log("ViewModel: connect(\(host):\(port), user=\(username))", category: "Terminal", level: .info)
@@ -114,9 +127,11 @@ class TerminalViewModel: ObservableObject {
             return
         }
 
-        // Connect transport to remote host
+        // Connect transport to remote host.
+        // 65s covers the firmware's ARP/SYN retry budget (~60s) so an unreachable
+        // target surfaces as a real status (0xE1/0xE8) instead of a premature timeout.
         LogManager.shared.log("ViewModel: calling transport.connect()", category: "Terminal", level: .info)
-        transport.connect(host: host, port: port, timeoutMs: 30000)
+        transport.connect(host: host, port: port, timeoutMs: 65000)
         LogManager.shared.log("ViewModel: transport.connect() returned, isConnected=\(transport.isConnected)", category: "Terminal", level: .info)
 
         // Wait for transport connection (short poll instead of fixed sleep)
@@ -127,13 +142,14 @@ class TerminalViewModel: ObservableObject {
 
         // Check if transport connected
         guard transport.isConnected else {
-            LogManager.shared.log("ViewModel: transport not connected after 5s wait — aborting", category: "Terminal", level: .error)
+            let reason = transport.lastConnectError ?? "BLE-Eth transport connection failed"
+            LogManager.shared.log("ViewModel: transport not connected — aborting: \(reason)", category: "Terminal", level: .error)
             transport.disconnect()
             bridge?.stop()
             self.transport = nil
             self.bridge = nil
             await MainActor.run {
-                connectionStatus = .error("BLE-Eth transport connection failed")
+                connectionStatus = .error(reason)
                 statusMessage = "Transport connection failed"
             }
             return

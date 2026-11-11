@@ -165,10 +165,14 @@ struct ConnectionDialog: View {
                         .disabled(selectedProfileId == nil || viewModel.connectionStatus == .connecting)
                 }
             }
-            .onAppear { loadProfiles() }
+            .onAppear {
+                loadProfiles()
+                viewModel.refreshECMIPConfig()
+            }
             .sheet(isPresented: $showProfileEditor) {
                 ProfileEditorSheet(
                     profile: editingProfile,
+                    defaultHost: viewModel.defaultSSHHost,
                     onSave: { profile, password in
                         if editingProfile != nil {
                             credentialManager.updateProfile(profile, password: password.isEmpty ? nil : password)
@@ -310,6 +314,7 @@ private struct ProfileCard: View {
 struct ProfileEditorSheet: View {
     @Environment(\.dismiss) var dismiss
     let profile: CredentialProfile?
+    var defaultHost: String = ECMIPCommand.formatIPv4(ECMIPCommand.defaultConfig.targetHostIP)
     let onSave: (CredentialProfile, String) -> Void
 
     @State private var name: String = ""
@@ -416,8 +421,8 @@ struct ProfileEditorSheet: View {
                     notes = p.notes
                     tags = p.tags
                 } else {
-                    // Default host for new profiles
-                    host = "192.168.11.2"
+                    // Default host: target IP read from the device over BLE
+                    host = defaultHost
                 }
             }
             .sheet(isPresented: $showTagSelector) {

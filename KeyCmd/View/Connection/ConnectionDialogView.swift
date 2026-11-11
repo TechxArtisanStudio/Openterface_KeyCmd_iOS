@@ -11,6 +11,8 @@ struct ConnectionDialogView: View {
     @ObservedObject var themeManager = ThemeManager.shared
     @State private var showScanner = false
     @State private var showRename = false
+    @State private var showECMIP = false
+    @State private var showSecurity = false
 
     var body: some View {
         ZStack {
@@ -36,85 +38,134 @@ struct ConnectionDialogView: View {
 
                 Divider()
 
-                // Status
-                Text(statusText)
-                    .font(.system(size: 14))
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                ScrollView {
+                    VStack(spacing: 0) {
+                        // Status
+                        Text(statusText)
+                            .font(.system(size: 14))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
 
-                // Connection type label
-                Text("Connection Type")
-                    .font(.system(size: 15, weight: .bold))
-                    .padding(.horizontal, 16)
-                    .padding(.top, 12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                // Bluetooth card
-                BluetoothCard(
-                    connectionState: bleManager.connectionState,
-                    deviceName: bleManager.lastConnectedDeviceName,
-                    rssi: bleManager.currentRSSI,
-                    themeManager: themeManager
-                )
-                .onTapGesture {
-                    if bleManager.connectionState == .connected {
-                        bleManager.disconnectCurrentDevice()
-                    } else {
-                        showScanner = true
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-
-                // Rename entry (connected devices only)
-                if bleManager.connectionState == .connected {
-                    Button(action: { showRename = true }) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "pencil")
-                                .font(.system(size: 13))
-                            Text("Rename Device")
-                                .font(.system(size: 14))
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 12))
-                                .foregroundColor(.secondary)
+                        if let issue = bleManager.pairingIssue {
+                            pairingIssueCard(issue)
+                                .padding(.horizontal, 16)
+                                .padding(.top, 8)
                         }
-                        .foregroundColor(themeManager.accentColor)
+
+                        if bleManager.showFactoryPINReminder {
+                            factoryPINBanner
+                                .padding(.horizontal, 16)
+                                .padding(.top, 8)
+                        }
+
+                        // Connection type label
+                        Text("Connection Type")
+                            .font(.system(size: 15, weight: .bold))
+                            .padding(.horizontal, 16)
+                            .padding(.top, 12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        // Bluetooth card
+                        BluetoothCard(
+                            connectionState: bleManager.connectionState,
+                            deviceName: bleManager.lastConnectedDeviceName,
+                            isWaitingForPairing: bleManager.isWaitingForPairing,
+                            rssi: bleManager.currentRSSI,
+                            themeManager: themeManager
+                        )
+                        .onTapGesture {
+                            if bleManager.connectionState == .connected {
+                                bleManager.disconnectCurrentDevice()
+                            } else {
+                                showScanner = true
+                            }
+                        }
                         .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
+                        .padding(.top, 8)
+
+                        // Rename entry (connected devices only)
+                        if bleManager.connectionState == .connected {
+                            Button(action: { showRename = true }) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "pencil")
+                                        .font(.system(size: 13))
+                                    Text("Rename Device")
+                                        .font(.system(size: 14))
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.secondary)
+                                }
+                                .foregroundColor(themeManager.accentColor)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                            }
+
+                            Button(action: { showECMIP = true }) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "network")
+                                        .font(.system(size: 13))
+                                    Text("ECM Network")
+                                        .font(.system(size: 14))
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.secondary)
+                                }
+                                .foregroundColor(themeManager.accentColor)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                            }
+
+                            Button(action: { showSecurity = true }) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "lock.shield")
+                                        .font(.system(size: 13))
+                                    Text("Pairing & Security")
+                                        .font(.system(size: 14))
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.secondary)
+                                }
+                                .foregroundColor(themeManager.accentColor)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                            }
+                        }
+
+                        // Auto-connect toggle
+                        Toggle(isOn: Binding(
+                            get: { bleManager.autoConnectEnabled },
+                            set: { bleManager.autoConnectEnabled = $0 }
+                        )) {
+                            Text("Auto-connect on startup")
+                                .font(.system(size: 14))
+                        }
+                        .tint(themeManager.accentColor)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 16)
+
+                        // Last connected info
+                        if let lastDevice = bleManager.lastConnectedDeviceName {
+                            HStack {
+                                Image(systemName: "clock.arrow.circlepath")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.secondary)
+                                Text("Last connected: \(lastDevice)")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.top, 8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
                     }
+                    .padding(.bottom, 16)
                 }
-
-                // Auto-connect toggle
-                Toggle(isOn: Binding(
-                    get: { bleManager.autoConnectEnabled },
-                    set: { bleManager.autoConnectEnabled = $0 }
-                )) {
-                    Text("Auto-connect on startup")
-                        .font(.system(size: 14))
-                }
-                .tint(themeManager.accentColor)
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
-
-                // Last connected info
-                if let lastDevice = bleManager.lastConnectedDeviceName {
-                    HStack {
-                        Image(systemName: "clock.arrow.circlepath")
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary)
-                        Text("Last connected: \(lastDevice)")
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                Spacer()
+                .frame(maxHeight: 520)
             }
             .frame(maxWidth: 400)
             .background(Color(UIColor.secondarySystemBackground))
@@ -128,9 +179,84 @@ struct ConnectionDialogView: View {
         .sheet(isPresented: $showRename) {
             RenameDeviceSheet(bleManager: bleManager)
         }
+        .sheet(isPresented: $showECMIP) {
+            ECMIPSheet(bleManager: bleManager)
+        }
+        .sheet(isPresented: $showSecurity) {
+            BLESecuritySheet(bleManager: bleManager)
+        }
     }
 
-    private var statusText: String {
+    private func pairingIssueCard(_ issue: BLEManager.PairingIssue) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 15))
+                .foregroundColor(.orange)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Pairing failed")
+                    .font(.system(size: 13, weight: .semibold))
+                Text(pairingIssueHint(issue))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 4)
+
+            Button(action: { bleManager.dismissPairingIssue() }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(12)
+        .background(Color.orange.opacity(0.12))
+        .cornerRadius(10)
+    }
+
+    private func pairingIssueHint(_ issue: BLEManager.PairingIssue) -> LocalizedStringKey {
+        switch issue {
+        case .authenticationFailed:
+            return "The pairing code was rejected or the prompt was cancelled. Tap the Bluetooth card to try again."
+        case .staleBond:
+            return "The device may already be paired with another phone. Go to Settings > Bluetooth, tap the device, and choose \"Forget This Device\"."
+        case .timeout:
+            return "Pairing timed out. Tap the Bluetooth card to try again."
+        case .connectionFailed:
+            return "Could not start pairing. Move closer to the device and try again."
+        }
+    }
+
+    private var factoryPINBanner: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "lock.shield")
+                .font(.system(size: 15))
+                .foregroundColor(themeManager.accentColor)
+
+            Text("This device may still use the factory PIN 666666. Change it to keep others out.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 4)
+
+            Button("Change") { showSecurity = true }
+                .font(.caption.bold())
+
+            Button(action: { bleManager.dismissFactoryPINReminder() }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(12)
+        .background(Color(UIColor.tertiarySystemBackground))
+        .cornerRadius(10)
+    }
+
+    private var statusText: LocalizedStringKey {
+        if bleManager.isWaitingForPairing { return "Waiting for pairing..." }
         switch bleManager.connectionState {
         case .connected:
             if let name = bleManager.lastConnectedDeviceName {
@@ -150,6 +276,7 @@ struct ConnectionDialogView: View {
 private struct BluetoothCard: View {
     let connectionState: BLEManager.ConnectionState
     let deviceName: String?
+    let isWaitingForPairing: Bool
     let rssi: NSNumber?
     @ObservedObject var themeManager: ThemeManager
 
@@ -157,16 +284,18 @@ private struct BluetoothCard: View {
     private var isConnecting: Bool { connectionState == .connecting || connectionState == .reconnecting }
 
     private var iconName: String {
+        if isWaitingForPairing { return "lock.fill" }
         switch connectionState {
         case .connected: return "checkmark.circle.fill"
         case .connecting, .reconnecting: return "antenna.radiowaves.left.and.right"
-        case .disconnected: return "bluetooth"
+        case .disconnected: return "antenna.radiowaves.left.and.right"
         }
     }
 
-    private var statusText: String {
+    private var statusText: LocalizedStringKey {
+        if isWaitingForPairing { return "Waiting for pairing..." }
         switch connectionState {
-        case .connected: return deviceName ?? "Connected"
+        case .connected: return LocalizedStringKey(deviceName ?? "Connected")
         case .connecting: return "Connecting..."
         case .reconnecting: return "Reconnecting..."
         case .disconnected: return "Not connected"
@@ -195,6 +324,13 @@ private struct BluetoothCard: View {
                             .font(.system(size: 12))
                             .foregroundColor(.secondary)
                     }
+                }
+
+                if isWaitingForPairing {
+                    Text("Enter the 6-digit PIN in the iOS prompt (factory default 666666).")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
 

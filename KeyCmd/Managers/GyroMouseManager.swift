@@ -149,8 +149,8 @@ class GyroMouseManager: ObservableObject {
         let dx = clampedX * cursorSensitivity * sensitivity
         let dy = -clampedY * cursorSensitivity * sensitivity
 
-        let boundedX = clampMouseDelta(dx)
-        let boundedY = clampMouseDelta(dy)
+        let boundedX = roundedMouseDelta(dx)
+        let boundedY = roundedMouseDelta(dy)
 
         sendMouseMovement(dx: boundedX, dy: boundedY)
     }
@@ -168,8 +168,8 @@ class GyroMouseManager: ObservableObject {
         let dx = clampedX * cursorSensitivity * sensitivity
         let dy = -clampedY * cursorSensitivity * sensitivity
 
-        let boundedX = clampMouseDelta(dx)
-        let boundedY = clampMouseDelta(dy)
+        let boundedX = roundedMouseDelta(dx)
+        let boundedY = roundedMouseDelta(dy)
 
         sendMouseMovement(dx: boundedX, dy: boundedY)
     }
@@ -182,16 +182,14 @@ class GyroMouseManager: ObservableObject {
         max(-maxRate, min(maxRate, rate)) / maxRate
     }
 
-    private func clampMouseDelta(_ value: Double) -> Int {
-        Int(max(-127, min(127, value)))
+    private func roundedMouseDelta(_ value: Double) -> Int {
+        Int(value.rounded())
     }
 
     private func sendMouseMovement(dx: Int, dy: Int) {
         guard dx != 0 || dy != 0 else { return }
         guard let mouseManager = mouseManager else { return }
-        let boundedX = Int8(max(-127, min(127, dx)))
-        let boundedY = Int8(max(-127, min(127, dy)))
-        let packet = Keymod.buildMouseRel(buttons: 0x00, dx: boundedX, dy: boundedY, wheel: 0)
-        mouseManager.bleManager.sendTouchData(data: packet)
+        // BLEManager coalesces and splits ±127; clamping here would lose motion.
+        mouseManager.bleManager.sendMouseMove(dx: dx, dy: dy)
     }
 }

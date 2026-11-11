@@ -70,6 +70,16 @@ struct BluetoothScannerView: View {
                     }
                 }
                 .listStyle(.plain)
+                .safeAreaInset(edge: .bottom) {
+                    Text("First-time pairing uses the device pairing PIN (factory default 666666).")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(.bar)
+                }
             }
             .navigationTitle("Bluetooth Devices")
             .navigationBarTitleDisplayMode(.inline)

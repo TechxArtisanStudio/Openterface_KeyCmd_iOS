@@ -29,16 +29,13 @@ class MouseManager: ObservableObject {
     // MARK: - Drag
 
     func handleDragChanged(currentPosition: CGPoint) {
-        var xDelta = Int(currentPosition.x - (previousPosition?.x ?? currentPosition.x))
-        var yDelta = Int(currentPosition.y - (previousPosition?.y ?? currentPosition.y))
+        let xDelta = Int(currentPosition.x - (previousPosition?.x ?? currentPosition.x)) * 4
+        let yDelta = Int(currentPosition.y - (previousPosition?.y ?? currentPosition.y)) * 4
         previousPosition = currentPosition
+        guard xDelta != 0 || yDelta != 0 else { return }
         let buttons: UInt8 = heldButtons | (isSelectMode ? 0x01 : 0x00)
-        xDelta *= 4
-        yDelta *= 4
-        let boundedXDelta = Int8(max(-127, min(127, xDelta)))
-        let boundedYDelta = Int8(max(-127, min(127, yDelta)))
-        let packet = Keymod.buildMouseRel(buttons: buttons, dx: boundedXDelta, dy: boundedYDelta, wheel: 0)
-        bleManager.sendTouchData(data: packet)
+        // Relative deltas stay uncompressed; BLEManager coalesces and splits them.
+        bleManager.sendMouseMove(dx: xDelta, dy: yDelta, buttons: buttons)
     }
 
     func handleDragEnded() {

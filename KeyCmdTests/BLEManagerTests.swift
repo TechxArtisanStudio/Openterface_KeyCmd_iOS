@@ -154,6 +154,78 @@ final class BLEManagerTests: XCTestCase {
         XCTAssertTrue(true, "Serial write queue prevents concurrent BLE writes")
     }
 
+    // MARK: - Relative Mouse Delta Chunking
+
+    /// A fast swipe can exceed the CH9329 ±127 limit. The old code clamped and
+    /// silently lost the excess; the scheduler must split it instead.
+    func testNextMouseStepClampsOneStepAndKeepsRemainder() {
+        var dx = 200
+        var dy = -300
+
+        let first = BLEManager.nextMouseStep(dx: &dx, dy: &dy)
+        XCTAssertEqual(first?.dx, 127)
+        XCTAssertEqual(first?.dy, -127)
+        XCTAssertEqual(dx, 73)
+        XCTAssertEqual(dy, -173)
+    }
+
+    func testNextMouseStepConservesTotalMovement() {
+        var dx = 1000
+        var dy = -500
+        var sumX = 0
+        var sumY = 0
+        var steps = 0
+
+        while let step = BLEManager.nextMouseStep(dx: &dx, dy: &dy) {
+            XCTAssertLessThanOrEqual(abs(Int(step.dx)), 127)
+            XCTAssertLessThanOrEqual(abs(Int(step.dy)), 127)
+            sumX += Int(step.dx)
+            sumY += Int(step.dy)
+            steps += 1
+            XCTAssertLessThan(steps, 100, "chunking must terminate")
+        }
+
+        XCTAssertEqual(sumX, 1000)
+        XCTAssertEqual(sumY, -500)
+        XCTAssertEqual(dx, 0)
+        XCTAssertEqual(dy, 0)
+    }
+
+    func testNextMouseStepBoundaries() {
+        var dx = -127
+        var dy = 0
+        let negativeLimit = BLEManager.nextMouseStep(dx: &dx, dy: &dy)
+        XCTAssertEqual(negativeLimit?.dx, -127)
+        XCTAssertEqual(negativeLimit?.dy, 0)
+        XCTAssertNil(BLEManager.nextMouseStep(dx: &dx, dy: &dy))
+
+        dx = 5
+        dy = 0
+        let small = BLEManager.nextMouseStep(dx: &dx, dy: &dy)
+        XCTAssertEqual(small?.dx, 5)
+        XCTAssertEqual(small?.dy, 0)
+        XCTAssertNil(BLEManager.nextMouseStep(dx: &dx, dy: &dy))
+
+        dx = 0
+        dy = 0
+        XCTAssertNil(BLEManager.nextMouseStep(dx: &dx, dy: &dy))
+
+        dx = 127
+        dy = 127
+        let positiveLimit = BLEManager.nextMouseStep(dx: &dx, dy: &dy)
+        XCTAssertEqual(positiveLimit?.dx, 127)
+        XCTAssertEqual(positiveLimit?.dy, 127)
+        XCTAssertEqual(dx, 0)
+        XCTAssertEqual(dy, 0)
+
+        dx = -126
+        dy = 126
+        let mixed = BLEManager.nextMouseStep(dx: &dx, dy: &dy)
+        XCTAssertEqual(mixed?.dx, -126)
+        XCTAssertEqual(mixed?.dy, 126)
+        XCTAssertNil(BLEManager.nextMouseStep(dx: &dx, dy: &dy))
+    }
+
     // MARK: - Known Device UUIDs / Discoverability
 
     func testRememberDeviceUUIDPersistsAndDeduplicates() {

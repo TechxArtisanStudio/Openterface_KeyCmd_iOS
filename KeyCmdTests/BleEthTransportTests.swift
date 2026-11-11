@@ -410,4 +410,64 @@ final class BleEthTransportTests: XCTestCase {
         XCTAssertEqual(BleEthTransport.CMD_DISCONN_RESP & 0xF0, 0x90)
         XCTAssertEqual(BleEthTransport.CMD_INFO_RESP & 0xF0, 0x90)
     }
+
+    // MARK: - Banner Delivery Regression
+
+    /// Builds a valid BLE-Eth frame (SYNC1 SYNC2 ADDR CMD LEN PAYLOAD CHECKSUM).
+    private func buildFrame(cmd: UInt8, payload: Data) -> Data {
+        var f = Data([FrameParser.SYNC1, FrameParser.SYNC2, 0x00, cmd, UInt8(payload.count)])
+        f.append(payload)
+        var sum: UInt8 = 0
+        for b in f { sum = sum &+ b }
+        f.append(sum)
+        return f
+    }
+
+    /// Regression: the device pushes the SSH banner immediately after
+    /// CONNECT_RESP on the same serial BLE queue. handleConnectResponse must
+    /// mark the transport connected BEFORE the banner is reassembled, otherwise
+    /// deliverReassembledData drops it and libssh2 waits forever.
+    func testBannerDeliveredImmediatelyAfterConnectResponse() {
+        final class Capture: TransportListener {
+            var received: [Data] = []
+            func onDataReceived(data: Data) { received.append(data) }
+            func onDisconnected() {}
+            func onError(message: String) {}
+        }
+        let cap = Capture()
+        transport.listener = cap
+
+        // CONNECT_RESP: connId=0, status=success
+        transport.handleIncomingData(buildFrame(cmd: BleEthTransport.CMD_CONNECT_RESP,
+                                                payload: Data([0x00, 0x00])))
+        XCTAssertTrue(transport.isConnected, "CONNECT_RESP must mark connected immediately")
+
+        // Single-fragment DATA_PUSH carrying the banner (flags 0x41, seq 0, conn 0)
+        let banner = Data("SSH-2.0-OpenSSH_9.0\r\n".utf8)
+        var push = Data([DataReassembler.FRAG_FIRST | 0x01, 0x00, 0x00])
+        push.append(banner)
+        transport.handleIncomingData(buildFrame(cmd: BleEthTransport.CMD_DATA_RESP, payload: push))
+
+        XCTAssertEqual(cap.received.count, 1, "Banner must be delivered, not dropped")
+        XCTAssertEqual(cap.received.first, banner)
+    }
+
+    /// A 5-byte metadata ACK ([status,conn,seq,expected,window]) must be consumed
+    /// by the flow-control path, never delivered to the SSH listener as data.
+    func testMetadataAckNotDeliveredAsData() {
+        final class Capture: TransportListener {
+            var received: [Data] = []
+            func onDataReceived(data: Data) { received.append(data) }
+            func onDisconnected() {}
+            func onError(message: String) {}
+        }
+        let cap = Capture()
+        transport.listener = cap
+
+        transport.handleIncomingData(buildFrame(cmd: BleEthTransport.CMD_CONNECT_RESP,
+                                                payload: Data([0x00, 0x00])))
+        transport.handleIncomingData(buildFrame(cmd: BleEthTransport.CMD_DATA_RESP,
+                                                payload: Data([0x00, 0x00, 0x00, 0x01, 0x06])))
+        XCTAssertTrue(cap.received.isEmpty, "Metadata ACK must not surface as inbound data")
+    }
 }

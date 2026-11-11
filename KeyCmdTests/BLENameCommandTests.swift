@@ -77,7 +77,7 @@ final class BLENameCommandTests: XCTestCase {
     func testScannerSingleResponse() {
         var scanner = BLENameCommand.ResponseScanner()
         let result = scanner.feed(okResponse)
-        XCTAssertEqual(result.responses, [BLENameCommand.Response(cmd: 0xA3, status: 0x00)])
+        XCTAssertEqual(result.responses, [BLENameCommand.Response(cmd: 0xA3, status: 0x00, payload: Data())])
         XCTAssertTrue(result.responses[0].isSuccess)
         XCTAssertTrue(result.passthrough.isEmpty)
     }
@@ -85,7 +85,7 @@ final class BLENameCommandTests: XCTestCase {
     func testScannerErrorResponse() {
         var scanner = BLENameCommand.ResponseScanner()
         let result = scanner.feed(errResponse)
-        XCTAssertEqual(result.responses, [BLENameCommand.Response(cmd: 0xE3, status: 0xE5)])
+        XCTAssertEqual(result.responses, [BLENameCommand.Response(cmd: 0xE3, status: 0xE5, payload: Data())])
         XCTAssertFalse(result.responses[0].isSuccess)
     }
 
