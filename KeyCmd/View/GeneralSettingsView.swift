@@ -19,6 +19,7 @@ struct GeneralSettingsView: View {
     @ObservedObject private var touchpadSettings = TouchpadSettings.shared
     @StateObject private var hapticManager = HapticFeedbackManager.shared
     @AppStorage("clipboardMonitoringEnabled") private var clipboardMonitoringEnabled = true
+    @AppStorage(BLEManager.factoryPINReminderKey) private var factoryPINReminderEnabled = true
     @ObservedObject private var aiSettings = AISettings.shared
     @ObservedObject private var themeManager = ThemeManager.shared
     @ObservedObject private var languageManager = LanguageManager.shared
@@ -193,6 +194,13 @@ struct GeneralSettingsView: View {
                     .foregroundColor(.secondary)
             }
             .padding(.vertical, 4)
+        }
+
+        Section(header: Text("Bluetooth Pairing")) {
+            Toggle("Remind Me to Change the Factory PIN", isOn: $factoryPINReminderEnabled)
+            Text("Shows a one-time hint after the first connection when this app has not changed the device PIN. The device never reports its current PIN.")
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
 
         Section(header: Text("Haptic Feedback")) {

@@ -54,12 +54,6 @@ struct ConnectionDialogView: View {
                                 .padding(.top, 8)
                         }
 
-                        if bleManager.showFactoryPINReminder {
-                            factoryPINBanner
-                                .padding(.horizontal, 16)
-                                .padding(.top, 8)
-                        }
-
                         // Connection type label
                         Text("Connection Type")
                             .font(.system(size: 15, weight: .bold))
@@ -226,33 +220,6 @@ struct ConnectionDialogView: View {
         case .connectionFailed:
             return "Could not start pairing. Move closer to the device and try again."
         }
-    }
-
-    private var factoryPINBanner: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "lock.shield")
-                .font(.system(size: 15))
-                .foregroundColor(themeManager.accentColor)
-
-            Text("This device may still use the factory PIN 666666. Change it to keep others out.")
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Spacer(minLength: 4)
-
-            Button("Change") { showSecurity = true }
-                .font(.caption.bold())
-
-            Button(action: { bleManager.dismissFactoryPINReminder() }) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.secondary)
-            }
-        }
-        .padding(12)
-        .background(Color(UIColor.tertiarySystemBackground))
-        .cornerRadius(10)
     }
 
     private var statusText: LocalizedStringKey {

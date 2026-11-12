@@ -18,6 +18,7 @@ struct ContentView: View {
     @ObservedObject private var aiSettings = AISettings.shared
     @ObservedObject private var themeManager = ThemeManager.shared
     @State private var showPopup = false
+    @State private var showPINSecuritySheet = false
     @State private var sidebarVisible = false
     @State private var showSettings = false
     @State private var showSetupSheet = false
@@ -37,6 +38,7 @@ struct ContentView: View {
     @StateObject private var terminalViewModel: TerminalViewModel
     @AppStorage("gyroMouseEnabled") private var gyroMouseEnabled = false
     @AppStorage("gyroMouseSensitivity") private var gyroMouseSensitivity: Double = 1.0
+    @AppStorage(BLEManager.factoryPINReminderKey) private var factoryPINReminderEnabled = true
     @State private var basicSubmode: BasicKeyboardMouseView.Submode = .keyboard
     @AppStorage("km_pro_submode") private var proSubmodeRaw: Int = 0
     
@@ -235,14 +237,52 @@ struct ContentView: View {
             topBar
                 .padding(.top, max(0, topSafeAreaInset - 24))
 
+            if bleManager.showFactoryPINReminder,
+               factoryPINReminderEnabled,
+               bleManager.connectionState == .connected {
+                factoryPINReminderBanner
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
             // Touch pad/numpad: fills remaining space below top bar
             mainContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .ignoresSafeArea(edges: [.bottom, .leading, .trailing])
         }
+        .animation(.easeInOut(duration: 0.2), value: bleManager.showFactoryPINReminder)
         .onAppear {
             LogManager.shared.log("MainContentView frame: maxWidth=.infinity, maxHeight=.infinity", category: "UI")
         }
+    }
+
+    // The connection sheet closes as soon as the encrypted link is proven, so the
+    // factory-PIN hint has to live above every view, not inside that sheet.
+    private var factoryPINReminderBanner: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Image(systemName: "lock.shield")
+                .font(.system(size: 15))
+                .foregroundColor(themeManager.accentColor)
+
+            Text("This device may still use the factory PIN 666666. Change it to keep others out.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 8)
+
+            Button("Change") { showPINSecuritySheet = true }
+                .font(.caption.bold())
+
+            Button(action: { bleManager.dismissFactoryPINReminder() }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(themeManager.accentColor.opacity(0.12))
     }
     
     private var topBar: some View {
@@ -1052,6 +1092,9 @@ struct ContentView: View {
                             }
                         }
                     }
+            }
+            .sheet(isPresented: $showPINSecuritySheet) {
+                BLESecuritySheet(bleManager: bleManager)
             }
             .sheet(isPresented: $showSettings) {
                 SettingsView()

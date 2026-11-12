@@ -12,6 +12,9 @@ struct BLESecuritySheet: View {
     @State private var confirmPIN = ""
     @State private var bondStatus: BLESecurityCommand.Status?
     @State private var showResetConfirm = false
+    @State private var showForgetConfirm = false
+    @State private var didForget = false
+    @State private var forgottenDeviceName: String?
 
     private var isBusy: Bool {
         switch bleManager.securityState {
@@ -37,13 +40,24 @@ struct BLESecuritySheet: View {
         NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    if hasErased {
+                    if didForget {
+                        forgottenView
+                    } else if hasErased {
                         erasedView
                     } else {
                         statusView
 
+                        if let cachedPIN = bleManager.cachedPairingPIN {
+                            cachedPINSection(cachedPIN)
+                        }
+
                         if bondStatus != nil {
                             pinSection
+                        }
+
+                        forgetSection
+
+                        if bondStatus != nil {
                             resetSection
                         }
                     }
@@ -54,7 +68,7 @@ struct BLESecuritySheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    if hasErased {
+                    if hasErased || didForget {
                         Button("Done") {
                             bleManager.dismissSecurityResult()
                             dismiss()
@@ -145,12 +159,6 @@ struct BLESecuritySheet: View {
             }
         }
 
-        if bleManager.securityState == .pinSaved {
-            Label("Pairing PIN updated.", systemImage: "checkmark.circle.fill")
-                .font(.system(size: 14))
-                .foregroundColor(.green)
-        }
-
         if bleManager.securityState == .savingPIN {
             progressRow(text: Text("Saving..."))
         }
@@ -202,6 +210,89 @@ struct BLESecuritySheet: View {
                     .cornerRadius(10)
             }
             .disabled(!canSavePIN)
+
+            if bleManager.securityState == .pinSaved {
+                Label("Pairing PIN updated.", systemImage: "checkmark.circle.fill")
+                    .font(.system(size: 13))
+                    .foregroundColor(.green)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func cachedPINSection(_ pin: String) -> some View {
+        Divider()
+
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Pairing PIN")
+                .font(.system(size: 15, weight: .bold))
+
+            HStack(spacing: 12) {
+                Text(pin)
+                    .font(.system(size: 18, weight: .semibold, design: .monospaced))
+                    .textSelection(.enabled)
+
+                Spacer()
+
+                Button {
+                    UIPasteboard.general.string = pin
+                } label: {
+                    Label("Copy", systemImage: "doc.on.doc")
+                        .font(.system(size: 13, weight: .semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(themeManager.accentColor)
+
+                ShareLink(item: String(
+                    format: NSLocalizedString("Openterface pairing PIN: %@", comment: "PIN share message"),
+                    pin
+                )) {
+                    Label("Share PIN", systemImage: "square.and.arrow.up")
+                        .font(.system(size: 13, weight: .semibold))
+                }
+                .foregroundColor(themeManager.accentColor)
+            }
+
+            Text("Last PIN set by this app. The device does not report its current PIN, so it may be out of date if changed elsewhere.")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    @ViewBuilder
+    private var forgetSection: some View {
+        Divider()
+
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Forget Pairing on This iPhone")
+                .font(.system(size: 15, weight: .bold))
+
+            Text("This disconnects the device, stops scanning, and clears this app's pairing records. iOS still remembers the Bluetooth pairing, so you must also choose \"Forget This Device\" in Settings > Bluetooth.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            Button(action: { showForgetConfirm = true }) {
+                Text("Forget Pairing")
+                    .font(.system(size: 15))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+            }
+            .foregroundColor(.red)
+            .disabled(isBusy)
+        }
+        .confirmationDialog(
+            "This disconnects the device, stops scanning, and clears this app's pairing records. iOS still remembers the Bluetooth pairing, so you must also choose \"Forget This Device\" in Settings > Bluetooth.",
+            isPresented: $showForgetConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Forget Pairing", role: .destructive) {
+                forgottenDeviceName = bleManager.lastConnectedDeviceName
+                bleManager.forgetPairing()
+                didForget = true
+            }
+            Button("Cancel", role: .cancel) {}
         }
     }
 
@@ -228,11 +319,54 @@ struct BLESecuritySheet: View {
         }
     }
 
+    private var forgottenView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Pairing forgotten on this iPhone.", systemImage: "checkmark.circle.fill")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundColor(.green)
+
+            Text("The app stopped scanning and will not reconnect automatically.")
+                .font(.system(size: 13))
+                .foregroundColor(.secondary)
+
+            Divider()
+
+            Text("To pair again with the new PIN:")
+                .font(.system(size: 14, weight: .semibold))
+
+            Text("1. On this iPhone, open Settings > Bluetooth and choose \"Forget This Device\".")
+                .font(.system(size: 13))
+                .foregroundColor(.secondary)
+
+            if let name = forgottenDeviceName {
+                HStack(spacing: 8) {
+                    Text(name)
+                        .font(.system(size: 13, design: .monospaced))
+                        .textSelection(.enabled)
+                    Spacer()
+                    Button("Copy") { UIPasteboard.general.string = name }
+                        .font(.system(size: 13, weight: .semibold))
+                }
+            }
+
+            Text("2. Return to the app, scan for the device, and enter the new pairing PIN.")
+                .font(.system(size: 13))
+                .foregroundColor(.secondary)
+
+            Text("If pairing still fails, the device may still hold this phone's old bond. Reset pairing on the device over USB.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
+
     private var erasedView: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Pairing reset. Waiting for the device to restart...", systemImage: "checkmark.circle.fill")
                 .font(.system(size: 15, weight: .medium))
                 .foregroundColor(.green)
+
+            Text("The pairing PIN is now 666666.")
+                .font(.system(size: 14, weight: .semibold))
 
             Divider()
 

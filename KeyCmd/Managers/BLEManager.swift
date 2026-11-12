@@ -126,11 +126,23 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     /// One-time hint after the first successful connection by this app. The
     /// firmware cannot report whether the factory PIN is still in effect.
     @Published private(set) var showFactoryPINReminder: Bool = false
+    /// PIN this app last set for the connected device, loaded from Keychain.
+    /// The device never reports its current PIN, so this may be stale.
+    @Published private(set) var cachedPairingPIN: String?
 
     // ponytail: mirrors Android's auto-connect checkbox
     var autoConnectEnabled: Bool {
         get { UserDefaults.standard.bool(forKey: Keys.autoConnectEnabled) }
         set { UserDefaults.standard.set(newValue, forKey: Keys.autoConnectEnabled) }
+    }
+
+    /// One-time "factory PIN" hint toggle (Settings > General). Defaults to on
+    /// when the key has never been written.
+    static let factoryPINReminderKey = "ble_factory_pin_reminder_enabled"
+
+    static var factoryPINReminderEnabled: Bool {
+        get { UserDefaults.standard.object(forKey: factoryPINReminderKey) as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: factoryPINReminderKey) }
     }
 
     // MARK: - Private State
@@ -182,6 +194,8 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     private var securityScanner: BLENameCommand.ResponseScanner?
     private var securityResponseTimeout: DispatchWorkItem?
     private var pendingSecurityRequest: SecurityRequest?
+    private var pendingPINIsFactory = false
+    private var pendingPINToCache: String?
     private var awaitingResetDisconnect = false
 
     // Relative-move coalescing state — mutated only on hidWriteQueue.
@@ -253,10 +267,15 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             return true
         }
 
+        if Self.knownDeviceUUIDs.contains(peripheral.identifier.uuidString) {
+            logger.log("Auto-connect matched a known device UUID", category: "BLE")
+            return true
+        }
+
         let lastConnectedNameRaw = UserDefaults.standard.string(forKey: Keys.lastConnectedName)
         let lastConnectedName = normalizedDeviceName(lastConnectedNameRaw)
 
-        let discoveredName = normalizedDeviceName(peripheral.name ?? advertisementName)
+        let discoveredName = normalizedDeviceName(advertisementName ?? peripheral.name)
         guard !discoveredName.isEmpty else { return false }
 
         // If we don't have a usable saved name (e.g. "Unknown"), fall back to first compatible
@@ -291,7 +310,17 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         UserDefaults.standard.set(Array(known), forKey: Keys.knownDeviceUUIDs)
     }
 
-    static func isDiscoverableDevice(name: String?, identifier: UUID) -> Bool {
+    /// Primary service, advertised before the runtime name. Unlike the name it
+    /// survives renames, so it identifies our devices whatever they are called.
+    static let serviceUUID = CBUUID(string: "FFF0")
+
+    static func isDiscoverableDevice(
+        name: String?,
+        identifier: UUID,
+        advertisedServices: [CBUUID] = []
+    ) -> Bool {
+        if advertisedServices.contains(serviceUUID) { return true }
+        // Older firmware may omit the service UUID from the advertisement.
         let deviceName = (name ?? "").lowercased()
         let hasKnownPrefix = !deviceName.isEmpty &&
             (deviceName.hasPrefix("openterface") || deviceName.hasPrefix("kvm") || deviceName.hasPrefix("keymod"))
@@ -330,8 +359,13 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         // and on iOS the cached peripheral.name can be stale/wrong for previously-seen-but-unconnected devices.
         let advName = advertisementData[CBAdvertisementDataLocalNameKey] as? String
         let displayName = advName ?? peripheral.name
+        let advertisedServices = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] ?? []
 
-        guard Self.isDiscoverableDevice(name: displayName, identifier: peripheral.identifier) else { return }
+        guard Self.isDiscoverableDevice(
+            name: displayName,
+            identifier: peripheral.identifier,
+            advertisedServices: advertisedServices
+        ) else { return }
 
         // Calculate time delta since last discovery
         let now = Date()
@@ -368,6 +402,11 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         if let renameID = renameRebootIdentifier, peripheral.identifier == renameID {
             logger.log("Rename target back online, reconnecting...", category: "BLE")
             beginConnecting(to: peripheral, isReconnecting: true)
+            return
+        }
+
+        guard !suppressAutoReconnect else {
+            logger.log("Auto-connect suppressed after pairing failure", category: "BLE", level: .debug)
             return
         }
 
@@ -418,7 +457,7 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         reconnectWorkItem?.cancel()
         reconnectWorkItem = nil
         logger.log("Starting service discovery (FFF0 only)...", category: "BLE")
-        peripheral.discoverServices([CBUUID(string: "FFF0")])
+        peripheral.discoverServices([Self.serviceUUID])
 
         // Note: iOS CoreBluetooth handles MTU negotiation automatically (unlike Android).
         // We use 128-byte chunks in sendRawData() which is safe for any MTU size.
@@ -459,7 +498,10 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         UserDefaults.standard.set(deviceName, forKey: Keys.lastConnectedName)
 
         let firstConnection = markDeviceSeen(peripheral.identifier)
-        let shouldRemindPIN = firstConnection && !hasChangedPIN(peripheral.identifier)
+        let shouldRemindPIN = firstConnection
+            && !hasChangedPIN(peripheral.identifier)
+            && Self.factoryPINReminderEnabled
+        let cachedPIN = PairingPINStore.load(for: peripheral.identifier)
 
         DispatchQueue.main.async {
             self.connectedDevices.insert(peripheral.identifier)
@@ -468,6 +510,7 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             self.isWaitingForPairing = false
             self.pairingIssue = nil
             self.lastConnectedDeviceName = deviceName
+            self.cachedPairingPIN = cachedPIN
             self.showPopupBinding?.wrappedValue = false
             if shouldRemindPIN { self.showFactoryPINReminder = true }
         }
@@ -497,6 +540,12 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         awaitingPairing = false
         cancelPairingTimeout()
         suppressAutoReconnect = true
+        if issue == .staleBond, let identifier = connectedPeripheral?.identifier {
+            // The device removed its bond. The only erase path on this
+            // firmware (0x22 0x02) also restores the factory PIN, so drop the
+            // local "PIN changed" hint and let the factory reminder reappear.
+            clearPairingHistory(identifier)
+        }
         logger.log("Pairing failed: \(issue)", category: "BLE", level: .error)
 
         DispatchQueue.main.async {
@@ -514,16 +563,19 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     }
 
     private func mapPairingError(_ error: Error) -> PairingIssue {
+        if isPeerRemovedPairingInformation(error) { return .staleBond }
         let nsError = error as NSError
-        if nsError.domain == CBErrorDomain {
-            if nsError.code == CBError.peerRemovedPairingInformation.rawValue {
-                return .staleBond
-            }
-            if nsError.code == CBError.encryptionTimedOut.rawValue {
-                return .timeout
-            }
+        if nsError.domain == CBErrorDomain,
+           nsError.code == CBError.encryptionTimedOut.rawValue {
+            return .timeout
         }
         return .authenticationFailed
+    }
+
+    private func isPeerRemovedPairingInformation(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        return nsError.domain == CBErrorDomain
+            && nsError.code == CBError.peerRemovedPairingInformation.rawValue
     }
 
     private func isPairingRelatedError(_ error: Error) -> Bool {
@@ -869,7 +921,15 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
 
     func setPairingPIN(_ pin: String) {
         guard let frame = BLESecurityCommand.setPINFrame(pin) else { return }
-        beginSecurityRequest(frame: frame, busyState: .savingPIN, request: .setPIN)
+        // Only a factory/non-factory boolean leaves this frame; the PIN itself
+        // stays on the BLE queue until the device acknowledges it.
+        beginSecurityRequest(
+            frame: frame,
+            busyState: .savingPIN,
+            request: .setPIN,
+            isFactoryPIN: pin == "666666",
+            pinToCache: pin
+        )
     }
 
     func erasePairing() {
@@ -878,6 +938,47 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             busyState: .erasing,
             request: .erase
         )
+    }
+
+    /// Forgets the device on the app side only: disconnects, stops scanning,
+    /// and clears auto-connect/pairing records. The iOS system bond cannot be
+    /// removed by the app, so the UI must also direct the user to
+    /// Settings > Bluetooth > "Forget This Device".
+    func forgetPairing() {
+        logger.log("Forgetting local pairing state", category: "BLE", level: .warning)
+        bleQueue.async { [self] in
+            suppressAutoReconnect = true
+            awaitingPairing = false
+            cancelPairingTimeout()
+            pairingNotifyRetries = 0
+            awaitingResetDisconnect = false
+
+            if pendingRenameName != nil { finishRename(.failure(.disconnected)) }
+            if ecmScanner != nil { finishECM(.failure(.disconnected)) }
+            if securityScanner != nil { finishSecurity(.failure(.disconnected)) }
+
+            let identifier = connectedPeripheral?.identifier
+            Self.clearLocalPairingState()
+            cancelReconnect()
+            stopScanning()
+
+            if let peripheral = connectedPeripheral {
+                centralManager.cancelPeripheralConnection(peripheral)
+            }
+
+            DispatchQueue.main.async {
+                self.lastConnectedDeviceName = nil
+                self.currentRSSI = nil
+                self.isWaitingForPairing = false
+                self.isReconnecting = false
+                self.pairingIssue = nil
+                self.showFactoryPINReminder = false
+                self.cachedPairingPIN = nil
+                self.securityState = .idle
+                self.connectionState = .disconnected
+                if let identifier { self.connectedDevices.remove(identifier) }
+            }
+        }
     }
 
     func dismissSecurityResult() {
@@ -889,7 +990,13 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         }
     }
 
-    private func beginSecurityRequest(frame: Data, busyState: SecurityState, request: SecurityRequest) {
+    private func beginSecurityRequest(
+        frame: Data,
+        busyState: SecurityState,
+        request: SecurityRequest,
+        isFactoryPIN: Bool = false,
+        pinToCache: String? = nil
+    ) {
         bleQueue.async { [self] in
             guard connectionState == .connected, fff2Characteristic != nil else {
                 DispatchQueue.main.async { self.securityState = .failure(.notConnected) }
@@ -902,6 +1009,8 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
                 return
             }
             pendingSecurityRequest = request
+            pendingPINIsFactory = isFactoryPIN
+            pendingPINToCache = pinToCache
             securityScanner = BLENameCommand.ResponseScanner(targetCommands: BLESecurityCommand.responseCommands)
             DispatchQueue.main.async { self.securityState = busyState }
             // sendRawData never hex-logs frames; the PIN stays out of logs.
@@ -932,9 +1041,21 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
 
         case .setPIN:
             if let id = connectedPeripheral?.identifier {
-                markPINChanged(id)
+                if pendingPINIsFactory {
+                    clearPINChanged(id)
+                } else {
+                    markPINChanged(id)
+                }
+                if let pin = pendingPINToCache {
+                    PairingPINStore.save(pin, for: id)
+                }
             }
-            DispatchQueue.main.async { self.showFactoryPINReminder = false }
+            let isFactoryPIN = pendingPINIsFactory
+            let savedPIN = pendingPINToCache
+            DispatchQueue.main.async {
+                self.showFactoryPINReminder = isFactoryPIN
+                self.cachedPairingPIN = savedPIN
+            }
             finishSecurity(.pinSaved)
 
         case .erase:
@@ -951,6 +1072,7 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             DispatchQueue.main.async {
                 self.lastConnectedDeviceName = nil
                 self.showFactoryPINReminder = false
+                self.cachedPairingPIN = BLESecurityCommand.factoryPIN
             }
             finishSecurity(.erased)
             // Firmware reboots ~500ms after ACKing; disconnect anyway if it stays up.
@@ -983,6 +1105,8 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         }
         securityScanner = nil
         pendingSecurityRequest = nil
+        pendingPINIsFactory = false
+        pendingPINToCache = nil
         DispatchQueue.main.async { self.securityState = state }
     }
 
@@ -1007,19 +1131,37 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         UserDefaults.standard.set(Array(changed), forKey: Keys.pinChangedUUIDs)
     }
 
-    private func clearPairingHistory(_ identifier: UUID) {
-        var seen = Set(UserDefaults.standard.stringArray(forKey: Keys.pairedDeviceUUIDs) ?? [])
-        seen.remove(identifier.uuidString)
-        UserDefaults.standard.set(Array(seen), forKey: Keys.pairedDeviceUUIDs)
-
+    private func clearPINChanged(_ identifier: UUID) {
         var changed = Set(UserDefaults.standard.stringArray(forKey: Keys.pinChangedUUIDs) ?? [])
         changed.remove(identifier.uuidString)
         UserDefaults.standard.set(Array(changed), forKey: Keys.pinChangedUUIDs)
     }
 
+    private func clearPairingHistory(_ identifier: UUID) {
+        var seen = Set(UserDefaults.standard.stringArray(forKey: Keys.pairedDeviceUUIDs) ?? [])
+        seen.remove(identifier.uuidString)
+        UserDefaults.standard.set(Array(seen), forKey: Keys.pairedDeviceUUIDs)
+        clearPINChanged(identifier)
+        // Every caller means the device-side bond was erased, and this
+        // firmware's only erase path restores the factory PIN.
+        PairingPINStore.save(BLESecurityCommand.factoryPIN, for: identifier)
+    }
+
+    /// Clears this app's pairing records. Keeps `knownDeviceUUIDs` so a
+    /// renamed device stays discoverable, and keeps `pinChangedUUIDs` because
+    /// forgetting the pairing does not reset the PIN on the device.
+    static func clearLocalPairingState() {
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: Keys.lastConnectedUUID)
+        defaults.removeObject(forKey: Keys.lastConnectedName)
+        defaults.removeObject(forKey: Keys.pairedDeviceUUIDs)
+    }
+
     func startScanning() {
         if centralManager.state == .poweredOn {
             logger.log("Starting BLE scan", category: "BLE")
+            // Unfiltered on purpose: older firmware may not advertise FFF0, and
+            // the discovery predicate already rejects unrelated peripherals.
             centralManager.scanForPeripherals(withServices: nil, options: nil)
         } else {
             logger.log("Cannot start scanning, Bluetooth is not powered on", category: "BLE", level: .warning)
@@ -1451,6 +1593,10 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             cancelPairingTimeout()
             suppressAutoReconnect = true
             let issue = error.map(mapPairingError) ?? .connectionFailed
+            if issue == .staleBond {
+                // Device-side bond erase also restores the factory PIN.
+                clearPairingHistory(peripheral.identifier)
+            }
             logger.log("Pairing link dropped before encryption: \(issue)", category: "BLE", level: .error)
             DispatchQueue.main.async {
                 self.connectedDevices.remove(peripheral.identifier)
@@ -1465,6 +1611,10 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         if let error, isPairingRelatedError(error) {
             // Encryption failed outside the pairing window (e.g. stale bond on an
             // already-connected link). iOS has no unbond API, so stop retrying.
+            if isPeerRemovedPairingInformation(error) {
+                // Device-side bond erase also restores the factory PIN.
+                clearPairingHistory(peripheral.identifier)
+            }
             suppressAutoReconnect = true
             logger.log("Pairing-related disconnect: suppressing auto-reconnect", category: "BLE", level: .warning)
             DispatchQueue.main.async {
