@@ -100,7 +100,6 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         static let autoConnectEnabled = "ble_auto_connect_enabled"
         static let knownDeviceUUIDs = "ble_known_device_uuids"
         static let pairedDeviceUUIDs = "ble_paired_device_uuids"
-        static let pinChangedUUIDs = "ble_pin_changed_device_uuids"
     }
 
     // MARK: - Published State
@@ -123,12 +122,19 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     @Published private(set) var isWaitingForPairing: Bool = false
     @Published private(set) var pairingIssue: PairingIssue?
     @Published private(set) var securityState: SecurityState = .idle
-    /// One-time hint after the first successful connection by this app. The
-    /// firmware cannot report whether the factory PIN is still in effect.
+    /// Last supported bond status read from the device. Kept while the sheet is
+    /// closed so reopening it does not depend on a fresh 0x03 round trip.
+    @Published private(set) var pairingStatus: BLESecurityCommand.Status?
+    /// One-time hint after the first successful connection by this app, shown
+    /// only when the device reports that it still uses the factory PIN.
     @Published private(set) var showFactoryPINReminder: Bool = false
-    /// PIN this app last set for the connected device, loaded from Keychain.
-    /// The device never reports its current PIN, so this may be stale.
-    @Published private(set) var cachedPairingPIN: String?
+    /// Device whose 0x07 read raised the reminder, so the banner never leaks
+    /// onto a different device. Main thread only.
+    private var reminderDeviceID: UUID?
+    /// PIN read from the device over 0x22 0x07. Never persisted. nil means the
+    /// firmware has no readable PIN (pre-0x07 builds), so no PIN UI is shown.
+    @Published private(set) var devicePIN: String?
+    @Published private(set) var isReadingPairingPIN = false
 
     // ponytail: mirrors Android's auto-connect checkbox
     var autoConnectEnabled: Bool {
@@ -183,6 +189,7 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     // control windows must stay mutually exclusive.
     private enum SecurityRequest {
         case status
+        case readPIN
         case setPIN
         case erase
     }
@@ -195,7 +202,9 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     private var securityResponseTimeout: DispatchWorkItem?
     private var pendingSecurityRequest: SecurityRequest?
     private var pendingPINIsFactory = false
-    private var pendingPINToCache: String?
+    /// Set for the first connection when the factory-PIN reminder is enabled;
+    /// the reminder is shown only if 0x07 reads back 666666.
+    private var pendingFactoryReminderCheck = false
     private var awaitingResetDisconnect = false
 
     // Relative-move coalescing state — mutated only on hidWriteQueue.
@@ -344,6 +353,16 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             self.connectionState = .connecting
             self.isReconnecting = isReconnecting
             self.isWaitingForPairing = false
+            // Per-device pairing state must not leak across devices.
+            self.pairingStatus = nil
+            self.devicePIN = nil
+            self.isReadingPairingPIN = false
+            // A pending reminder belongs to the device that reported it. Keep it
+            // across reconnects to the same unit, drop it when switching devices.
+            if self.reminderDeviceID != peripheral.identifier {
+                self.showFactoryPINReminder = false
+                self.reminderDeviceID = nil
+            }
         }
         centralManager.stopScan()
         centralManager.connect(peripheral, options: nil)
@@ -498,10 +517,7 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         UserDefaults.standard.set(deviceName, forKey: Keys.lastConnectedName)
 
         let firstConnection = markDeviceSeen(peripheral.identifier)
-        let shouldRemindPIN = firstConnection
-            && !hasChangedPIN(peripheral.identifier)
-            && Self.factoryPINReminderEnabled
-        let cachedPIN = PairingPINStore.load(for: peripheral.identifier)
+        pendingFactoryReminderCheck = firstConnection && Self.factoryPINReminderEnabled
 
         DispatchQueue.main.async {
             self.connectedDevices.insert(peripheral.identifier)
@@ -510,9 +526,15 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             self.isWaitingForPairing = false
             self.pairingIssue = nil
             self.lastConnectedDeviceName = deviceName
-            self.cachedPairingPIN = cachedPIN
             self.showPopupBinding?.wrappedValue = false
-            if shouldRemindPIN { self.showFactoryPINReminder = true }
+        }
+
+        // Probe security only when the factory-PIN reminder needs the real PIN.
+        // Old firmware has no PIN concept at all: probing on every connection
+        // would only add a 0x03 round trip and a stuck scanner on firmware that
+        // does not answer, while the pairing sheet re-reads status on open.
+        if pendingFactoryReminderCheck {
+            fetchSecurityStatus()
         }
     }
 
@@ -541,9 +563,8 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         cancelPairingTimeout()
         suppressAutoReconnect = true
         if issue == .staleBond, let identifier = connectedPeripheral?.identifier {
-            // The device removed its bond. The only erase path on this
-            // firmware (0x22 0x02) also restores the factory PIN, so drop the
-            // local "PIN changed" hint and let the factory reminder reappear.
+            // The device removed its bond. Forget the local connection record so
+            // the next connection counts as "first" and can re-check the PIN.
             clearPairingHistory(identifier)
         }
         logger.log("Pairing failed: \(issue)", category: "BLE", level: .error)
@@ -909,6 +930,7 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
 
     func dismissFactoryPINReminder() {
         showFactoryPINReminder = false
+        reminderDeviceID = nil
     }
 
     func fetchSecurityStatus() {
@@ -927,8 +949,7 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             frame: frame,
             busyState: .savingPIN,
             request: .setPIN,
-            isFactoryPIN: pin == "666666",
-            pinToCache: pin
+            isFactoryPIN: pin == BLESecurityCommand.factoryPIN
         )
     }
 
@@ -973,7 +994,10 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
                 self.isReconnecting = false
                 self.pairingIssue = nil
                 self.showFactoryPINReminder = false
-                self.cachedPairingPIN = nil
+                self.reminderDeviceID = nil
+                self.devicePIN = nil
+                self.isReadingPairingPIN = false
+                self.pairingStatus = nil
                 self.securityState = .idle
                 self.connectionState = .disconnected
                 if let identifier { self.connectedDevices.remove(identifier) }
@@ -994,15 +1018,23 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         frame: Data,
         busyState: SecurityState,
         request: SecurityRequest,
-        isFactoryPIN: Bool = false,
-        pinToCache: String? = nil
+        isFactoryPIN: Bool = false
     ) {
         bleQueue.async { [self] in
             guard connectionState == .connected, fff2Characteristic != nil else {
-                DispatchQueue.main.async { self.securityState = .failure(.notConnected) }
+                if request == .readPIN {
+                    DispatchQueue.main.async { self.isReadingPairingPIN = false }
+                } else {
+                    DispatchQueue.main.async { self.securityState = .failure(.notConnected) }
+                }
                 return
             }
-            guard securityScanner == nil else { return }
+            guard securityScanner == nil else {
+                if request == .readPIN {
+                    DispatchQueue.main.async { self.isReadingPairingPIN = false }
+                }
+                return
+            }
             guard renameScanner == nil, pendingRenameName == nil,
                   renameRebootIdentifier == nil, ecmScanner == nil else {
                 DispatchQueue.main.async { self.securityState = .failure(.busy) }
@@ -1010,9 +1042,14 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             }
             pendingSecurityRequest = request
             pendingPINIsFactory = isFactoryPIN
-            pendingPINToCache = pinToCache
             securityScanner = BLENameCommand.ResponseScanner(targetCommands: BLESecurityCommand.responseCommands)
-            DispatchQueue.main.async { self.securityState = busyState }
+            DispatchQueue.main.async {
+                if request == .readPIN {
+                    self.isReadingPairingPIN = true
+                } else {
+                    self.securityState = busyState
+                }
+            }
             // sendRawData never hex-logs frames; the PIN stays out of logs.
             sendRawData(frame)
             scheduleSecurityTimeout()
@@ -1026,6 +1063,18 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         guard securityScanner != nil, let request = pendingSecurityRequest else { return }
 
         guard response.cmd == 0xA2, response.status == 0x00 else {
+            if request == .readPIN {
+                // Old firmware rejects 0x07: it has no readable PIN, so no PIN
+                // UI and no reminder. Stay silent to keep old units compatible.
+                pendingFactoryReminderCheck = false
+                DispatchQueue.main.async {
+                    self.isReadingPairingPIN = false
+                    self.devicePIN = nil
+                }
+                finishSecurity(.idle, background: true)
+                return
+            }
+            pendingFactoryReminderCheck = false
             logger.log("Security request rejected, status=0x\(String(format: "%02X", response.status))", category: "BLE", level: .error)
             finishSecurity(.failure(.rejected(response.status)))
             return
@@ -1034,29 +1083,52 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         switch request {
         case .status:
             guard let status = BLESecurityCommand.parseStatus(response.payload) else {
+                pendingFactoryReminderCheck = false
                 finishSecurity(.failure(.invalidResponse))
                 return
             }
             finishSecurity(status.isSupported ? .ready(status) : .unsupportedFirmware)
+            if status.isSupported {
+                beginSecurityRequest(
+                    frame: BLESecurityCommand.readPINFrame(),
+                    busyState: .loading,
+                    request: .readPIN
+                )
+            } else {
+                pendingFactoryReminderCheck = false
+            }
+
+        case .readPIN:
+            let pin = BLESecurityCommand.parsePIN(response.payload)
+            let shouldRemind = pendingFactoryReminderCheck
+                && pin == BLESecurityCommand.factoryPIN
+            pendingFactoryReminderCheck = false
+            let deviceID = connectedPeripheral?.identifier
+            DispatchQueue.main.async {
+                self.isReadingPairingPIN = false
+                self.devicePIN = pin
+                // Only a real 666666 read raises the hint; any other value also
+                // clears a stale banner (e.g. the PIN was changed elsewhere).
+                self.showFactoryPINReminder = shouldRemind
+                self.reminderDeviceID = shouldRemind ? deviceID : nil
+            }
+            finishSecurity(.idle, background: true)
 
         case .setPIN:
-            if let id = connectedPeripheral?.identifier {
-                if pendingPINIsFactory {
-                    clearPINChanged(id)
-                } else {
-                    markPINChanged(id)
-                }
-                if let pin = pendingPINToCache {
-                    PairingPINStore.save(pin, for: id)
-                }
-            }
             let isFactoryPIN = pendingPINIsFactory
-            let savedPIN = pendingPINToCache
+            let deviceID = connectedPeripheral?.identifier
             DispatchQueue.main.async {
                 self.showFactoryPINReminder = isFactoryPIN
-                self.cachedPairingPIN = savedPIN
+                self.reminderDeviceID = isFactoryPIN ? deviceID : nil
             }
             finishSecurity(.pinSaved)
+            // Read back the effective PIN so the share section shows the value
+            // the device will actually use.
+            beginSecurityRequest(
+                frame: BLESecurityCommand.readPINFrame(),
+                busyState: .loading,
+                request: .readPIN
+            )
 
         case .erase:
             if let id = connectedPeripheral?.identifier {
@@ -1072,7 +1144,8 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             DispatchQueue.main.async {
                 self.lastConnectedDeviceName = nil
                 self.showFactoryPINReminder = false
-                self.cachedPairingPIN = BLESecurityCommand.factoryPIN
+                self.reminderDeviceID = nil
+                self.devicePIN = nil
             }
             finishSecurity(.erased)
             // Firmware reboots ~500ms after ACKing; disconnect anyway if it stays up.
@@ -1088,6 +1161,16 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     private func scheduleSecurityTimeout() {
         let timeout = DispatchWorkItem { [weak self] in
             guard let self, self.securityScanner != nil else { return }
+            if self.pendingSecurityRequest == .readPIN {
+                self.pendingFactoryReminderCheck = false
+                DispatchQueue.main.async {
+                    self.isReadingPairingPIN = false
+                    self.devicePIN = nil
+                }
+                self.finishSecurity(.idle, background: true)
+                return
+            }
+            self.pendingFactoryReminderCheck = false
             self.logger.log("Security response timed out", category: "BLE", level: .warning)
             self.finishSecurity(.failure(.noResponse))
         }
@@ -1096,7 +1179,7 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     }
 
     /// Runs on bleQueue.
-    private func finishSecurity(_ state: SecurityState) {
+    private func finishSecurity(_ state: SecurityState, background: Bool = false) {
         securityResponseTimeout?.cancel()
         securityResponseTimeout = nil
         if var scanner = securityScanner {
@@ -1106,8 +1189,19 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         securityScanner = nil
         pendingSecurityRequest = nil
         pendingPINIsFactory = false
-        pendingPINToCache = nil
-        DispatchQueue.main.async { self.securityState = state }
+        DispatchQueue.main.async {
+            switch state {
+            case .ready(let status):
+                self.pairingStatus = status
+            case .erased, .unsupportedFirmware:
+                self.pairingStatus = nil
+            default:
+                break
+            }
+            if !background {
+                self.securityState = state
+            }
+        }
     }
 
     // MARK: - Pairing Local Hints
@@ -1120,36 +1214,14 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         return firstConnection
     }
 
-    private func hasChangedPIN(_ identifier: UUID) -> Bool {
-        Set(UserDefaults.standard.stringArray(forKey: Keys.pinChangedUUIDs) ?? [])
-            .contains(identifier.uuidString)
-    }
-
-    private func markPINChanged(_ identifier: UUID) {
-        var changed = Set(UserDefaults.standard.stringArray(forKey: Keys.pinChangedUUIDs) ?? [])
-        changed.insert(identifier.uuidString)
-        UserDefaults.standard.set(Array(changed), forKey: Keys.pinChangedUUIDs)
-    }
-
-    private func clearPINChanged(_ identifier: UUID) {
-        var changed = Set(UserDefaults.standard.stringArray(forKey: Keys.pinChangedUUIDs) ?? [])
-        changed.remove(identifier.uuidString)
-        UserDefaults.standard.set(Array(changed), forKey: Keys.pinChangedUUIDs)
-    }
-
     private func clearPairingHistory(_ identifier: UUID) {
         var seen = Set(UserDefaults.standard.stringArray(forKey: Keys.pairedDeviceUUIDs) ?? [])
         seen.remove(identifier.uuidString)
         UserDefaults.standard.set(Array(seen), forKey: Keys.pairedDeviceUUIDs)
-        clearPINChanged(identifier)
-        // Every caller means the device-side bond was erased, and this
-        // firmware's only erase path restores the factory PIN.
-        PairingPINStore.save(BLESecurityCommand.factoryPIN, for: identifier)
     }
 
     /// Clears this app's pairing records. Keeps `knownDeviceUUIDs` so a
-    /// renamed device stays discoverable, and keeps `pinChangedUUIDs` because
-    /// forgetting the pairing does not reset the PIN on the device.
+    /// renamed device stays discoverable.
     static func clearLocalPairingState() {
         let defaults = UserDefaults.standard
         defaults.removeObject(forKey: Keys.lastConnectedUUID)

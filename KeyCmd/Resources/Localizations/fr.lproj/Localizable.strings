@@ -550,7 +550,7 @@
 "The device may already be paired with another phone. Go to Settings > Bluetooth, tap the device, and choose \"Forget This Device\"." = "L'appareil est peut-être déjà appairé avec un autre téléphone. Allez dans Réglages > Bluetooth, touchez l'appareil et choisissez « Oublier cet appareil ».";
 "Pairing timed out. Tap the Bluetooth card to try again." = "L'appairage a expiré. Touchez la carte Bluetooth pour réessayer.";
 "Could not start pairing. Move closer to the device and try again." = "Impossible de démarrer l'appairage. Rapprochez-vous de l'appareil et réessayez.";
-"This device may still use the factory PIN 666666. Change it to keep others out." = "Cet appareil utilise peut-être encore le PIN d'usine 666666. Modifiez-le pour empêcher d'autres connexions.";
+"This device still uses the factory PIN 666666. Change it to keep others out." = "Cet appareil utilise encore le PIN d'usine 666666. Modifiez-le pour empêcher d'autres connexions.";
 "Change" = "Modifier";
 "Waiting for pairing..." = "Appairage en cours...";
 "Enter the 6-digit PIN in the iOS prompt (factory default 666666)." = "Saisissez le PIN à 6 chiffres dans la fenêtre iOS (666666 par défaut).";
@@ -559,8 +559,7 @@
 "Pairing slot is full" = "Emplacement d'appairage saturé";
 "Only one phone can be paired by default. More slots can be configured over USB." = "Un seul téléphone peut être appairé par défaut. D'autres emplacements peuvent être configurés via USB.";
 "Loading pairing status..." = "Chargement de l'état d'appairage...";
-"This device firmware does not support pairing management." = "Le firmware de cet appareil ne prend pas en charge la gestion de l'appairage.";
-"Connect over USB to reset pairing." = "Connectez-vous en USB pour réinitialiser l'appairage.";
+"This device firmware has no pairing PIN. Pairing is handled by iOS Settings > Bluetooth." = "Le micrologiciel de cet appareil n'a pas de PIN d'appairage. L'appairage se fait dans Réglages > Bluetooth d'iOS.";
 "Pairing PIN updated." = "PIN d'appairage mis à jour.";
 "Resetting pairing..." = "Réinitialisation de l'appairage...";
 "Change Pairing PIN" = "Modifier le PIN d'appairage";
@@ -594,4 +593,6 @@
 "Share PIN" = "Partager le PIN";
 "Openterface pairing PIN: %@" = "PIN d'appairage Openterface : %@";
 "Pairing PIN" = "PIN d'appairage";
-"Last PIN set by this app. The device does not report its current PIN, so it may be out of date if changed elsewhere." = "Il s'agit du dernier PIN défini par cette app. L'appareil ne communique pas son PIN actuel ; cette valeur peut donc être obsolète s'il a été modifié ailleurs.";
+"Reading pairing PIN..." = "Lecture du PIN d'appairage...";
+"Read from the device over Bluetooth. It applies the next time a phone pairs." = "Lu depuis l'appareil via Bluetooth. Il s'applique au prochain appairage d'un téléphone.";
+"PIN copied." = "PIN copié.";

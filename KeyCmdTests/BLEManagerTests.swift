@@ -21,13 +21,11 @@ final class BLEManagerTests: XCTestCase {
     private let lastUUIDKey = "ble_last_connected_uuid"
     private let lastNameKey = "ble_last_connected_name"
     private let pairedUUIDsKey = "ble_paired_device_uuids"
-    private let pinChangedUUIDsKey = "ble_pin_changed_device_uuids"
     private let factoryPINReminderKey = BLEManager.factoryPINReminderKey
     private var savedKnownUUIDs: [String]?
     private var savedLastUUID: String?
     private var savedLastName: String?
     private var savedPairedUUIDs: [String]?
-    private var savedPinChangedUUIDs: [String]?
     private var savedFactoryPINReminder: Bool?
 
     override func setUp() {
@@ -36,7 +34,6 @@ final class BLEManagerTests: XCTestCase {
         savedLastUUID = UserDefaults.standard.string(forKey: lastUUIDKey)
         savedLastName = UserDefaults.standard.string(forKey: lastNameKey)
         savedPairedUUIDs = UserDefaults.standard.stringArray(forKey: pairedUUIDsKey)
-        savedPinChangedUUIDs = UserDefaults.standard.stringArray(forKey: pinChangedUUIDsKey)
         savedFactoryPINReminder = UserDefaults.standard.object(forKey: factoryPINReminderKey) as? Bool
     }
 
@@ -60,11 +57,6 @@ final class BLEManagerTests: XCTestCase {
             UserDefaults.standard.set(savedPairedUUIDs, forKey: pairedUUIDsKey)
         } else {
             UserDefaults.standard.removeObject(forKey: pairedUUIDsKey)
-        }
-        if let savedPinChangedUUIDs {
-            UserDefaults.standard.set(savedPinChangedUUIDs, forKey: pinChangedUUIDsKey)
-        } else {
-            UserDefaults.standard.removeObject(forKey: pinChangedUUIDsKey)
         }
         if let savedFactoryPINReminder {
             UserDefaults.standard.set(savedFactoryPINReminder, forKey: factoryPINReminderKey)
@@ -332,21 +324,19 @@ final class BLEManagerTests: XCTestCase {
 
     // MARK: - Forget Pairing
 
-    func testClearLocalPairingStateKeepsKnownDevicesAndPINHint() {
+    func testClearLocalPairingStateKeepsKnownDevices() {
         UserDefaults.standard.removeObject(forKey: knownUUIDsKey)
         let device = UUID()
         BLEManager.rememberDeviceUUID(device)
         UserDefaults.standard.set(device.uuidString, forKey: lastUUIDKey)
         UserDefaults.standard.set("KVM-GO", forKey: lastNameKey)
         UserDefaults.standard.set([device.uuidString], forKey: pairedUUIDsKey)
-        UserDefaults.standard.set([device.uuidString], forKey: pinChangedUUIDsKey)
 
         BLEManager.clearLocalPairingState()
 
         XCTAssertNil(UserDefaults.standard.string(forKey: lastUUIDKey))
         XCTAssertNil(UserDefaults.standard.string(forKey: lastNameKey))
         XCTAssertNil(UserDefaults.standard.stringArray(forKey: pairedUUIDsKey))
-        XCTAssertEqual(UserDefaults.standard.stringArray(forKey: pinChangedUUIDsKey), [device.uuidString])
         XCTAssertEqual(BLEManager.knownDeviceUUIDs, [device.uuidString])
         XCTAssertTrue(BLEManager.isDiscoverableDevice(name: "Renamed", identifier: device))
     }

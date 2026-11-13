@@ -548,7 +548,7 @@
 "The device may already be paired with another phone. Go to Settings > Bluetooth, tap the device, and choose \"Forget This Device\"." = "デバイスは既に別のスマートフォンとペアリングされている可能性があります。設定 > Bluetooth でデバイスをタップし、「このデバイスを削除」を選択してください。";
 "Pairing timed out. Tap the Bluetooth card to try again." = "ペアリングがタイムアウトしました。Bluetooth カードをタップして再試行してください。";
 "Could not start pairing. Move closer to the device and try again." = "ペアリングを開始できませんでした。デバイスに近づいて再試行してください。";
-"This device may still use the factory PIN 666666. Change it to keep others out." = "このデバイスは工場出荷時の PIN 666666 のままの可能性があります。他の人の接続を防ぐため変更してください。";
+"This device still uses the factory PIN 666666. Change it to keep others out." = "このデバイスは工場出荷時の PIN 666666 のままです。他の人の接続を防ぐため変更してください。";
 "Change" = "変更";
 "Waiting for pairing..." = "ペアリング中...";
 "Enter the 6-digit PIN in the iOS prompt (factory default 666666)." = "iOS のプロンプトで 6 桁の PIN を入力してください（工場出荷時は 666666）。";
@@ -557,8 +557,7 @@
 "Pairing slot is full" = "ペアリングスロットがいっぱいです";
 "Only one phone can be paired by default. More slots can be configured over USB." = "既定では 1 台のスマートフォンのみペアリングできます。追加のスロットは USB で設定できます。";
 "Loading pairing status..." = "ペアリング状態を読み込み中...";
-"This device firmware does not support pairing management." = "このデバイスのファームウェアはペアリング管理に対応していません。";
-"Connect over USB to reset pairing." = "USB で接続してペアリングをリセットしてください。";
+"This device firmware has no pairing PIN. Pairing is handled by iOS Settings > Bluetooth." = "このデバイスのファームウェアにはペアリング PIN がありません。ペアリングは iOS の「設定 > Bluetooth」で行います。";
 "Pairing PIN updated." = "ペアリング PIN を更新しました。";
 "Resetting pairing..." = "ペアリングをリセット中...";
 "Change Pairing PIN" = "ペアリング PIN の変更";
@@ -592,4 +591,6 @@
 "Share PIN" = "PIN を共有";
 "Openterface pairing PIN: %@" = "Openterface ペアリング PIN: %@";
 "Pairing PIN" = "ペアリング PIN";
-"Last PIN set by this app. The device does not report its current PIN, so it may be out of date if changed elsewhere." = "これはこの App が最後に設定した PIN です。デバイスは現在の PIN を報告しないため、他の端末や USB で変更されている場合は古い可能性があります。";
+"Reading pairing PIN..." = "ペアリング PIN を読み取り中...";
+"Read from the device over Bluetooth. It applies the next time a phone pairs." = "Bluetooth 経由でデバイスから読み取ります。次回スマートフォンのペアリング時に適用されます。";
+"PIN copied." = "PIN をコピーしました。";

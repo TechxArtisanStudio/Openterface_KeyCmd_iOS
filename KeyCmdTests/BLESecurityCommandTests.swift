@@ -36,6 +36,11 @@ final class BLESecurityCommandTests: XCTestCase {
         }
     }
 
+    func testReadPINFrame() {
+        XCTAssertEqual(BLESecurityCommand.readPINFrame(),
+                       Data([0x57, 0xAB, 0x00, 0x22, 0x01, 0x07, 0x2C]))
+    }
+
     // MARK: - PIN Validation
 
     func testValidatePIN() {
@@ -85,9 +90,24 @@ final class BLESecurityCommandTests: XCTestCase {
         XCTAssertNil(BLESecurityCommand.parseMaxBonds(Data([0x01, 0x02])))
     }
 
+    func testParsePIN() {
+        XCTAssertEqual(BLESecurityCommand.parsePIN(Data("123456".utf8)), "123456")
+        XCTAssertEqual(BLESecurityCommand.parsePIN(Data("666666".utf8)), "666666")
+    }
+
+    func testParsePINRejectsWrongLengthOrNonDigits() {
+        XCTAssertNil(BLESecurityCommand.parsePIN(Data()))
+        XCTAssertNil(BLESecurityCommand.parsePIN(Data("12345".utf8)))
+        XCTAssertNil(BLESecurityCommand.parsePIN(Data("1234567".utf8)))
+        XCTAssertNil(BLESecurityCommand.parsePIN(Data("12345a".utf8)))
+        XCTAssertNil(BLESecurityCommand.parsePIN(Data([0x31, 0x32, 0x33, 0x34, 0x35, 0x00])))
+    }
+
     // MARK: - Response Scanner
 
     private let statusResponse = Data([0x57, 0xAB, 0x00, 0xA2, 0x03, 0x00, 0x01, 0x01, 0xA9])
+    private let readPINResponse = Data([0x57, 0xAB, 0x00, 0xA2, 0x07, 0x00,
+                                        0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0xEF])
     private let maxResponse = Data([0x57, 0xAB, 0x00, 0xA2, 0x02, 0x00, 0x01, 0xA7])
     private let eraseResponse = Data([0x57, 0xAB, 0x00, 0xA2, 0x01, 0x00, 0xA5])
     private let errorResponse = Data([0x57, 0xAB, 0x00, 0xE2, 0x01, 0xE5, 0xCA])
@@ -106,6 +126,13 @@ final class BLESecurityCommandTests: XCTestCase {
         XCTAssertEqual(BLESecurityCommand.parseStatus(result.responses[0].payload),
                        BLESecurityCommand.Status(bondCount: 1, maxBonds: 1))
         XCTAssertTrue(result.passthrough.isEmpty)
+    }
+
+    func testScannerReadPINResponse() {
+        var scanner = scanner()
+        let result = scanner.feed(readPINResponse)
+        XCTAssertEqual(result.responses.count, 1)
+        XCTAssertEqual(BLESecurityCommand.parsePIN(result.responses[0].payload), "666666")
     }
 
     func testScannerMaxAndEraseResponses() {

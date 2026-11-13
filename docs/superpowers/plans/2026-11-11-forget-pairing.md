@@ -1,164 +1,267 @@
-# 忘记配对（App 侧重置 + 系统引导）
+# Forget Pairing (app-side reset + system guidance)
 
-日期：2026-11-11
-状态：已实现（2026-11-11），真机待验证
-前置：[2026-11-10 BLE 配对码与绑定管理](2026-11-10-ble-pairing-pin.md)
+Date: 2026-11-11
+Status: implemented (2026-11-11); switched to reading the PIN from the device on 2026-11-12; real-device verification pending
+Predecessor: [2026-11-10 BLE pairing PIN and bond management](2026-11-10-ble-pairing-pin.md)
 
-## 1. 目标
+## 1. Goal
 
-改完配对码后，能快速回到“未配对”状态重新测试。
+After changing the pairing PIN, get back to an "unpaired" state quickly so the new PIN can be tested.
 
-## 2. iOS 能力边界
+## 2. iOS capability limits
 
-| 能力 | 支持 | 结论 |
+| Capability | Supported | Conclusion |
 |---|---|---|
-| App 删除 iOS 系统蓝牙绑定 | 否 | 只能引导用户到 设置 > 蓝牙 > 忽略此设备 |
-| App 清自己的配对记录 | 是 | 清 `lastConnectedUUID/Name`、`pairedDeviceUUIDs`、`pinChangedUUIDs` |
-| BLE 下发 `0x22 0x02` 清设备绑定 | 是 | 但会把 PIN 恢复 666666，不能用于测试自定义 PIN |
+| App removes the iOS system Bluetooth bond | No | Can only point the user to Settings > Bluetooth > Forget This Device |
+| App clears its own pairing records | Yes | Clears `lastConnectedUUID/Name`, `pairedDeviceUUIDs` (`pinChangedUUIDs` was removed on 2026-11-12 along with §11) |
+| Clear device bonds over BLE with `0x22 0x02` | Yes | But it restores the PIN to 666666, so it cannot be used when testing a custom PIN |
 
-因此本功能定义为：**断开并清空 App 侧记录、停止扫描/自动重连，然后给出系统设置步骤**。
-不发送 `0x22 0x02`，避免测试时把新 PIN 冲掉。
+The feature is therefore defined as: **disconnect and clear all app-side records, stop scanning and
+auto-reconnect, then show the system-settings steps**. `0x22 0x02` is never sent, so the new PIN
+survives the test cycle.
 
-## 3. 实现
+## 3. Implementation
 
 ### 3.1 BLEManager
 
-- 新增 `forgetPairing()`：
-  - `bleQueue` 上执行，设置 `suppressAutoReconnect`，结束在途的改名/ECM/安全窗口；
-  - `stopScanning()` + `cancelPeripheralConnection`；
-  - 清除 `ble_last_connected_uuid/name`、`ble_paired_device_uuids`；
-  - 保留 `ble_known_device_uuids`（避免自定义名设备失去可发现性）和
-    `ble_pin_changed_device_uuids`（忘记配对不会重置设备 PIN，清掉会误报“可能仍是 666666”）；
-  - 主线程复位 `connectionState / lastConnectedDeviceName / isWaitingForPairing / pairingIssue / showFactoryPINReminder / securityState`。
-- 新增内部静态 `clearLocalPairingState()` 便于单测。
-- `didDiscover` 的自动连接分支增加 `suppressAutoReconnect` 判断，避免清完状态后扫描立刻又连回去；
-  手动点选设备走 `beginConnecting` 会复位该标志，不受影响。
+- New `forgetPairing()`:
+  - runs on `bleQueue`, sets `suppressAutoReconnect`, and ends any in-flight rename/ECM/security window;
+  - `stopScanning()` + `cancelPeripheralConnection`;
+  - clears `ble_last_connected_uuid/name` and `ble_paired_device_uuids`;
+  - keeps `ble_known_device_uuids` (custom-named devices would otherwise become undiscoverable) and
+    `ble_pin_changed_device_uuids` (forgetting pairing does not reset the device PIN, so clearing this
+    would falsely warn "may still be 666666"; removed on 2026-11-12 with §11);
+  - resets `connectionState / lastConnectedDeviceName / isWaitingForPairing / pairingIssue / showFactoryPINReminder / securityState` on the main thread.
+- New internal static `clearLocalPairingState()` so it can be unit tested.
+- The auto-connect branch in `didDiscover` now checks `suppressAutoReconnect`, so scanning does not
+  immediately reconnect after the state is cleared; manually tapping a device goes through
+  `beginConnecting`, which resets the flag, so it is unaffected.
 
 ### 3.2 BLESecuritySheet
 
-- “修改配对码”下方新增“在此 iPhone 上忘记配对”区块：
-  - 二次确认，说明会断开、停止扫描、清 App 记录，但 iOS 仍保留系统绑定；
-  - 确认后显示结果页：系统设置步骤 + 设备名复制 + 返回 App 用新 PIN 重新配对；
-  - 若设备仍拒绝配对，提示可能需要 USB 重置设备绑定。
+- New "Forget pairing on this iPhone" section below "Change PIN":
+  - asks for confirmation and explains that it disconnects, stops scanning and clears app records,
+    while iOS keeps the system bond;
+  - after confirmation shows a result page: system-settings steps, device name copy, and a reminder to
+    re-pair in the app with the new PIN;
+  - if the device still refuses to pair, suggests resetting the device bonds over USB.
 
-### 3.3 出厂 PIN 提醒开关
+### 3.3 Factory-PIN reminder switch
 
-- `BLEManager.factoryPINReminderKey` / `factoryPINReminderEnabled`：默认开启；
-  `finalizeConnection` 的首次连接提醒增加该开关判断。
-- `Settings > General` 新增“蓝牙配对”区块和“提醒我修改出厂配对码”开关。
-- 提醒横幅挂在 `ContentView` 主界面顶层（顶栏下方，仅连接时显示）；`ConnectionDialogView`
-  只负责连接，成功加密后会自动关闭，不能承载这条提醒。横幅带“Change”（直接打开
-  `BLESecuritySheet`）和关闭按钮，开关关闭后同样立即隐藏。
-- 重置配对成功页新增明确文案“配对码已恢复为 666666”；设备不支持读取当前 PIN，
-  因此提醒只能在“首次连接且本 App 未改过 PIN”时给出一次性推断。
-- 重连遇到 `CBError.peerRemovedPairingInformation`（设备侧已清绑定）时，清除本机
-  `paired/pinChanged` 标记；本固件清绑定必然重置 PIN，因此下次连接会重新出现出厂提醒。
-  这样 USB 侧执行 `0x22 0x02` 后 App 也能重新提醒。
-- 通过“修改配对码”把 PIN 设成 `666666` 时不再记入 `pinChangedUUIDs` 并重新显示提醒；
-  `setPIN` 只向 BLE 队列传一个布尔标记，PIN 明文不保留。
+- `BLEManager.factoryPINReminderKey` / `factoryPINReminderEnabled`: on by default; the first-connection
+  reminder in `finalizeConnection` now honours the switch.
+- `Settings > General` gains a "Bluetooth pairing" section with a "Remind me to change the factory pairing PIN" toggle.
+- The reminder banner lives at the top level of `ContentView` (under the top bar, only while connected);
+  `ConnectionDialogView` only handles connecting and closes itself after successful encryption, so it
+  cannot host the reminder. The banner has a "Change" action (opens `BLESecuritySheet` directly) and a
+  dismiss button, and it hides immediately when the switch is turned off.
+- The reset success page now states explicitly "Pairing PIN restored to 666666". The device does not
+  report the current PIN, so the reminder could only be a one-shot inference at "first connection and
+  this app has never changed the PIN".
+  (2026-11-12: after firmware added `0x22 0x07` to read the PIN, the reminder is based on the actual
+  value read back — see §11.)
+- When a reconnect hits `CBError.peerRemovedPairingInformation` (bonds cleared on the device side), the
+  local `paired/pinChanged` flags are cleared; clearing bonds on this firmware always resets the PIN, so
+  the factory reminder reappears on the next connection. This also makes the app remind again after
+  `0x22 0x02` is run from the USB side. (The `pinChanged` flag was removed on 2026-11-12.)
+- Setting the PIN to `666666` via "Change PIN" no longer records it in `pinChangedUUIDs` and shows the
+  reminder again; `setPIN` only passes a boolean to the BLE queue, so the PIN plaintext is never retained.
 
-### 3.4 本地化
+### 3.4 Localization
 
-`en / zh-Hans / zh-Hant / ja / ko / fr` 追加 12 条文案。
+12 strings added to `en / zh-Hans / zh-Hant / ja / ko / fr`.
 
-## 4. 测试
+## 4. Tests
 
-- 单测：`clearLocalPairingState()` 清 3 个 key，保留 known UUID 与 PIN 改动标记。
-- `plutil -lint` 校验 6 个 `Localizable.strings`。
-- `xcodebuild test`（iPhone 17 Pro 模拟器）。
-- 真机待验证：改 PIN → 忘记配对 → 系统设置忽略 → 重新扫描 → 输入新 PIN。
+- Unit tests: `clearLocalPairingState()` clears the 3 keys and keeps known UUIDs plus the PIN-changed flag
+  (the latter was removed on 2026-11-12; the test now asserts known UUIDs are kept).
+- `plutil -lint` over the 6 `Localizable.strings` files.
+- `xcodebuild test` (iPhone 17 Pro simulator).
+- Real-device verification pending: change PIN → forget pairing → ignore in system settings → rescan → enter the new PIN.
 
-## 5. 文件清单
+## 5. File list
 
 - [x] `KeyCmd/Managers/BLEManager.swift`
-- [x] `KeyCmd/View/ContentView.swift`（顶层出厂 PIN 提醒横幅）
+- [x] `KeyCmd/View/ContentView.swift` (top-level factory-PIN reminder banner)
 - [x] `KeyCmd/View/Connection/BLESecuritySheet.swift`
 - [x] `KeyCmd/View/Connection/ConnectionDialogView.swift`
 - [x] `KeyCmd/View/GeneralSettingsView.swift`
 - [x] `KeyCmd/Resources/Localizations/*.lproj/Localizable.strings` × 6
 - [x] `KeyCmdTests/BLEManagerTests.swift`
-- [x] 本计划状态与勾选
+- [x] This plan's status and checkboxes
 
-## 6. 验证
+## 6. Verification
 
-- [x] `plutil -lint` 6 个 `Localizable.strings` 全部通过
-- [x] `BLEManagerTests` 14 项通过（含忘记配对与出厂 PIN 提醒开关）
-- [x] 全量 `xcodebuild test` 通过（406 tests, 0 failures）
-- [ ] 真机：改 PIN → 忘记配对 → 系统设置忽略 → 重新扫描 → 输入新 PIN
-- [ ] 真机：重置为 666666 → 重连 → 主界面出现修改 PIN 提醒 → Change 可直接改 PIN
+- [x] `plutil -lint` passes for all 6 `Localizable.strings`
+- [x] `BLEManagerTests` 14 tests pass (including forget pairing and the factory-PIN reminder switch)
+- [x] Full `xcodebuild test` passes (406 tests, 0 failures)
+- [ ] Real device: change PIN → forget pairing → ignore in system settings → rescan → enter the new PIN
+- [ ] Real device: reset to 666666 → reconnect → warn on the main screen → "Change" opens PIN editing directly
 
-## 7. 实施记录（2026-11-11）
+## 7. Implementation log (2026-11-11)
 
-- `BLEManager.forgetPairing()`：设 `suppressAutoReconnect`、停止扫描、断开连接；
-  清 `lastConnectedUUID/Name`、`pairedDeviceUUIDs`，保留 `knownDeviceUUIDs` 和 `pinChangedUUIDs`；
-  主线程复位连接/配对/安全状态。
-- `didDiscover` 自动连接分支增加 `suppressAutoReconnect` 判断，避免忘记配对后扫描立即回连；
-  手动点选设备仍正常。
-- `BLESecuritySheet` 新增“在此 iPhone 上忘记配对”区块、二次确认和结果页（系统设置步骤、
-  设备名复制、用新 PIN 重配提示）。
-- 未发送 `0x22 0x02`：该命令会把 PIN 恢复为 666666，与“改完 PIN 再测试”的目标冲突。
-- 新增 `factoryPINReminderEnabled` 开关（默认开），General 页可关闭出厂 PIN 提醒；
-  重置成功页明确显示“配对码已恢复为 666666”。
-- 设备侧清除绑定（`peerRemovedPairingInformation`）时同步清除本机 PIN 改动标记，
-  使出厂提醒在 USB 重置后也能重新出现。
-- 修复提醒不可见：`finalizeConnection` 设置提醒的同时关闭了连接弹窗，而横幅只在该弹窗内渲染。
-  现改为 `ContentView` 顶栏下方的全局横幅（仅连接时显示），Change 直接打开 `BLESecuritySheet`；
-  `ConnectionDialogView` 内重复横幅已删除。
-- 修复“把 PIN 改成 666666 后不再提醒”：`setPIN` 成功时若新 PIN 就是 666666，
-  不记入 `pinChangedUUIDs` 并重新置位提醒标记；只用布尔值传递，PIN 明文不保留。
-- 修改 PIN 的确认文案从页面顶部移到 Save 按钮正下方（`BLESecuritySheet.pinSection`），
-  避免用户停在按钮处时看不到成功提示。固件 `0x22 0x04` 只影响下一次配对、不断开现有
-  绑定，因此改完 PIN 后本机直接重连属于预期行为。
+- `BLEManager.forgetPairing()`: sets `suppressAutoReconnect`, stops scanning, disconnects; clears
+  `lastConnectedUUID/Name` and `pairedDeviceUUIDs`, keeps `knownDeviceUUIDs` and `pinChangedUUIDs`;
+  resets connection/pairing/security state on the main thread.
+- The auto-connect branch in `didDiscover` now checks `suppressAutoReconnect`, so scanning does not
+  immediately reconnect after forgetting; tapping a device manually still works.
+- `BLESecuritySheet` gains the "Forget pairing on this iPhone" section, a confirmation step and a result
+  page (system-settings steps, device-name copy, re-pair with the new PIN hint).
+- `0x22 0x02` is not sent: that command restores the PIN to 666666, which conflicts with "test a changed PIN".
+- New `factoryPINReminderEnabled` switch (on by default); the General page can turn the factory reminder
+  off; the reset success page states "Pairing PIN restored to 666666".
+- When the device clears bonds (`peerRemovedPairingInformation`), the local PIN-changed flag is cleared too,
+  so the factory reminder reappears after a USB-side reset.
+- Fixed an invisible reminder: `finalizeConnection` set the reminder while closing the connection dialog,
+  and the banner only rendered inside that dialog. It is now a global banner under the `ContentView` top
+  bar (only while connected) whose "Change" opens `BLESecuritySheet`; the duplicate banner inside
+  `ConnectionDialogView` was removed.
+- Fixed "no reminder after setting the PIN back to 666666": on a successful `setPIN`, if the new PIN is
+  666666 it is not recorded in `pinChangedUUIDs` and the reminder flag is re-armed; only a boolean is passed,
+  the PIN plaintext is never retained.
+- The PIN-change confirmation moved from the top of the page to directly below the Save button
+  (`BLESecuritySheet.pinSection`), so it stays visible while the user is at the button. Firmware
+  `0x22 0x04` only affects the next pairing and does not drop existing bonds, so reconnecting right after
+  a PIN change is expected.
 
-## 8. 后续可选项（需固件配合）
+## 8. Possible follow-up (needs firmware support)
 
-若希望真正“一键清空两侧绑定且保留新 PIN”，需要固件新增“擦除 bond、保留 PIN override”的命令；
-现有 `0x22 0x02` 无法满足。iOS 系统绑定仍只能由用户在 设置 > 蓝牙 中删除。
+A true "clear bonds on both sides while keeping the new PIN" needs a new firmware command that erases
+bonds but preserves the PIN override; the existing `0x22 0x02` cannot do that. iOS system bonds can still
+only be removed by the user in Settings > Bluetooth.
 
-## 9. PIN 分享（2026-11-11 已实现）
+## 9. PIN sharing (implemented 2026-11-11, superseded by §11)
 
-- 入口：`Pairing & Security` 页新增常驻 `Pairing PIN` 区块；只要本机缓存过该设备的 PIN，
-  随时可查看、`Copy` 或 `ShareLink`，不再要求先改 PIN。
-- 原因：固件从不上报当前 PIN，App 只在用户输入并保存成功的那一刻知道 PIN。
-  要实现“随时分享”，只能在本机缓存上次设置的值。
-- 存储：`PairingPINStore`（Keychain，service `com.openterface.keycmd.pairing-pin`，
-  account 为设备 UUID）。`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`，不参与同步，
-  不写日志、不写 UserDefaults。仅缓存该 App 自己设置过的 PIN。
-- 写入时机：
-  - `0x22 0x04` 设置 PIN 成功 → 缓存新 PIN；
-  - `0x22 0x02` 重置（含 `clearPairingHistory` 的 stale-bond 推断）→ 缓存 666666。
-- “忘记配对”不删除缓存：设备 PIN 未变，而且“改 PIN → 忘记配对 → 重新配对”
-  正需要这个值来查看/分享；与保留 `pinChangedUUIDs` 的语义一致。
-  缓存只在设备侧真正重置时被覆盖为 666666。
-- 过期风险：如果 PIN 被其他手机或 USB 改过，缓存无法感知；页面固定提示
-  “Last PIN set by this app… may be out of date if changed elsewhere.”。
-- 保存成功时仍在 Save 按钮下方显示 “Pairing PIN updated.”，同时 `Pairing PIN` 区块
-  立即换成新值；开始下一次保存时会短暂进入 `.savingPIN`。
-- 本地化：新增 `Pairing PIN` 与过期说明；移除原来“PIN 只保留在本页”的文案。
-- 验证：`PairingPINStoreTests` 覆盖保存/更新/删除/按设备隔离；全量 `xcodebuild test` 通过。
-- 真机待验证：改 PIN → 杀进程 → 重开 → Pairing & Security 仍可分享；忘记配对 → 缓存仍在（设备 PIN 未变）。
+> 2026-11-12: the Keychain cache + manual entry approach in this section was replaced by "read the PIN
+> from the device" in §11; `PairingPINStore` and the manual-entry UI were both removed.
 
-## 10. 设备标识符扫描（2026-11-11 已实现）
+- Entry point: a persistent `Pairing PIN` section on the `Pairing & Security` page; as long as the app had
+  cached that device's PIN, it could be viewed, copied or shared at any time, without changing the PIN first.
+- Rationale: the firmware never reported the current PIN, so the app only knew it at the moment the user
+  entered and saved it. "Share at any time" therefore required caching the last value set on this device.
+- Storage: `PairingPINStore` (Keychain, service `com.openterface.keycmd.pairing-pin`, account = device UUID).
+  `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`, no sync, no logging, no UserDefaults. It only cached PINs
+  this app had set itself.
+- Write points:
+  - `0x22 0x04` set-PIN success → cache the new PIN;
+  - `0x22 0x02` reset (including the stale-bond inference in `clearPairingHistory`) → cache 666666.
+- "Forget pairing" did not delete the cache: the device PIN is unchanged, and "change PIN → forget →
+  re-pair" is exactly the flow that needs the value for viewing/sharing; consistent with keeping
+  `pinChangedUUIDs`. The cache was only overwritten with 666666 when the device was actually reset.
+- Staleness risk: if the PIN was changed by another phone or over USB, the cache could not know; the page
+  showed the fixed note "Last PIN set by this app… may be out of date if changed elsewhere."
+- After a successful save, "Pairing PIN updated." still appeared below the Save button while the
+  `Pairing PIN` section switched to the new value immediately; the next save briefly entered `.savingPIN`.
+- Localization: added `Pairing PIN` and the staleness note; removed the old "PIN stays on this page" copy.
+- Verification: `PairingPINStoreTests` covered save/update/delete/per-device isolation; the full
+  `xcodebuild test` passed.
+- Real-device verification pending: change PIN → kill the app → relaunch → still shareable on
+  Pairing & Security; forget pairing → cache remains (device PIN unchanged).
+- Fixed "second open of `Pairing & Security` only shows Forget": the change/reset sections depended on a
+  local `bondStatus` assigned only when `onChange` saw `.ready`. On reopening, the device state had not
+  changed, so `.loading → .ready` could be coalesced by SwiftUI into one render, the callback never fired,
+  and `bondStatus` stayed nil. It now reads `BLEManager.pairingStatus` (set on `.ready`, cleared on
+  `.erased`/`.unsupportedFirmware`), so the page shows it immediately without relying on one-shot events.
+- Fixed the missing share entry: the `Pairing PIN` section only rendered when `cachedPairingPIN != nil`, and
+  the cache was only filled after this app successfully ran `0x22 0x04`; a PIN set by an older build or
+  another phone had no cache, so the page offered no sharing at all. It became a persistent section:
+  - with a cache → show the PIN plus `Edit` / `Copy` / `Share PIN`;
+  - without a cache → show a one-shot input where the user enters the current PIN and taps
+    `Save for Sharing`, writing to the same Keychain (`BLEManager.rememberPairingPIN`) without sending
+    `0x22 0x04` or changing the device PIN;
+  - the copy stated clearly "the device does not report the PIN" and "stored only on this device".
+- Verification: `plutil -lint` passed for the 6 localization files; full `xcodebuild test` passed (401 tests).
 
-- 问题：原发现逻辑要求广播名以 `openterface` / `kvm` / `keymod` 开头，
-  用户改成任意名称（如 `MyDevice`）后设备不再出现在扫描列表。
-- 固件事实（`APP/peripheral.c`）：`advertData` 在追加运行时名称之前，固定写入
-  `GAP_ADTYPE_16BIT_MORE` + `SIMPLEPROFILE_SERV_UUID`（`0xFFF0`，
-  `Profile/include/gattprofile.h`）。名称最长 20 字符且可改，服务 UUID 不变。
-- iOS 通过 `CBAdvertisementDataServiceUUIDsKey` 读取该 UUID，与设备名称无关。
-- 实现：
-  - `BLEManager.serviceUUID = CBUUID(string: "FFF0")`，`discoverServices` 复用同一常量。
-  - `isDiscoverableDevice(name:identifier:advertisedServices:)`：先判断广播中是否含
-    `FFF0`，含则直接接受任意名称；名称前缀仅作为旧固件未广播该 UUID 时的兼容回退；
-    最后仍接受 `lastConnectedUUID` / `knownDeviceUUIDs`。
-  - `didDiscover` 从 `advertisementData[CBAdvertisementDataServiceUUIDsKey]` 取出
-    广播服务并传入判定。
-  - `shouldAutoConnect`：已知设备 UUID 直接自动连接；名称比较优先用广播名，
-    避免 iOS 缓存的 `peripheral.name` 在改名后过期。
-  - 扫描本身仍不过滤服务：旧固件若未广播 `FFF0` 仍能靠名称前缀被发现。
-- 已知取舍：`0xFFF0` 是常见实验用服务 UUID（例如 HM-10 模块）。这类设备可能
-  出现在扫描列表，但连接后因缺少 `FFF1/FFF2` 会失败；这是 iOS 无法读取 MAC 地址
-  条件下可用的最稳定标识。
-- 测试：`testDiscoverableByAdvertisedServiceUUIDForAnyName` 覆盖任意名称 + `FFF0`
-  可发现、外来服务仍被拒绝。
+## 10. Device-identifier discovery (implemented 2026-11-11)
 
+- Problem: the original discovery logic required the advertised name to start with `openterface` / `kvm` /
+  `keymod`, so any custom name (e.g. `MyDevice`) dropped the device from the scan list.
+- Firmware fact (`APP/peripheral.c`): before appending the runtime name, `advertData` always writes
+  `GAP_ADTYPE_16BIT_MORE` + `SIMPLEPROFILE_SERV_UUID` (`0xFFF0`, `Profile/include/gattprofile.h`).
+  Names are at most 20 characters and editable; the service UUID never changes.
+- iOS reads that UUID through `CBAdvertisementDataServiceUUIDsKey`, independent of the device name.
+- Implementation:
+  - `BLEManager.serviceUUID = CBUUID(string: "FFF0")`, reused by `discoverServices`.
+  - `isDiscoverableDevice(name:identifier:advertisedServices:)`: if the advertisement contains `FFF0`,
+    accept any name; the name prefix is only a fallback for old firmware that does not advertise the UUID;
+    finally still accept `lastConnectedUUID` / `knownDeviceUUIDs`.
+  - `didDiscover` reads the advertised services from
+    `advertisementData[CBAdvertisementDataServiceUUIDsKey]` and passes them in.
+  - `shouldAutoConnect`: known device UUIDs auto-connect directly; name comparison prefers the advertised
+    name, so iOS's cached `peripheral.name` cannot go stale after a rename.
+  - Scanning itself still does not filter services: old firmware without the `FFF0` advertisement is still
+    found by name prefix.
+- Known trade-off: `0xFFF0` is a common experimental service UUID (e.g. HM-10 modules). Such devices may
+  appear in the scan list but fail to connect because they lack `FFF1/FFF2`; this is the most stable
+  identifier available when iOS cannot read MAC addresses.
+- Tests: `testDiscoverableByAdvertisedServiceUUIDForAnyName` covers any name + `FFF0` being discoverable
+  and foreign services still being rejected.
+
+## 11. Reading the PIN from the device (implemented 2026-11-12)
+
+- User feedback: sharing the PIN should not require manual entry; the PIN should be read from the Bluetooth
+  device and be copyable or revealable in a popup; old firmware has no PIN concept and must not raise a
+  "change PIN" reminder.
+- Firmware (`Openterface_KM/APP/peripheral.c`; requires reflashing, the firmware project was not built as
+  part of this change):
+  - added CH9329 `0x22 0x07` to read the effective PIN via `BLE_PairConfig_GetEffectivePin()`
+    (factory `666666` or the USB-side override);
+  - replies `A2 [status][6 ASCII digits]`, failures use `E2`;
+  - `uint8_t response[4]` widened to `[8]` to hold the 7-byte reply.
+- Protocol layer (`BLESecurityCommand`):
+  - `readPINFrame()` = `57 AB 00 22 01 07 2C`;
+  - `parsePIN(_:)` requires exactly 6 ASCII digits, otherwise nil.
+- `BLEManager`:
+  - `devicePIN` is memory-only (never persisted, never logged); plus `isReadingPairingPIN`;
+  - `fetchSecurityStatus()` (`0x03`) chains a `0x07` on success; `0x04` success re-reads, so the UI shows
+    the value the device actually applies;
+  - the factory reminder is now based on the read result: it only shows when this app is connecting for the
+    first time (`pendingFactoryReminderCheck`) and the PIN read is exactly `666666`;
+  - old firmware (`0x07` rejected or timed out) → silently clears `devicePIN`, no error, no reminder;
+  - when `0x03` is unsupported, `pairingStatus == nil` and the whole PIN section is hidden;
+  - switching devices, disconnecting, forgetting pairing or resetting clears all PIN state.
+- Old-firmware compatibility (added 2026-11-12):
+  - connections no longer probe `0x03` unconditionally: only "first connection with the factory reminder
+    enabled" probes, avoiding an extra round trip on every connection and a 5-second security window held
+    open on firmware without `0x22` support;
+  - the PIN section renders only when a value was read or a read is in progress; after a rejected/timed-out
+    `0x07` the section disappears entirely — no warning, no Retry, no manual read entry point;
+  - `0x03` returning `[00,00]` (old firmware stub) is treated as "no pairing PIN"; the page shows the
+    neutral note "This device firmware has no pairing PIN. Pairing is handled by iOS Settings > Bluetooth."
+    instead of "reset bonds over USB";
+  - outcome: on old firmware (the pre-2026-11-10 `0x22` stub) connecting, keyboard/touch, rename and ECM
+    are unaffected by the PIN feature.
+- UI (`BLESecuritySheet`, rendered only when `pairingStatus != nil` and a PIN was read):
+  - with a value → `••••••` plus an eye icon; tapping opens an `.alert` with the PIN; `Copy` copies and
+    shows "PIN copied." inline; `Share PIN` uses `ShareLink`; a note explains "read from the device, applies
+    to the next pairing";
+  - while reading → "Reading pairing PIN..." with a progress bar.
+- Removed: `PairingPINStore` (Keychain), `PairingPINStoreTests`, `pinChangedUUIDs` and
+  `hasChangedPIN` / `markPINChanged` / `clearPINChanged`, plus the manual-entry copy.
+- Localization: 9 stale strings removed, 4 new strings × 6 languages; the reminder banner now states a fact
+  ("This device still uses the factory PIN 666666", since it only shows after reading 666666); the old
+  "pairing management unsupported / USB reset" note was replaced by "no pairing PIN, pairing is handled by
+  iOS Settings".
+- Verification: `plutil -lint` passes for the 6 files; full `xcodebuild test` passes (411 tests), with new
+  `readPINFrame` / `parsePIN` / scanner-parsing tests.
+- Real-device verification pending: new firmware → Pairing & Security shows the device PIN automatically;
+  tap shows the popup; copy/share work; old firmware → no PIN section, no factory reminder, no error, and
+  everything else still works.
+
+## 12. Fixing the false factory-PIN reminder (2026-11-12)
+
+- Symptom: the device PIN was already changed to `888888`, but connecting from a new phone still warned
+  "the current PIN is 666666, please change it".
+- Cause: the new phone was running a pre-`0x07` build (`da6da95`) whose criterion was
+  `firstConnection && !hasPINChanged` — on a fresh install `hasPINChanged` is necessarily false, so the
+  very first connection warned unconditionally without ever reading the real device PIN. That build cannot
+  be corrected remotely; the new phone must install the current build.
+- Criterion in the current build (`BLEManager`):
+  - `showFactoryPINReminder` is only set when `0x22 0x07` actually reads back `666666`;
+  - reading any other value (e.g. `888888`) also clears an existing banner, so it self-corrects;
+  - new `reminderDeviceID`: the banner belongs to the device that reported it — kept when reconnecting to
+    the same unit, cleared immediately when switching devices (fixing the cross-device leak); also cleared
+    on disconnect, forget pairing and reset.
+- Verification: `xcodebuild test` 411 passed. Real-device check: tap the masked PIN on the Pairing & Security
+  page — it shows the device's actual value; if it reads `888888` while the banner is still there, the phone
+  is not running the current build.

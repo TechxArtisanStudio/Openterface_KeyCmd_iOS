@@ -578,7 +578,7 @@
 "The device may already be paired with another phone. Go to Settings > Bluetooth, tap the device, and choose \"Forget This Device\"." = "设备可能已与其他手机配对。请前往 设置 > 蓝牙，点按该设备并选择“忽略此设备”。";
 "Pairing timed out. Tap the Bluetooth card to try again." = "配对超时。点击蓝牙卡片重试。";
 "Could not start pairing. Move closer to the device and try again." = "无法开始配对。请靠近设备后重试。";
-"This device may still use the factory PIN 666666. Change it to keep others out." = "此设备可能仍在使用出厂配对码 666666。建议修改，防止他人连接。";
+"This device still uses the factory PIN 666666. Change it to keep others out." = "此设备仍在使用出厂配对码 666666。建议修改，防止他人连接。";
 "Change" = "修改";
 "Waiting for pairing..." = "正在配对…";
 "Enter the 6-digit PIN in the iOS prompt (factory default 666666)." = "请在 iOS 弹窗中输入 6 位配对码（出厂 666666）。";
@@ -587,8 +587,7 @@
 "Pairing slot is full" = "配对槽位已满";
 "Only one phone can be paired by default. More slots can be configured over USB." = "默认仅允许 1 台手机配对。更多槽位需通过 USB 配置。";
 "Loading pairing status..." = "正在读取配对状态…";
-"This device firmware does not support pairing management." = "该设备固件不支持配对管理。";
-"Connect over USB to reset pairing." = "请通过 USB 连接以重置配对。";
+"This device firmware has no pairing PIN. Pairing is handled by iOS Settings > Bluetooth." = "此设备固件没有配对码。配对由 iOS 的“设置 > 蓝牙”完成。";
 "Pairing PIN updated." = "配对码已更新。";
 "Resetting pairing..." = "正在重置配对…";
 "Change Pairing PIN" = "修改配对码";
@@ -622,4 +621,6 @@
 "Share PIN" = "分享 PIN";
 "Openterface pairing PIN: %@" = "Openterface 配对码：%@";
 "Pairing PIN" = "配对码";
-"Last PIN set by this app. The device does not report its current PIN, so it may be out of date if changed elsewhere." = "这是本 App 上次设置的 PIN。设备不会上报当前 PIN，如果曾在其他手机或 USB 上修改，这里可能已过期。";
+"Reading pairing PIN..." = "正在读取配对码...";
+"Read from the device over Bluetooth. It applies the next time a phone pairs." = "通过蓝牙从设备读取，下次手机配对时生效。";
+"PIN copied." = "配对码已复制。";

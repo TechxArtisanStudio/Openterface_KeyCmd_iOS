@@ -7,9 +7,11 @@ import Foundation
 /// CH9329 BLE security commands (Openterface extension, KeyMod firmware).
 /// Status: 57 AB 00 22 01 03 <sum>, reply A2 [status][count][maxBonds].
 /// Set PIN: 57 AB 00 22 07 04 <6 ASCII digits> <sum>, reply A2 [status].
+/// Read PIN: 57 AB 00 22 01 07 <sum>, reply A2 [status][6 ASCII digits].
 /// Erase:   57 AB 00 22 01 02 <sum>, reply A2 [status], then the device reboots.
 /// Success responses use cmd|0x80 (0xA2), failures cmd|0xC0 (0xE2).
-/// The firmware never returns the current PIN and rejects 0x05 over BLE.
+/// Older firmware rejects 0x07, which means the PIN cannot be read there.
+/// The firmware rejects 0x05 over BLE.
 enum BLESecurityCommand {
     static let cmd: UInt8 = 0x22
     static let responseCommands: Set<UInt8> = [0xA2, 0xE2]
@@ -35,6 +37,10 @@ enum BLESecurityCommand {
 
     static func readMaxBondsFrame() -> Data {
         BLENameCommand.frame(cmd: cmd, payload: [0x06])
+    }
+
+    static func readPINFrame() -> Data {
+        BLENameCommand.frame(cmd: cmd, payload: [0x07])
     }
 
     static func setPINFrame(_ pin: String) -> Data? {
@@ -70,5 +76,13 @@ enum BLESecurityCommand {
         let bytes = Array(payload)
         guard bytes.count == 1 else { return nil }
         return bytes[0]
+    }
+
+    /// Payload after the status byte of a 0x07 reply: six ASCII digits.
+    static func parsePIN(_ payload: Data) -> String? {
+        let bytes = Array(payload)
+        guard bytes.count == pinLength,
+              bytes.allSatisfy({ $0 >= 0x30 && $0 <= 0x39 }) else { return nil }
+        return String(decoding: bytes, as: UTF8.self)
     }
 }

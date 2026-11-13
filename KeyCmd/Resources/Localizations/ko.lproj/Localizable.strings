@@ -577,7 +577,7 @@
 "The device may already be paired with another phone. Go to Settings > Bluetooth, tap the device, and choose \"Forget This Device\"." = "기기가 이미 다른 휴대폰과 페어링되어 있을 수 있습니다. 설정 > Bluetooth에서 기기를 탭하고 \"이 기기 지우기\"를 선택하세요.";
 "Pairing timed out. Tap the Bluetooth card to try again." = "페어링 시간이 초과되었습니다. Bluetooth 카드를 눌러 다시 시도하세요.";
 "Could not start pairing. Move closer to the device and try again." = "페어링을 시작할 수 없습니다. 기기에 더 가까이 다가가 다시 시도하세요.";
-"This device may still use the factory PIN 666666. Change it to keep others out." = "이 기기는 아직 출고 시 PIN 666666을 사용 중일 수 있습니다. 다른 사람의 연결을 막으려면 변경하세요.";
+"This device still uses the factory PIN 666666. Change it to keep others out." = "이 기기는 아직 출고 시 PIN 666666을 사용 중입니다. 다른 사람의 연결을 막으려면 변경하세요.";
 "Change" = "변경";
 "Waiting for pairing..." = "페어링 대기 중...";
 "Enter the 6-digit PIN in the iOS prompt (factory default 666666)." = "iOS 창에 6자리 PIN을 입력하세요(출고 시 666666).";
@@ -586,8 +586,7 @@
 "Pairing slot is full" = "페어링 슬롯이 가득 찼습니다";
 "Only one phone can be paired by default. More slots can be configured over USB." = "기본적으로 휴대폰 1대만 페어링할 수 있습니다. 추가 슬롯은 USB로 설정할 수 있습니다.";
 "Loading pairing status..." = "페어링 상태를 불러오는 중...";
-"This device firmware does not support pairing management." = "이 기기의 펌웨어는 페어링 관리를 지원하지 않습니다.";
-"Connect over USB to reset pairing." = "USB로 연결하여 페어링을 초기화하세요.";
+"This device firmware has no pairing PIN. Pairing is handled by iOS Settings > Bluetooth." = "이 기기의 펌웨어에는 페어링 PIN이 없습니다. 페어링은 iOS 설정 > Bluetooth에서 처리됩니다.";
 "Pairing PIN updated." = "페어링 PIN이 업데이트되었습니다.";
 "Resetting pairing..." = "페어링 초기화 중...";
 "Change Pairing PIN" = "페어링 PIN 변경";
@@ -621,4 +620,6 @@
 "Share PIN" = "PIN 공유";
 "Openterface pairing PIN: %@" = "Openterface 페어링 PIN: %@";
 "Pairing PIN" = "페어링 PIN";
-"Last PIN set by this app. The device does not report its current PIN, so it may be out of date if changed elsewhere." = "이 App에서 마지막으로 설정한 PIN입니다. 기기는 현재 PIN을 보고하지 않으므로 다른 휴대폰이나 USB에서 변경했다면 오래된 값일 수 있습니다.";
+"Reading pairing PIN..." = "페어링 PIN 읽는 중...";
+"Read from the device over Bluetooth. It applies the next time a phone pairs." = "Bluetooth로 기기에서 읽어옵니다. 다음 휴대폰 페어링 시 적용됩니다.";
+"PIN copied." = "PIN을 복사했습니다.";

@@ -263,7 +263,7 @@ struct ContentView: View {
                 .font(.system(size: 15))
                 .foregroundColor(themeManager.accentColor)
 
-            Text("This device may still use the factory PIN 666666. Change it to keep others out.")
+            Text("This device still uses the factory PIN 666666. Change it to keep others out.")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

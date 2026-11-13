@@ -10,7 +10,8 @@ struct BLESecuritySheet: View {
     @ObservedObject var themeManager = ThemeManager.shared
     @State private var newPIN = ""
     @State private var confirmPIN = ""
-    @State private var bondStatus: BLESecurityCommand.Status?
+    @State private var showPINReveal = false
+    @State private var didCopyPIN = false
     @State private var showResetConfirm = false
     @State private var showForgetConfirm = false
     @State private var didForget = false
@@ -47,17 +48,15 @@ struct BLESecuritySheet: View {
                     } else {
                         statusView
 
-                        if let cachedPIN = bleManager.cachedPairingPIN {
-                            cachedPINSection(cachedPIN)
-                        }
+                        pairingPINSection
 
-                        if bondStatus != nil {
+                        if bleManager.pairingStatus != nil {
                             pinSection
                         }
 
                         forgetSection
 
-                        if bondStatus != nil {
+                        if bleManager.pairingStatus != nil {
                             resetSection
                         }
                     }
@@ -82,20 +81,14 @@ struct BLESecuritySheet: View {
         }
         .interactiveDismissDisabled(isBusy)
         .onAppear {
+            didCopyPIN = false
             bleManager.dismissSecurityResult()
             bleManager.fetchSecurityStatus()
         }
         .onChange(of: bleManager.securityState) { state in
-            switch state {
-            case .ready(let status):
-                bondStatus = status
-            case .pinSaved:
+            if case .pinSaved = state {
                 newPIN = ""
                 confirmPIN = ""
-            case .erased:
-                bondStatus = nil
-            default:
-                break
             }
         }
         .confirmationDialog(
@@ -106,13 +99,18 @@ struct BLESecuritySheet: View {
             Button("Reset Pairing", role: .destructive) { bleManager.erasePairing() }
             Button("Cancel", role: .cancel) {}
         }
+        .alert("Pairing PIN", isPresented: $showPINReveal) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(verbatim: bleManager.devicePIN ?? "")
+        }
     }
 
     // MARK: - Sections
 
     @ViewBuilder
     private var statusView: some View {
-        if let status = bondStatus {
+        if let status = bleManager.pairingStatus {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Paired phones: \(Int(status.bondCount)) of \(Int(status.maxBonds))")
                     .font(.system(size: 15, weight: .medium))
@@ -130,14 +128,10 @@ struct BLESecuritySheet: View {
             case .loading:
                 progressRow(text: Text("Loading pairing status..."))
             case .unsupportedFirmware:
-                VStack(alignment: .leading, spacing: 6) {
-                    Label("This device firmware does not support pairing management.", systemImage: "exclamationmark.triangle.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(.orange)
-                    Text("Connect over USB to reset pairing.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
+                Label("This device firmware has no pairing PIN. Pairing is handled by iOS Settings > Bluetooth.", systemImage: "info.circle.fill")
+                    .font(.system(size: 14))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             case .failure(let reason):
                 failureText(for: reason)
                     .font(.caption)
@@ -220,44 +214,72 @@ struct BLESecuritySheet: View {
         }
     }
 
+    /// Shows the PIN read from the device (0x22 0x07). The value is masked
+    /// until tapped so it is not visible at a glance; copy/share work without
+    /// revealing it on screen. Firmware without a readable PIN (0x07 rejected
+    /// or timed out) keeps this whole section hidden, so older units look
+    /// exactly like they did before the PIN feature existed.
     @ViewBuilder
-    private func cachedPINSection(_ pin: String) -> some View {
-        Divider()
+    private var pairingPINSection: some View {
+        if bleManager.pairingStatus != nil,
+           bleManager.devicePIN != nil || bleManager.isReadingPairingPIN {
+            Divider()
 
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Pairing PIN")
-                .font(.system(size: 15, weight: .bold))
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Pairing PIN")
+                    .font(.system(size: 15, weight: .bold))
 
-            HStack(spacing: 12) {
-                Text(pin)
-                    .font(.system(size: 18, weight: .semibold, design: .monospaced))
-                    .textSelection(.enabled)
+                if let pin = bleManager.devicePIN {
+                    HStack(spacing: 12) {
+                        Button {
+                            showPINReveal = true
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text(String(repeating: "•", count: pin.count))
+                                    .font(.system(size: 18, weight: .semibold, design: .monospaced))
+                                Image(systemName: "eye")
+                                    .font(.system(size: 13))
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundColor(themeManager.accentColor)
 
-                Spacer()
+                        Spacer()
 
-                Button {
-                    UIPasteboard.general.string = pin
-                } label: {
-                    Label("Copy", systemImage: "doc.on.doc")
-                        .font(.system(size: 13, weight: .semibold))
+                        Button {
+                            UIPasteboard.general.string = pin
+                            didCopyPIN = true
+                        } label: {
+                            Label("Copy", systemImage: "doc.on.doc")
+                                .font(.system(size: 13, weight: .semibold))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundColor(themeManager.accentColor)
+
+                        ShareLink(item: String(
+                            format: NSLocalizedString("Openterface pairing PIN: %@", comment: "PIN share message"),
+                            pin
+                        )) {
+                            Label("Share PIN", systemImage: "square.and.arrow.up")
+                                .font(.system(size: 13, weight: .semibold))
+                        }
+                        .foregroundColor(themeManager.accentColor)
+                    }
+
+                    if didCopyPIN {
+                        Label("PIN copied.", systemImage: "checkmark.circle.fill")
+                            .font(.caption2)
+                            .foregroundColor(.green)
+                    }
+
+                    Text("Read from the device over Bluetooth. It applies the next time a phone pairs.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    progressRow(text: Text("Reading pairing PIN..."))
                 }
-                .buttonStyle(.plain)
-                .foregroundColor(themeManager.accentColor)
-
-                ShareLink(item: String(
-                    format: NSLocalizedString("Openterface pairing PIN: %@", comment: "PIN share message"),
-                    pin
-                )) {
-                    Label("Share PIN", systemImage: "square.and.arrow.up")
-                        .font(.system(size: 13, weight: .semibold))
-                }
-                .foregroundColor(themeManager.accentColor)
             }
-
-            Text("Last PIN set by this app. The device does not report its current PIN, so it may be out of date if changed elsewhere.")
-                .font(.caption2)
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

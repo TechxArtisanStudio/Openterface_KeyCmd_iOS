@@ -580,7 +580,7 @@
 "The device may already be paired with another phone. Go to Settings > Bluetooth, tap the device, and choose \"Forget This Device\"." = "The device may already be paired with another phone. Go to Settings > Bluetooth, tap the device, and choose \"Forget This Device\".";
 "Pairing timed out. Tap the Bluetooth card to try again." = "Pairing timed out. Tap the Bluetooth card to try again.";
 "Could not start pairing. Move closer to the device and try again." = "Could not start pairing. Move closer to the device and try again.";
-"This device may still use the factory PIN 666666. Change it to keep others out." = "This device may still use the factory PIN 666666. Change it to keep others out.";
+"This device still uses the factory PIN 666666. Change it to keep others out." = "This device still uses the factory PIN 666666. Change it to keep others out.";
 "Change" = "Change";
 "Waiting for pairing..." = "Waiting for pairing...";
 "Enter the 6-digit PIN in the iOS prompt (factory default 666666)." = "Enter the 6-digit PIN in the iOS prompt (factory default 666666).";
@@ -589,8 +589,7 @@
 "Pairing slot is full" = "Pairing slot is full";
 "Only one phone can be paired by default. More slots can be configured over USB." = "Only one phone can be paired by default. More slots can be configured over USB.";
 "Loading pairing status..." = "Loading pairing status...";
-"This device firmware does not support pairing management." = "This device firmware does not support pairing management.";
-"Connect over USB to reset pairing." = "Connect over USB to reset pairing.";
+"This device firmware has no pairing PIN. Pairing is handled by iOS Settings > Bluetooth." = "This device firmware has no pairing PIN. Pairing is handled by iOS Settings > Bluetooth.";
 "Pairing PIN updated." = "Pairing PIN updated.";
 "Resetting pairing..." = "Resetting pairing...";
 "Change Pairing PIN" = "Change Pairing PIN";
@@ -624,4 +623,6 @@
 "Share PIN" = "Share PIN";
 "Openterface pairing PIN: %@" = "Openterface pairing PIN: %@";
 "Pairing PIN" = "Pairing PIN";
-"Last PIN set by this app. The device does not report its current PIN, so it may be out of date if changed elsewhere." = "Last PIN set by this app. The device does not report its current PIN, so it may be out of date if changed elsewhere.";
+"Reading pairing PIN..." = "Reading pairing PIN...";
+"Read from the device over Bluetooth. It applies the next time a phone pairs." = "Read from the device over Bluetooth. It applies the next time a phone pairs.";
+"PIN copied." = "PIN copied.";
